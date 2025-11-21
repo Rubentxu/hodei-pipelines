@@ -979,6 +979,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "hodei-auto-scaling"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "hodei-ml-prediction",
+ "hodei-orchestrator",
+ "hodei-shared-types",
+ "hodei-worker-lifecycle",
+ "serde",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "hodei-concurrency-patterns"
 version = "0.1.0"
 dependencies = [
@@ -1002,7 +1019,7 @@ dependencies = [
  "hodei-shared-types",
  "parking_lot",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
  "uuid",
@@ -1016,7 +1033,7 @@ dependencies = [
  "bincode",
  "hodei-shared-types",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -1037,7 +1054,7 @@ dependencies = [
  "serde_json",
  "tch",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
 ]
@@ -1052,7 +1069,7 @@ dependencies = [
  "hodei-worker-lifecycle",
  "parking_lot",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
 ]
@@ -1064,7 +1081,7 @@ dependencies = [
  "async-trait",
  "hodei-shared-types",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "tokio",
  "tokio-test",
  "tracing",
@@ -1079,7 +1096,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "uuid",
 ]
 
@@ -1092,7 +1109,7 @@ dependencies = [
  "hodei-shared-types",
  "parking_lot",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
  "uuid",

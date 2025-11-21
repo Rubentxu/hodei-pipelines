@@ -483,6 +483,7 @@ impl ModelValidator {
 }
 
 /// Prediction service for real-time inference
+#[derive(Debug)]
 pub struct PredictionService {
     model: Arc<RwLock<PredictionModel>>,
     feature_pipeline: Arc<RwLock<FeaturePipeline>>,

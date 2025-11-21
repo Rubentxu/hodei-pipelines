@@ -10,8 +10,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-uuid = { version = "1.6", features = ["v4", "serde"] }
+uuid = { workspace = true, features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
-thiserror = "1.0"
-anyhow = "1.0"
+thiserror = { workspace = true }
+anyhow = { workspace = true }

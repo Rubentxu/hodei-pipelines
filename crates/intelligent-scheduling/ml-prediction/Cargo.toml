@@ -26,11 +26,11 @@ tokio = { workspace = true }
 hodei-shared-types = { path = "../../shared-types" }
 
 # Error Handling
-thiserror = "1.0"
-anyhow = "1.0"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
 
 # Logging
-tracing = "0.1"
+tracing = { workspace = true }
 
 # Date/Time handling
 chrono = { version = "0.4", features = ["serde"] }

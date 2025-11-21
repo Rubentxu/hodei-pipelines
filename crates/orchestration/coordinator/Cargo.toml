@@ -14,7 +14,7 @@ hodei-concurrency-patterns = { path = "../concurrency-patterns" }
 tokio = { workspace = true }
 async-trait = "0.1"
 serde = { workspace = true }
-thiserror = "1.0"
+thiserror = { workspace = true }
 tracing = "0.1"
 uuid = { workspace = true }
 parking_lot = "0.12"

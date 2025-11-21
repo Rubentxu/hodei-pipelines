@@ -13,6 +13,6 @@ hodei-worker-lifecycle = { path = "../worker-lifecycle" }
 hodei-shared-types = { path = "../../shared-types" }
 tokio = { workspace = true }
 serde = { workspace = true }
-thiserror = "1.0"
-tracing = "0.1"
+thiserror = { workspace = true }
+tracing = { workspace = true }
 parking_lot = { workspace = true }

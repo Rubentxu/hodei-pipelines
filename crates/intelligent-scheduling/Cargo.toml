@@ -9,6 +9,7 @@ license.workspace = true
 [workspace]
 members = [
     "ml-prediction",
+    "auto-scaling",
 ]
 
 [dependencies]

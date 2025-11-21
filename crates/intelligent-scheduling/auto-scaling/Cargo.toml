@@ -1,0 +1,35 @@
+[package]
+name = "hodei-auto-scaling"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Hybrid Auto-scaling Engine with Predictive and Reactive Modes"
+license.workspace = true
+
+[dependencies]
+# ML Prediction integration
+hodei-ml-prediction = { path = "../ml-prediction" }
+
+# Async Runtime
+tokio = { workspace = true }
+
+# Types
+hodei-shared-types = { path = "../../shared-types" }
+hodei-orchestrator = { path = "../../orchestration/orchestrator" }
+hodei-worker-lifecycle = { path = "../../orchestration/worker-lifecycle" }
+
+# Error Handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+
+# Logging
+tracing = { workspace = true }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Async traits
+async-trait = { workspace = true }

@@ -10,9 +10,9 @@ license.workspace = true
 hodei-shared-types = { path = "../../shared-types" }
 hodei-coordinator = { path = "../coordinator" }
 tokio = { workspace = true }
-async-trait = "0.1"
+async-trait = { workspace = true }
 serde = { workspace = true }
-thiserror = "1.0"
-tracing = "0.1"
+thiserror = { workspace = true }
+tracing = { workspace = true }
 uuid = { workspace = true }
 parking_lot = { workspace = true }

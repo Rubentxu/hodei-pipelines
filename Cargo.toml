@@ -7,17 +7,21 @@ members = [
     "crates/orchestration/worker-lifecycle",
     "crates/orchestration/monitoring",
     "crates/intelligent-scheduling/ml-prediction",
+    "crates/intelligent-scheduling/auto-scaling",
     "crates/shared-types",
 ]
 resolver = "2"
 
 [workspace.dependencies]
-tokio = { version = "1.40", features = ["full"] }
+tokio = { version = "1.48", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
-thiserror = "1.0"
+thiserror = "2.0"
 anyhow = "1.0"
 uuid = { version = "1.18", features = ["v4"] }
 parking_lot = "0.12"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3", features = ["json"] }
+async-trait = "0.1"
 
 [profile.release]
 opt-level = 3
