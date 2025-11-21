@@ -1,0 +1,42 @@
+[package]
+name = "hodei-scheduler"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Kubernetes-Style Scheduler Framework for Hodei Jobs"
+license.workspace = true
+
+[dependencies]
+# Internal dependencies
+hodei-shared-types = { path = "../shared-types" }
+hodei-worker-lifecycle = { path = "../orchestration/worker-lifecycle" }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { workspace = true, features = ["v4", "serde"] }
+dashmap = "5.5"
+parking_lot = { version = "0.12", features = ["serde"] }
+
+# Async traits
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.0"
+tracing-subscriber = "0.3"
+
+[[example]]
+name = "scheduler_worker_integration"
+path = "examples/scheduler_worker_integration.rs"

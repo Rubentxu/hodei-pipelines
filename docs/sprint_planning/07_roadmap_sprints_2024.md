@@ -55,11 +55,11 @@ Sistema CI/CD Distribuido (Workspace Root)
 │   ├── messaging/                 # Sistema de mensajería
 │   └── persistence/               # Capa de persistencia
 │
-├── 🧠 Épica 2: Intelligent Scheduler & AI (118 puntos)
-│   ├── ml-engine/                 # Motor de ML
-│   ├── prediction/                # Predicción de carga
-│   ├── auto-scaling/              # Auto-scaling inteligente
-│   └── monitoring/                # ML-based monitoring
+├── 🧠 Épica 2: Kubernetes-Style Scheduler (118 puntos)
+│   ├── scheduler-framework/       # Scheduler pipeline (Informer→Filter→Score→Bind)
+│   ├── scheduling-strategies/     # Queue management y worker selection
+│   ├── scheduling-policies/       # Priority, affinity, taints/tolerations
+│   └── multi-backend/             # Support for K8s, Docker, Cloud VMs, etc.
 │
 ├── 🔐 Épica 3: Security & Compliance (87 puntos)
 │   ├── auth/                      # Autenticación

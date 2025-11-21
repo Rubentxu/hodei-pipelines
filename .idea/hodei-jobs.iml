@@ -4,6 +4,7 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/crates/intelligent-scheduling/auto-scaling/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/intelligent-scheduling/ml-prediction/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/intelligent-scheduling/rl-scheduling/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/orchestration/concurrency-patterns/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/orchestration/coordinator/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/orchestration/distributed-comm/src" isTestSource="false" />
@@ -11,6 +12,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/orchestration/orchestrator/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/orchestration/orchestrator/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/orchestration/worker-lifecycle/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/scheduler/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/shared-types/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />

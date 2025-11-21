@@ -187,11 +187,11 @@ Refs: #US-001, docs/core_platform_design.md
 
 **Dependencies**: None (primera historia)
 **Definition of Done**:
-- [ ] Job Entity implementado con estados PENDING, RUNNING, SUCCESS, FAILED
-- [ ] JobState Value Object con transiciones validadas
-- [ ] Tests TDD: 95% coverage en domain layer
-- [ ] Documentation actualizada para domain entities
-- [ ] Integration con cargo-clippy sin warnings
+- [x] Job Entity implementado con estados PENDING, RUNNING, SUCCESS, FAILED
+- [x] JobState Value Object con transiciones validadas
+- [x] Tests TDD: 95% coverage en domain layer
+- [x] Documentation actualizada para domain entities
+- [x] Integration con cargo-clippy sin warnings
 
 ---
 
@@ -276,12 +276,12 @@ Refs: #US-002, docs/distributed_communication_patterns.md
 
 **Dependencies**: US-001 (Job Entity para messaging)
 **Definition of Done**:
-- [ ] NATS JetStream connection con auto-reconnection
-- [ ] Topic management con streams optimizados
-- [ ] Message serialization/deserialization
-- [ ] Integration tests con NATS real
-- [ ] Performance benchmarks documentados
-- [ ] Error handling con circuit breaker
+- [x] NATS JetStream connection con auto-reconnection
+- [x] Topic management con streams optimizados
+- [x] Message serialization/deserialization
+- [x] Integration tests con NATS real
+- [x] Performance benchmarks documentados
+- [x] Error handling con circuit breaker
 
 ---
 
@@ -372,12 +372,12 @@ Refs: #US-003, docs/core_platform_design.md, docs/concurrency_patterns_rust.md
 
 **Dependencies**: US-001, US-002 (Job Entity + NATS)
 **Definition of Done**:
-- [ ] JobCoordinator con worker selection y load balancing
-- [ ] Failure detection y recovery automático
-- [ ] Worker pools para concurrencia
-- [ ] Graceful shutdown con state persistence
-- [ ] Load testing: >1000 jobs/min throughput
-- [ ] Integration tests con NATS y workers simulados
+- [x] JobCoordinator con worker selection y load balancing
+- [x] Failure detection y recovery automático
+- [x] Worker pools para concurrencia
+- [x] Graceful shutdown con state persistence
+- [x] Load testing: >1000 jobs/min throughput
+- [x] Integration tests con NATS y workers simulados
 
 ---
 
@@ -463,12 +463,12 @@ Refs: #US-004, docs/concurrency_patterns_rust.md
 
 **Dependencies**: US-003 (Coordinator implementado)
 **Definition of Done**:
-- [ ] Worker pools optimizados dinámicamente
-- [ ] Async/await patterns optimizados
-- [ ] Backpressure handling implementado
-- [ ] Memory profiling sin leaks
-- [ ] Prometheus metrics integradas
-- [ ] Performance benchmarks con flamegraphs
+- [x] Worker pools optimizados dinámicamente
+- [x] Async/await patterns optimizados
+- [x] Backpressure handling implementado
+- [x] Memory profiling sin leaks
+- [x] Prometheus metrics integradas
+- [x] Performance benchmarks con flamegraphs
 
 ---
 
@@ -565,12 +565,12 @@ Refs: #US-005, docs/core_platform_design.md
 
 **Dependencies**: US-003 (Coordinator para integration)
 **Definition of Done**:
-- [ ] Worker Entity con lifecycle states completos
-- [ ] WorkerManager con registration/deregistration
-- [ ] Health monitoring con heartbeat detection
-- [ ] Capability matching para job scheduling
-- [ ] Auto-recovery logic implementado
-- [ ] Integration tests con coordinator
+- [x] Worker Entity con lifecycle states completos
+- [x] WorkerManager con registration/deregistration
+- [x] Health monitoring con heartbeat detection
+- [x] Capability matching para job scheduling
+- [x] Auto-recovery logic implementado
+- [x] Integration tests con coordinator
 
 ---
 
@@ -669,12 +669,12 @@ Refs: #US-006, docs/scheduling_research/resource_monitoring_systems.md
 
 **Dependencies**: US-003, US-004, US-005 (Core components para metrics)
 **Definition of Done**:
-- [ ] Prometheus metrics exporter con key performance metrics
-- [ ] Automated benchmark suite con regression detection
-- [ ] Grafana dashboard con real-time monitoring
-- [ ] SLA monitoring con alerting automático
-- [ ] Load testing integration
-- [ ] CI/CD performance gates
+- [x] Prometheus metrics exporter con key performance metrics
+- [x] Automated benchmark suite con regression detection
+- [x] Grafana dashboard con real-time monitoring
+- [x] SLA monitoring con alerting automático
+- [x] Load testing integration
+- [x] CI/CD performance gates
 
 ---
 
