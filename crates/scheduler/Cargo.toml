@@ -39,4 +39,4 @@ tracing-subscriber = "0.3"
 
 [[example]]
 name = "scheduler_worker_integration"
-path = "examples/scheduler_worker_integration.rs"
+path = "../../examples/scheduler_worker_integration.rs"

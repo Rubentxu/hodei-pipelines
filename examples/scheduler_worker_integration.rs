@@ -6,16 +6,15 @@
 //!
 //! Run with: cargo run --example scheduler_worker_integration
 
-use hodei_scheduler::backend::{KubernetesBackend, SchedulerBackend, ComputeResource};
+use hodei_scheduler::backend::{ComputeResource, KubernetesBackend, SchedulerBackend};
 use hodei_scheduler::integration::SchedulerWorkerIntegration;
 use hodei_scheduler::types::{
-    BackendType, Job, JobMetadata, JobSpec, NodeSelector,
-    NodeAffinity, LabelSelector, WeightedLabelSelector,
-    LabelSelectorOperator, ResourceRequirements, JobPriority,
-    WorkerNode, BackendSpecific, KubernetesNodeSpecific, NodeLocation,
+    BackendSpecific, BackendType, Job, JobMetadata, JobPriority, JobSpec, KubernetesNodeSpecific,
+    LabelSelector, LabelSelectorOperator, NodeAffinity, NodeLocation, NodeSelector,
+    ResourceRequirements, WeightedLabelSelector, WorkerNode,
 };
-use hodei_worker_lifecycle::{WorkerManager, Worker, WorkerCapabilities};
 use hodei_shared_types::TenantId;
+use hodei_worker_lifecycle::{Worker, WorkerCapabilities, WorkerManager};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -30,24 +29,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Step 1: Create Worker Lifecycle Manager
     println!("📋 Step 1: Creating Worker Lifecycle Manager");
     let worker_manager = Arc::new(WorkerManager::new(
-        None, // No coordinator needed for this example
+        None,                    // No coordinator needed for this example
         Duration::from_secs(30), // Health check interval
         Duration::from_secs(10), // Heartbeat timeout
     ));
 
-    // Step 2: Create Scheduler Backend (Kubernetes in this example)
-    println!("☸️  Step 2: Creating Kubernetes Scheduler Backend");
-    let backend = Arc::new(KubernetesBackend::new(
-        "default".to_string(),
-        "https://kubernetes.default.svc:443".to_string(),
-    ));
+    // Step 2: Create Scheduler Backend (Mock for example)
+    println!("☸️  Step 2: Creating Mock Scheduler Backend");
+    let backend = Arc::new(KubernetesBackend::new());
 
     // Step 3: Create the Integration Coordinator
     println!("🔗 Step 3: Creating Scheduler-Worker Integration Coordinator");
-    let integration = SchedulerWorkerIntegration::new(
-        backend.clone(),
-        worker_manager.clone(),
-    );
+    let integration = SchedulerWorkerIntegration::new(backend.clone(), worker_manager.clone());
 
     // Step 4: Start the integration
     println!("▶️  Starting integration coordinator...");
@@ -62,18 +55,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Step 6: Create a sample job
     println!("📝 Step 6: Creating Sample Job");
     let job = create_sample_job();
-    println!("✅ Created job: {} (priority: {})\n", job.metadata.name, job.spec.priority);
+    println!(
+        "✅ Created job: {} (priority: {})\n",
+        job.metadata.name, job.spec.priority
+    );
 
     // Step 7: Find suitable workers for the job
     println!("🔍 Step 7: Finding Suitable Workers");
     match integration.find_suitable_workers(&job).await {
         Ok(workers) => {
             println!("✅ Found {} suitable workers:", workers.len());
-            for worker in workers {
+            for worker in &workers {
                 println!("   - Worker ID: {}", worker.id);
-                println!("     CPU: {:.1} cores, Memory: {} bytes",
-                    worker.resources.cpu_cores,
-                    worker.resources.memory_bytes
+                println!(
+                    "     CPU: {:.1} cores, Memory: {} bytes",
+                    worker.resources.cpu_cores, worker.resources.memory_bytes
                 );
             }
             println!();
@@ -85,7 +81,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let worker_id = first_worker.id;
 
                 integration.bind_job_to_worker(&job_id, &worker_id).await?;
-                println!("✅ Successfully bound job {} to worker {}\n", job_id, worker_id);
+                println!(
+                    "✅ Successfully bound job {} to worker {}\n",
+                    job_id, worker_id
+                );
 
                 // Step 9: Verify binding
                 println!("✅ Step 9: Verifying Job Binding");
@@ -98,7 +97,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Step 10: Simulate job completion
                 println!("✅ Step 10: Simulating Job Completion");
-                integration.unbind_job_from_worker(&job_id, &worker_id).await?;
+                integration
+                    .unbind_job_from_worker(&job_id, &worker_id)
+                    .await?;
                 println!("✅ Job unbound from worker\n");
             }
         }
@@ -121,12 +122,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Total workers: {}", worker_summaries.len());
 
     for summary in worker_summaries {
-        println!("   - Worker {}: state={}, load={:.2}, jobs={}/{}",
-            summary.worker_id,
-            summary.state,
-            summary.load,
-            summary.jobs_running,
-            summary.max_jobs
+        println!(
+            "   - Worker {}: state={}, load={:.2}, jobs={}",
+            summary.worker_id, summary.state, summary.load, summary.jobs_running
         );
     }
     println!();
@@ -149,58 +147,55 @@ async fn register_workers(
 
     // Worker 1: High-capacity node
     let worker1_id = Uuid::new_v4();
-    worker_manager
-        .register_worker(Worker::new(
-            worker1_id,
-            WorkerCapabilities {
-                cpu_cores: 16,
-                memory_gb: 64,
-                has_gpu: true,
-                gpu_count: Some(2),
-                specialized_hardware: vec!["nvme-ssd".to_string()],
-                container_runtime: "containerd".to_string(),
-            },
-            10, // max_jobs
-            None,
-        ))?;
+    worker_manager.register_worker(Worker::new(
+        worker1_id,
+        WorkerCapabilities {
+            cpu_cores: 16,
+            memory_gb: 64,
+            has_gpu: true,
+            gpu_count: Some(2),
+            specialized_hardware: vec!["nvme-ssd".to_string()],
+            container_runtime: "containerd".to_string(),
+        },
+        10, // max_jobs
+        None,
+    ))?;
     worker_ids.push(worker1_id);
     println!("   ✅ Registered worker 1 (ID: {})", worker1_id);
 
     // Worker 2: Medium-capacity node
     let worker2_id = Uuid::new_v4();
-    worker_manager
-        .register_worker(Worker::new(
-            worker2_id,
-            WorkerCapabilities {
-                cpu_cores: 8,
-                memory_gb: 32,
-                has_gpu: false,
-                gpu_count: None,
-                specialized_hardware: vec![],
-                container_runtime: "docker".to_string(),
-            },
-            5, // max_jobs
-            None,
-        ))?;
+    worker_manager.register_worker(Worker::new(
+        worker2_id,
+        WorkerCapabilities {
+            cpu_cores: 8,
+            memory_gb: 32,
+            has_gpu: false,
+            gpu_count: None,
+            specialized_hardware: vec![],
+            container_runtime: "docker".to_string(),
+        },
+        5, // max_jobs
+        None,
+    ))?;
     worker_ids.push(worker2_id);
     println!("   ✅ Registered worker 2 (ID: {})", worker2_id);
 
     // Worker 3: GPU node
     let worker3_id = Uuid::new_v4();
-    worker_manager
-        .register_worker(Worker::new(
-            worker3_id,
-            WorkerCapabilities {
-                cpu_cores: 4,
-                memory_gb: 16,
-                has_gpu: true,
-                gpu_count: Some(1),
-                specialized_hardware: vec!["cuda".to_string()],
-                container_runtime: "docker".to_string(),
-            },
-            3, // max_jobs
-            None,
-        ))?;
+    worker_manager.register_worker(Worker::new(
+        worker3_id,
+        WorkerCapabilities {
+            cpu_cores: 4,
+            memory_gb: 16,
+            has_gpu: true,
+            gpu_count: Some(1),
+            specialized_hardware: vec!["cuda".to_string()],
+            container_runtime: "docker".to_string(),
+        },
+        3, // max_jobs
+        None,
+    ))?;
     worker_ids.push(worker3_id);
     println!("   ✅ Registered worker 3 (ID: {})", worker3_id);
 
@@ -238,23 +233,19 @@ fn create_sample_job() -> Job {
                 },
             }),
             affinity: Some(NodeAffinity {
-                required_during_scheduling: vec![
-                    LabelSelector {
-                        key: "rack".to_string(),
-                        operator: LabelSelectorOperator::In,
-                        values: Some(vec!["rack-a".to_string(), "rack-b".to_string()]),
-                    }
-                ],
-                preferred_during_scheduling: vec![
-                    WeightedLabelSelector {
-                        selector: LabelSelector {
-                            key: "gpu".to_string(),
-                            operator: LabelSelectorOperator::Exists,
-                            values: None,
-                        },
-                        weight: 10,
-                    }
-                ],
+                required_during_scheduling: vec![LabelSelector {
+                    key: "rack".to_string(),
+                    operator: LabelSelectorOperator::In,
+                    values: Some(vec!["rack-a".to_string(), "rack-b".to_string()]),
+                }],
+                preferred_during_scheduling: vec![WeightedLabelSelector {
+                    selector: LabelSelector {
+                        key: "gpu".to_string(),
+                        operator: LabelSelectorOperator::Exists,
+                        values: None,
+                    },
+                    weight: 10,
+                }],
             }),
             tolerations: vec![],
             max_retries: 3,
