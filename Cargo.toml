@@ -6,6 +6,7 @@ members = [
     "crates/orchestration/concurrency-patterns",
     "crates/orchestration/worker-lifecycle",
     "crates/orchestration/monitoring",
+    "crates/intelligent-scheduling/ml-prediction",
     "crates/shared-types",
 ]
 resolver = "2"

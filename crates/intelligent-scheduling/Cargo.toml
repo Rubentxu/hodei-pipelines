@@ -1,0 +1,14 @@
+[package]
+name = "hodei-intelligent-scheduling"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Intelligent Scheduling with ML and AI"
+license.workspace = true
+
+[workspace]
+members = [
+    "ml-prediction",
+]
+
+[dependencies]
