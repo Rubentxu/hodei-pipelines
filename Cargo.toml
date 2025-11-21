@@ -9,6 +9,7 @@ members = [
     "crates/scheduler",
     "crates/shared-types",
     "crates/provider-abstraction",
+    "crates/kubernetes-provider",
 ]
 resolver = "2"
 
