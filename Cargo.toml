@@ -10,6 +10,7 @@ members = [
     "crates/shared-types",
     "crates/provider-abstraction",
     "crates/kubernetes-provider",
+    "crates/docker-provider",
 ]
 resolver = "2"
 
