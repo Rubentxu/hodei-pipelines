@@ -12,6 +12,7 @@ members = [
     "crates/kubernetes-provider",
     "crates/docker-provider",
     "crates/credential-rotation",
+    "crates/worker-lifecycle-manager",
 ]
 resolver = "2"
 
