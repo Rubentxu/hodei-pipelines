@@ -8,6 +8,7 @@ members = [
     "crates/orchestration/monitoring",
     "crates/scheduler",
     "crates/shared-types",
+    "crates/provider-abstraction",
 ]
 resolver = "2"
 

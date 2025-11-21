@@ -310,6 +310,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "hodei-provider-abstraction"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "dashmap",
+ "hodei-shared-types",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "hodei-scheduler"
 version = "0.1.0"
 dependencies = [
