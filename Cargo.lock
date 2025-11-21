@@ -1090,6 +1090,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "hodei-rl-scheduling"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode",
+ "hodei-shared-types",
+ "ndarray",
+ "rand",
+ "rand_distr",
+ "serde",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "hodei-shared-types"
 version = "0.1.0"
 dependencies = [
