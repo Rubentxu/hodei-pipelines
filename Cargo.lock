@@ -557,6 +557,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "hodei-credential-rotation"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "hodei-shared-types",
+ "rand",
+ "ring",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "hodei-distributed-comm"
 version = "0.1.0"
 dependencies = [
