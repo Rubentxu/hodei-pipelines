@@ -2,10 +2,9 @@
 //!
 //! This module provides factory patterns for creating and managing worker providers.
 
-use crate::models::{ProviderConfig, ProviderCredentials, ProviderType};
+use crate::models::{ProviderConfig, ProviderType};
 use crate::traits::WorkerProvider;
 use crate::{MockWorkerProvider, ProviderError};
-use std::collections::HashMap;
 
 /// Provider factory for creating and managing provider instances
 pub struct ProviderFactory {
@@ -24,7 +23,7 @@ impl ProviderFactory {
         provider_type: ProviderType,
         config: Option<ProviderConfig>,
     ) -> Result<Box<dyn WorkerProvider>, ProviderError> {
-        let provider_config = config.ok_or_else(|| {
+        let _provider_config = config.ok_or_else(|| {
             ProviderError::ConfigurationError("Provider configuration is required".to_string())
         })?;
 

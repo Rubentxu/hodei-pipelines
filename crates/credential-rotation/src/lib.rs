@@ -212,7 +212,8 @@ mod tests {
         engine.configure(config).await;
 
         // Verify configuration
-        let config_reader = engine.config.read().await;
+        let config = engine.get_config();
+        let config_reader = config.read().await;
         assert!(config_reader.policies.contains_key("test-policy"));
         assert_eq!(config_reader.event_retention_days, 90);
     }

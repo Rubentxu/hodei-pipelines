@@ -4,12 +4,10 @@
 //! credential rotations across providers with zero-downtime.
 
 use crate::CredentialRotationError;
-use crate::models::{RotationConfig, RotationEvent, RotationPolicy, RotationStatus};
-use crate::providers::{CredentialProvider, SimpleCredentialProvider};
-use async_trait::async_trait;
+use crate::models::{RotationConfig, RotationEvent};
+use crate::providers::CredentialProvider;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::RwLock;
 
 /// Credential rotation engine
@@ -42,6 +40,11 @@ impl RotationEngine {
     pub async fn configure(&self, config: RotationConfig) {
         let mut config_writer = self.config.write().await;
         *config_writer = config;
+    }
+
+    /// Get a read-only reference to the configuration
+    pub fn get_config(&self) -> Arc<RwLock<RotationConfig>> {
+        Arc::clone(&self.config)
     }
 
     /// Trigger a credential rotation

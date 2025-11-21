@@ -29,6 +29,7 @@ async-trait = { workspace = true }
 
 # Kubernetes integration
 kube = { version = "0.87", features = ["runtime", "derive", "client", "config"] }
+k8s-openapi = { version = "0.20", features = ["v1_27"] }
 
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
@@ -38,8 +39,6 @@ uuid = { workspace = true, features = ["v4", "serde"] }
 
 # Testing
 tempfile = "3.0"
-
-[dev-dependencies]
 
 [features]
 default = []

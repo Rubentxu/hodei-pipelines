@@ -8,7 +8,7 @@ use rand::Rng;
 /// Generate a random key
 pub fn generate_random_key(length: usize) -> Result<Vec<u8>, CredentialRotationError> {
     let mut rng = rand::thread_rng();
-    let key: Vec<u8> = (0..length).map(|_| rng.gen::<u8>()).collect();
+    let key: Vec<u8> = (0..length).map(|_| rng.r#gen::<u8>()).collect();
     Ok(key)
 }
 

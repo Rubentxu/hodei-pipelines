@@ -12,11 +12,9 @@
 //! - Event-driven state transitions
 //! - Performance metrics and observability
 
-use async_trait::async_trait;
 use chrono::Utc;
 use hodei_provider_abstraction::{
-    ProviderCapabilities, ProviderFactory, ProviderType, WorkerConfig, WorkerHandle,
-    WorkerProvider, WorkerStatus,
+    ProviderFactory, ProviderType, WorkerConfig, WorkerHandle, WorkerProvider, WorkerStatus,
 };
 use hodei_shared_types::worker_messages::WorkerId;
 use std::collections::HashMap;
@@ -428,16 +426,14 @@ mod tests {
             metrics_enabled: true,
         };
 
-        let manager = WorkerLifecycleManager::new(config).unwrap();
+        let mut manager = WorkerLifecycleManager::new(config).unwrap();
 
         // Register mock provider
-        let provider = Arc::new(hodei_provider_abstraction::MockWorkerProvider::new(
-            ProviderType::Kubernetes,
-        ));
-        let mut manager_mut =
-            unsafe { &*(manager as *const WorkerLifecycleManager) as *mut WorkerLifecycleManager };
-        manager_mut
-            .register_provider(ProviderType::Kubernetes, Arc::clone(&provider))
+        let provider: Arc<dyn WorkerProvider> = Arc::new(
+            hodei_provider_abstraction::MockWorkerProvider::new(ProviderType::Kubernetes),
+        );
+        manager
+            .register_provider(ProviderType::Kubernetes, provider)
             .await;
 
         // Create worker
@@ -495,11 +491,11 @@ mod tests {
         assert_eq!(stats.workers_running, 0);
 
         // Create worker to increment stats
-        let provider = Arc::new(hodei_provider_abstraction::MockWorkerProvider::new(
-            ProviderType::Kubernetes,
-        ));
+        let provider: Arc<dyn WorkerProvider> = Arc::new(
+            hodei_provider_abstraction::MockWorkerProvider::new(ProviderType::Kubernetes),
+        );
         manager
-            .register_provider(ProviderType::Kubernetes, Arc::clone(&provider))
+            .register_provider(ProviderType::Kubernetes, provider)
             .await;
 
         let worker_id = WorkerId::new();

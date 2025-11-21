@@ -13,14 +13,11 @@
 //! - Event publishing for state changes
 
 use async_trait::async_trait;
-use chrono::Utc;
 use hodei_provider_abstraction::{
-    MockWorkerProvider, ProviderCapabilities, ProviderError, ProviderType, ScalingConfiguration,
-    WorkerConfig, WorkerHandle, WorkerProvider, WorkerStatus,
+    MockWorkerProvider, ProviderCapabilities, ProviderError, ProviderType, WorkerConfig,
+    WorkerHandle, WorkerProvider, WorkerStatus,
 };
 use hodei_shared_types::worker_messages::WorkerId;
-use std::collections::HashMap;
-use std::time::SystemTime;
 
 /// Kubernetes-specific worker provider
 pub struct KubernetesProvider {
