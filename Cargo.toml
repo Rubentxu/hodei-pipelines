@@ -1,0 +1,40 @@
+[workspace]
+members = [
+    "crates/orchestration/orchestrator",
+    "crates/orchestration/distributed-comm",
+    "crates/orchestration/coordinator",
+    "crates/orchestration/concurrency-patterns",
+    "crates/orchestration/worker-lifecycle",
+    "crates/orchestration/monitoring",
+    "crates/shared-types",
+]
+resolver = "2"
+
+[workspace.dependencies]
+tokio = { version = "1.40", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+anyhow = "1.0"
+uuid = { version = "1.18", features = ["v4"] }
+parking_lot = "0.12"
+
+[profile.release]
+opt-level = 3
+debug = false
+strip = true
+codegen-units = 1
+
+[profile.dev]
+opt-level = 0
+debug = true
+strip = false
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Hodei Team"]
+license = "MIT"
+repository = "https://github.com/Rubentxu/hodei-jobs"
+keywords = ["cicd", "distributed", "orchestration", "rust"]
+categories = ["development-tools"]
+rust-version = "1.75"

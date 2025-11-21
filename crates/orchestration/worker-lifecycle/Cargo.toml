@@ -1,0 +1,18 @@
+[package]
+name = "hodei-worker-lifecycle"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Worker lifecycle management with health checks"
+license.workspace = true
+
+[dependencies]
+hodei-shared-types = { path = "../../shared-types" }
+hodei-coordinator = { path = "../coordinator" }
+tokio = { workspace = true }
+async-trait = "0.1"
+serde = { workspace = true }
+thiserror = "1.0"
+tracing = "0.1"
+uuid = { workspace = true }
+parking_lot = { workspace = true }

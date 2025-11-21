@@ -1,0 +1,20 @@
+[package]
+name = "hodei-orchestrator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Orchestrator crate for Job and Pipeline management"
+license.workspace = true
+
+[dependencies]
+hodei-shared-types = { path = "../../shared-types" }
+tokio = { version = "1.35", features = ["full"] }
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json"] }
+uuid = { version = "1.6", features = ["v4"] }
+
+[dev-dependencies]
+tokio-test = "0.4"

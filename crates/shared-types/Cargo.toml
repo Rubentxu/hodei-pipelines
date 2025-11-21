@@ -1,0 +1,17 @@
+[package]
+name = "hodei-shared-types"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Shared types and definitions for the Hodei CI/CD distributed system"
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+uuid = { version = "1.6", features = ["v4", "serde"] }
+serde = { version = "1.0", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+anyhow = "1.0"
