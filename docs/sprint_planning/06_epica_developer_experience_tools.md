@@ -341,7 +341,7 @@ fake = "2.5"
 proptest = "1.0"
 
 # Portal
-axum = "0.6"
+axum = "0.8"
 tower = "0.4"
 leptos = { version = "0.4", features = ["hydrate"] }
 ```

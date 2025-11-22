@@ -1,0 +1,72 @@
+[package]
+name = "e2e-tests"
+version = "0.1.0"
+edition = "2021"
+authors = ["hodei-jobs team"]
+license = "MIT"
+description = "End-to-end tests for hodei-jobs platform"
+
+[dependencies]
+# Core testing frameworks
+tokio = { workspace = true }
+tempfile = "3.12"
+uuid = { version = "1.10", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { version = "0.12", features = ["json"] }
+dotenvy = "0.15"
+
+# Testcontainers for Docker integration
+testcontainers = "0.25"
+
+# HTTP testing
+wiremock = "0.6"
+
+# Logging and observability
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+
+# Async utilities
+futures = "0.3"
+async-trait = { workspace = true }
+once_cell = "1.19"
+
+# Random testing data
+rand = "0.8"
+
+# Assertions
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# Additional dev dependencies for test development
+pretty_assertions = "1.4"
+
+[features]
+default = ["std"]
+std = []
+
+# Feature flags for different test types
+api-tests = []
+sdk-tests = []
+chaos-tests = []
+
+[[test]]
+name = "basic_integration"
+path = "tests/integration/basic_integration.rs"
+
+[[test]]
+name = "real_services_test"
+path = "tests/integration/real_services_test.rs"
+
+[profile.dev]
+opt-level = 0
+debug = true
+split-debuginfo = "unpacked"
+
+[profile.release]
+opt-level = 3
+debug = false
+panic = "abort"
+lto = true

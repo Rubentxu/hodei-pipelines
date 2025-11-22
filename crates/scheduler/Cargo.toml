@@ -6,23 +6,36 @@ authors.workspace = true
 description = "Kubernetes-Style Scheduler Framework for Hodei Jobs"
 license.workspace = true
 
+[[bin]]
+name = "scheduler"
+path = "src/main.rs"
+
 [dependencies]
 # Internal dependencies
 hodei-shared-types = { path = "../shared-types" }
 hodei-worker-lifecycle = { path = "../orchestration/worker-lifecycle" }
 
 # Async runtime
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
 
 # Serialization
 serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 
+# HTTP Server
+axum = { version = "0.7", features = ["json", "http2"] }
+tower = { version = "0.4", features = ["util", "timeout"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+hyper = { version = "1.0", features = ["full"] }
+http = { version = "1.0" }
+
 # Logging and tracing
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }

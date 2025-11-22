@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["-js", "-DV"]
+    healthcheck:
+      test: ["CMD", "nats", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - e2e-network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: hodei_jobs_test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - e2e-network
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - nats
+    networks:
+      - e2e-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.48
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "6831:6831/udp"
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+      COLLECTOR_ZIPKIN_HOST_PORT: ":9411"
+    depends_on:
+      - prometheus
+    networks:
+      - e2e-network
+
+volumes:
+  postgres_data:
+
+networks:
+  e2e-network:
+    driver: bridge

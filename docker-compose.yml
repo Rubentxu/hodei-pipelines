@@ -1,0 +1,194 @@
+version: '3.8'
+
+networks:
+  hodei-network:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  jaeger-data:
+
+services:
+  # Infrastructure Services
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - hodei-network
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "nats", "report"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hodei_jobs
+    ports:
+      - "5432:5432"
+    networks:
+      - hodei-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Observability
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    networks:
+      - hodei-network
+    volumes:
+      - prometheus-data:/prometheus
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "14250:14250"
+    networks:
+      - hodei-network
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:16686/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Application Services
+  orchestrator:
+    build:
+      context: ./crates/orchestration/orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    networks:
+      - hodei-network
+    environment:
+      ORCHESTRATOR_PORT: 8080
+      NATS_URL: nats://nats:4222
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hodei_jobs
+    depends_on:
+      nats:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  scheduler:
+    build:
+      context: ./crates/scheduler
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    networks:
+      - hodei-network
+    environment:
+      SCHEDULER_PORT: 8081
+      NATS_URL: nats://nats:4222
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hodei_jobs
+      ORCHESTRATOR_URL: http://orchestrator:8080
+    depends_on:
+      nats:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  worker-lifecycle-manager:
+    build:
+      context: ./crates/worker-lifecycle-manager
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    networks:
+      - hodei-network
+    environment:
+      WORKER_MANAGER_PORT: 8082
+      NATS_URL: nats://nats:4222
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hodei_jobs
+      ORCHESTRATOR_URL: http://orchestrator:8080
+      SCHEDULER_URL: http://scheduler:8081
+    depends_on:
+      nats:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+      scheduler:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    networks:
+      - hodei-network
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+volumes:
+  nats-data:
+  postgres-data:
+  prometheus-data:
+  jaeger-data:
+  grafana-data:
+
+# Development override - use this for local development
+# docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
