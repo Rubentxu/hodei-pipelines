@@ -24,7 +24,7 @@
 Crear un ecosistema completo de herramientas para desarrolladores que incluya SDKs multi-lenguaje, CLI avanzada, IDE plugins, self-service portal, code generation tools, y comprehensive documentation para acelerar el desarrollo y deployment en el sistema CI/CD distribuido.
 
 ### Developer Experience Stack
-- **Multi-Language SDKs**: Rust, Python, JavaScript/TypeScript, Go
+- **Multi-Language SDKs**: Rust, Python
 - **Advanced CLI Tools**: Interactive deployment, monitoring, debugging
 - **IDE Integrations**: VS Code, IntelliJ IDEA, Visual Studio plugins
 - **Self-Service Portal**: Developer dashboard, resource management

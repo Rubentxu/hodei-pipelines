@@ -102,6 +102,8 @@ impl WorkerProvider for KubernetesProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hodei_provider_abstraction::ScalingConfiguration;
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_kubernetes_provider_creation() {
