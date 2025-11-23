@@ -6,6 +6,6 @@ pub mod mtls;
 
 pub use audit::AuditLoggerAdapter;
 pub use config::SecurityConfig;
-pub use jwt::JwtTokenService;
+pub use jwt::{JwtConfig, JwtTokenService};
 pub use masking::AhoCorasickMasker;
 pub use mtls::TlsCertificateValidator;

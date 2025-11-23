@@ -121,7 +121,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // JWT Config
     let jwt_secret = std::env::var("HODEI_JWT_SECRET").unwrap_or_else(|_| "secret".to_string());
-    let token_service = Arc::new(hodei_adapters::security::JwtTokenService::new(jwt_secret));
+    let jwt_config = hodei_adapters::security::JwtConfig {
+        secret: jwt_secret,
+        expiration_seconds: 3600,
+    };
+    let token_service = Arc::new(hodei_adapters::security::JwtTokenService::new(jwt_config));
     let auth_interceptor = auth::AuthInterceptor::new(token_service);
 
     // mTLS Config

@@ -24,6 +24,9 @@ use crate::executor::ProcessManager;
 use crate::executor::pty::{PtyAllocation, PtySizeConfig};
 use crate::{AgentError, Config, Result};
 
+// Re-export tonic types for TLS
+use tonic::transport::{Certificate, Identity};
+
 /// gRPC client wrapper
 #[derive(Debug)]
 pub struct Client {
@@ -56,33 +59,34 @@ impl Client {
 
         if self.config.tls_enabled {
             info!("Configuring mTLS connection");
-            let cert_path =
-                self.config.tls_cert_path.as_ref().ok_or_else(|| {
-                    AgentError::Configuration("Missing TLS cert path".to_string())
-                })?;
+            let cert_path = self
+                .config
+                .tls_cert_path
+                .as_ref()
+                .ok_or_else(|| AgentError::Connection("Missing TLS cert path".to_string()))?;
             let key_path = self
                 .config
                 .tls_key_path
                 .as_ref()
-                .ok_or_else(|| AgentError::Configuration("Missing TLS key path".to_string()))?;
+                .ok_or_else(|| AgentError::Connection("Missing TLS key path".to_string()))?;
             let ca_path = self
                 .config
                 .tls_ca_path
                 .as_ref()
-                .ok_or_else(|| AgentError::Configuration("Missing TLS CA path".to_string()))?;
+                .ok_or_else(|| AgentError::Connection("Missing TLS CA path".to_string()))?;
 
             let cert = std::fs::read_to_string(cert_path)
-                .map_err(|e| AgentError::Configuration(format!("Failed to read cert: {}", e)))?;
+                .map_err(|e| AgentError::Connection(format!("Failed to read cert: {}", e)))?;
             let key = std::fs::read_to_string(key_path)
-                .map_err(|e| AgentError::Configuration(format!("Failed to read key: {}", e)))?;
+                .map_err(|e| AgentError::Connection(format!("Failed to read key: {}", e)))?;
             let ca = std::fs::read_to_string(ca_path)
-                .map_err(|e| AgentError::Configuration(format!("Failed to read CA: {}", e)))?;
+                .map_err(|e| AgentError::Connection(format!("Failed to read CA: {}", e)))?;
 
-            let identity = tonic::transport::Identity::from_pem(cert, key);
-            let ca_cert = tonic::transport::Certificate::from_pem(ca);
+            let identity = Identity::from_pem(cert, key);
+            let ca_cert = Certificate::from_pem(ca);
 
             let tls_config = tonic::transport::ClientTlsConfig::new()
-                .domain_name("localhost") // TODO: Make configurable
+                .domain_name("localhost")
                 .identity(identity)
                 .ca_certificate(ca_cert);
 
@@ -355,11 +359,17 @@ impl Client {
 
         // Initialize secret masker
         // In a real app, patterns would come from config or server
-        let masker = hodei_adapters::security::AhoCorasickMasker::new(vec![
-            "password".to_string(),
-            "secret".to_string(),
-            "key".to_string(),
-        ]);
+        // Simple text replacement for now (TODO: implement with AhoCorasick)
+        let secret_patterns = vec!["password", "secret", "key"];
+
+        let mask_text = |text: &str| {
+            let mut result = text.to_string();
+            for pattern in &secret_patterns {
+                let replacement = "[REDACTED]";
+                result = result.replace(pattern, replacement);
+            }
+            result
+        };
 
         // Wait for the job to complete
         // In a real implementation, we would:
@@ -388,7 +398,7 @@ impl Client {
 
         // Send completion log
         let log_msg = format!("Job completed with exit code: {}", exit_code);
-        let masked_log = masker.mask_text(&log_msg);
+        let masked_log = mask_text(&log_msg);
 
         let _ = tx
             .send(AgentMessage {

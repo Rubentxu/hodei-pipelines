@@ -12,14 +12,15 @@ use hwp_proto::{
 
 use hodei_core::{Worker, WorkerCapabilities, WorkerId};
 use hodei_modules::SchedulerModule;
-use hodei_ports::bus::EventBus;
-use hodei_ports::repository::{JobRepository, WorkerRepository};
-use hodei_ports::worker::WorkerClient;
+use hodei_ports::event_bus::EventPublisher;
+use hodei_ports::job_repository::JobRepository;
+use hodei_ports::worker_client::WorkerClient;
+use hodei_ports::worker_repository::WorkerRepository;
 
 pub struct HwpService<J, B, C, W>
 where
     J: JobRepository + Send + Sync + 'static,
-    B: EventBus + Send + Sync + 'static,
+    B: EventPublisher + Send + Sync + 'static,
     C: WorkerClient + Send + Sync + 'static,
     W: WorkerRepository + Send + Sync + 'static,
 {
@@ -29,7 +30,7 @@ where
 impl<J, B, C, W> HwpService<J, B, C, W>
 where
     J: JobRepository + Send + Sync + 'static,
-    B: EventBus + Send + Sync + 'static,
+    B: EventPublisher + Send + Sync + 'static,
     C: WorkerClient + Send + Sync + 'static,
     W: WorkerRepository + Send + Sync + 'static,
 {
@@ -42,11 +43,10 @@ where
 impl<J, B, C, W> WorkerService for HwpService<J, B, C, W>
 where
     J: JobRepository + Send + Sync + 'static,
-    B: EventBus + Send + Sync + 'static,
+    B: EventPublisher + Send + Sync + 'static,
     C: WorkerClient + Send + Sync + 'static,
     W: WorkerRepository + Send + Sync + 'static,
 {
-    type StreamLogsStream = Pin<Box<dyn Stream<Item = Result<Empty, Status>> + Send>>;
     type JobStreamStream = Pin<Box<dyn Stream<Item = Result<ServerMessage, Status>> + Send>>;
 
     async fn register_worker(
@@ -149,14 +149,5 @@ where
         Ok(Response::new(
             Box::pin(output_stream) as Self::JobStreamStream
         ))
-    }
-
-    async fn connect_worker(
-        &self,
-        request: Request<Streaming<AgentMessage>>,
-    ) -> Result<Response<Self::JobStreamStream>, Status> {
-        // This is the new method we added in the proto for bidirectional streaming
-        // It should behave similarly to job_stream but might be the primary entry point
-        self.job_stream(request).await
     }
 }
