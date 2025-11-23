@@ -15,7 +15,6 @@ use hodei_adapters::{
 };
 use hodei_core::{JobSpec, Worker, WorkerCapabilities};
 use hodei_modules::{OrchestratorModule, SchedulerModule};
-use prometheus::TextEncoder;
 use serde_json::{Value, json};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -140,7 +139,7 @@ async fn create_job(
 
 async fn get_job(
     State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(_id): axum::extract::Path<String>,
 ) -> Result<Json<Value>, StatusCode> {
     let job_id = hodei_core::JobId::new();
 
@@ -153,7 +152,7 @@ async fn get_job(
 
 async fn cancel_job(
     State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(_id): axum::extract::Path<String>,
 ) -> Result<Json<Value>, StatusCode> {
     let job_id = hodei_core::JobId::new();
 
@@ -191,7 +190,7 @@ async fn register_worker(
 
 async fn worker_heartbeat(
     State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Path(_id): axum::extract::Path<String>,
 ) -> Result<Json<Value>, StatusCode> {
     let worker_id = hodei_core::WorkerId::new();
 

@@ -36,6 +36,8 @@ help:
 	@echo "  make test-e2e           Run E2E tests only"
 	@echo "  make test-basic         Run basic integration tests"
 	@echo "  make test-real          Run real services tests"
+	@echo "  make test-real-services Run services tests (starts services first)"
+	@echo "  make test-log-streaming Run log streaming tests (starts worker-manager)"
 	@echo "  make test-all           Run comprehensive test suite"
 	@echo ""
 	@echo "🚀 RUNTIME COMMANDS:"
@@ -96,6 +98,26 @@ test-basic:
 test-real:
 	@echo "🧪 Running real services tests..."
 	$(CARGO) test $(TEST_PACKAGE) real_services_test --all-features
+
+### Run log streaming E2E tests (requires worker-manager running on port 8082)
+test-log-streaming:
+	@echo "🧪 Running Log Streaming E2E tests..."
+	@./scripts/test-log-streaming.sh
+
+### Run real services tests that need running services
+test-real-services:
+	@echo "🧪 Running real services tests..."
+	@echo "  → Building services..."
+	$(CARGO) build --bin orchestrator --bin scheduler --bin worker-manager
+	@echo "  → Starting all services..."
+	@make start-services -s
+	@echo "  → Waiting for services to be healthy..."
+	@sleep 5
+	@echo "  → Running real services tests..."
+	$(CARGO) test $(TEST_PACKAGE) real_services_test --all-features
+	@echo "  → Stopping services..."
+	@make stop-services -s
+	@echo "✅ Real services tests completed!"
 
 ### Run comprehensive test suite
 test-all:

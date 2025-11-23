@@ -1,0 +1,16 @@
+[package]
+name = "hodei-ports"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Ports (traits) for Hodei Jobs hexagonal architecture"
+license.workspace = true
+
+[dependencies]
+hodei-core = { path = "../core" }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }

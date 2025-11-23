@@ -57,6 +57,14 @@ name = "basic_integration"
 path = "tests/integration/basic_integration.rs"
 
 [[test]]
+name = "file_io_evidence_test"
+path = "tests/integration/file_io_evidence_test.rs"
+
+[[test]]
+name = "log_streaming_test"
+path = "tests/integration/log_streaming_test.rs"
+
+[[test]]
 name = "real_services_test"
 path = "tests/integration/real_services_test.rs"
 

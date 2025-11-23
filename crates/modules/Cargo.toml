@@ -1,0 +1,19 @@
+[package]
+name = "hodei-modules"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Application modules for Hodei Jobs - use cases"
+license.workspace = true
+
+[dependencies]
+hodei-core = { path = "../core" }
+hodei-ports = { path = "../ports" }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+dashmap = "5.5"
+tracing = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }

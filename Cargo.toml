@@ -6,6 +6,8 @@ members = [
     "crates/adapters",
     "crates/e2e-tests",
     "crates/hwp-proto",
+    "crates/hwp-agent",
+    "crates/security",
     "server",
     "crates/shared-types",
 ]
@@ -24,10 +26,12 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 hodei-core = { path = "crates/core" }
 hodei-ports = { path = "crates/ports" }
 hodei-modules = { path = "crates/modules" }
 hodei-adapters = { path = "crates/adapters" }
+hwp-proto = { path = "crates/hwp-proto" }
 
 [profile.release]
 opt-level = 3

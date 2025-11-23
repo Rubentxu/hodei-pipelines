@@ -29,6 +29,7 @@ coverage/
 
 # Docker
 .docker/
+docs/epics/
 
 # Temporary files
 *.tmp
@@ -82,3 +83,4 @@ coverage.xml
 *.pid
 *.seed
 *.pid.lock
+CODE_CONSOLIDATED.xml

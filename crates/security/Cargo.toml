@@ -1,0 +1,40 @@
+[package]
+name = "hodei-security"
+version.workspace = true
+edition.workspace = true
+description = "Enterprise security module for Hodei Jobs"
+license.workspace = true
+
+[dependencies]
+# Core
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+anyhow = { workspace = true }
+uuid = { workspace = true, features = ["v4", "serde"] }
+chrono = { workspace = true, features = ["serde"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Security specific dependencies
+rustls = "0.23"
+rustls-pemfile = "2.1"
+tokio-rustls = "0.26"
+x509-parser = "0.16"
+webpki-roots = "0.26"
+jsonwebtoken = "9.3"
+ring = "0.17"
+aho-corasick = "1.1"
+sha2 = "0.10"
+blake3 = "1.5"
+rand = "0.8"
+hmac = "0.12"
+sha1 = "0.10"
+serde_yaml = "0.5"
+hex = "0.4"
+time = "0.3"
+base64 = "0.13"
+
+[dev-dependencies]
+tempfile = "3.0"

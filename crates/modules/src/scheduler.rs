@@ -3,11 +3,10 @@ use hodei_core::{Job, JobId, Worker, WorkerCapabilities, WorkerId};
 use hodei_ports::{
     EventPublisher, JobRepository, JobRepositoryError, WorkerClient, WorkerRepository,
 };
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[derive(Debug, Clone)]
 pub struct SchedulerConfig {
@@ -44,7 +43,6 @@ struct QueueEntry {
     job: Job,
     priority: u8,
     enqueue_time: chrono::DateTime<chrono::Utc>,
-    tenant_id: Option<String>,
 }
 
 impl Ord for QueueEntry {
@@ -124,7 +122,6 @@ where
             job: job.clone(),
             priority,
             enqueue_time: chrono::Utc::now(),
-            tenant_id: None,
         };
 
         self.queue.write().await.push(entry);

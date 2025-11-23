@@ -1,0 +1,27 @@
+[package]
+name = "hodei-adapters"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Adapters (infrastructure implementations) for Hodei Jobs"
+license.workspace = true
+
+[dependencies]
+hodei-core = { path = "../core", features = ["sqlx"] }
+hodei-ports = { path = "../ports" }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+dashmap = "5.5"
+tracing = { workspace = true }
+tokio-util = { version = "0.7", features = ["codec"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Database dependencies
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+redb = "2.0"
+config = "0.14"
+futures = "0.3"
