@@ -15,10 +15,14 @@ use hodei_adapters::{
 };
 use hodei_core::{JobSpec, Worker, WorkerCapabilities};
 use hodei_modules::{OrchestratorModule, SchedulerModule};
+use prometheus::TextEncoder;
 use serde_json::{Value, json};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
+
+mod metrics;
+use metrics::MetricsRegistry;
 
 #[derive(Clone)]
 struct AppState {
@@ -32,6 +36,7 @@ struct AppState {
     >,
     orchestrator:
         Arc<OrchestratorModule<InMemoryJobRepository, InMemoryBus, InMemoryPipelineRepository>>,
+    metrics: MetricsRegistry,
 }
 
 #[tokio::main]
@@ -50,6 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pipeline_repo = Arc::new(InMemoryPipelineRepository::new());
     let event_bus = Arc::new(InMemoryBus::new(10_000));
     let worker_client = Arc::new(MockWorkerClient::new());
+    let metrics = MetricsRegistry::new().expect("Failed to initialize metrics registry");
 
     // Create modules
     let scheduler = Arc::new(SchedulerModule::new(
@@ -79,15 +85,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_state = AppState {
         scheduler: scheduler.clone(),
         orchestrator: orchestrator.clone(),
+        metrics: metrics.clone(),
     };
 
     let app = Router::new()
         .route("/health", get(health_handler))
         .route("/api/v1/jobs", post(create_job))
-        .route("/api/v1/jobs/:id", get(get_job))
-        .route("/api/v1/jobs/:id/cancel", post(cancel_job))
+        .route("/api/v1/jobs/{id}", get(get_job))
+        .route("/api/v1/jobs/{id}/cancel", post(cancel_job))
         .route("/api/v1/workers", post(register_worker))
-        .route("/api/v1/workers/:id/heartbeat", post(worker_heartbeat))
+        .route("/api/v1/workers/{id}/heartbeat", post(worker_heartbeat))
         .route("/api/v1/metrics", get(get_metrics))
         .layer(TraceLayer::new_for_http())
         .layer(
@@ -202,10 +209,12 @@ async fn worker_heartbeat(
     }
 }
 
-async fn get_metrics() -> Json<Value> {
-    Json(json!({
-        "architecture": "monolithic_modular",
-        "components": ["core", "ports", "modules", "adapters"],
-        "features": ["job_scheduling", "pipeline_orchestration", "worker_management"],
-    }))
+async fn get_metrics(State(state): State<AppState>) -> Result<String, StatusCode> {
+    match state.metrics.gather() {
+        Ok(metrics) => Ok(metrics),
+        Err(e) => {
+            tracing::error!("Failed to gather metrics: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
