@@ -1,19 +1,13 @@
 [workspace]
 members = [
-    "crates/orchestration/orchestrator",
-    "crates/orchestration/distributed-comm",
-    "crates/orchestration/coordinator",
-    "crates/orchestration/concurrency-patterns",
-    "crates/orchestration/worker-lifecycle",
-    "crates/orchestration/monitoring",
-    "crates/scheduler",
+    "crates/core",
+    "crates/ports",
+    "crates/modules",
+    "crates/adapters",
+    "crates/e2e-tests",
+    "crates/hwp-proto",
+    "server",
     "crates/shared-types",
-    "crates/provider-abstraction",
-    "crates/kubernetes-provider",
-    "crates/docker-provider",
-    "crates/credential-rotation",
-    "crates/worker-lifecycle-manager",
-    "crates/observability/metrics-collection",
 ]
 resolver = "2"
 
@@ -25,9 +19,15 @@ thiserror = "2.0"
 anyhow = "1.0"
 uuid = { version = "1.18", features = ["v4"] }
 parking_lot = "0.12"
+dashmap = "5.5"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+hodei-core = { path = "crates/core" }
+hodei-ports = { path = "crates/ports" }
+hodei-modules = { path = "crates/modules" }
+hodei-adapters = { path = "crates/adapters" }
 
 [profile.release]
 opt-level = 3
@@ -48,4 +48,4 @@ license = "MIT"
 repository = "https://github.com/Rubentxu/hodei-jobs"
 keywords = ["cicd", "distributed", "orchestration", "rust"]
 categories = ["development-tools"]
-rust-version = "1.75"
+rust-version = "1.90"

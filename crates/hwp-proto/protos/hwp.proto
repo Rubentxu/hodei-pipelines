@@ -1,0 +1,48 @@
+syntax = "proto3";
+package hwp;
+
+message WorkerRegistration {
+  string worker_id = 1;
+  repeated string capabilities = 2;
+}
+
+message WorkerStatus {
+  string worker_id = 1;
+  string state = 2;
+}
+
+message AssignJobRequest {
+  string job_id = 1;
+  string name = 2;
+  string image = 3;
+  repeated string command = 4;
+}
+
+message JobAccepted {
+  string job_id = 1;
+}
+
+message JobResult {
+  string job_id = 1;
+  int32 exit_code = 2;
+}
+
+message LogEntry {
+  string job_id = 1;
+  string data = 2;
+}
+
+message CancelJobRequest {
+  string job_id = 1;
+}
+
+message Empty {
+  // Empty message for gRPC responses
+}
+
+service WorkerService {
+  rpc RegisterWorker(WorkerRegistration) returns (WorkerStatus);
+  rpc AssignJob(AssignJobRequest) returns (JobAccepted);
+  rpc StreamLogs(stream LogEntry) returns (Empty);
+  rpc CancelJob(CancelJobRequest) returns (Empty);
+}

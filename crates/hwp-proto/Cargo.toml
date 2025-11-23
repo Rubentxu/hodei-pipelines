@@ -1,0 +1,25 @@
+[package]
+name = "hwp-proto"
+version = "0.1.0"
+edition = "2021"
+authors = ["Hodei Jobs Team"]
+description = "Hodei Worker Protocol (HWP) protobuf definitions"
+
+[dependencies]
+tonic = "0.10"
+prost = "0.12"
+prost-types = "0.12"
+tokio-stream = "0.1"
+
+[build-dependencies]
+tonic-build = "0.10"
+prost-build = "0.12"
+
+
+
+[lib]
+name = "hwp_proto"
+path = "src/lib.rs"
+
+[package.metadata.docs.rs]
+all-features = true
