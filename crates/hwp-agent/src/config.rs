@@ -25,6 +25,8 @@ pub struct Config {
     pub server_token: String,
     pub tls_enabled: bool,
     pub tls_cert_path: Option<String>,
+    pub tls_key_path: Option<String>,
+    pub tls_ca_path: Option<String>,
 
     /// Connection settings
     pub reconnect_initial_delay_ms: u64,
@@ -51,6 +53,8 @@ impl Default for Config {
             server_token: "".to_string(),
             tls_enabled: false,
             tls_cert_path: None,
+            tls_key_path: None,
+            tls_ca_path: None,
             reconnect_initial_delay_ms: 1000,
             reconnect_max_delay_ms: 60000,
             connection_timeout_ms: 5000,
@@ -78,6 +82,15 @@ impl Config {
         // Server URL (required)
         if let Ok(url) = env::var("HODEI_SERVER_URL") {
             config.server_url = url;
+        }
+        if let Ok(cert) = env::var("HODEI_TLS_CERT_PATH") {
+            config.tls_cert_path = Some(cert);
+        }
+        if let Ok(key) = env::var("HODEI_TLS_KEY_PATH") {
+            config.tls_key_path = Some(key);
+        }
+        if let Ok(ca) = env::var("HODEI_TLS_CA_PATH") {
+            config.tls_ca_path = Some(ca);
         }
 
         // Server token (required)

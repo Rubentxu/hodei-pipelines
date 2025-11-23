@@ -1,6 +1,6 @@
 use aho_corasick::AhoCorasick;
 use async_trait::async_trait;
-use hodei_ports::security::{Result, SecretMasker};
+use hodei_ports::security::SecretMasker;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]

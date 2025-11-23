@@ -1,80 +1,43 @@
 [package]
 name = "e2e-tests"
-version = "0.1.0"
-edition = "2021"
-authors = ["hodei-jobs team"]
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
 description = "End-to-end tests for hodei-jobs platform"
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
-# Core testing frameworks
+# Workspace async and utilities
 tokio = { workspace = true }
-tempfile = "3.12"
-uuid = { version = "1.10", features = ["v4"] }
-chrono = { version = "0.4", features = ["serde"] }
+futures = { workspace = true }
+async-trait = { workspace = true }
+once_cell = { workspace = true }
+rand = { workspace = true }
+
+# Workspace serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
-reqwest = { version = "0.12", features = ["json"] }
-dotenvy = "0.15"
+chrono = { workspace = true }
 
-# Testcontainers for Docker integration
-testcontainers = "0.25"
+# HTTP
+reqwest = { workspace = true, features = ["json"] }
 
-# HTTP testing
-wiremock = "0.6"
-
-# Logging and observability
+# Testing
+tempfile = { workspace = true }
+testcontainers = { workspace = true }
+wiremock = { workspace = true }
+dotenvy = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+pretty_assertions = { workspace = true }
 
-# Async utilities
-futures = "0.3"
-async-trait = { workspace = true }
-once_cell = "1.19"
-
-# Random testing data
-rand = "0.8"
-
-# Assertions
-anyhow = { workspace = true }
-thiserror = { workspace = true }
-
-[dev-dependencies]
-# Additional dev dependencies for test development
-pretty_assertions = "1.4"
+# Workspace crates
+uuid = { workspace = true, features = ["v4"] }
 
 [features]
-default = ["std"]
+default = []
 std = []
-
-# Feature flags for different test types
 api-tests = []
 sdk-tests = []
 chaos-tests = []
-
-[[test]]
-name = "basic_integration"
-path = "tests/integration/basic_integration.rs"
-
-[[test]]
-name = "file_io_evidence_test"
-path = "tests/integration/file_io_evidence_test.rs"
-
-[[test]]
-name = "log_streaming_test"
-path = "tests/integration/log_streaming_test.rs"
-
-[[test]]
-name = "real_services_test"
-path = "tests/integration/real_services_test.rs"
-
-[profile.dev]
-opt-level = 0
-debug = true
-split-debuginfo = "unpacked"
-
-[profile.release]
-opt-level = 3
-debug = false
-panic = "abort"
-lto = true

@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use hodei_ports::security::{CertificateValidator, Result, SecurityError};
 use serde::Deserialize;
 use std::fs;
-use x509_parser::prelude::*;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MtlsConfig {
@@ -12,6 +11,7 @@ pub struct MtlsConfig {
 
 pub struct TlsCertificateValidator {
     config: MtlsConfig,
+    #[allow(dead_code)]
     ca_cert: Option<Vec<u8>>,
 }
 

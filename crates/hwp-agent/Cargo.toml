@@ -4,57 +4,41 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-# Core async runtime
+# Workspace dependencies
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true }
-
-# gRPC client
-tonic = { version = "0.10", features = ["gzip", "transport"] }
-prost = "0.12"
-prost-types = "0.12"
-hwp-proto = { path = "../hwp-proto" }
-
-# PTY support
-portable-pty = "0.8"
-
-# Resource monitoring
-sysinfo = "0.30"
-
-# Logging
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["json", "fmt"] }
-
-# Configuration
 serde = { workspace = true, features = ["derive"] }
-config = "0.14"
-
-# Utilities
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 chrono = { workspace = true, features = ["serde"] }
-hostname = "0.3"
+config = { workspace = true }
 
-# HTTP for artifacts
-reqwest = { version = "0.12", features = ["json", "stream"] }
+# gRPC
+hwp-proto = { workspace = true }
+tonic = { workspace = true, features = ["gzip", "transport"] }
 
-# Compression
-flate2 = "1.0"
+# PTY, monitoring, and utilities
+portable-pty = { workspace = true }
+sysinfo = { workspace = true }
+hostname = { workspace = true }
+reqwest = { workspace = true, features = ["json", "stream"] }
+flate2 = { workspace = true }
 
-# Security module (optional)
-# hodei-security = { path = "../security", optional = true }
-
-[features]
-# security = ["hodei-security"]
+# HTTP utilities
+tokio-util = { workspace = true, features = ["codec"] }
 
 [build-dependencies]
-tonic-build = { version = "0.11", features = ["prost"] }
+tonic-prost-build = { workspace = true }
+prost-build = { workspace = true }
 
 [[bin]]
 name = "hwp-agent"
 path = "src/main.rs"
 
 [dev-dependencies]
-tempfile = "3.0"
-assert_matches = "1.5"
+tempfile = { workspace = true }
+assert_matches = { workspace = true }

@@ -5,29 +5,42 @@ edition.workspace = true
 authors.workspace = true
 description = "Adapters (infrastructure implementations) for Hodei Jobs"
 license.workspace = true
+repository.workspace = true
 
 [dependencies]
-hodei-core = { path = "../core", features = ["sqlx"] }
-hodei-ports = { path = "../ports" }
+# Workspace core crates
+hodei-core = { workspace = true, features = ["sqlx"] }
+hodei-ports = { workspace = true }
+
+# Workspace async and utilities
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["codec"] }
+futures = { workspace = true }
+
+# Workspace serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+chrono = { workspace = true }
+
+# Workspace error handling
 thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Workspace utilities
 uuid = { workspace = true }
-dashmap = "5.5"
 tracing = { workspace = true }
-tokio-util = { version = "0.7", features = ["codec"] }
-chrono = { version = "0.4", features = ["serde"] }
 
-# Database dependencies
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-redb = "2.0"
-config = "0.14"
-futures = "0.3"
+# Database
+sqlx = { workspace = true }
+redb = { workspace = true }
+config = { workspace = true }
 
-# Security dependencies
-jsonwebtoken = "9.2"
-aho-corasick = "1.1"
-rustls = "0.21"
-x509-parser = "0.15"
+# Security
+jsonwebtoken = { workspace = true }
+aho-corasick = { workspace = true }
+rustls = { workspace = true }
+x509-parser = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

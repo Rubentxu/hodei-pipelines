@@ -51,8 +51,47 @@ impl Client {
     pub async fn connect(&mut self) -> Result<()> {
         info!("Connecting to server at {}", self.config.server_url);
 
-        let channel = Channel::from_shared(self.config.server_url.clone())
-            .map_err(|e| AgentError::Connection(e.to_string()))?
+        let mut endpoint = Channel::from_shared(self.config.server_url.clone())
+            .map_err(|e| AgentError::Connection(e.to_string()))?;
+
+        if self.config.tls_enabled {
+            info!("Configuring mTLS connection");
+            let cert_path =
+                self.config.tls_cert_path.as_ref().ok_or_else(|| {
+                    AgentError::Configuration("Missing TLS cert path".to_string())
+                })?;
+            let key_path = self
+                .config
+                .tls_key_path
+                .as_ref()
+                .ok_or_else(|| AgentError::Configuration("Missing TLS key path".to_string()))?;
+            let ca_path = self
+                .config
+                .tls_ca_path
+                .as_ref()
+                .ok_or_else(|| AgentError::Configuration("Missing TLS CA path".to_string()))?;
+
+            let cert = std::fs::read_to_string(cert_path)
+                .map_err(|e| AgentError::Configuration(format!("Failed to read cert: {}", e)))?;
+            let key = std::fs::read_to_string(key_path)
+                .map_err(|e| AgentError::Configuration(format!("Failed to read key: {}", e)))?;
+            let ca = std::fs::read_to_string(ca_path)
+                .map_err(|e| AgentError::Configuration(format!("Failed to read CA: {}", e)))?;
+
+            let identity = tonic::transport::Identity::from_pem(cert, key);
+            let ca_cert = tonic::transport::Certificate::from_pem(ca);
+
+            let tls_config = tonic::transport::ClientTlsConfig::new()
+                .domain_name("localhost") // TODO: Make configurable
+                .identity(identity)
+                .ca_certificate(ca_cert);
+
+            endpoint = endpoint
+                .tls_config(tls_config)
+                .map_err(|e| AgentError::Connection(format!("Failed to configure TLS: {}", e)))?;
+        }
+
+        let channel = endpoint
             .connect()
             .await
             .map_err(|e| AgentError::Connection(e.to_string()))?;
@@ -62,22 +101,34 @@ impl Client {
         Ok(())
     }
 
-    /// Handle the bidirectional stream for job execution
+    /// Handle the bidirectional stream
     pub async fn handle_stream(&mut self) -> Result<()> {
         let channel = self
             .channel
             .as_ref()
             .ok_or_else(|| AgentError::Connection("Not connected".to_string()))?;
 
-        // Create WorkerServiceClient with interceptor
+        // Create the gRPC client with auth interceptor
         let mut client =
             WorkerServiceClient::with_interceptor(channel.clone(), self.interceptor.clone());
 
-        // Register this worker with the server
-        info!("Registering worker {} with server", self.config.worker_id);
+        // Create the outgoing channel for messages from agent to server
+        let (tx, rx) = mpsc::channel(100);
+        let outbound = ReceiverStream::new(rx);
+
+        // Connect to the server with the bidirectional stream
+        let response = client
+            .job_stream(outbound)
+            .await
+            .map_err(|e| AgentError::Connection(e.to_string()))?;
+
+        let mut inbound = response.into_inner();
+        info!("Bidirectional stream established");
+
+        // Send initial registration
         let registration = WorkerRegistration {
             worker_id: self.config.worker_id.clone(),
-            capabilities: vec!["docker".to_string(), "shell".to_string()],
+            capabilities: vec!["linux".to_string(), "docker".to_string(), "pty".to_string()],
         };
 
         let response: Response<WorkerStatus> = client
@@ -302,6 +353,14 @@ impl Client {
             })
             .await;
 
+        // Initialize secret masker
+        // In a real app, patterns would come from config or server
+        let masker = hodei_adapters::security::AhoCorasickMasker::new(vec![
+            "password".to_string(),
+            "secret".to_string(),
+            "key".to_string(),
+        ]);
+
         // Wait for the job to complete
         // In a real implementation, we would:
         // 1. Stream stdout/stderr in real-time
@@ -328,11 +387,14 @@ impl Client {
         };
 
         // Send completion log
+        let log_msg = format!("Job completed with exit code: {}", exit_code);
+        let masked_log = masker.mask_text(&log_msg);
+
         let _ = tx
             .send(AgentMessage {
                 payload: Some(AgentPayload::LogEntry(LogEntry {
                     job_id: job_id.clone(),
-                    data: format!("Job completed with exit code: {}", exit_code),
+                    data: masked_log,
                 })),
             })
             .await;

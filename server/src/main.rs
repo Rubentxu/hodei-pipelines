@@ -23,6 +23,9 @@ use tracing::info;
 mod metrics;
 use metrics::MetricsRegistry;
 
+mod auth;
+mod grpc;
+
 #[derive(Clone)]
 struct AppState {
     scheduler: Arc<
@@ -107,6 +110,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     info!("📡 Server listening on http://localhost:{}", port);
     info!("🏗️  Architecture: Monolithic Modular (Hexagonal)");
+
+    // Start gRPC server
+    let grpc_port = std::env::var("HODEI_GRPC_PORT")
+        .unwrap_or_else(|_| "50051".to_string())
+        .parse::<u16>()?;
+    let grpc_addr = format!("0.0.0.0:{}", grpc_port).parse()?;
+
+    let hwp_service = grpc::HwpService::new(scheduler.clone());
+
+    // JWT Config
+    let jwt_secret = std::env::var("HODEI_JWT_SECRET").unwrap_or_else(|_| "secret".to_string());
+    let token_service = Arc::new(hodei_adapters::security::JwtTokenService::new(jwt_secret));
+    let auth_interceptor = auth::AuthInterceptor::new(token_service);
+
+    // mTLS Config
+    let cert_path = std::env::var("HODEI_TLS_CERT_PATH").unwrap_or_default();
+    let key_path = std::env::var("HODEI_TLS_KEY_PATH").unwrap_or_default();
+    let ca_path = std::env::var("HODEI_TLS_CA_PATH").unwrap_or_default();
+
+    let mut builder = tonic::transport::Server::builder();
+
+    if !cert_path.is_empty() && !key_path.is_empty() && !ca_path.is_empty() {
+        info!("Configuring mTLS for gRPC server");
+        let cert = std::fs::read_to_string(cert_path)?;
+        let key = std::fs::read_to_string(key_path)?;
+        let ca = std::fs::read_to_string(ca_path)?;
+
+        let identity = tonic::transport::Identity::from_pem(cert, key);
+        let client_ca = tonic::transport::Certificate::from_pem(ca);
+
+        builder = builder.tls_config(
+            tonic::transport::ServerTlsConfig::new()
+                .identity(identity)
+                .client_ca_root(client_ca),
+        )?;
+    }
+
+    info!("📡 gRPC Server listening on {}", grpc_addr);
+
+    tokio::spawn(async move {
+        if let Err(e) = builder
+            .add_service(hwp_proto::WorkerServiceServer::with_interceptor(
+                hwp_service,
+                auth_interceptor,
+            ))
+            .serve(grpc_addr)
+            .await
+        {
+            tracing::error!("gRPC Server failed: {}", e);
+        }
+    });
 
     axum::serve(listener, app).await?;
 

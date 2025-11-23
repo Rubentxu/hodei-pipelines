@@ -5,12 +5,22 @@ edition.workspace = true
 authors.workspace = true
 description = "Ports (traits) for Hodei Jobs hexagonal architecture"
 license.workspace = true
+repository.workspace = true
 
 [dependencies]
-hodei-core = { path = "../core" }
+# Workspace core crates
+hodei-core = { workspace = true }
+
+# Workspace async and serialization
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
-thiserror = { workspace = true }
-uuid = { workspace = true }
 chrono = { workspace = true }
+
+# Workspace error handling
+thiserror = { workspace = true }
+
+# Workspace utilities
+uuid = { workspace = true }
+
+[dev-dependencies]

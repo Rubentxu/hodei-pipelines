@@ -5,23 +5,24 @@ edition.workspace = true
 authors.workspace = true
 description = "Hodei Jobs Server - Monolithic Modular Architecture"
 license.workspace = true
-
-[[bin]]
-name = "hodei-server"
-path = "src/main.rs"
+repository.workspace = true
 
 [dependencies]
-hodei-core = { path = "../crates/core" }
-hodei-ports = { path = "../crates/ports" }
-hodei-modules = { path = "../crates/modules" }
-hodei-adapters = { path = "../crates/adapters" }
+# Workspace core crates
+hodei-core = { workspace = true, path = "crates/core" }
+hodei-ports = { workspace = true, path = "crates/ports" }
+hodei-modules = { workspace = true, path = "crates/modules" }
+hodei-adapters = { workspace = true, path = "crates/adapters" }
+hwp-proto = { workspace = true }
 
+# Workspace dependencies
 tokio = { workspace = true, features = ["full"] }
-axum = { version = "0.8", features = ["json", "http2"] }
-tower = { version = "0.4", features = ["util", "timeout"] }
-tower-http = { version = "0.6", features = ["cors", "trace"] }
-hyper = { version = "1.8", features = ["full"] }
-http = { version = "1.3" }
+tonic = { workspace = true, features = ["transport"] }
+axum = { workspace = true, features = ["json", "http2"] }
+tower = { workspace = true, features = ["util", "timeout"] }
+tower-http = { workspace = true, features = ["cors", "trace"] }
+hyper = { workspace = true, features = ["full"] }
+http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
@@ -29,4 +30,12 @@ tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
-prometheus = "0.13"
+prometheus = { workspace = true }
+config = { workspace = true }
+
+[[bin]]
+name = "hodei-server"
+path = "src/main.rs"
+
+[dev-dependencies]
+tempfile = { workspace = true }
