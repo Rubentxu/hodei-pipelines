@@ -6,11 +6,13 @@ edition.workspace = true
 [dependencies]
 # Core async runtime
 tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true }
 
 # gRPC client
-tonic = { version = "0.11", features = ["gzip", "transport"] }
+tonic = { version = "0.10", features = ["gzip", "transport"] }
 prost = "0.12"
 prost-types = "0.12"
+hwp-proto = { path = "../hwp-proto" }
 
 # PTY support
 portable-pty = "0.8"
@@ -32,6 +34,7 @@ thiserror = { workspace = true }
 async-trait = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 chrono = { workspace = true, features = ["serde"] }
+hostname = "0.3"
 
 # HTTP for artifacts
 reqwest = { version = "0.12", features = ["json", "stream"] }
@@ -40,10 +43,10 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 flate2 = "1.0"
 
 # Security module (optional)
-hodei-security = { path = "../security", optional = true }
+# hodei-security = { path = "../security", optional = true }
 
 [features]
-security = ["hodei-security"]
+# security = ["hodei-security"]
 
 [build-dependencies]
 tonic-build = { version = "0.11", features = ["prost"] }

@@ -7,7 +7,6 @@ members = [
     "crates/e2e-tests",
     "crates/hwp-proto",
     "crates/hwp-agent",
-    "crates/security",
     "server",
     "crates/shared-types",
 ]

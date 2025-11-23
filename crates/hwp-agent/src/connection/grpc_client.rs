@@ -5,16 +5,23 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{RwLock, mpsc};
-use tonic::{Request, Response, Status, Streaming, transport::Channel};
+use tokio_stream::StreamExt;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::transport::Channel;
+use tonic::{Request, Response};
 use tracing::{error, info, warn};
 
-use hwp_proto::hwp::{self, WorkerServiceClient};
-use hwp_proto::hwp::{AssignJobRequest, JobAccepted, JobResult, LogEntry};
+use hwp_proto::pb::agent_message::Payload as AgentPayload;
+use hwp_proto::pb::server_message::Payload as ServerPayload;
+use hwp_proto::{
+    AgentMessage, AssignJobRequest, JobAccepted, JobResult, LogEntry, ServerMessage,
+    WorkerRegistration, WorkerServiceClient, WorkerStatus,
+};
 
 use crate::connection::auth::AuthInterceptor;
-use crate::executor::{JobExecutor, ProcessManager};
+use crate::executor::ProcessManager;
+use crate::executor::pty::{PtyAllocation, PtySizeConfig};
 use crate::{AgentError, Config, Result};
 
 /// gRPC client wrapper
@@ -24,6 +31,8 @@ pub struct Client {
     channel: Option<Channel>,
     interceptor: AuthInterceptor,
     process_manager: Arc<ProcessManager>,
+    /// Active jobs being executed
+    active_jobs: Arc<RwLock<HashMap<String, tokio::task::JoinHandle<()>>>>,
 }
 
 impl Client {
@@ -34,6 +43,7 @@ impl Client {
             channel: None,
             interceptor: AuthInterceptor::new(),
             process_manager: Arc::new(ProcessManager::new()),
+            active_jobs: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -52,7 +62,7 @@ impl Client {
         Ok(())
     }
 
-    /// Handle the bidirectional stream
+    /// Handle the bidirectional stream for job execution
     pub async fn handle_stream(&mut self) -> Result<()> {
         let channel = self
             .channel
@@ -64,77 +74,60 @@ impl Client {
             WorkerServiceClient::with_interceptor(channel.clone(), self.interceptor.clone());
 
         // Register this worker with the server
-        info!("Registering worker with server");
-        let registration = hwp::WorkerRegistration {
+        info!("Registering worker {} with server", self.config.worker_id);
+        let registration = WorkerRegistration {
             worker_id: self.config.worker_id.clone(),
-            capabilities: vec!["docker".to_string(), "kubernetes".to_string()],
+            capabilities: vec!["docker".to_string(), "shell".to_string()],
         };
 
-        let _status: Response<hwp::WorkerStatus> = client
+        let response: Response<WorkerStatus> = client
             .register_worker(Request::new(registration))
             .await
             .map_err(|e| AgentError::Connection(format!("Registration failed: {}", e)))?;
 
-        info!("Worker registered successfully");
+        info!(
+            "Worker registered successfully with state: {}",
+            response.get_ref().state
+        );
 
         // Setup bidirectional streaming
-        info!("Starting bidirectional stream for job assignments and logs");
+        info!("Starting bidirectional stream for job assignments");
 
-        // Channel for sending logs to server
-        let (log_sender, mut log_receiver) = mpsc::channel::<LogEntry>(100);
+        // Channel for sending messages to server (logs, job results, etc.)
+        let (tx, rx) = mpsc::channel::<AgentMessage>(100);
 
-        // Spawn task to process log stream
-        let client_clone = client.clone();
-        let log_task = tokio::spawn(async move {
-            while let Some(log_entry) = log_receiver.recv().await {
-                if let Err(e) = client_clone
-                    .stream_logs(Request::new(tokio_stream::wrappers::ReceiverStream::new(
-                        tokio_stream::wrappers::mpsc::ReceiverStream::new(mpsc::channel(1).1),
-                    )))
-                    .await
-                {
-                    error!("Failed to send log: {}", e);
-                }
-            }
-            Ok::<_, Status>(())
-        });
-
-        // Setup channel for receiving job assignments
-        let (job_sender, job_receiver) = mpsc::channel::<AssignJobRequest>(100);
-
-        // Create stream request
-        let mut stream = client
-            .assign_job_stream(Request::new(tokio_stream::wrappers::ReceiverStream::new(
-                job_receiver,
-            )))
+        // Create the bidirectional stream
+        let request_stream = ReceiverStream::new(rx);
+        let mut response_stream = client
+            .job_stream(Request::new(request_stream))
             .await
-            .map_err(|e| AgentError::Stream(format!("Failed to open stream: {}", e)))?
+            .map_err(|e| AgentError::Stream(format!("Failed to open JobStream: {}", e)))?
             .into_inner();
 
-        // Main loop: receive and process job assignments
+        info!("Bidirectional stream established, waiting for job assignments");
+
+        // Main loop: receive messages from server and process them
         loop {
             tokio::select! {
-                // Receive job assignments from server
-                result = stream.message() => {
+                // Receive messages from server (job assignments, cancellations)
+                result = response_stream.next() => {
                     match result {
-                        Ok(Some(job_request)) => {
-                            info!("Received job assignment: {}", job_request.job_id);
-                            self.handle_job_request(
-                                job_request,
-                                log_sender.clone(),
-                            ).await;
+                        Some(Ok(server_msg)) => {
+                            if let Err(e) = self.handle_server_message(server_msg, tx.clone()).await {
+                                error!("Error handling server message: {}", e);
+                            }
                         }
-                        Ok(None) => {
+                        Some(Err(e)) => {
+                            error!("Stream error: {}", e);
+                            return Err(AgentError::Stream(format!("Stream error: {}", e)));
+                        }
+                        None => {
                             warn!("Stream closed by server");
-                            break;
-                        }
-                        Err(e) => {
-                            error!("Error receiving job: {}", e);
                             break;
                         }
                     }
                 }
-                // Check for shutdown
+                // Check for shutdown signal
                 _ = tokio::signal::ctrl_c() => {
                     info!("Received Ctrl-C, shutting down stream");
                     break;
@@ -146,96 +139,221 @@ impl Client {
         Ok(())
     }
 
-    /// Handle a job assignment
-    async fn handle_job_request(
+    /// Handle a message from the server
+    async fn handle_server_message(
+        &mut self,
+        server_msg: ServerMessage,
+        tx: mpsc::Sender<AgentMessage>,
+    ) -> Result<()> {
+        match server_msg.payload {
+            Some(ServerPayload::AssignJob(job_request)) => {
+                info!("Received job assignment: {}", job_request.job_id);
+                self.handle_job_assignment(job_request, tx).await?;
+            }
+            Some(ServerPayload::CancelJob(cancel_request)) => {
+                warn!("Received job cancellation: {}", cancel_request.job_id);
+                self.handle_job_cancellation(cancel_request.job_id).await?;
+            }
+            None => {
+                warn!("Received empty server message");
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle a job assignment from the server
+    async fn handle_job_assignment(
         &mut self,
         job_request: AssignJobRequest,
-        log_sender: mpsc::Sender<LogEntry>,
-    ) {
+        tx: mpsc::Sender<AgentMessage>,
+    ) -> Result<()> {
         let job_id = job_request.job_id.clone();
-        let command = job_request.command.clone();
+        let job_id_for_tracking = job_id.clone();
 
-        // Send acknowledgment
-        if let Err(e) = log_sender
-            .send(LogEntry {
+        // Send job accepted acknowledgment
+        let ack = AgentMessage {
+            payload: Some(AgentPayload::JobAccepted(JobAccepted {
                 job_id: job_id.clone(),
-                data: format!("Job {} accepted", job_id),
-            })
-            .await
-        {
-            error!("Failed to send job acknowledgment: {}", e);
+            })),
+        };
+
+        if let Err(e) = tx.send(ack).await {
+            error!("Failed to send job acceptance: {}", e);
+            return Err(AgentError::Connection(format!(
+                "Failed to send job acceptance: {}",
+                e
+            )));
         }
 
-        // Spawn task to execute job
+        info!("Job {} accepted, starting execution", job_id);
+
+        // Spawn a task to execute the job
         let process_manager = self.process_manager.clone();
-        let log_sender_clone = log_sender.clone();
+        let active_jobs = self.active_jobs.clone();
+        let tx_clone = tx.clone();
 
-        tokio::spawn(async move {
-            let result =
-                Self::execute_job(&process_manager, job_id.clone(), command, log_sender_clone)
-                    .await;
+        let job_handle = tokio::spawn(async move {
+            let result = Self::execute_job(
+                &process_manager,
+                job_id.clone(),
+                job_request,
+                tx_clone.clone(),
+            )
+            .await;
 
-            match result {
+            // Send job result
+            let job_result = match result {
                 Ok(exit_code) => {
                     info!("Job {} completed with exit code {}", job_id, exit_code);
-                    // Send job result (in real implementation, send to server)
+                    AgentMessage {
+                        payload: Some(AgentPayload::JobResult(JobResult {
+                            job_id: job_id.clone(),
+                            exit_code,
+                        })),
+                    }
                 }
                 Err(e) => {
                     error!("Job {} failed: {}", job_id, e);
-                    // Send job failure (in real implementation, send to server)
+                    AgentMessage {
+                        payload: Some(AgentPayload::JobResult(JobResult {
+                            job_id: job_id.clone(),
+                            exit_code: -1,
+                        })),
+                    }
                 }
+            };
+
+            // Send final result
+            if let Err(e) = tx_clone.send(job_result).await {
+                error!("Failed to send job result: {}", e);
             }
+
+            // Remove from active jobs
+            active_jobs.write().await.remove(&job_id);
         });
+
+        // Track the job
+        self.active_jobs
+            .write()
+            .await
+            .insert(job_id_for_tracking, job_handle);
+
+        Ok(())
     }
 
-    /// Execute a job
+    /// Execute a job using ProcessManager
     async fn execute_job(
         process_manager: &ProcessManager,
         job_id: String,
-        command: Vec<String>,
-        log_sender: mpsc::Sender<LogEntry>,
-    ) -> Result<i32, String> {
-        info!("Executing job {}: {:?}", job_id, command);
+        job_request: AssignJobRequest,
+        tx: mpsc::Sender<AgentMessage>,
+    ) -> std::result::Result<i32, String> {
+        info!(
+            "Executing job {}: image={}, command={:?}",
+            job_id, job_request.image, job_request.command
+        );
 
-        // Convert command to proper format for ProcessManager
-        let mut env_vars = HashMap::new();
+        // Send initial log
+        let _ = tx
+            .send(AgentMessage {
+                payload: Some(AgentPayload::LogEntry(LogEntry {
+                    job_id: job_id.clone(),
+                    data: format!("Starting job: {}", job_request.name),
+                })),
+            })
+            .await;
+
+        // For now, execute the command directly
+        // In the future, this would handle docker image pulling, etc.
+        let command = if job_request.command.is_empty() {
+            vec!["echo".to_string(), "No command specified".to_string()]
+        } else {
+            job_request.command
+        };
+
+        // Create PTY allocation for the job
+        let pty_allocation = PtyAllocation::new(PtySizeConfig::default())
+            .map_err(|e| format!("Failed to create PTY: {}", e))?;
+
+        // Spawn the job using ProcessManager
+        let env_vars = HashMap::new();
         let working_dir = None;
 
-        // Spawn the job
-        let job_handle_result = process_manager
-            .spawn_job(command, env_vars, working_dir)
+        let job_handle = process_manager
+            .spawn_job(command.clone(), env_vars, working_dir, &pty_allocation)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Failed to spawn job: {}", e))?;
 
-        let pid = process_manager
-            .get_job(&job_handle_result)
+        // Get job info
+        let job_info = process_manager
+            .get_job(&job_handle)
             .await
-            .ok_or("Failed to get job info")?
-            .pid;
+            .ok_or_else(|| "Failed to get job info".to_string())?;
 
-        info!("Job {} started with PID: {}", job_id, pid);
+        info!("Job {} started with PID: {}", job_id, job_info.pid);
 
-        // In a full implementation, we would:
-        // 1. Wait for the process to complete
-        // 2. Capture stdout/stderr
-        // 3. Send logs to server via log_sender
-        // 4. Return exit code
-
-        // For now, just simulate execution
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        // Send final log
-        if let Err(e) = log_sender
-            .send(LogEntry {
-                job_id: job_id.clone(),
-                data: format!("Job {} completed", job_id),
+        // Send log about PID
+        let _ = tx
+            .send(AgentMessage {
+                payload: Some(AgentPayload::LogEntry(LogEntry {
+                    job_id: job_id.clone(),
+                    data: format!("Process started with PID: {}", job_info.pid),
+                })),
             })
-            .await
-        {
-            error!("Failed to send final log: {}", e);
+            .await;
+
+        // Wait for the job to complete
+        // In a real implementation, we would:
+        // 1. Stream stdout/stderr in real-time
+        // 2. Apply secret masking
+        // 3. Monitor resource usage
+        // 4. Handle timeouts
+
+        // For now, just wait a bit to simulate execution
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        // Check if the job is still running
+        let final_info = process_manager.get_job(&job_handle).await;
+
+        let exit_code = match final_info {
+            Some(info) => {
+                info!("Job {} status: {:?}", job_id, info.status);
+                // In a real implementation, extract actual exit code
+                0
+            }
+            None => {
+                warn!("Job {} no longer tracked", job_id);
+                0
+            }
+        };
+
+        // Send completion log
+        let _ = tx
+            .send(AgentMessage {
+                payload: Some(AgentPayload::LogEntry(LogEntry {
+                    job_id: job_id.clone(),
+                    data: format!("Job completed with exit code: {}", exit_code),
+                })),
+            })
+            .await;
+
+        Ok(exit_code)
+    }
+
+    /// Handle a job cancellation request
+    async fn handle_job_cancellation(&mut self, job_id: String) -> Result<()> {
+        info!("Cancelling job: {}", job_id);
+
+        // Look up the job and abort it
+        let mut jobs = self.active_jobs.write().await;
+        if let Some(handle) = jobs.remove(&job_id) {
+            handle.abort();
+            info!("Job {} cancelled", job_id);
+        } else {
+            warn!("Job {} not found in active jobs", job_id);
         }
 
-        Ok(0) // Success exit code
+        Ok(())
     }
 
     /// Get the server URL

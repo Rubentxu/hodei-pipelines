@@ -7,6 +7,7 @@ pub mod event_bus;
 pub mod postgres;
 pub mod redb;
 pub mod repositories;
+pub mod security;
 pub mod worker_client;
 
 pub use crate::bus::{InMemoryBus, InMemoryBusBuilder};

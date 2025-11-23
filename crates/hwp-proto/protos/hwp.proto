@@ -40,9 +40,37 @@ message Empty {
   // Empty message for gRPC responses
 }
 
+// Message from agent to server in bidirectional stream
+message AgentMessage {
+  oneof payload {
+    JobAccepted job_accepted = 1;
+    LogEntry log_entry = 2;
+    JobResult job_result = 3;
+  }
+}
+
+// Message from server to agent in bidirectional stream
+message ServerMessage {
+  oneof payload {
+    AssignJobRequest assign_job = 1;
+    CancelJobRequest cancel_job = 2;
+  }
+}
+
 service WorkerService {
+  // Register a worker with the server
   rpc RegisterWorker(WorkerRegistration) returns (WorkerStatus);
+
+  // Original unary job assignment (for simple cases)
   rpc AssignJob(AssignJobRequest) returns (JobAccepted);
+
+  // Client streaming for logs
   rpc StreamLogs(stream LogEntry) returns (Empty);
+
+  // Cancel a running job
   rpc CancelJob(CancelJobRequest) returns (Empty);
+
+  // Bidirectional streaming for real-time job execution
+  // Server sends job assignments, client sends logs and results
+  rpc JobStream(stream AgentMessage) returns (stream ServerMessage);
 }

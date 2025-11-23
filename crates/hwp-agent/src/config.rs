@@ -46,6 +46,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            worker_id: "worker-default".to_string(),
             server_url: "http://localhost:50051".to_string(),
             server_token: "".to_string(),
             tls_enabled: false,
@@ -66,6 +67,13 @@ impl Config {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self, ConfigError> {
         let mut config = Config::default();
+
+        // Worker ID (optional, defaults to hostname)
+        if let Ok(worker_id) = env::var("HODEI_WORKER_ID") {
+            config.worker_id = worker_id;
+        } else if let Ok(hostname) = hostname::get() {
+            config.worker_id = hostname.to_string_lossy().to_string();
+        }
 
         // Server URL (required)
         if let Ok(url) = env::var("HODEI_SERVER_URL") {

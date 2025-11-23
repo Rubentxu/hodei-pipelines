@@ -8,8 +8,13 @@ pub mod pb {
 }
 
 pub use pb::{
-    AssignJobRequest, CancelJobRequest, Empty, JobAccepted, JobResult, LogEntry,
-    WorkerRegistration, WorkerStatus,
+    AgentMessage, AssignJobRequest, CancelJobRequest, Empty, JobAccepted, JobResult, LogEntry,
+    ServerMessage, WorkerRegistration, WorkerStatus,
 };
 
+pub use pb::worker_service_client::WorkerServiceClient;
 pub use pb::worker_service_server::{WorkerService, WorkerServiceServer};
+
+// Re-export for convenience
+pub use pb::agent_message::Payload as AgentPayload;
+pub use pb::server_message::Payload as ServerPayload;

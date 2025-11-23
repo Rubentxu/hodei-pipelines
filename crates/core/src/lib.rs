@@ -7,6 +7,7 @@
 pub mod error;
 pub mod job;
 pub mod pipeline;
+pub mod security;
 pub mod worker;
 
 pub use crate::error::{DomainError, Result};

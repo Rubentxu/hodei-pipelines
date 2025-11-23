@@ -25,3 +25,9 @@ sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chron
 redb = "2.0"
 config = "0.14"
 futures = "0.3"
+
+# Security dependencies
+jsonwebtoken = "9.2"
+aho-corasick = "1.1"
+rustls = "0.21"
+x509-parser = "0.15"
