@@ -189,13 +189,208 @@ where
     async fn select_best_worker(
         &self,
         workers: &[Worker],
-        _job: &Job,
+        job: &Job,
     ) -> Result<Worker, SchedulerError> {
         if workers.is_empty() {
             return Err(SchedulerError::NoEligibleWorkers);
         }
 
-        Ok(workers[0].clone())
+        // Get cluster state for current resource utilization
+        let cluster_workers = self.cluster_state.get_all_workers().await;
+
+        // Apply Bin Packing Algorithm with Resource Utilization optimization
+        let best_worker = workers
+            .iter()
+            .filter(|w| w.is_available())
+            .map(|worker| {
+                let score = self.calculate_worker_score(worker, job, &cluster_workers);
+                (worker.clone(), score)
+            })
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(worker, _)| worker)
+            .ok_or_else(|| SchedulerError::NoEligibleWorkers)?;
+
+        info!(
+            "Selected worker {} for job {} (score: {:.2})",
+            best_worker.id,
+            job.id,
+            self.calculate_worker_score(&best_worker, job, &cluster_workers)
+        );
+
+        Ok(best_worker)
+    }
+
+    /// Calculate comprehensive worker score for optimal scheduling
+    ///
+    /// Uses Bin Packing + Priority-based + Load Balancing algorithm:
+    /// - Resource utilization (minimize waste)
+    /// - Current load (distribute evenly)
+    /// - CPU/Memory fit (avoid over-provisioning)
+    /// - Worker health and responsiveness
+    fn calculate_worker_score(
+        &self,
+        worker: &Worker,
+        job: &Job,
+        cluster_workers: &[WorkerNode],
+    ) -> f64 {
+        // 1. Resource Utilization Score (40% weight)
+        // Prefer workers that best fit the job without wasting resources
+        let cpu_usage = self.get_worker_current_cpu_usage(worker, cluster_workers);
+        let memory_usage = self.get_worker_current_memory_usage(worker, cluster_workers);
+
+        let required_cpu = job.spec.resources.cpu_m as f64;
+        let required_memory = job.spec.resources.memory_mb as f64;
+
+        // Calculate fit score: penalize both under-utilization and over-provisioning
+        let cpu_fit_score = self.calculate_fit_score(
+            required_cpu,
+            cpu_usage,
+            worker.capabilities.cpu_cores as f64 * 1000.0,
+        );
+        let memory_fit_score = self.calculate_fit_score(
+            required_memory,
+            memory_usage,
+            worker.capabilities.memory_gb as f64 * 1024.0,
+        );
+
+        let resource_score = (cpu_fit_score * 0.6 + memory_fit_score * 0.4) * 40.0;
+
+        // 2. Load Balancing Score (30% weight)
+        // Distribute jobs evenly across available workers
+        let current_jobs = worker.current_jobs.len() as f64;
+        let load_score = 1.0 / (1.0 + current_jobs); // Fewer jobs = higher score
+        let load_score_normalized =
+            (1.0 - (current_jobs / worker.capabilities.max_concurrent_jobs as f64)).max(0.1);
+
+        let load_balancing_score = load_score_normalized * 30.0;
+
+        // 3. Health and Responsiveness Score (20% weight)
+        // Prefer workers with recent heartbeats and good health
+        let health_score = self.get_worker_health_score(worker, cluster_workers);
+        let health_score_normalized = health_score.max(0.1); // Minimum 10% even for unhealthy
+        let health_score_weighted = health_score_normalized * 20.0;
+
+        // 4. Capability Match Score (10% weight)
+        // Prefer workers that match labels/requirements exactly
+        let capability_score = self.calculate_capability_score(worker, job);
+        let capability_score_weighted = capability_score * 10.0;
+
+        // Combined score
+        let total_score = resource_score
+            + load_balancing_score
+            + health_score_weighted
+            + capability_score_weighted;
+
+        total_score
+    }
+
+    /// Calculate how well resources fit (Bin Packing approach)
+    /// Penalizes both over-provisioning and tight fits
+    fn calculate_fit_score(&self, required: f64, used: f64, available: f64) -> f64 {
+        let total = available;
+        let utilization = (used + required) / total;
+
+        // Optimal utilization is between 60-85%
+        let optimal_min = 0.60;
+        let optimal_max = 0.85;
+
+        if utilization >= optimal_min && utilization <= optimal_max {
+            1.0 // Perfect fit
+        } else if utilization < optimal_min {
+            // Under-utilized - mild penalty
+            0.7 + (utilization / optimal_min) * 0.3
+        } else {
+            // Over-utilized - severe penalty
+            0.1 + (1.0 - (utilization - optimal_max) / (1.0 - optimal_max)) * 0.6
+        }
+    }
+
+    /// Get current CPU usage for a worker
+    fn get_worker_current_cpu_usage(&self, worker: &Worker, cluster_workers: &[WorkerNode]) -> f64 {
+        cluster_workers
+            .iter()
+            .find(|w| w.id == worker.id)
+            .map(|w| w.usage.cpu_percent)
+            .unwrap_or(0.0)
+    }
+
+    /// Get current memory usage for a worker
+    fn get_worker_current_memory_usage(
+        &self,
+        worker: &Worker,
+        cluster_workers: &[WorkerNode],
+    ) -> f64 {
+        cluster_workers
+            .iter()
+            .find(|w| w.id == worker.id)
+            .map(|w| w.usage.memory_mb as f64)
+            .unwrap_or(0.0)
+    }
+
+    /// Calculate health score based on heartbeat recency and system responsiveness
+    fn get_worker_health_score(&self, worker: &Worker, cluster_workers: &[WorkerNode]) -> f64 {
+        if let Some(cluster_worker) = cluster_workers.iter().find(|w| w.id == worker.id) {
+            let elapsed = cluster_worker.last_heartbeat.elapsed();
+
+            // Healthy if heartbeat within last 30 seconds
+            if elapsed < Duration::from_secs(30) {
+                // Score from 0.5 to 1.0 based on recency
+                let recency_score = 1.0 - (elapsed.as_secs_f64() / 30.0);
+                0.5 + recency_score * 0.5
+            } else {
+                // Unhealthy - low score but not zero (still consider as fallback)
+                0.1
+            }
+        } else {
+            // Worker not in cluster state - unknown health
+            0.3
+        }
+    }
+
+    /// Calculate how well worker capabilities match job requirements
+    fn calculate_capability_score(&self, worker: &Worker, job: &Job) -> f64 {
+        let mut score = 1.0;
+
+        // Exact match bonus
+        if worker.capabilities.cpu_cores * 1000 >= job.spec.resources.cpu_m {
+            let cpu_overhead = (worker.capabilities.cpu_cores * 1000 - job.spec.resources.cpu_m)
+                as f64
+                / job.spec.resources.cpu_m as f64;
+            if cpu_overhead < 0.2 {
+                score += 0.2; // Bonus for minimal overhead
+            }
+        }
+
+        if worker.capabilities.memory_gb * 1024 >= job.spec.resources.memory_mb {
+            let memory_overhead = (worker.capabilities.memory_gb * 1024
+                - job.spec.resources.memory_mb) as f64
+                / job.spec.resources.memory_mb as f64;
+            if memory_overhead < 0.2 {
+                score += 0.2; // Bonus for minimal overhead
+            }
+        }
+
+        // Label matching
+        if !job.spec.env.is_empty() && !worker.capabilities.labels.is_empty() {
+            let env_labels: std::collections::HashSet<&str> =
+                job.spec.env.keys().map(|s| s.as_str()).collect();
+            let worker_labels: std::collections::HashSet<&str> = worker
+                .capabilities
+                .labels
+                .iter()
+                .map(|s| s.as_str())
+                .collect();
+
+            let matching_labels = env_labels.intersection(&worker_labels).count();
+            let total_env_labels = env_labels.len();
+
+            if total_env_labels > 0 {
+                let label_match_ratio = matching_labels as f64 / total_env_labels as f64;
+                score += label_match_ratio * 0.3;
+            }
+        }
+
+        score.min(1.5) // Cap at 1.5 for bonus
     }
 
     async fn reserve_worker(

@@ -10,6 +10,9 @@ members = [
     "server",
     "crates/shared-types",
 ]
+exclude = [
+    "code-manifest",
+]
 resolver = "2"
 
 [workspace.dependencies]
@@ -92,6 +95,7 @@ hodei-ports = { path = "crates/ports" }
 hodei-modules = { path = "crates/modules" }
 hodei-adapters = { path = "crates/adapters" }
 hwp-proto = { path = "crates/hwp-proto" }
+hodei-shared-types = { path = "crates/shared-types" }
 
 [workspace.build-dependencies]
 

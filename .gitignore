@@ -84,3 +84,5 @@ coverage.xml
 *.seed
 *.pid.lock
 CODE_CONSOLIDATED.xml
+code-manifest/
+CODE_MANIFEST.txt

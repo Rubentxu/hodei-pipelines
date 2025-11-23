@@ -29,6 +29,12 @@ impl Default for JobId {
     }
 }
 
+impl std::fmt::Display for JobId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Resource requirements for a job
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResourceQuota {
@@ -137,6 +143,13 @@ impl JobState {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self.0.as_str(),
+            Self::SUCCESS | Self::FAILED | Self::CANCELLED
+        )
     }
 }
 

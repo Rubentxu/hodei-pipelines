@@ -89,6 +89,13 @@ impl PipelineStatus {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self.0.as_str(),
+            Self::SUCCESS | Self::FAILED | Self::CANCELLED
+        )
+    }
 }
 
 impl From<String> for PipelineStatus {

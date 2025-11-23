@@ -11,6 +11,7 @@ repository.workspace = true
 # Workspace core crates
 hodei-core = { workspace = true, features = ["sqlx"] }
 hodei-ports = { workspace = true }
+hwp-proto = { workspace = true }
 
 # Workspace async and utilities
 async-trait = { workspace = true }
@@ -30,6 +31,7 @@ anyhow = { workspace = true }
 # Workspace utilities
 uuid = { workspace = true }
 tracing = { workspace = true }
+parking_lot = { workspace = true }
 
 # Database
 sqlx = { workspace = true }
@@ -41,6 +43,10 @@ jsonwebtoken = { workspace = true }
 aho-corasick = { workspace = true }
 rustls = { workspace = true }
 x509-parser = { workspace = true }
+
+# Production Worker Client
+tonic = { workspace = true, features = ["transport"] }
+reqwest = { workspace = true, features = ["json"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

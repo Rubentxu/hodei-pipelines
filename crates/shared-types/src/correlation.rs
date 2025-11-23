@@ -1,7 +1,7 @@
 //! Correlation module for distributed tracing
 
-use serde::{Deserialize, Serialize};
 use crate::Uuid;
+use serde::{Deserialize, Serialize};
 
 /// Correlation identifier for distributed tracing
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -24,6 +24,12 @@ impl CorrelationId {
 impl Default for CorrelationId {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl std::fmt::Display for CorrelationId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

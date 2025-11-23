@@ -8,9 +8,27 @@ use hodei_ports::{
     JobRepository, JobRepositoryError, PipelineRepository, PipelineRepositoryError,
     WorkerRepository, WorkerRepositoryError,
 };
+use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres, Row};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
+
+/// Workflow Definition structure for JSON deserialization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WorkflowDefinitionJson {
+    steps: Option<Vec<WorkflowStepJson>>,
+    variables: Option<HashMap<String, String>>,
+}
+
+/// Workflow Step structure for JSON deserialization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WorkflowStepJson {
+    name: String,
+    job_spec: hodei_core::job::JobSpec,
+    depends_on: Option<Vec<String>>,
+    timeout_ms: Option<u64>,
+}
 
 /// PostgreSQL-backed job repository
 pub struct PostgreSqlJobRepository {
@@ -549,6 +567,23 @@ impl PostgreSqlPipelineRepository {
 #[async_trait]
 impl PipelineRepository for PostgreSqlPipelineRepository {
     async fn save_pipeline(&self, pipeline: &Pipeline) -> Result<(), PipelineRepositoryError> {
+        // Ensure workflow_definition is synchronized with steps and variables
+        let workflow_json = WorkflowDefinitionJson {
+            steps: Some(
+                pipeline
+                    .steps
+                    .iter()
+                    .map(|step| WorkflowStepJson {
+                        name: step.name.clone(),
+                        job_spec: step.job_spec.clone(),
+                        depends_on: Some(step.depends_on.clone()),
+                        timeout_ms: Some(step.timeout_ms),
+                    })
+                    .collect(),
+            ),
+            variables: Some(pipeline.variables.clone()),
+        };
+
         let query = r#"
             INSERT INTO pipelines (
                 id, name, description, created_at, updated_at, tenant_id, workflow_definition
@@ -567,7 +602,7 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
             .bind(pipeline.created_at)
             .bind(pipeline.updated_at)
             .bind(pipeline.tenant_id.as_deref())
-            .bind(serde_json::to_value(&pipeline.workflow_definition).ok())
+            .bind(serde_json::to_value(&workflow_json).ok())
             .execute(&*self.pool)
             .await
             .map_err(|e| {
@@ -591,15 +626,48 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
         {
             Ok(Some(row)) => {
                 let workflow_def: Option<serde_json::Value> = row.get("workflow_definition");
+
+                // Deserialize workflow_definition to extract steps and variables
+                let (steps, variables) = if let Some(workflow_json) = &workflow_def {
+                    match serde_json::from_value::<WorkflowDefinitionJson>(workflow_json.clone()) {
+                        Ok(workflow) => {
+                            let steps = workflow.steps.map_or(vec![], |steps_json| {
+                                steps_json
+                                    .into_iter()
+                                    .map(|step_json| hodei_core::pipeline::PipelineStep {
+                                        name: step_json.name,
+                                        job_spec: step_json.job_spec,
+                                        depends_on: step_json.depends_on.unwrap_or_default(),
+                                        timeout_ms: step_json.timeout_ms.unwrap_or(300000),
+                                    })
+                                    .collect()
+                            });
+
+                            let variables = workflow.variables.unwrap_or_default();
+                            (steps, variables)
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to deserialize workflow_definition for pipeline {}: {}. Using empty steps and variables.",
+                                row.get::<String, &str>("id"),
+                                e
+                            );
+                            (vec![], HashMap::new())
+                        }
+                    }
+                } else {
+                    (vec![], HashMap::new())
+                };
+
                 let pipeline = Pipeline {
                     id: row.get("id"),
                     name: row.get("name"),
                     description: row.get("description"),
-                    steps: vec![], // TODO: Deserialize from workflow_definition
+                    steps,
                     status: hodei_core::PipelineStatus::new("PENDING".to_string()).unwrap_or_else(
                         |_| hodei_core::PipelineStatus::new("PENDING".to_string()).unwrap(),
                     ),
-                    variables: std::collections::HashMap::new(),
+                    variables,
                     created_at: row.get("created_at"),
                     updated_at: row.get("updated_at"),
                     tenant_id: row.get("tenant_id"),

@@ -2,119 +2,11 @@
 //!
 //! This module contains the Worker aggregate root and related value objects.
 
+pub use hodei_shared_types::{WorkerCapabilities, WorkerId, WorkerStatus};
+
 use crate::{DomainError, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
-
-/// Worker identifier - Value Object
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
-pub struct WorkerId(pub Uuid);
-
-impl WorkerId {
-    pub fn new() -> Self {
-        Self(Uuid::new_v4())
-    }
-
-    pub fn from_uuid(uuid: Uuid) -> Self {
-        Self(uuid)
-    }
-
-    pub fn as_uuid(&self) -> Uuid {
-        self.0
-    }
-}
-
-impl Default for WorkerId {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl std::fmt::Display for WorkerId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// Worker capabilities - Value Object
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WorkerCapabilities {
-    pub cpu_cores: u32,
-    pub memory_gb: u64,
-    pub gpu: Option<u8>,
-    pub labels: HashMap<String, String>,
-    pub architectures: Vec<String>,
-    pub max_concurrent_jobs: u32,
-}
-
-impl WorkerCapabilities {
-    pub fn new(cpu_cores: u32, memory_gb: u64) -> Self {
-        Self {
-            cpu_cores,
-            memory_gb,
-            gpu: None,
-            labels: HashMap::new(),
-            architectures: vec!["amd64".to_string()],
-            max_concurrent_jobs: 1,
-        }
-    }
-
-    pub fn with_gpu(mut self, gpu: u8) -> Self {
-        self.gpu = Some(gpu);
-        self
-    }
-
-    pub fn with_label(mut self, key: String, value: String) -> Self {
-        self.labels.insert(key, value);
-        self
-    }
-
-    pub fn has_label(&self, key: &str, value: &str) -> bool {
-        self.labels.get(key) == Some(&value.to_string())
-    }
-
-    pub fn can_run(&self, required_cpu: u32, required_memory_mb: u64) -> bool {
-        self.cpu_cores >= required_cpu && (self.memory_gb * 1024) >= required_memory_mb
-    }
-}
-
-/// Worker status - Value Object
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
-pub struct WorkerStatus(String);
-
-impl WorkerStatus {
-    pub const IDLE: &'static str = "IDLE";
-    pub const BUSY: &'static str = "BUSY";
-    pub const OFFLINE: &'static str = "OFFLINE";
-    pub const DRAINING: &'static str = "DRAINING";
-
-    pub fn new(status: String) -> Result<Self> {
-        match status.as_str() {
-            Self::IDLE | Self::BUSY | Self::OFFLINE | Self::DRAINING => Ok(Self(status)),
-            _ => Err(DomainError::Validation(format!(
-                "invalid worker status: {}",
-                status
-            ))),
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    pub fn is_available(&self) -> bool {
-        self.0 == Self::IDLE
-    }
-}
-
-impl From<String> for WorkerStatus {
-    fn from(s: String) -> Self {
-        Self::new(s).expect("valid status")
-    }
-}
 
 /// Worker aggregate root
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,7 +29,7 @@ impl Worker {
         Self {
             id,
             name,
-            status: WorkerStatus::new(WorkerStatus::IDLE.to_string()).unwrap(),
+            status: WorkerStatus::create_with_status(WorkerStatus::IDLE.to_string()),
             created_at: now,
             updated_at: now,
             tenant_id: None,

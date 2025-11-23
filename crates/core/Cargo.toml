@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+# Shared Kernel - Value Objects and common types
+hodei-shared-types = { workspace = true }
+
 # Workspace dependencies
 uuid = { workspace = true, features = ["v4", "serde"] }
 serde = { workspace = true, features = ["derive"] }
