@@ -4,6 +4,7 @@
 //! the domain entities through the ports.
 
 pub mod orchestrator;
+pub mod cost_tracking;
 pub mod queue_assignment;
 pub mod queue_scaling_integration;
 pub mod resource_pool;
@@ -12,6 +13,10 @@ pub mod scheduler;
 pub mod worker_management;
 
 pub use crate::orchestrator::{OrchestratorConfig, OrchestratorModule};
+pub use crate::cost_tracking::{
+    CostAlert, CostAlertType, CostAlerts, CostReportingPeriod, CostSummary, CostTrackingError,
+    CostTrackingService, JobCost, WorkerCost,
+};
 pub use crate::queue_assignment::{
     AssignmentRequest, AssignmentResult, QueueAssignmentEngine, QueueError, QueuePriority,
     QueueType, SchedulingPolicy,
