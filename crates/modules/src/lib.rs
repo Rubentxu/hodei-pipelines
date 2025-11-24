@@ -6,6 +6,7 @@
 pub mod orchestrator;
 pub mod queue_assignment;
 pub mod resource_pool;
+pub mod scaling_policies;
 pub mod scheduler;
 pub mod worker_management;
 
@@ -17,6 +18,11 @@ pub use crate::queue_assignment::{
 pub use crate::resource_pool::{
     ResourcePoolService, ResourcePoolServiceError, create_docker_resource_pool,
     create_kubernetes_resource_pool,
+};
+pub use crate::scaling_policies::{
+    CooldownManager, CpuUtilizationScalingPolicy, CustomScalingPolicy, QueueDepthScalingPolicy,
+    ScalingAction, ScalingContext, ScalingDecision, ScalingEngine, ScalingMetrics,
+    ScalingPolicyEnum,
 };
 pub use crate::scheduler::state_machine::{
     SchedulingContext, SchedulingState, SchedulingStateMachine,
