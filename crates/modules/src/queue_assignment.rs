@@ -105,7 +105,7 @@ pub struct AssignmentStats {
 }
 
 /// Job queue with priority support
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JobQueue {
     pub queue_id: String,
     pub priority: QueuePriority,
@@ -227,6 +227,11 @@ impl JobQueue {
     /// Get current queue size
     pub async fn size(&self) -> usize {
         self.jobs.read().await.len()
+    }
+
+    /// Get queue length (alias for size)
+    pub async fn get_length(&self) -> u32 {
+        self.size().await as u32
     }
 
     /// Check if queue is empty
@@ -461,7 +466,12 @@ impl AssignmentStatistics {
 
 impl QueueAssignmentEngine {
     /// Create new assignment engine
-    pub fn new(scheduler_policy: SchedulingPolicy) -> Self {
+    pub fn new() -> Self {
+        Self::new_with_policy(SchedulingPolicy::FIFO)
+    }
+
+    /// Create new assignment engine with custom scheduling policy
+    pub fn new_with_policy(scheduler_policy: SchedulingPolicy) -> Self {
         let mut queues = HashMap::new();
 
         // Create default queues
@@ -490,6 +500,11 @@ impl QueueAssignmentEngine {
     pub fn register_pool(&mut self, pool: Arc<dyn ResourcePool>) {
         let pool_id = pool.pool_id().to_string();
         self.pools.insert(pool_id, pool);
+    }
+
+    /// Get all registered queues
+    pub async fn get_queues(&self) -> HashMap<String, JobQueue> {
+        self.queues.clone()
     }
 
     /// Submit a job for assignment
@@ -854,7 +869,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_assignment_engine_creation() {
-        let engine = QueueAssignmentEngine::new(SchedulingPolicy::Priority);
+        let engine = QueueAssignmentEngine::new_with_policy(SchedulingPolicy::Priority);
 
         assert_eq!(engine.queues.len(), 3); // default, high-priority, low-priority
         assert!(engine.pools.is_empty());
@@ -862,7 +877,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_immediate_assignment() {
-        let mut engine = QueueAssignmentEngine::new(SchedulingPolicy::FIFO);
+        let mut engine = QueueAssignmentEngine::new_with_policy(SchedulingPolicy::FIFO);
 
         // Register a mock pool
         let pool = Arc::new(MockResourcePool {
@@ -898,7 +913,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queueing_when_no_worker_available() {
-        let mut engine = QueueAssignmentEngine::new(SchedulingPolicy::FIFO);
+        let mut engine = QueueAssignmentEngine::new_with_policy(SchedulingPolicy::FIFO);
 
         // Register a mock pool with no available workers
         let pool = Arc::new(MockResourcePool {
@@ -934,7 +949,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_priority() {
-        let engine = QueueAssignmentEngine::new(SchedulingPolicy::FIFO);
+        let engine = QueueAssignmentEngine::new_with_policy(SchedulingPolicy::FIFO);
 
         let request = AssignmentRequest {
             job_id: JobId::new(),
@@ -952,7 +967,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_statistics_tracking() {
-        let mut engine = QueueAssignmentEngine::new(SchedulingPolicy::FIFO);
+        let mut engine = QueueAssignmentEngine::new_with_policy(SchedulingPolicy::FIFO);
 
         let pool = Arc::new(MockResourcePool {
             pool_id: "test-pool".to_string(),

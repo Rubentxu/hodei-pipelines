@@ -5,6 +5,7 @@
 
 pub mod orchestrator;
 pub mod queue_assignment;
+pub mod queue_scaling_integration;
 pub mod resource_pool;
 pub mod scaling_policies;
 pub mod scheduler;
@@ -14,6 +15,10 @@ pub use crate::orchestrator::{OrchestratorConfig, OrchestratorModule};
 pub use crate::queue_assignment::{
     AssignmentRequest, AssignmentResult, QueueAssignmentEngine, QueueError, QueuePriority,
     QueueType, SchedulingPolicy,
+};
+pub use crate::queue_scaling_integration::{
+    QueueScalingConfig, QueueScalingError, QueueScalingEvent, QueueScalingIntegration,
+    QueueScalingStats,
 };
 pub use crate::resource_pool::{
     ResourcePoolService, ResourcePoolServiceError, create_docker_resource_pool,
