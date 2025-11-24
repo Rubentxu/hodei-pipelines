@@ -14,6 +14,15 @@ pub enum ProviderType {
     Kubernetes,
 }
 
+impl ProviderType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ProviderType::Docker => "docker",
+            ProviderType::Kubernetes => "kubernetes",
+        }
+    }
+}
+
 /// Provider capabilities
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderCapabilities {
@@ -112,6 +121,18 @@ impl ProviderConfig {
     /// Set custom Kubernetes Pod template (YAML or JSON)
     pub fn with_pod_template(mut self, template: String) -> Self {
         self.custom_pod_template = Some(template);
+        self
+    }
+
+    /// Set Kubernetes namespace
+    pub fn with_namespace(mut self, namespace: String) -> Self {
+        self.namespace = Some(namespace);
+        self
+    }
+
+    /// Set Docker host
+    pub fn with_docker_host(mut self, docker_host: String) -> Self {
+        self.docker_host = Some(docker_host);
         self
     }
 }

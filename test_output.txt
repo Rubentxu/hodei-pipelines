@@ -1,0 +1,589 @@
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   /home/rubentxu/Proyectos/rust/hodei-jobs/crates/adapters/Cargo.toml
+workspace: /home/rubentxu/Proyectos/rust/hodei-jobs/Cargo.toml
+warning: /home/rubentxu/Proyectos/rust/hodei-jobs/server/Cargo.toml: unused manifest key: dependencies.hodei-adapters.path
+warning: /home/rubentxu/Proyectos/rust/hodei-jobs/server/Cargo.toml: unused manifest key: dependencies.hodei-core.path
+warning: /home/rubentxu/Proyectos/rust/hodei-jobs/server/Cargo.toml: unused manifest key: dependencies.hodei-modules.path
+warning: /home/rubentxu/Proyectos/rust/hodei-jobs/server/Cargo.toml: unused manifest key: dependencies.hodei-ports.path
+warning: /home/rubentxu/Proyectos/rust/hodei-jobs/server/Cargo.toml: unused manifest key: dependencies.hodei-shared-types.path
+warning: /home/rubentxu/Proyectos/rust/hodei-jobs/Cargo.toml: unused manifest key: workspace.build-dependencies
+warning: unused import: `serde::de::Error`
+   --> crates/core/src/job.rs:328:13
+    |
+328 |         use serde::de::Error;
+    |             ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `ResourceQuota`
+ --> crates/core/src/mappers/job_mapper.rs:6:44
+  |
+6 | use crate::{Job, JobId, JobSpec, JobState, ResourceQuota};
+  |                                            ^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> crates/core/src/mappers/job_mapper.rs:10:5
+   |
+10 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fmt`
+ --> crates/core/src/pipeline.rs:9:5
+  |
+9 | use std::fmt;
+  |     ^^^^^^^^
+
+warning: `hodei-core` (lib) generated 4 warnings (run `cargo fix --lib -p hodei-core` to apply 4 suggestions)
+warning: unused import: `Status`
+  --> crates/adapters/src/worker_client.rs:13:13
+   |
+13 | use tonic::{Status, transport::Channel};
+   |             ^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `Write`
+ --> crates/adapters/src/security/mtls.rs:9:26
+  |
+9 | use std::io::{BufReader, Write};
+  |                          ^^^^^
+
+warning: unused variable: `result`
+  --> crates/adapters/src/worker_client.rs:67:13
+   |
+67 |         let result = timeout(self.timeout, async {
+   |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `result`
+   --> crates/adapters/src/worker_client.rs:108:13
+    |
+108 |         let result = timeout(self.timeout, async {
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+
+warning: unused variable: `result`
+   --> crates/adapters/src/worker_client.rs:186:13
+    |
+186 |         let result = timeout(self.timeout, async {
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+
+warning: unused variable: `response`
+   --> crates/adapters/src/worker_client.rs:368:13
+    |
+368 |         let response = timeout(self.timeout, async {
+    |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_response`
+
+warning: field `root_store` is never read
+  --> crates/adapters/src/security/mtls.rs:86:5
+   |
+85 | pub struct ProductionCertificateValidator {
+   |            ------------------------------ field in this struct
+86 |     root_store: RootCertStore,
+   |     ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `hodei-adapters` (lib) generated 7 warnings (run `cargo fix --lib -p hodei-adapters` to apply 1 suggestion)
+warning: unused imports: `ClusterState`, `ResourceUsage`, and `SchedulerConfig`
+ --> crates/modules/src/scheduler/state_machine.rs:8:5
+  |
+8 |     ClusterState, ResourceUsage, SchedulerConfig, SchedulerError, SchedulerModule, Worker,
+  |     ^^^^^^^^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `JobId`
+  --> crates/modules/src/scheduler/state_machine.rs:11:23
+   |
+11 | use hodei_core::{Job, JobId};
+   |                       ^^^^^
+
+warning: unused import: `std::sync::Arc`
+  --> crates/modules/src/scheduler/state_machine.rs:12:5
+   |
+12 | use std::sync::Arc;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused import: `async_trait::async_trait`
+ --> crates/modules/src/worker_management.rs:6:5
+  |
+6 | use async_trait::async_trait;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `warn`
+  --> crates/modules/src/worker_management.rs:11:21
+   |
+11 | use tracing::{info, warn};
+   |                     ^^^^
+
+warning: unused variable: `scheduler`
+   --> crates/modules/src/scheduler/state_machine.rs:126:9
+    |
+126 |         scheduler: &SchedulerModule<R, E, W, WR>,
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_scheduler`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `cpu_cores`
+  --> crates/modules/src/worker_management.rs:28:9
+   |
+28 |         cpu_cores: u32,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cpu_cores`
+
+warning: unused variable: `memory_mb`
+  --> crates/modules/src/worker_management.rs:29:9
+   |
+29 |         memory_mb: u64,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_memory_mb`
+
+warning: unused variable: `cpu_cores`
+  --> crates/modules/src/worker_management.rs:59:9
+   |
+59 |         cpu_cores: u32,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cpu_cores`
+
+warning: unused variable: `memory_mb`
+  --> crates/modules/src/worker_management.rs:60:9
+   |
+60 |         memory_mb: u64,
+   |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_memory_mb`
+
+warning: variable does not need to be mutable
+   --> crates/modules/src/scheduler/mod.rs:317:9
+    |
+317 |         mut config: SchedulerConfig,
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: unused import: `Read`
+ --> crates/hwp-agent/src/artifacts/compression.rs:6:21
+  |
+6 | use std::io::{self, Read, Write};
+  |                     ^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `Path`
+ --> crates/hwp-agent/src/artifacts/uploader.rs:5:17
+  |
+5 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> crates/hwp-agent/src/monitor/resources.rs:5:5
+  |
+5 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Process`
+ --> crates/hwp-agent/src/monitor/resources.rs:7:20
+  |
+7 | use sysinfo::{Pid, Process, System};
+  |                    ^^^^^^^
+
+warning: unused variable: `tx`
+   --> crates/hwp-agent/src/connection/grpc_client.rs:120:14
+    |
+120 |         let (tx, rx) = mpsc::channel(100);
+    |              ^^ help: if this is intentional, prefix it with an underscore: `_tx`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `inbound`
+   --> crates/hwp-agent/src/connection/grpc_client.rs:129:17
+    |
+129 |         let mut inbound = response.into_inner();
+    |                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_inbound`
+
+warning: variable does not need to be mutable
+   --> crates/hwp-agent/src/connection/grpc_client.rs:129:13
+    |
+129 |         let mut inbound = response.into_inner();
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+   --> crates/hwp-agent/src/executor/process.rs:112:13
+    |
+112 |         let mut child = match child.spawn() {
+    |             ----^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused `std::result::Result` that must be used
+  --> crates/hwp-agent/src/logging/streaming.rs:73:21
+   |
+73 | /                     self.buffer
+74 | |                         .add_chunk(self.job_id.clone(), self.stream_type.clone(), data)
+75 | |                         .await;
+   | |______________________________^
+   |
+   = note: this `Result` may be an `Err` variant, which should be handled
+   = note: `#[warn(unused_must_use)]` on by default
+help: use `let _ = ...` to ignore the resulting value
+   |
+73 |                     let _ = self.buffer
+   |                     +++++++
+
+warning: `hodei-modules` (lib) generated 11 warnings (run `cargo fix --lib -p hodei-modules` to apply 6 suggestions)
+warning: `hwp-agent` (lib) generated 9 warnings (run `cargo fix --lib -p hwp-agent` to apply 6 suggestions)
+warning: unused import: `tempfile::tempfile`
+   --> crates/hwp-agent/src/logging/streaming.rs:165:9
+    |
+165 |     use tempfile::tempfile;
+    |         ^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `interceptor`
+  --> crates/hwp-agent/src/connection/auth.rs:74:13
+   |
+74 |         let interceptor = AuthInterceptor::new();
+   |             ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_interceptor`
+
+warning: unused variable: `buffer`
+   --> crates/hwp-agent/src/logging/buffer.rs:402:13
+    |
+402 |         let buffer = LogBuffer::new(config.clone());
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_buffer`
+
+warning: `hwp-agent` (lib test) generated 12 warnings (9 duplicates) (run `cargo fix --lib -p hwp-agent --tests` to apply 1 suggestion)
+warning: unused variable: `i`
+  --> crates/modules/tests/test_scheduler_cluster_state.rs:76:19
+   |
+76 |             .map(|i| {
+   |                   ^ help: if this is intentional, prefix it with an underscore: `_i`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused imports: `JobId` and `JobSpec`
+   --> crates/adapters/src/bus/mod.rs:117:22
+    |
+117 |     use hodei_core::{JobId, JobSpec, WorkerId};
+    |                      ^^^^^  ^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `super::*`
+ --> crates/adapters/src/kubernetes_provider_tests.rs:8:9
+  |
+8 |     use super::*;
+  |         ^^^^^^^^
+
+warning: unused import: `hodei_shared_types::WorkerStatus`
+  --> crates/adapters/src/kubernetes_provider_tests.rs:11:9
+   |
+11 |     use hodei_shared_types::WorkerStatus;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `JobState`
+  --> crates/adapters/src/redb.rs:81:43
+   |
+81 |     use hodei_core::{Job, JobId, JobSpec, JobState, Pipeline, PipelineId, Worker, WorkerId};
+   |                                           ^^^^^^^^
+
+warning: unused import: `std::path::PathBuf`
+  --> crates/adapters/src/redb.rs:83:9
+   |
+83 |     use std::path::PathBuf;
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `JobState`
+   --> crates/adapters/src/repositories.rs:194:43
+    |
+194 |     use hodei_core::{Job, JobId, JobSpec, JobState, Pipeline, PipelineId, Worker, WorkerId};
+    |                                           ^^^^^^^^
+
+warning: unused import: `jsonwebtoken::errors::ErrorKind`
+  --> crates/adapters/src/security/jwt.rs:83:9
+   |
+83 |     use jsonwebtoken::errors::ErrorKind;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `UnixTime`
+   --> crates/adapters/src/security/mtls.rs:221:45
+    |
+221 |     use rustls::pki_types::{CertificateDer, UnixTime};
+    |                                             ^^^^^^^^
+
+warning: unused import: `std::time::Duration`
+   --> crates/adapters/src/security/mtls.rs:222:9
+    |
+222 |     use std::time::Duration;
+    |         ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Status`
+  --> crates/adapters/src/worker_client.rs:13:13
+   |
+13 | use tonic::{Status, transport::Channel};
+   |             ^^^^^^
+
+warning: function `create_empty_cert_chain` is never used
+   --> crates/adapters/src/security/mtls.rs:255:8
+    |
+255 |     fn create_empty_cert_chain() -> Vec<CertificateDer<'static>> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `hodei-modules` (test "test_scheduler_cluster_state") generated 1 warning
+warning: `hodei-adapters` (lib test) generated 16 warnings (5 duplicates) (run `cargo fix --lib -p hodei-adapters --tests` to apply 10 suggestions)
+   Compiling hodei-server v0.1.0 (/home/rubentxu/Proyectos/rust/hodei-jobs/server)
+warning: unused import: `std::sync::Arc`
+ --> crates/adapters/tests/integration_tests.rs:9:5
+  |
+9 | use std::sync::Arc;
+  |     ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `SchedulerBuilder` and `SchedulerConfig`
+   --> crates/modules/src/scheduler/state_machine.rs:275:28
+    |
+275 |     use crate::scheduler::{SchedulerBuilder, SchedulerConfig};
+    |                            ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+
+warning: unused import: `WorkerCapabilities`
+   --> crates/modules/src/scheduler/state_machine.rs:281:30
+    |
+281 |     use hodei_shared_types::{WorkerCapabilities, WorkerId, WorkerStatus};
+    |                              ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+   --> crates/modules/src/scheduler/state_machine.rs:282:9
+    |
+282 |     use std::sync::Arc;
+    |         ^^^^^^^^^^^^^^
+
+warning: unused import: `super::*`
+   --> crates/modules/src/scheduler/mod.rs:912:9
+    |
+912 |     use super::*;
+    |         ^^^^^^^^
+
+warning: unused import: `WorkerCapabilities`
+   --> crates/modules/src/scheduler/mod.rs:918:30
+    |
+918 |     use hodei_shared_types::{WorkerCapabilities, WorkerId};
+    |                              ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+   --> crates/modules/src/scheduler/mod.rs:919:9
+    |
+919 |     use std::sync::Arc;
+    |         ^^^^^^^^^^^^^^
+
+warning: struct `MockJobRepository` is never constructed
+   --> crates/modules/src/scheduler/state_machine.rs:286:12
+    |
+286 |     struct MockJobRepository;
+    |            ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: struct `MockEventBus` is never constructed
+   --> crates/modules/src/scheduler/state_machine.rs:288:12
+    |
+288 |     struct MockEventBus;
+    |            ^^^^^^^^^^^^
+
+warning: struct `MockWorkerClient` is never constructed
+   --> crates/modules/src/scheduler/state_machine.rs:290:12
+    |
+290 |     struct MockWorkerClient;
+    |            ^^^^^^^^^^^^^^^^
+
+warning: struct `MockWorkerRepository` is never constructed
+   --> crates/modules/src/scheduler/state_machine.rs:292:12
+    |
+292 |     struct MockWorkerRepository;
+    |            ^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `MockJobRepository` is never constructed
+   --> crates/modules/src/scheduler/mod.rs:923:12
+    |
+923 |     struct MockJobRepository;
+    |            ^^^^^^^^^^^^^^^^^
+
+warning: struct `MockEventBus` is never constructed
+   --> crates/modules/src/scheduler/mod.rs:925:12
+    |
+925 |     struct MockEventBus;
+    |            ^^^^^^^^^^^^
+
+warning: struct `MockWorkerClient` is never constructed
+   --> crates/modules/src/scheduler/mod.rs:927:12
+    |
+927 |     struct MockWorkerClient;
+    |            ^^^^^^^^^^^^^^^^
+
+warning: struct `MockWorkerRepository` is never constructed
+   --> crates/modules/src/scheduler/mod.rs:929:12
+    |
+929 |     struct MockWorkerRepository;
+    |            ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::str::FromStr`
+   --> crates/core/src/pipeline.rs:407:9
+    |
+407 |     use std::str::FromStr;
+    |         ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> crates/core/src/worker.rs:85:9
+   |
+85 |     use std::collections::HashMap;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `JwtClaims`, `Permission`, `Role`, and `SecurityContext`
+  --> crates/ports/src/security.rs:78:32
+   |
+78 |     use hodei_core::security::{JwtClaims, Permission, Role, SecurityContext};
+   |                                ^^^^^^^^^  ^^^^^^^^^^  ^^^^  ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: `hodei-adapters` (test "integration_tests") generated 1 warning (run `cargo fix --test "integration_tests"` to apply 1 suggestion)
+warning: `hodei-modules` (lib test) generated 25 warnings (11 duplicates) (run `cargo fix --lib -p hodei-modules --tests` to apply 6 suggestions)
+warning: `hodei-core` (lib test) generated 5 warnings (3 duplicates) (run `cargo fix --lib -p hodei-core --tests` to apply 2 suggestions)
+warning: `hodei-ports` (lib test) generated 1 warning (run `cargo fix --lib -p hodei-ports --tests` to apply 1 suggestion)
+warning: unused import: `HttpWorkerClient`
+  --> server/src/main.rs:19:23
+   |
+19 |     GrpcWorkerClient, HttpWorkerClient, InMemoryBus, InMemoryJobRepository,
+   |                       ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `Job`
+  --> server/src/main.rs:22:18
+   |
+22 | use hodei_core::{Job, JobId, Worker, WorkerId};
+   |                  ^^^
+
+warning: unused import: `ResourceQuota`
+  --> server/src/main.rs:24:35
+   |
+24 | use hodei_shared_types::{JobSpec, ResourceQuota, WorkerCapabilities};
+   |                                   ^^^^^^^^^^^^^
+
+warning: unused import: `Value`
+  --> server/src/main.rs:25:18
+   |
+25 | use serde_json::{Value, json};
+   |                  ^^^^^
+
+warning: unused import: `IntoParams`
+ --> server/src/api_docs.rs:9:14
+  |
+9 | use utoipa::{IntoParams, ToSchema};
+  |              ^^^^^^^^^^
+
+warning: unused imports: `IntoParams` and `ToSchema`
+  --> server/src/main.rs:40:14
+   |
+40 | use utoipa::{IntoParams, ToSchema};
+   |              ^^^^^^^^^^  ^^^^^^^^
+
+warning: unused imports: `Counter`, `IntCounter`, and `Registry`
+   --> server/src/metrics.rs:178:22
+    |
+178 |     use prometheus::{Counter, IntCounter, Registry};
+    |                      ^^^^^^^  ^^^^^^^^^^  ^^^^^^^^
+
+warning: unused import: `hodei_adapters::security::JwtTokenService`
+ --> server/src/auth.rs:1:5
+  |
+1 | use hodei_adapters::security::JwtTokenService;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `JobResult` and `ServerPayload`
+  --> server/src/grpc.rs:10:89
+   |
+10 |     AgentMessage, AgentPayload, AssignJobRequest, CancelJobRequest, Empty, JobAccepted, JobResult,
+   |                                                                                         ^^^^^^^^^
+11 |     LogEntry, ServerMessage, ServerPayload, WorkerRegistration, WorkerService, WorkerStatus,
+   |                              ^^^^^^^^^^^^^
+
+error[E0599]: no function or associated item named `new` found for struct `ProviderConfig` in the current scope
+   --> server/src/main.rs:268:46
+    |
+268 |             let mut config = ProviderConfig::new(provider_type.clone());
+    |                                              ^^^ function or associated item not found in `ProviderConfig`
+    |
+note: if you're trying to build a new `ProviderConfig` consider using one of the following associated functions:
+      ProviderConfig::docker
+      ProviderConfig::kubernetes
+   --> /home/rubentxu/Proyectos/rust/hodei-jobs/crates/ports/src/worker_provider.rs:91:5
+    |
+ 91 |     pub fn docker(name: String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+103 |     pub fn kubernetes(name: String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no function or associated item named `new` found for struct `ProviderConfig` in the current scope
+   --> server/src/main.rs:447:46
+    |
+447 |             let mut config = ProviderConfig::new(provider_type.clone());
+    |                                              ^^^ function or associated item not found in `ProviderConfig`
+    |
+note: if you're trying to build a new `ProviderConfig` consider using one of the following associated functions:
+      ProviderConfig::docker
+      ProviderConfig::kubernetes
+   --> /home/rubentxu/Proyectos/rust/hodei-jobs/crates/ports/src/worker_provider.rs:91:5
+    |
+ 91 |     pub fn docker(name: String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+103 |     pub fn kubernetes(name: String) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `interceptor`
+   --> server/src/auth.rs:350:13
+    |
+350 |         let interceptor = create_auth_interceptor_with_mock(&valid_token);
+    |             ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_interceptor`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `tx`
+   --> server/src/grpc.rs:132:14
+    |
+132 |         let (tx, rx) = mpsc::channel(100);
+    |              ^^ help: if this is intentional, prefix it with an underscore: `_tx`
+
+warning: unused variable: `scheduler`
+   --> server/src/grpc.rs:135:13
+    |
+135 |         let scheduler = self.scheduler.clone();
+    |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_scheduler`
+
+warning: unreachable pattern
+   --> server/src/grpc.rs:157:33
+    |
+157 | ...                   _ => {
+    |                       ^ no value can reach this
+    |
+note: multiple earlier patterns match some of the same values
+   --> server/src/grpc.rs:157:33
+    |
+142 | ...                   AgentPayload::JobAccepted(accepted) => {
+    |                       ----------------------------------- matches some of the same values
+...
+146 | ...                   AgentPayload::LogEntry(log) => {
+    |                       --------------------------- matches some of the same values
+...
+150 | ...                   AgentPayload::JobResult(res) => {
+    |                       ---------------------------- matches some of the same values
+...
+157 | ...                   _ => {
+    |                       ^ collectively making this unreachable
+    = note: `#[warn(unreachable_patterns)]` on by default
+
+For more information about this error, try `rustc --explain E0599`.
+warning: `hodei-server` (bin "hodei-server" test) generated 13 warnings
+error: could not compile `hodei-server` (bin "hodei-server" test) due to 2 previous errors; 13 warnings emitted

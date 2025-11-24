@@ -154,7 +154,9 @@ where
                                     );
                                     // Complete job in scheduler
                                 }
-                                _ => {}
+                                _ => {
+                                    info!("Received unhandled payload type");
+                                }
                             }
                         }
                     }

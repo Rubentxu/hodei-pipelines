@@ -13,6 +13,7 @@ pub mod redb;
 pub mod repositories;
 pub mod security;
 pub mod worker_client;
+pub mod worker_registration;
 
 pub use crate::bus::{InMemoryBus, InMemoryBusBuilder};
 pub use crate::docker_provider::DockerProvider;
@@ -22,6 +23,9 @@ pub use crate::repositories::{
     InMemoryJobRepository, InMemoryPipelineRepository, InMemoryWorkerRepository,
 };
 pub use crate::worker_client::{GrpcWorkerClient, HttpWorkerClient};
+
+// Re-export types from hodei-ports
+pub use hodei_ports::worker_provider::{ProviderConfig, ProviderType};
 
 // PostgreSQL implementations
 pub use crate::postgres::{

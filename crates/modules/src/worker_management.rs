@@ -21,7 +21,7 @@ impl WorkerManagementService {
         Self { provider }
     }
 
-    /// Create a new dynamic worker
+    /// Create a new dynamic worker with default Docker provider
     pub async fn provision_worker(
         &self,
         image: String,
@@ -35,6 +35,36 @@ impl WorkerManagementService {
             worker_id = %worker_id,
             image = %image,
             "Provisioning new worker"
+        );
+
+        let worker = self
+            .provider
+            .create_worker(worker_id.clone(), config)
+            .await
+            .map_err(WorkerManagementError::Provider)?;
+
+        info!(
+            worker_id = %worker.id,
+            container_id = ?worker.metadata.get("container_id"),
+            "Worker provisioned successfully"
+        );
+
+        Ok(worker)
+    }
+
+    /// Create a new dynamic worker with custom configuration
+    pub async fn provision_worker_with_config(
+        &self,
+        config: ProviderConfig,
+        cpu_cores: u32,
+        memory_mb: u64,
+    ) -> Result<Worker, WorkerManagementError> {
+        let worker_id = WorkerId::new();
+
+        info!(
+            worker_id = %worker_id,
+            provider_type = %config.provider_type.as_str(),
+            "Provisioning new worker with custom config"
         );
 
         let worker = self

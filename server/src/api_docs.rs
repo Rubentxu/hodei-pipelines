@@ -177,23 +177,27 @@ pub struct ErrorResponse {
 /// Create dynamic worker request
 #[derive(Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
-    "image": "ubuntu:20.04",
-    "command": ["bash", "-c", "sleep infinity"],
+    "provider_type": "docker",
+    "namespace": "default",
+    "image": "hwp-agent:latest",
     "cpu_cores": 4,
     "memory_mb": 8192,
     "env": {
         "HODEI_SERVER_GRPC_URL": "http://hodei-server:50051"
     },
     "labels": {
-        "env": "production",
-        "type": "dynamic"
-    }
+        "env": "production"
+    },
+    "custom_image": null,
+    "custom_pod_template": null
 }))]
 pub struct CreateDynamicWorkerRequest {
+    /// Infrastructure provider type
+    pub provider_type: String,
+    /// Kubernetes namespace (if using K8s provider)
+    pub namespace: Option<String>,
     /// Docker image to use for the worker
     pub image: String,
-    /// Command to execute in the worker
-    pub command: Option<Vec<String>>,
     /// Number of CPU cores to allocate
     pub cpu_cores: u32,
     /// Memory in MB to allocate
@@ -202,6 +206,10 @@ pub struct CreateDynamicWorkerRequest {
     pub env: Option<HashMap<String, String>>,
     /// Labels to attach to the worker
     pub labels: Option<HashMap<String, String>>,
+    /// Custom image (overrides default)
+    pub custom_image: Option<String>,
+    /// Custom Kubernetes Pod template (YAML or JSON as String, only for K8s)
+    pub custom_pod_template: Option<String>,
 }
 
 /// Create dynamic worker response
@@ -283,4 +291,85 @@ pub struct ProviderCapabilitiesInfo {
     pub max_workers: Option<u32>,
     /// Estimated provisioning time in milliseconds
     pub estimated_provision_time_ms: u64,
+}
+
+/// Provider type enumeration
+#[derive(Serialize, Deserialize, ToSchema)]
+#[schema(example = json!("docker"))]
+pub enum ProviderTypeDto {
+    Docker,
+    Kubernetes,
+}
+
+/// Provider info
+#[derive(Serialize, Deserialize, ToSchema)]
+#[schema(example = json!({
+    "provider_type": "docker",
+    "name": "docker-provider",
+    "status": "active"
+}))]
+pub struct ProviderInfo {
+    /// Provider type
+    pub provider_type: String,
+    /// Provider name
+    pub name: String,
+    /// Provider status
+    pub status: String,
+}
+
+/// List providers response
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct ListProvidersResponse {
+    /// List of available providers
+    pub providers: Vec<ProviderInfo>,
+}
+
+/// Create provider request
+#[derive(Serialize, Deserialize, ToSchema)]
+#[schema(example = json!({
+    "provider_type": "docker",
+    "name": "my-docker",
+    "namespace": "default",
+    "docker_host": "unix:///var/run/docker.sock",
+    "custom_image": "hwp-agent:latest",
+    "custom_pod_template": null
+}))]
+pub struct CreateProviderRequest {
+    /// Provider type
+    pub provider_type: ProviderTypeDto,
+    /// Provider name
+    pub name: String,
+    /// Namespace (for Kubernetes)
+    pub namespace: Option<String>,
+    /// Docker host (for Docker)
+    pub docker_host: Option<String>,
+    /// Custom image (overrides default)
+    pub custom_image: Option<String>,
+    /// Custom K8s Pod template (for Kubernetes, YAML or JSON as String)
+    pub custom_pod_template: Option<String>,
+}
+
+/// Provider response
+#[derive(Serialize, Deserialize, ToSchema)]
+#[schema(example = json!({
+    "provider_type": "docker",
+    "name": "my-docker",
+    "namespace": "default",
+    "custom_image": "hwp-agent:latest",
+    "status": "active",
+    "created_at": "2024-01-01T00:00:00Z"
+}))]
+pub struct ProviderResponse {
+    /// Provider type
+    pub provider_type: String,
+    /// Provider name
+    pub name: String,
+    /// Namespace
+    pub namespace: Option<String>,
+    /// Custom image
+    pub custom_image: Option<String>,
+    /// Provider status
+    pub status: String,
+    /// Creation timestamp
+    pub created_at: DateTime<Utc>,
 }

@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use hodei_adapters::{
     GrpcWorkerClient, HttpWorkerClient, InMemoryBus, InMemoryJobRepository,
-    InMemoryPipelineRepository, InMemoryWorkerRepository,
+    InMemoryPipelineRepository, InMemoryWorkerRepository, ProviderConfig, ProviderType,
 };
 use hodei_core::{Job, JobId, Worker, WorkerId};
 use hodei_modules::{OrchestratorModule, SchedulerModule, WorkerManagementService};
@@ -31,8 +31,10 @@ use tracing::info;
 mod api_docs;
 use api_docs::{
     CreateDynamicWorkerRequest, CreateDynamicWorkerResponse, CreateJobRequest,
-    DynamicWorkerStatusResponse, HealthResponse, JobResponse, ListDynamicWorkersResponse,
-    MessageResponse, ProviderCapabilitiesResponse, RegisterWorkerRequest,
+    CreateProviderRequest, DynamicWorkerStatusResponse, HealthResponse, JobResponse,
+    ListDynamicWorkersResponse, ListProvidersResponse, MessageResponse,
+    ProviderCapabilitiesResponse, ProviderInfo, ProviderResponse, ProviderTypeDto,
+    RegisterWorkerRequest,
 };
 
 use utoipa::{IntoParams, ToSchema};
@@ -253,8 +255,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let create_dynamic_worker_handler = {
         let worker_management = Arc::clone(&app_state.worker_management);
         move |State(_): State<AppState>, Json(payload): Json<CreateDynamicWorkerRequest>| async move {
+            // Parse provider type
+            let provider_type = match payload.provider_type.to_lowercase().as_str() {
+                "docker" => ProviderType::Docker,
+                "kubernetes" | "k8s" => ProviderType::Kubernetes,
+                _ => {
+                    return Err(StatusCode::BAD_REQUEST);
+                }
+            };
+
+            // Build provider config with custom options
+            let mut config = match provider_type {
+                ProviderType::Docker => {
+                    ProviderConfig::docker(format!("worker-{}", uuid::Uuid::new_v4()))
+                }
+                ProviderType::Kubernetes => {
+                    ProviderConfig::kubernetes(format!("worker-{}", uuid::Uuid::new_v4()))
+                }
+            };
+
+            // Set custom image if provided, otherwise use default from payload
+            if let Some(image) = payload.custom_image.or(Some(payload.image)) {
+                config = config.with_image(image);
+            }
+
+            // Set custom pod template if provided (Kubernetes only)
+            if provider_type == ProviderType::Kubernetes {
+                if let Some(template) = payload.custom_pod_template {
+                    config = config.with_pod_template(template);
+                }
+            }
+
+            // Set namespace if provided (Kubernetes only)
+            if let Some(namespace) = payload.namespace {
+                config = config.with_namespace(namespace);
+            }
+
             match worker_management
-                .provision_worker(payload.image, payload.cpu_cores, payload.memory_mb)
+                .provision_worker_with_config(config, payload.cpu_cores, payload.memory_mb)
                 .await
             {
                 Ok(worker) => Ok(Json(CreateDynamicWorkerResponse {
@@ -383,6 +421,75 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    let list_providers_handler = {
+        move |State(_): State<AppState>| async move {
+            // For now, return the built-in providers
+            // In a real implementation, this would query a repository
+            let providers = vec![
+                ProviderInfo {
+                    provider_type: "docker".to_string(),
+                    name: "docker-provider".to_string(),
+                    status: "active".to_string(),
+                },
+                ProviderInfo {
+                    provider_type: "kubernetes".to_string(),
+                    name: "kubernetes-provider".to_string(),
+                    status: "active".to_string(),
+                },
+            ];
+
+            Ok::<axum::Json<ListProvidersResponse>, StatusCode>(Json(ListProvidersResponse {
+                providers,
+            }))
+        }
+    };
+
+    let create_provider_handler = {
+        let worker_management = Arc::clone(&app_state.worker_management);
+        move |State(_): State<AppState>, Json(payload): Json<CreateProviderRequest>| async move {
+            // Build provider config
+            let provider_type = match payload.provider_type {
+                ProviderTypeDto::Docker => ProviderType::Docker,
+                ProviderTypeDto::Kubernetes => ProviderType::Kubernetes,
+            };
+
+            let mut config = match provider_type {
+                ProviderType::Docker => ProviderConfig::docker(payload.name.clone()),
+                ProviderType::Kubernetes => ProviderConfig::kubernetes(payload.name.clone()),
+            };
+
+            // Set custom options
+            if let Some(ref image) = payload.custom_image {
+                config = config.with_image(image.clone());
+            }
+
+            if let Some(ref template) = payload.custom_pod_template {
+                config = config.with_pod_template(template.clone());
+            }
+
+            if let Some(ref namespace) = payload.namespace {
+                config = config.with_namespace(namespace.clone());
+            }
+
+            if let Some(ref docker_host) = payload.docker_host {
+                config = config.with_docker_host(docker_host.clone());
+            }
+
+            // In a real implementation, this would register the provider
+            // For now, just return the provider info
+            let response = ProviderResponse {
+                provider_type: provider_type.as_str().to_string(),
+                name: payload.name,
+                namespace: payload.namespace,
+                custom_image: payload.custom_image,
+                status: "active".to_string(),
+                created_at: chrono::Utc::now(),
+            };
+
+            Ok::<axum::Json<ProviderResponse>, StatusCode>(Json(response))
+        }
+    };
+
     let app = Router::new()
         // API Documentation
         .route("/api/openapi.json", get(|| async {
@@ -426,6 +533,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::routing::delete(delete_dynamic_worker_handler),
         )
         .route("/api/v1/providers/capabilities", get(get_provider_capabilities_handler))
+        .route("/api/v1/providers", get(list_providers_handler))
+        .route("/api/v1/providers", post(create_provider_handler))
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
