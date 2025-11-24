@@ -3,7 +3,7 @@
 //! Production-grade persistence using PostgreSQL with async SQLx driver.
 
 use async_trait::async_trait;
-use hodei_core::{Job, JobId, Pipeline, PipelineId, Worker};
+use hodei_core::{Job, JobId, Pipeline, PipelineId, Worker, pipeline::PipelineStepId};
 use hodei_ports::{
     JobRepository, JobRepositoryError, PipelineRepository, PipelineRepositoryError,
     WorkerRepository, WorkerRepositoryError,
@@ -587,7 +587,7 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
                     .map(|step| WorkflowStepJson {
                         name: step.name.clone(),
                         job_spec: step.job_spec.clone(),
-                        depends_on: Some(step.depends_on.clone()),
+                        depends_on: Some(step.depends_on.iter().map(|id| id.to_string()).collect()),
                         timeout_ms: Some(step.timeout_ms),
                     })
                     .collect(),
@@ -646,9 +646,15 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
                                 steps_json
                                     .into_iter()
                                     .map(|step_json| hodei_core::pipeline::PipelineStep {
+                                        id: PipelineStepId::new(),
                                         name: step_json.name,
                                         job_spec: step_json.job_spec,
-                                        depends_on: step_json.depends_on.unwrap_or_default(),
+                                        depends_on: step_json
+                                            .depends_on
+                                            .unwrap_or_default()
+                                            .into_iter()
+                                            .map(|s| PipelineStepId::from_uuid(s.parse().unwrap_or_else(|_| Uuid::new_v4())))
+                                            .collect(),
                                         timeout_ms: step_json.timeout_ms.unwrap_or(300000),
                                     })
                                     .collect()

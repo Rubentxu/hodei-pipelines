@@ -7,6 +7,8 @@ pub mod correlation;
 pub mod error;
 pub mod health_checks;
 pub mod job_definitions;
+pub mod job_specifications;
+pub mod specifications;
 pub mod worker_messages;
 
 pub use crate::error::DomainError;

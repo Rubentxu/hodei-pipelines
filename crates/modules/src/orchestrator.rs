@@ -103,7 +103,8 @@ where
     ) -> Result<Pipeline, OrchestratorError> {
         info!("Creating pipeline: {}", name);
 
-        let pipeline = Pipeline::new(PipelineId::new(), name, steps);
+        let pipeline = Pipeline::new(PipelineId::new(), name, steps)
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         self.pipeline_repo
             .save_pipeline(&pipeline)

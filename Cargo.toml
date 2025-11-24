@@ -73,6 +73,9 @@ config = "0.15.19"
 # Metrics
 prometheus = "0.14.0"
 
+# DAG and Graph processing
+daggy = "0.9.0"
+
 # Agent specific
 portable-pty = "0.9.0"
 sysinfo = "0.37.2"

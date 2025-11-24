@@ -2,6 +2,7 @@
 
 use crate::Uuid;
 use crate::error::DomainError;
+use crate::specifications::Specification;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -90,29 +91,16 @@ pub struct JobSpec {
 
 impl JobSpec {
     pub fn validate(&self) -> Result<(), DomainError> {
-        if self.name.trim().is_empty() {
-            return Err(DomainError::Validation(
-                "job name cannot be empty".to_string(),
-            ));
-        }
+        use crate::job_specifications::ValidJobSpec;
 
-        if self.image.trim().is_empty() {
-            return Err(DomainError::Validation("image cannot be empty".to_string()));
+        let spec = ValidJobSpec;
+        if spec.is_satisfied_by(self) {
+            Ok(())
+        } else {
+            Err(DomainError::Validation(
+                "job specification does not meet validation requirements".to_string(),
+            ))
         }
-
-        if self.command.is_empty() {
-            return Err(DomainError::Validation(
-                "command cannot be empty".to_string(),
-            ));
-        }
-
-        if self.timeout_ms == 0 {
-            return Err(DomainError::Validation(
-                "timeout must be greater than 0".to_string(),
-            ));
-        }
-
-        Ok(())
     }
 
     /// Create a new JobSpec builder
@@ -246,6 +234,12 @@ impl JobState {
             self.0.as_str(),
             Self::SUCCESS | Self::FAILED | Self::CANCELLED
         )
+    }
+}
+
+impl std::fmt::Display for JobState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

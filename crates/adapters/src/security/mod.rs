@@ -8,4 +8,7 @@ pub use audit::AuditLoggerAdapter;
 pub use config::SecurityConfig;
 pub use jwt::{JwtConfig, JwtTokenService};
 pub use masking::AhoCorasickMasker;
-pub use mtls::TlsCertificateValidator;
+pub use mtls::{
+    CertificateValidationConfig, CertificateValidationError, MtlsConfig,
+    ProductionCertificateValidator, TlsCertificateValidator,
+};

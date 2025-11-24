@@ -8,8 +8,10 @@
 //! (hodei-shared-types crate) to avoid duplication across bounded contexts.
 
 pub mod job;
+pub mod mappers;
 pub mod pipeline;
 pub mod security;
+pub mod specifications;
 pub mod worker;
 
 // Re-exports from Shared Kernel (shared-types crate)

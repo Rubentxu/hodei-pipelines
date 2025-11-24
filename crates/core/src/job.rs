@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// This entity encapsulates the business logic for job lifecycle management
 /// and maintains consistency of job state transitions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Job {
     pub id: JobId,
     pub name: String,
