@@ -85,21 +85,18 @@ pub trait ResourcePool: Send + Sync {
 
     /// Request resource allocation
     async fn allocate_resources(
-        &self,
+        &mut self,
         request: ResourceAllocationRequest,
     ) -> Result<ResourceAllocation, String>;
 
     /// Release allocated resources
-    async fn release_resources(
-        &self,
-        allocation_id: &str,
-    ) -> Result<(), String>;
+    async fn release_resources(&mut self, allocation_id: &str) -> Result<(), String>;
 
     /// List active allocations
     async fn list_allocations(&self) -> Result<Vec<ResourceAllocation>, String>;
 
     /// Scale pool to target size
-    async fn scale_to(&self, target_size: u32) -> Result<(), String>;
+    async fn scale_to(&mut self, target_size: u32) -> Result<(), String>;
 
     /// Get available workers in pool
     async fn list_workers(&self) -> Result<Vec<WorkerId>, String>;

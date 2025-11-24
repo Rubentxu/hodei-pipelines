@@ -18,6 +18,6 @@ pub use crate::scheduler::state_machine::{
 };
 pub use crate::scheduler::{SchedulerConfig, SchedulerModule};
 pub use crate::worker_management::{
-    WorkerManagementError, WorkerManagementService, create_default_worker_management_service,
-    create_kubernetes_worker_management_service,
+    WorkerManagementConfig, WorkerManagementError, WorkerManagementService,
+    create_default_worker_management_service, create_kubernetes_worker_management_service,
 };

@@ -7,9 +7,10 @@ use async_trait::async_trait;
 use hodei_adapters::DefaultProviderFactory;
 use hodei_core::{Worker, WorkerId};
 use hodei_ports::{
-    ProviderFactoryTrait, resource_pool::{
-        ResourcePool, ResourcePoolConfig, ResourcePoolStatus, ResourcePoolType,
-        ResourceAllocationRequest, ResourceAllocation, AllocationStatus,
+    ProviderFactoryTrait,
+    resource_pool::{
+        AllocationStatus, ResourceAllocation, ResourceAllocationRequest, ResourcePool,
+        ResourcePoolConfig, ResourcePoolStatus, ResourcePoolType,
     },
     worker_provider::{ProviderConfig, ProviderError, WorkerProvider},
 };
@@ -17,10 +18,10 @@ use hodei_shared_types::{ResourceQuota, WorkerStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 /// Resource Pool Service
-/// 
+///
 /// Manages a pool of resources that can be allocated on demand.
 /// Handles auto-scaling, queuing, and worker lifecycle management.
 #[derive(Debug)]
@@ -34,7 +35,10 @@ pub struct ResourcePoolService {
 }
 
 impl ResourcePoolService {
-    pub fn new(config: ResourcePoolConfig, provider: Box<dyn WorkerProvider + Send + Sync>) -> Self {
+    pub fn new(
+        config: ResourcePoolConfig,
+        provider: Box<dyn WorkerProvider + Send + Sync>,
+    ) -> Self {
         Self {
             config,
             provider,
@@ -66,22 +70,25 @@ impl ResourcePoolService {
                 break;
             }
 
-            match self.allocate_internal(request).await {
+            let request_id = request.request_id.clone();
+            match self.allocate_internal(&request).await {
                 Ok(allocation) => {
-                    self.allocations.insert(allocation.allocation_id.clone(), allocation);
+                    self.allocations
+                        .insert(allocation.allocation_id.clone(), allocation);
                     processed += 1;
-                    info!("Allocated resources for request {}", allocation.request_id);
+                    info!("Allocated resources for request {}", request_id);
                 }
                 Err(e) => {
                     error!("Failed to allocate resources: {}", e);
                     // Mark as failed
                     let failed_allocation = ResourceAllocation {
-                        request_id: request.request_id,
+                        request_id,
                         worker_id: WorkerId::new(),
                         allocation_id: format!("failed-{}", uuid::Uuid::new_v4()),
                         status: AllocationStatus::Failed(e),
                     };
-                    self.allocations.insert(failed_allocation.allocation_id.clone(), failed_allocation);
+                    self.allocations
+                        .insert(failed_allocation.allocation_id.clone(), failed_allocation);
                 }
             }
         }
@@ -92,7 +99,7 @@ impl ResourcePoolService {
     /// Internal allocation logic
     async fn allocate_internal(
         &self,
-        request: ResourceAllocationRequest,
+        request: &ResourceAllocationRequest,
     ) -> Result<ResourceAllocation, String> {
         // Create worker with requested resources
         let worker_id = WorkerId::new();
@@ -102,25 +109,28 @@ impl ResourcePoolService {
         config = config.with_image("hwp-agent:latest".to_string());
 
         match self.provider.create_worker(worker_id.clone(), config).await {
-            Ok(worker) => {
-                Ok(ResourceAllocation {
-                    request_id: request.request_id,
-                    worker_id: worker_id.clone(),
-                    allocation_id: format!("alloc-{}", uuid::Uuid::new_v4()),
-                    status: AllocationStatus::Allocated {
-                        worker,
-                        container_id: None,
-                    },
-                })
-            }
+            Ok(worker) => Ok(ResourceAllocation {
+                request_id: request.request_id.clone(),
+                worker_id: worker_id.clone(),
+                allocation_id: format!("alloc-{}", uuid::Uuid::new_v4()),
+                status: AllocationStatus::Allocated {
+                    worker,
+                    container_id: None,
+                },
+            }),
             Err(e) => Err(format!("Provider error: {}", e)),
         }
     }
 
     /// Get available capacity
     async fn get_available_capacity(&self) -> Result<u32, ResourcePoolServiceError> {
-        let status = self.status().await?;
-        Ok(status.available_capacity.saturating_sub(self.allocations.len() as u32))
+        let status = self
+            .status()
+            .await
+            .map_err(|e| ResourcePoolServiceError::Internal(e))?;
+        Ok(status
+            .available_capacity
+            .saturating_sub(self.allocations.len() as u32))
     }
 }
 
@@ -155,30 +165,37 @@ impl ResourcePool for ResourcePoolService {
         );
 
         let available = self.get_available_capacity().await.unwrap_or(0);
-        
+
         if available > 0 {
             // Allocate immediately
-            let allocation = self.allocate_internal(request.clone()).await?;
-            self.allocations.insert(allocation.allocation_id.clone(), allocation.clone());
-            
+            let allocation = self
+                .allocate_internal(&request)
+                .await
+                .map_err(|e| ResourcePoolServiceError::Internal(e).to_string())?;
+            self.allocations
+                .insert(allocation.allocation_id.clone(), allocation.clone());
+
             if let AllocationStatus::Allocated { ref worker, .. } = allocation.status {
-                self.active_workers.insert(worker.id.clone(), allocation.allocation_id.clone());
+                self.active_workers
+                    .insert(worker.id.clone(), allocation.allocation_id.clone());
             }
 
             // Process queue if needed
             let _ = self.process_queue().await;
-            
+
             Ok(allocation)
         } else {
             // Queue request
+            let request_id = request.request_id.clone();
             self.pending_queue.push_back(request);
             let allocation = ResourceAllocation {
-                request_id: request.request_id,
+                request_id,
                 worker_id: WorkerId::new(),
                 allocation_id: format!("pending-{}", uuid::Uuid::new_v4()),
                 status: AllocationStatus::Pending,
             };
-            self.allocations.insert(allocation.allocation_id.clone(), allocation.clone());
+            self.allocations
+                .insert(allocation.allocation_id.clone(), allocation.clone());
             Ok(allocation)
         }
     }
@@ -190,9 +207,9 @@ impl ResourcePool for ResourcePoolService {
                 if let Err(e) = self.provider.stop_worker(&worker.id, true).await {
                     warn!("Failed to stop worker {}: {}", worker.id, e);
                 }
-                
+
                 self.active_workers.remove(&worker.id);
-                
+
                 info!(
                     pool_name = %self.config.name,
                     allocation_id = allocation_id,
@@ -222,12 +239,15 @@ impl ResourcePool for ResourcePoolService {
         // Note: In a real implementation, this would trigger provisioning/deprovisioning
         // For now, just update the max_size
         self.config.max_size = target_size;
-        
+
         Ok(())
     }
 
     async fn list_workers(&self) -> Result<Vec<WorkerId>, String> {
-        self.provider.list_workers().await.map_err(|e| e.to_string())
+        self.provider
+            .list_workers()
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -262,15 +282,14 @@ pub async fn create_docker_resource_pool(
         default_resources: ResourceQuota {
             cpu_m: 1000,
             memory_mb: 2048,
+            gpu: None,
         },
         tags: HashMap::new(),
     };
 
     let provider_config = ProviderConfig::docker("docker-pool".to_string());
     let factory = DefaultProviderFactory::new();
-    let provider = factory
-        .create_provider(provider_config)
-        .await?;
+    let provider = factory.create_provider(provider_config).await?;
 
     Ok(ResourcePoolService::new(config, provider))
 }
@@ -291,15 +310,14 @@ pub async fn create_kubernetes_resource_pool(
         default_resources: ResourceQuota {
             cpu_m: 1000,
             memory_mb: 2048,
+            gpu: None,
         },
         tags: HashMap::new(),
     };
 
     let provider_config = ProviderConfig::kubernetes("k8s-pool".to_string());
     let factory = DefaultProviderFactory::new();
-    let provider = factory
-        .create_provider(provider_config)
-        .await?;
+    let provider = factory.create_provider(provider_config).await?;
 
     Ok(ResourcePoolService::new(config, provider))
 }
