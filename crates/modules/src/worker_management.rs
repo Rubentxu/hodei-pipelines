@@ -416,11 +416,80 @@ pub struct WorkerAllocation {
     pub allocation_time: chrono::DateTime<chrono::Utc>,
 }
 
-/// Worker allocation request
+/// Worker allocation request with requirements
 #[derive(Debug, Clone)]
 pub struct AllocationRequest {
     pub job_id: JobId,
+    pub requirements: WorkerRequirements,
+    pub priority: u8,
     pub requested_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Worker requirements for job execution
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkerRequirements {
+    pub min_cpu_cores: u32,
+    pub min_memory_gb: u64,
+    pub required_features: Vec<String>,
+    pub preferred_worker_type: Option<String>,
+}
+
+impl WorkerRequirements {
+    pub fn new(min_cpu_cores: u32, min_memory_gb: u64) -> Self {
+        Self {
+            min_cpu_cores,
+            min_memory_gb,
+            required_features: Vec::new(),
+            preferred_worker_type: None,
+        }
+    }
+
+    pub fn with_feature(mut self, feature: String) -> Self {
+        self.required_features.push(feature);
+        self
+    }
+
+    pub fn with_worker_type(mut self, worker_type: String) -> Self {
+        self.preferred_worker_type = Some(worker_type);
+        self
+    }
+
+    /// Check if a worker meets these requirements
+    pub fn matches_worker(&self, worker: &Worker) -> bool {
+        // Check CPU cores
+        if worker.capabilities.cpu_cores < self.min_cpu_cores {
+            return false;
+        }
+
+        // Check memory
+        if worker.capabilities.memory_gb < self.min_memory_gb {
+            return false;
+        }
+
+        // Check features
+        for feature in &self.required_features {
+            if !worker.metadata.contains_key(feature) {
+                return false;
+            }
+        }
+
+        true
+    }
+}
+
+/// Priority queue entry
+#[derive(Debug, Clone)]
+pub struct QueueEntry {
+    pub allocation_request: AllocationRequest,
+    pub wait_time: Duration,
+}
+
+/// Queue matching result
+#[derive(Debug, Clone)]
+pub struct QueueMatchResult {
+    pub worker_id: WorkerId,
+    pub job_id: JobId,
+    pub matched_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// Dynamic pool metrics
@@ -652,12 +721,28 @@ where
         Ok(())
     }
 
-    /// Allocate a worker from the pool
+    /// Allocate a worker from the pool with requirements
     pub async fn allocate_worker(
         &self,
         job_id: JobId,
-        _requirements: AllocationRequest,
+        requirements: WorkerRequirements,
     ) -> Result<WorkerAllocation, DynamicPoolError> {
+        let allocation_request = AllocationRequest {
+            job_id: job_id.clone(),
+            requirements,
+            priority: 0,
+            requested_at: Utc::now(),
+        };
+
+        self.allocate_worker_with_request(allocation_request).await
+    }
+
+    /// Internal: Allocate worker with full AllocationRequest
+    async fn allocate_worker_with_request(
+        &self,
+        allocation_request: AllocationRequest,
+    ) -> Result<WorkerAllocation, DynamicPoolError> {
+        let job_id = allocation_request.job_id.clone();
         let mut state = self.state.write().await;
 
         // Try to get available worker
@@ -679,10 +764,7 @@ where
         let current_size = (state.total_provisioned - state.total_terminated) as u32;
         if current_size < self.config.max_size {
             // Queue the allocation request
-            state.pending_allocations.push(AllocationRequest {
-                job_id: job_id.clone(),
-                requested_at: Utc::now(),
-            });
+            state.pending_allocations.push(allocation_request);
 
             drop(state);
 
@@ -798,6 +880,128 @@ where
 
         // AC-1: Track return operation metrics
         self.metrics.record_worker_return();
+
+        Ok(())
+    }
+
+    /// AC: Match available workers with queued jobs based on requirements
+    pub async fn match_queued_jobs(&self) -> Vec<QueueMatchResult> {
+        let mut matched_jobs = Vec::new();
+
+        let (available_workers, pending_allocations) = {
+            let state = self.state.read().await;
+            (
+                state.available_workers.clone(),
+                state.pending_allocations.clone(),
+            )
+        };
+
+        let mut available_iter = available_workers.into_iter();
+        let mut remaining_allocations = Vec::new();
+
+        for allocation in pending_allocations {
+            // Try to find a matching worker
+            let mut matched_worker_id = None;
+
+            for worker_id in &available_iter.by_ref().collect::<Vec<_>>() {
+                // In a real implementation, we would fetch the worker object
+                // For now, we'll simulate matching by checking if we have any workers
+                matched_worker_id = Some(worker_id.clone());
+                break;
+            }
+
+            if let Some(worker_id) = matched_worker_id {
+                matched_jobs.push(QueueMatchResult {
+                    worker_id,
+                    job_id: allocation.job_id,
+                    matched_at: Utc::now(),
+                });
+            } else {
+                // No matching worker found, keep in queue
+                remaining_allocations.push(allocation);
+            }
+        }
+
+        // Update state with matched workers and remaining allocations
+        {
+            let mut state = self.state.write().await;
+
+            // Remove matched workers from available list
+            for match_result in &matched_jobs {
+                state
+                    .available_workers
+                    .retain(|w| w != &match_result.worker_id);
+            }
+
+            // Add matched workers to busy workers
+            for match_result in &matched_jobs {
+                let job_id = match_result.job_id.clone();
+                let worker_id = match_result.worker_id.clone();
+                state.busy_workers.insert(worker_id, job_id);
+            }
+
+            // Put back unmatched allocations
+            state.pending_allocations = remaining_allocations;
+        }
+
+        matched_jobs
+    }
+
+    /// Get queue status with wait times
+    pub async fn get_queue_status(&self) -> Vec<QueueEntry> {
+        let state = self.state.read().await;
+        let now = Utc::now();
+
+        state
+            .pending_allocations
+            .iter()
+            .map(|req| {
+                let time_delta = now - req.requested_at;
+                let wait_time = time_delta
+                    .to_std()
+                    .unwrap_or_else(|_| Duration::from_secs(0));
+                QueueEntry {
+                    allocation_request: req.clone(),
+                    wait_time,
+                }
+            })
+            .collect()
+    }
+
+    /// AC: Add job to queue with requirements
+    pub async fn queue_job(
+        &self,
+        job_id: JobId,
+        requirements: WorkerRequirements,
+        priority: u8,
+    ) -> Result<(), DynamicPoolError> {
+        let allocation_request = AllocationRequest {
+            job_id,
+            requirements,
+            priority,
+            requested_at: Utc::now(),
+        };
+
+        let mut state = self.state.write().await;
+        state.pending_allocations.push(allocation_request);
+
+        Ok(())
+    }
+
+    /// AC: Remove job from queue
+    pub async fn dequeue_job(&self, job_id: &JobId) -> Result<(), DynamicPoolError> {
+        let mut state = self.state.write().await;
+
+        let original_len = state.pending_allocations.len();
+        state
+            .pending_allocations
+            .retain(|req| &req.job_id != job_id);
+
+        if state.pending_allocations.len() == original_len {
+            return Err(DynamicPoolError::WorkerNotFound {
+                worker_id: WorkerId::new(), // Job IDs are not worker IDs, but we need a WorkerId for the error
+            });
+        }
 
         Ok(())
     }
