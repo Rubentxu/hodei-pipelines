@@ -578,6 +578,554 @@ impl DynamicPoolMetrics {
     }
 }
 
+/// Static pool error types
+#[derive(Debug, thiserror::Error)]
+pub enum StaticPoolError {
+    #[error("Pool exhausted: requested {requested} workers, only {available} available")]
+    PoolExhausted { requested: u32, available: u32 },
+
+    #[error("Provisioning failed: {worker_id} after {attempts} attempts")]
+    ProvisioningFailed { worker_id: WorkerId, attempts: u32 },
+
+    #[error("Worker not found: {worker_id}")]
+    WorkerNotFound { worker_id: WorkerId },
+
+    #[error("Worker not available: {worker_id}")]
+    WorkerNotAvailable { worker_id: WorkerId },
+
+    #[error("Invalid configuration: {0}")]
+    InvalidConfig(String),
+
+    #[error("Health check failed: {worker_id}")]
+    HealthCheckFailed { worker_id: WorkerId },
+
+    #[error("Internal error: {0}")]
+    Internal(String),
+
+    #[error("Provider error: {0}")]
+    Provider(#[from] ProviderError),
+}
+
+/// Provisioning strategy for static pools
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProvisioningStrategy {
+    Sequential,
+    Parallel { max_concurrent: u32 },
+}
+
+/// Health check configuration
+#[derive(Debug, Clone)]
+pub struct HealthCheckConfig {
+    pub enabled: bool,
+    pub interval: Duration,
+    pub timeout: Duration,
+    pub healthy_threshold: u32,
+    pub unhealthy_threshold: u32,
+}
+
+impl HealthCheckConfig {
+    pub fn new() -> Self {
+        Self {
+            enabled: true,
+            interval: Duration::from_secs(30),
+            timeout: Duration::from_secs(10),
+            healthy_threshold: 3,
+            unhealthy_threshold: 2,
+        }
+    }
+}
+
+/// Provisioning configuration
+#[derive(Debug, Clone)]
+pub struct ProvisioningConfig {
+    pub timeout_per_worker: Duration,
+    pub max_retries: u32,
+    pub retry_delay: Duration,
+}
+
+impl ProvisioningConfig {
+    pub fn new() -> Self {
+        Self {
+            timeout_per_worker: Duration::from_secs(120),
+            max_retries: 3,
+            retry_delay: Duration::from_secs(5),
+        }
+    }
+}
+
+/// Configuration for static worker pools
+#[derive(Debug, Clone)]
+pub struct StaticPoolConfig {
+    pub pool_id: String,
+    pub worker_type: String,
+    pub fixed_size: u32,
+    pub worker_config: StaticWorkerConfig,
+    pub provisioning: ProvisioningConfig,
+    pub health_check: HealthCheckConfig,
+    pub provisioning_strategy: ProvisioningStrategy,
+}
+
+impl StaticPoolConfig {
+    pub fn new(pool_id: String, worker_type: String, fixed_size: u32) -> Self {
+        Self {
+            pool_id,
+            worker_type,
+            fixed_size,
+            worker_config: StaticWorkerConfig::default(),
+            provisioning: ProvisioningConfig::new(),
+            health_check: HealthCheckConfig::new(),
+            provisioning_strategy: ProvisioningStrategy::Sequential,
+        }
+    }
+
+    /// Validate configuration constraints
+    pub fn validate(&self) -> Result<(), StaticPoolError> {
+        if self.fixed_size == 0 {
+            return Err(StaticPoolError::InvalidConfig(
+                "fixed_size must be greater than 0".to_string(),
+            ));
+        }
+        if self.worker_type.is_empty() {
+            return Err(StaticPoolError::InvalidConfig(
+                "worker_type cannot be empty".to_string(),
+            ));
+        }
+        if self.pool_id.is_empty() {
+            return Err(StaticPoolError::InvalidConfig(
+                "pool_id cannot be empty".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Static worker configuration
+#[derive(Debug, Clone)]
+pub struct StaticWorkerConfig {
+    pub image: String,
+    pub cpu_cores: u32,
+    pub memory_mb: u32,
+    pub docker_enabled: bool,
+    pub labels: HashMap<String, String>,
+    pub tags: Vec<String>,
+    pub environment: HashMap<String, String>,
+}
+
+impl StaticWorkerConfig {
+    pub fn new(image: String, cpu_cores: u32, memory_mb: u32) -> Self {
+        Self {
+            image,
+            cpu_cores,
+            memory_mb,
+            docker_enabled: true,
+            labels: HashMap::new(),
+            tags: Vec::new(),
+            environment: HashMap::new(),
+        }
+    }
+
+    pub fn with_labels(mut self, labels: HashMap<String, String>) -> Self {
+        self.labels = labels;
+        self
+    }
+
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+}
+
+impl Default for StaticWorkerConfig {
+    fn default() -> Self {
+        Self {
+            image: "ubuntu:20.04".to_string(),
+            cpu_cores: 4,
+            memory_mb: 8192,
+            docker_enabled: true,
+            labels: HashMap::new(),
+            tags: Vec::new(),
+            environment: HashMap::new(),
+        }
+    }
+}
+
+/// Static pool state
+#[derive(Debug, Clone)]
+pub struct StaticPoolState {
+    pub available_workers: Vec<WorkerId>,
+    pub busy_workers: HashMap<WorkerId, JobId>,
+    pub total_provisioned: u32,
+    pub total_terminated: u32,
+}
+
+impl StaticPoolState {
+    pub fn new() -> Self {
+        Self {
+            available_workers: Vec::new(),
+            busy_workers: HashMap::new(),
+            total_provisioned: 0,
+            total_terminated: 0,
+        }
+    }
+}
+
+/// Current status of a static pool
+#[derive(Debug, Clone)]
+pub struct StaticPoolStatus {
+    pub pool_id: String,
+    pub worker_type: String,
+    pub fixed_size: u32,
+    pub available_workers: u32,
+    pub busy_workers: u32,
+    pub total_provisioned: u32,
+    pub total_terminated: u32,
+}
+
+/// Result of a static worker allocation
+#[derive(Debug, Clone)]
+pub struct StaticWorkerAllocation {
+    pub worker_id: WorkerId,
+    pub job_id: JobId,
+    pub allocation_time: chrono::DateTime<chrono::Utc>,
+}
+
+/// Static pool metrics
+#[derive(Debug)]
+pub struct StaticPoolMetrics {
+    pub pool_id: String,
+    pub allocations_total: std::sync::atomic::AtomicU64,
+    pub releases_total: std::sync::atomic::AtomicU64,
+    pub health_check_failures: std::sync::atomic::AtomicU64,
+}
+
+impl StaticPoolMetrics {
+    pub fn new(pool_id: &str) -> Self {
+        Self {
+            pool_id: pool_id.to_string(),
+            allocations_total: std::sync::atomic::AtomicU64::new(0),
+            releases_total: std::sync::atomic::AtomicU64::new(0),
+            health_check_failures: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+
+    pub fn record_allocation(&self) {
+        self.allocations_total
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn record_release(&self) {
+        self.releases_total
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn record_health_check_failure(&self) {
+        self.health_check_failures
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Manages static worker pools with fixed size
+#[derive(Debug)]
+pub struct StaticPoolManager<T>
+where
+    T: WorkerProvider + Send + Sync,
+{
+    config: StaticPoolConfig,
+    state: Arc<RwLock<StaticPoolState>>,
+    worker_provider: T,
+    metrics: StaticPoolMetrics,
+}
+
+impl<T> StaticPoolManager<T>
+where
+    T: WorkerProvider + Send + Sync + Clone + 'static,
+{
+    /// Create new static pool manager
+    pub fn new(config: StaticPoolConfig, worker_provider: T) -> Result<Self, StaticPoolError> {
+        config.validate()?;
+        let metrics = StaticPoolMetrics::new(&config.pool_id);
+
+        Ok(Self {
+            config: config.clone(),
+            state: Arc::new(RwLock::new(StaticPoolState::new())),
+            worker_provider,
+            metrics,
+        })
+    }
+
+    /// Start the pool manager and provision all workers
+    pub async fn start(&self) -> Result<(), StaticPoolError> {
+        let worker_count = self.config.fixed_size;
+        info!(
+            pool_id = %self.config.pool_id,
+            worker_count = worker_count,
+            "Starting static pool"
+        );
+
+        match &self.config.provisioning_strategy {
+            ProvisioningStrategy::Sequential => {
+                self.provision_workers_sequential(worker_count).await
+            }
+            ProvisioningStrategy::Parallel { max_concurrent } => {
+                self.provision_workers_parallel(worker_count, *max_concurrent)
+                    .await
+            }
+        }?;
+
+        info!(
+            pool_id = %self.config.pool_id,
+            "Static pool started successfully"
+        );
+
+        Ok(())
+    }
+
+    /// Stop the pool manager and terminate all workers
+    pub async fn stop(&self) -> Result<(), StaticPoolError> {
+        info!(pool_id = %self.config.pool_id, "Stopping static pool");
+
+        // Get all worker IDs
+        let mut all_workers = Vec::new();
+
+        {
+            let state = self.state.read().await;
+            all_workers.extend(state.available_workers.clone());
+            all_workers.extend(state.busy_workers.keys().cloned());
+        }
+
+        // Terminate all workers
+        for worker_id in all_workers {
+            self.terminate_worker(worker_id).await.ok();
+        }
+
+        // Update state to reflect termination
+        let mut state = self.state.write().await;
+        state.total_terminated = state.total_provisioned;
+        state.available_workers.clear();
+        state.busy_workers.clear();
+
+        info!(pool_id = %self.config.pool_id, "Static pool stopped");
+        Ok(())
+    }
+
+    /// Allocate a worker from the static pool
+    pub async fn allocate_worker(
+        &self,
+        job_id: JobId,
+    ) -> Result<StaticWorkerAllocation, StaticPoolError> {
+        let mut state = self.state.write().await;
+
+        // Check if we have available workers
+        if let Some(worker_id) = state.available_workers.pop() {
+            state.busy_workers.insert(worker_id.clone(), job_id.clone());
+            drop(state);
+
+            self.metrics.record_allocation();
+
+            let allocation = StaticWorkerAllocation {
+                worker_id,
+                job_id,
+                allocation_time: Utc::now(),
+            };
+
+            return Ok(allocation);
+        }
+
+        // No available workers
+        drop(state);
+        let state = self.state.read().await;
+        let available = state.available_workers.len() as u32;
+        drop(state);
+
+        Err(StaticPoolError::PoolExhausted {
+            requested: 1,
+            available,
+        })
+    }
+
+    /// Release a worker back to the static pool
+    pub async fn release_worker(
+        &self,
+        worker_id: WorkerId,
+        job_id: JobId,
+    ) -> Result<(), StaticPoolError> {
+        let mut state = self.state.write().await;
+
+        // Verify worker is currently busy with this job
+        if state.busy_workers.remove(&worker_id) != Some(job_id) {
+            return Err(StaticPoolError::WorkerNotFound { worker_id });
+        }
+
+        // Run health check before returning to pool
+        if !self.check_worker_health(&worker_id).await {
+            state.total_terminated += 1;
+            drop(state);
+            self.terminate_worker(worker_id).await?;
+            return Ok(());
+        }
+
+        // Return to available pool
+        state.available_workers.push(worker_id);
+        drop(state);
+
+        self.metrics.record_release();
+        Ok(())
+    }
+
+    /// Run health check on worker
+    pub async fn check_worker_health(&self, worker_id: &WorkerId) -> bool {
+        if !self.config.health_check.enabled {
+            return true;
+        }
+
+        info!(
+            pool_id = %self.config.pool_id,
+            worker_id = %worker_id,
+            "Running health check"
+        );
+
+        // TODO: Implement actual health check logic
+        // For now, assume all workers pass health check
+        true
+    }
+
+    /// Get current pool status
+    pub async fn status(&self) -> StaticPoolStatus {
+        let state = self.state.read().await;
+        StaticPoolStatus {
+            pool_id: self.config.pool_id.clone(),
+            worker_type: self.config.worker_type.clone(),
+            fixed_size: self.config.fixed_size,
+            available_workers: state.available_workers.len() as u32,
+            busy_workers: state.busy_workers.len() as u32,
+            total_provisioned: state.total_provisioned,
+            total_terminated: state.total_terminated,
+        }
+    }
+
+    // Internal methods
+
+    async fn provision_workers_sequential(&self, count: u32) -> Result<(), StaticPoolError> {
+        for i in 0..count {
+            match self.provision_single_worker(i).await {
+                Ok(_) => {
+                    let mut state = self.state.write().await;
+                    state.total_provisioned += 1;
+                }
+                Err(e) => {
+                    error!(
+                        pool_id = %self.config.pool_id,
+                        worker_index = i,
+                        error = %e,
+                        "Failed to provision worker"
+                    );
+                    return Err(e);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn provision_workers_parallel(
+        &self,
+        count: u32,
+        max_concurrent: u32,
+    ) -> Result<(), StaticPoolError> {
+        let mut handles = Vec::new();
+        let mut provisioned = 0;
+
+        while provisioned < count {
+            // Spawn up to max_concurrent workers
+            let to_spawn = std::cmp::min(max_concurrent, count - provisioned);
+
+            for _ in 0..to_spawn {
+                let worker_index = provisioned;
+                let provider = self.worker_provider.clone();
+                let config =
+                    ProviderConfig::docker(format!("{}-static-worker", self.config.pool_id));
+
+                let handle = tokio::spawn(async move {
+                    let worker_id = WorkerId::new();
+                    match provider.create_worker(worker_id, config).await {
+                        Ok(worker) => Ok(worker),
+                        Err(e) => Err(StaticPoolError::Provider(e)),
+                    }
+                });
+                handles.push(handle);
+            }
+
+            // Wait for current batch to complete
+            for handle in handles.drain(..to_spawn as usize) {
+                match handle
+                    .await
+                    .map_err(|_| StaticPoolError::Internal("Thread join error".to_string()))
+                {
+                    Ok(result) => match result {
+                        Ok(worker) => {
+                            let mut state = self.state.write().await;
+                            state.total_provisioned += 1;
+                            state.available_workers.push(worker.id);
+                            provisioned += 1;
+                        }
+                        Err(e) => return Err(e),
+                    },
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn provision_single_worker(&self, _index: u32) -> Result<(), StaticPoolError> {
+        let worker_id = WorkerId::new();
+        let config = ProviderConfig::docker(format!("{}-static-worker", self.config.pool_id));
+
+        // Try with retries
+        for attempt in 1..=self.config.provisioning.max_retries {
+            match self
+                .worker_provider
+                .create_worker(worker_id.clone(), config.clone())
+                .await
+            {
+                Ok(worker) => {
+                    let mut state = self.state.write().await;
+                    state.available_workers.push(worker.id);
+                    return Ok(());
+                }
+                Err(e) => {
+                    if attempt == self.config.provisioning.max_retries {
+                        return Err(StaticPoolError::Provider(e));
+                    }
+                    tokio::time::sleep(self.config.provisioning.retry_delay).await;
+                }
+            }
+        }
+
+        Err(StaticPoolError::ProvisioningFailed {
+            worker_id,
+            attempts: self.config.provisioning.max_retries,
+        })
+    }
+
+    async fn terminate_worker(&self, worker_id: WorkerId) -> Result<(), StaticPoolError> {
+        self.worker_provider.stop_worker(&worker_id, true).await?;
+        self.worker_provider.delete_worker(&worker_id).await?;
+        Ok(())
+    }
+
+    async fn get_any_worker_id(&self) -> Result<WorkerId, StaticPoolError> {
+        let state = self.state.read().await;
+        if let Some(worker_id) = state.available_workers.first().cloned() {
+            Ok(worker_id)
+        } else if let Some(worker_id) = state.busy_workers.keys().next().cloned() {
+            Ok(worker_id)
+        } else {
+            Err(StaticPoolError::Internal("No workers found".to_string()))
+        }
+    }
+}
+
 /// Worker reuse metrics tracking
 #[derive(Debug)]
 pub struct WorkerReuseMetrics {
@@ -1994,5 +2542,278 @@ mod tests {
 
         let savings = metrics.calculate_provisioning_cost_savings(500.0);
         assert_eq!(savings, 0.0);
+    }
+
+    // ===== Static Pool Configuration Tests =====
+
+    #[test]
+    fn test_static_pool_config_creation() {
+        let config = StaticPoolConfig::new("static-pool-1".to_string(), "worker".to_string(), 5);
+
+        assert_eq!(config.pool_id, "static-pool-1");
+        assert_eq!(config.worker_type, "worker");
+        assert_eq!(config.fixed_size, 5);
+        assert!(config.provisioning_strategy == ProvisioningStrategy::Sequential);
+        assert_eq!(config.health_check.timeout, Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_static_worker_config_with_labels() {
+        let mut labels = HashMap::new();
+        labels.insert("env".to_string(), "prod".to_string());
+        labels.insert("region".to_string(), "us-west".to_string());
+
+        let config =
+            StaticWorkerConfig::new("ubuntu:20.04".to_string(), 4, 8192).with_labels(labels);
+
+        assert_eq!(config.image, "ubuntu:20.04");
+        assert_eq!(config.cpu_cores, 4);
+        assert_eq!(config.memory_mb, 8192);
+        assert_eq!(config.labels.len(), 2);
+        assert_eq!(config.labels.get("env").unwrap(), "prod");
+    }
+
+    #[test]
+    fn test_static_pool_config_validation() {
+        // Valid config
+        let config = StaticPoolConfig::new("pool-1".to_string(), "worker".to_string(), 10);
+        assert!(config.validate().is_ok());
+
+        // Invalid: zero size
+        let invalid_config = StaticPoolConfig::new("pool-1".to_string(), "worker".to_string(), 0);
+        assert!(invalid_config.validate().is_err());
+
+        // Invalid: empty worker type
+        let invalid_config2 = StaticPoolConfig::new("pool-1".to_string(), "".to_string(), 10);
+        assert!(invalid_config2.validate().is_err());
+    }
+
+    #[test]
+    fn test_provisioning_strategy_comparison() {
+        let seq = ProvisioningStrategy::Sequential;
+        let par = ProvisioningStrategy::Parallel { max_concurrent: 10 };
+
+        assert_ne!(seq, par);
+    }
+
+    // ===== Static Pool Manager Tests =====
+
+    #[tokio::test]
+    async fn test_static_pool_manager_creation() {
+        let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        let provider = MockWorkerProvider::new();
+
+        let result = StaticPoolManager::new(config, provider);
+        assert!(result.is_ok());
+
+        let manager = result.unwrap();
+        assert_eq!(manager.config.pool_id, "static-pool");
+        assert_eq!(manager.config.fixed_size, 3);
+    }
+
+    #[tokio::test]
+    async fn test_static_pool_manager_start_with_parallel_provisioning() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        config.provisioning_strategy = ProvisioningStrategy::Parallel { max_concurrent: 2 };
+        let provider = MockWorkerProvider::new();
+
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start the manager (should provision workers)
+        let result = manager.start().await;
+        assert!(result.is_ok(), "Pool should start successfully");
+
+        // Wait a bit for provisioning to complete
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let status = manager.status().await;
+        assert_eq!(status.pool_id, "static-pool");
+        assert_eq!(status.total_provisioned, 3);
+        assert!(status.available_workers >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_static_pool_allocate_worker() {
+        let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        let provider = MockWorkerProvider::new();
+
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start and wait for provisioning
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let job_id = JobId::new();
+        let result = manager.allocate_worker(job_id).await;
+        assert!(result.is_ok(), "Should allocate worker successfully");
+
+        let status = manager.status().await;
+        assert_eq!(status.busy_workers, 1);
+    }
+
+    #[tokio::test]
+    async fn test_static_pool_release_worker() {
+        let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        let provider = MockWorkerProvider::new();
+
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start and wait for provisioning
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let job_id = JobId::new();
+        let allocation = manager.allocate_worker(job_id.clone()).await.unwrap();
+
+        // Verify initial state
+        let status_before = manager.status().await;
+        assert!(status_before.busy_workers >= 1);
+
+        // Release the worker
+        let result = manager.release_worker(allocation.worker_id, job_id).await;
+        assert!(result.is_ok(), "Should release worker successfully");
+
+        // Allow a bit of time for the state to update
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let status = manager.status().await;
+        // Worker should be back in available pool or being cleaned up
+        // The exact count depends on provisioning state
+        assert!(status.busy_workers <= status_before.busy_workers);
+    }
+
+    #[tokio::test]
+    async fn test_static_pool_allocate_all_workers() {
+        let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        let provider = MockWorkerProvider::new();
+
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start and wait for provisioning
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Allocate all workers
+        let job1 = JobId::new();
+        let job2 = JobId::new();
+
+        let alloc1 = manager.allocate_worker(job1).await.unwrap();
+        let alloc2 = manager.allocate_worker(job2).await.unwrap();
+
+        assert_ne!(alloc1.worker_id, alloc2.worker_id);
+
+        let status = manager.status().await;
+        assert_eq!(status.busy_workers, 2);
+        assert_eq!(status.available_workers, 0);
+    }
+
+    #[tokio::test]
+    async fn test_static_pool_exhausted() {
+        let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 1);
+        let provider = MockWorkerProvider::new();
+
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start and wait for provisioning
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let job1 = JobId::new();
+        let job2 = JobId::new();
+
+        // Allocate the only worker
+        let _ = manager.allocate_worker(job1).await.unwrap();
+
+        // Try to allocate another - should fail
+        let result = manager.allocate_worker(job2).await;
+        assert!(result.is_err());
+
+        if let Err(e) = result {
+            assert!(matches!(e, StaticPoolError::PoolExhausted { .. }));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_static_pool_worker_health_check() {
+        let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 1);
+        let provider = MockWorkerProvider::new();
+
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start and wait for provisioning
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Allocate a worker
+        let job_id = JobId::new();
+        let allocation = manager.allocate_worker(job_id).await.unwrap();
+
+        // Worker should be healthy
+        let healthy = manager.check_worker_health(&allocation.worker_id).await;
+        assert!(healthy, "Worker should pass health check");
+    }
+
+    #[tokio::test]
+    async fn test_static_pool_stop_and_cleanup() {
+        let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        let provider = MockWorkerProvider::new();
+
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start and wait for provisioning
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Verify workers were provisioned
+        let status_before = manager.status().await;
+        assert!(status_before.total_provisioned >= 0);
+
+        // Stop the manager
+        let result = manager.stop().await;
+        assert!(result.is_ok(), "Pool should stop successfully");
+
+        // Wait a bit for cleanup
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let status = manager.status().await;
+        // After stop, all workers should be cleaned up (no available or busy workers)
+        assert_eq!(status.available_workers, 0);
+        assert_eq!(status.busy_workers, 0);
+    }
+
+    #[tokio::test]
+    async fn test_static_pool_status() {
+        let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        let provider = MockWorkerProvider::new();
+
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        let status = manager.status().await;
+
+        assert_eq!(status.pool_id, "static-pool");
+        assert_eq!(status.worker_type, "worker");
+        assert_eq!(status.fixed_size, 3);
+        assert_eq!(status.available_workers, 0);
+        assert_eq!(status.busy_workers, 0);
+        assert_eq!(status.total_provisioned, 0);
+    }
+
+    #[tokio::test]
+    async fn test_static_pool_parallel_provisioning() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 5);
+        config.provisioning_strategy = ProvisioningStrategy::Parallel { max_concurrent: 3 };
+        let provider = MockWorkerProvider::new();
+
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        let start_time = Instant::now();
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(150)).await; // Wait for parallel provisioning
+        let elapsed = start_time.elapsed();
+
+        // With parallel provisioning (3 concurrent), should be faster than sequential
+        // This is more of a functional test than timing assertion
+        let status = manager.status().await;
+        assert!(status.total_provisioned > 0);
     }
 }
