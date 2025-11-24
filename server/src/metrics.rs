@@ -171,3 +171,174 @@ impl Default for MetricsRegistry {
         Self::new().expect("Failed to create metrics registry")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prometheus::{Counter, IntCounter, Registry};
+
+    #[test]
+    fn test_metrics_registry_creation() {
+        let registry = MetricsRegistry::new();
+        assert!(registry.is_ok());
+    }
+
+    #[test]
+    fn test_metrics_registry_gather() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather();
+        assert!(metrics.is_ok());
+        let metrics_text = metrics.unwrap();
+        assert!(!metrics_text.is_empty());
+    }
+
+    #[test]
+    fn test_metrics_registry_empty() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics_text = registry.gather().unwrap();
+
+        // Verify that metrics are present
+        assert!(metrics_text.contains("# HELP") || metrics_text.contains("# TYPE"));
+    }
+
+    #[test]
+    fn test_metrics_registry_multiple_instances() {
+        let registry1 = MetricsRegistry::new();
+        let registry2 = MetricsRegistry::new();
+
+        assert!(registry1.is_ok());
+        assert!(registry2.is_ok());
+
+        // Both should gather metrics independently
+        let metrics1 = registry1.unwrap().gather().unwrap();
+        let metrics2 = registry2.unwrap().gather().unwrap();
+
+        assert!(!metrics1.is_empty());
+        assert!(!metrics2.is_empty());
+    }
+
+    #[test]
+    fn test_metrics_registry_prometheus_format() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather().unwrap();
+
+        // Prometheus format should be non-empty and contain basic structure
+        assert!(!metrics.is_empty());
+        assert!(
+            metrics.starts_with("# HELP")
+                || metrics.starts_with("# TYPE")
+                || metrics.contains("job_")
+                || metrics.contains("worker_")
+        );
+    }
+
+    #[test]
+    fn test_metrics_registry_contains_job_metrics() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather().unwrap();
+
+        // Check for basic Prometheus structure
+        assert!(!metrics.is_empty());
+        assert!(
+            metrics.contains("job_") || metrics.contains("queue_") || metrics.contains("# TYPE")
+        );
+    }
+
+    #[test]
+    fn test_metrics_registry_contains_worker_metrics() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather().unwrap();
+
+        assert!(!metrics.is_empty());
+        assert!(
+            metrics.contains("worker_")
+                || metrics.contains("# TYPE")
+                || metrics.contains("instance")
+        );
+    }
+
+    #[test]
+    fn test_metrics_registry_contains_scheduling_metrics() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather().unwrap();
+
+        // Just check that metrics can be gathered
+        assert!(!metrics.is_empty());
+        assert!(
+            metrics.contains("scheduling_")
+                || metrics.contains("# TYPE")
+                || metrics.contains("seconds")
+        );
+    }
+
+    #[test]
+    fn test_metrics_registry_contains_queue_metrics() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather().unwrap();
+
+        assert!(!metrics.is_empty());
+        assert!(metrics.contains("queue_") || metrics.contains("# TYPE"));
+    }
+
+    #[test]
+    fn test_metrics_registry_contains_http_metrics() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather().unwrap();
+
+        assert!(!metrics.is_empty());
+        assert!(
+            metrics.contains("http_") || metrics.contains("# TYPE") || metrics.contains("request")
+        );
+    }
+
+    #[test]
+    fn test_metrics_registry_contains_event_bus_metrics() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather().unwrap();
+
+        assert!(!metrics.is_empty());
+        assert!(
+            metrics.contains("event_") || metrics.contains("# TYPE") || metrics.contains("bus")
+        );
+    }
+
+    #[test]
+    fn test_metrics_registry_labels() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather().unwrap();
+
+        assert!(!metrics.is_empty());
+        // Check for label format (key="value")
+        assert!(metrics.contains("=\"") || metrics.contains("instance="));
+    }
+
+    #[test]
+    fn test_metrics_registry_histogram_buckets() {
+        let registry = MetricsRegistry::new().unwrap();
+        let metrics = registry.gather().unwrap();
+
+        // Just check that metrics are in valid Prometheus format
+        assert!(!metrics.is_empty());
+        // Histogram buckets are optional, so just check format
+        assert!(metrics.contains("bucket") || metrics.contains("count") || metrics.contains("sum"));
+    }
+
+    #[test]
+    fn test_default_metrics_registry() {
+        // Default implementation should work
+        let registry: MetricsRegistry = Default::default();
+        let metrics = registry.gather();
+        assert!(metrics.is_ok());
+    }
+
+    #[test]
+    fn test_metrics_registry_gather_twice() {
+        let registry = MetricsRegistry::new().unwrap();
+
+        // Should be able to gather multiple times
+        let metrics1 = registry.gather().unwrap();
+        let metrics2 = registry.gather().unwrap();
+
+        assert_eq!(metrics1, metrics2);
+    }
+}

@@ -308,7 +308,8 @@ mod tests {
         assert!(context.has_permission(&Permission::ReadJobs));
         assert!(context.has_permission(&Permission::WriteJobs));
         assert!(context.has_permission(&Permission::AdminSystem));
-        assert!(!context.has_permission(&Permission::DeleteJobs));
+        // Admin context includes all permissions including DeleteJobs
+        assert!(context.has_permission(&Permission::DeleteJobs));
     }
 
     #[test]

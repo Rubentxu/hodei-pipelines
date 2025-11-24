@@ -17,3 +17,28 @@ pub enum PipelineRepositoryError {
     #[error("Database error: {0}")]
     Database(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_pipeline_repository_trait_exists() {
+        // This test verifies the trait exists and compiles
+        let _repo: Option<Box<dyn PipelineRepository + Send + Sync>> = None;
+        // Trait exists and compiles correctly
+    }
+
+    #[test]
+    fn test_pipeline_repository_error_constructors() {
+        // Test error constructors
+        let _not_found = PipelineRepositoryError::Database("error".to_string());
+        let _database = PipelineRepositoryError::Database("error".to_string());
+    }
+
+    #[test]
+    fn test_pipeline_repository_error_display() {
+        let database = PipelineRepositoryError::Database("Connection error".to_string());
+        assert!(database.to_string().contains("Database error"));
+    }
+}

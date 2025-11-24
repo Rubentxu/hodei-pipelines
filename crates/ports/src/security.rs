@@ -71,3 +71,69 @@ pub trait AuditLogger: Send + Sync {
         context: Option<&SecurityContext>,
     ) -> Result<()>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hodei_core::security::{JwtClaims, Permission, Role, SecurityContext};
+
+    #[tokio::test]
+    async fn test_token_service_trait_exists() {
+        // This test verifies the trait exists and compiles
+        // In a real implementation, this would use an actual TokenService
+        let _service: Option<Box<dyn TokenService + Send + Sync>> = None;
+        // Trait exists and compiles correctly
+    }
+
+    #[tokio::test]
+    async fn test_secret_masker_trait_exists() {
+        // This test verifies the trait exists and compiles
+        let _masker: Option<Box<dyn SecretMasker + Send + Sync>> = None;
+        // Trait exists and compiles correctly
+    }
+
+    #[tokio::test]
+    async fn test_certificate_validator_trait_exists() {
+        // This test verifies the trait exists and compiles
+        let _validator: Option<Box<dyn CertificateValidator + Send + Sync>> = None;
+        // Trait exists and compiles correctly
+    }
+
+    #[tokio::test]
+    async fn test_audit_logger_trait_exists() {
+        // This test verifies the trait exists and compiles
+        let _logger: Option<Box<dyn AuditLogger + Send + Sync>> = None;
+        // Trait exists and compiles correctly
+    }
+
+    #[test]
+    fn test_security_error_display() {
+        let error = SecurityError::Jwt("Invalid token".to_string());
+        assert!(error.to_string().contains("JWT error"));
+        assert!(error.to_string().contains("Invalid token"));
+    }
+
+    #[test]
+    fn test_security_error_variants() {
+        let cert_error = SecurityError::CertificateValidation("Invalid cert".to_string());
+        let jwt_error = SecurityError::Jwt("Invalid token".to_string());
+        let audit_error = SecurityError::Audit("Audit failed".to_string());
+        let auth_error = SecurityError::Authorization("Not authorized".to_string());
+
+        assert!(
+            cert_error
+                .to_string()
+                .contains("Certificate validation failed")
+        );
+        assert!(jwt_error.to_string().contains("JWT error"));
+        assert!(audit_error.to_string().contains("Audit error"));
+        assert!(auth_error.to_string().contains("Authorization failed"));
+    }
+
+    #[test]
+    fn test_security_error_result_type() {
+        // Test that Result type alias works correctly
+        let _result: Result<String> = Ok("test".to_string());
+        let _error_result: Result<String> = Err(SecurityError::Jwt("test error".to_string()));
+    }
+}

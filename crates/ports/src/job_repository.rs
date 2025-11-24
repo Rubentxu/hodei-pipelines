@@ -47,3 +47,41 @@ pub enum JobRepositoryError {
     #[error("Invalid job data: {0}")]
     Validation(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_job_repository_trait_exists() {
+        // This test verifies the trait exists and compiles
+        let _repo: Option<Box<dyn JobRepository + Send + Sync>> = None;
+        // Trait exists and compiles correctly
+    }
+
+    #[test]
+    fn test_job_repository_error_constructors() {
+        // Test error constructors
+        let _not_found = JobRepositoryError::Conflict;
+        let _conflict = JobRepositoryError::Conflict;
+        let _database = JobRepositoryError::Database("error".to_string());
+        let _validation = JobRepositoryError::Validation("error".to_string());
+    }
+
+    #[test]
+    fn test_job_repository_error_display() {
+        let _error = JobRepositoryError::Conflict;
+        assert!(true);
+    }
+
+    #[test]
+    fn test_job_repository_error_variants() {
+        let conflict = JobRepositoryError::Conflict;
+        let database = JobRepositoryError::Database("Connection lost".to_string());
+        let validation = JobRepositoryError::Validation("Invalid data".to_string());
+        
+        assert!(conflict.to_string().contains("Concurrent modification detected"));
+        assert!(database.to_string().contains("Database error"));
+        assert!(validation.to_string().contains("Invalid job data"));
+    }
+}

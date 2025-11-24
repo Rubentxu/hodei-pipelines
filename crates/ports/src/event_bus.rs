@@ -122,3 +122,44 @@ impl EventReceiver {
 pub trait EventSubscriber: Send + Sync {
     async fn subscribe(&self) -> Result<EventReceiver, EventBusError>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_event_publisher_trait_exists() {
+        // This test verifies the trait exists and compiles
+        let _publisher: Option<Box<dyn EventPublisher + Send + Sync>> = None;
+        // Trait exists and compiles correctly
+    }
+
+    #[tokio::test]
+    async fn test_event_subscriber_trait_exists() {
+        // This test verifies the trait exists and compiles
+        let _subscriber: Option<Box<dyn EventSubscriber + Send + Sync>> = None;
+        // Trait exists and compiles correctly
+    }
+
+    #[test]
+    fn test_event_bus_error_constructors() {
+        // Test error constructors
+        let _full = EventBusError::Full(100);
+        let _dropped = EventBusError::Dropped;
+        let _closed = EventBusError::Closed;
+        let _internal = EventBusError::Internal("error".to_string());
+    }
+
+    #[test]
+    fn test_event_bus_error_display() {
+        let full = EventBusError::Full(100);
+        let dropped = EventBusError::Dropped;
+        let closed = EventBusError::Closed;
+        let internal = EventBusError::Internal("Test error".to_string());
+
+        assert!(full.to_string().contains("Bus full"));
+        assert!(dropped.to_string().contains("Subscriber dropped"));
+        assert!(closed.to_string().contains("Channel closed"));
+        assert!(internal.to_string().contains("Internal error"));
+    }
+}
