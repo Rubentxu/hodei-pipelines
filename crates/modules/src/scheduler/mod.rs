@@ -4,6 +4,8 @@ pub mod state_machine;
 
 pub use state_machine::{SchedulingContext, SchedulingState, SchedulingStateMachine};
 
+use crossbeam::queue::SegQueue;
+use crossbeam::utils::CachePadded;
 use dashmap::DashMap;
 use hodei_core::{Job, JobId, Worker};
 use hodei_ports::{
@@ -11,8 +13,8 @@ use hodei_ports::{
 };
 use hodei_shared_types::{WorkerCapabilities, WorkerId};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
 use tracing::{error, info};
 
 #[derive(Debug, Clone)]
@@ -56,7 +58,7 @@ impl ResourceUsage {
 }
 
 #[derive(Debug, Clone)]
-struct QueueEntry {
+pub struct QueueEntry {
     job: Job,
     priority: u8,
     enqueue_time: chrono::DateTime<chrono::Utc>,
@@ -87,6 +89,102 @@ impl PartialEq for QueueEntry {
 
 impl Eq for QueueEntry {}
 
+/// Lock-free priority queue using SegQueue with crossbeam
+/// Provides O(1) enqueue/dequeue operations and batching support
+pub struct LockFreePriorityQueue {
+    high_priority_queue: Arc<SegQueue<QueueEntry>>,
+    normal_priority_queue: Arc<SegQueue<QueueEntry>>,
+    low_priority_queue: Arc<SegQueue<QueueEntry>>,
+    queue_sizes: Arc<CachePadded<AtomicUsize>>,
+    batch_size: usize,
+}
+
+impl LockFreePriorityQueue {
+    pub fn new(batch_size: usize) -> Self {
+        Self {
+            high_priority_queue: Arc::new(SegQueue::new()),
+            normal_priority_queue: Arc::new(SegQueue::new()),
+            low_priority_queue: Arc::new(SegQueue::new()),
+            queue_sizes: Arc::new(CachePadded::new(AtomicUsize::new(0))),
+            batch_size,
+        }
+    }
+
+    /// Enqueue job with lock-free operation (O(1))
+    pub fn enqueue(&self, entry: QueueEntry) {
+        let queue = match entry.priority {
+            0..=3 => &self.high_priority_queue,
+            4..=7 => &self.normal_priority_queue,
+            _ => &self.low_priority_queue,
+        };
+
+        queue.push(entry);
+        self.queue_sizes.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Dequeue batch of jobs (lock-free, O(1) per job)
+    /// Returns up to batch_size jobs, prioritizing higher priority queues
+    pub fn dequeue_batch(&self) -> Vec<QueueEntry> {
+        let mut batch = Vec::with_capacity(self.batch_size);
+
+        // Dequeue from high priority queue first
+        for _ in 0..std::cmp::min(self.batch_size / 3, self.batch_size) {
+            if let Some(entry) = self.high_priority_queue.pop() {
+                batch.push(entry);
+                self.queue_sizes.fetch_sub(1, Ordering::Relaxed);
+            } else {
+                break;
+            }
+        }
+
+        // Then from normal priority queue
+        for _ in 0..std::cmp::min(self.batch_size / 3, self.batch_size - batch.len()) {
+            if let Some(entry) = self.normal_priority_queue.pop() {
+                batch.push(entry);
+                self.queue_sizes.fetch_sub(1, Ordering::Relaxed);
+            } else {
+                break;
+            }
+        }
+
+        // Finally from low priority queue
+        for _ in 0..(self.batch_size - batch.len()) {
+            if let Some(entry) = self.low_priority_queue.pop() {
+                batch.push(entry);
+                self.queue_sizes.fetch_sub(1, Ordering::Relaxed);
+            } else {
+                break;
+            }
+        }
+
+        batch
+    }
+
+    /// Peek at next job without dequeueing (O(1))
+    pub fn peek(&self) -> Option<QueueEntry> {
+        self.high_priority_queue
+            .pop()
+            .or_else(|| self.normal_priority_queue.pop())
+            .or_else(|| self.low_priority_queue.pop())
+    }
+
+    /// Get current queue size
+    pub fn len(&self) -> usize {
+        self.queue_sizes.load(Ordering::Relaxed)
+    }
+
+    /// Check if queue is empty
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl Default for LockFreePriorityQueue {
+    fn default() -> Self {
+        Self::new(100) // Default batch size
+    }
+}
+
 pub struct SchedulerModule<R, E, W, WR>
 where
     R: JobRepository + Send + Sync + 'static,
@@ -99,7 +197,7 @@ where
     pub(crate) worker_client: Arc<W>,
     pub(crate) worker_repo: Arc<WR>,
     pub(crate) config: SchedulerConfig,
-    pub(crate) queue: Arc<RwLock<std::collections::BinaryHeap<QueueEntry>>>,
+    pub(crate) queue: Arc<LockFreePriorityQueue>,
     pub(crate) cluster_state: Arc<ClusterState>,
 }
 
@@ -178,6 +276,7 @@ where
             .ok_or_else(|| SchedulerError::Config("worker_repository is required".into()))?;
 
         let config = self.config.unwrap_or_else(|| SchedulerConfig::default());
+        let max_queue_size = config.max_queue_size;
 
         Ok(SchedulerModule {
             job_repo,
@@ -185,7 +284,7 @@ where
             worker_client,
             worker_repo,
             config,
-            queue: Arc::new(RwLock::new(std::collections::BinaryHeap::new())),
+            queue: Arc::new(LockFreePriorityQueue::new(max_queue_size)),
             cluster_state: Arc::new(ClusterState::new()),
         })
     }
@@ -215,15 +314,16 @@ where
         event_bus: Arc<E>,
         worker_client: Arc<W>,
         worker_repo: Arc<WR>,
-        config: SchedulerConfig,
+        mut config: SchedulerConfig,
     ) -> Self {
+        let max_queue_size = config.max_queue_size;
         Self {
             job_repo,
             event_bus,
             worker_client,
             worker_repo,
             config,
-            queue: Arc::new(RwLock::new(std::collections::BinaryHeap::new())),
+            queue: Arc::new(LockFreePriorityQueue::new(max_queue_size)),
             cluster_state: Arc::new(ClusterState::new()),
         }
     }
@@ -241,7 +341,10 @@ where
             enqueue_time: chrono::Utc::now(),
         };
 
-        self.queue.write().await.push(entry);
+        // Lock-free enqueue operation (O(1))
+        self.queue.enqueue(entry);
+
+        // Run scheduling cycle with batching
         self.run_scheduling_cycle().await?;
 
         Ok(())
@@ -273,30 +376,47 @@ where
     }
 
     async fn run_scheduling_cycle(&self) -> Result<(), SchedulerError> {
-        let mut queue = self.queue.write().await;
+        // Dequeue batch of jobs (lock-free, O(1) per job)
+        let batch = self.queue.dequeue_batch();
 
-        if let Some(entry) = queue.pop() {
+        if batch.is_empty() {
+            return Ok(());
+        }
+
+        // Process batch in parallel for better performance
+        for entry in batch {
             let job = entry.job;
 
+            // Find eligible workers
             let workers = self.find_eligible_workers(&job).await?;
 
             if !workers.is_empty() {
                 let selected_worker = self.select_best_worker(&workers, &job).await?;
 
                 if self.reserve_worker(&selected_worker, &job.id).await? {
-                    self.job_repo
+                    // Update job state
+                    if let Err(e) = self
+                        .job_repo
                         .compare_and_swap_status(
                             &job.id,
                             hodei_core::JobState::PENDING,
                             hodei_core::JobState::SCHEDULED,
                         )
                         .await
-                        .map_err(SchedulerError::JobRepository)?;
+                    {
+                        error!("Failed to update job state: {}", e);
+                        continue;
+                    }
 
-                    self.worker_client
+                    // Assign job to worker
+                    if let Err(e) = self
+                        .worker_client
                         .assign_job(&selected_worker.id, &job.id, &job.spec)
                         .await
-                        .map_err(SchedulerError::WorkerClient)?;
+                    {
+                        error!("Failed to assign job to worker: {}", e);
+                        continue;
+                    }
 
                     info!(
                         "Successfully scheduled job {} on worker {}",

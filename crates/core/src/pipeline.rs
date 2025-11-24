@@ -277,13 +277,22 @@ impl Pipeline {
 }
 
 /// Check if the DAG has cycles using DFS
+/// Optimized to O(n) by pre-building lookup indices
 fn has_cycle(steps: &[PipelineStep]) -> std::result::Result<bool, DomainError> {
+    // Pre-build lookup table: step_id -> step_index (O(n))
+    let step_lookup: HashMap<PipelineStepId, usize> = steps
+        .iter()
+        .enumerate()
+        .map(|(idx, step)| (step.id.clone(), idx))
+        .collect();
+
     let mut visited = HashMap::new();
     let mut rec_stack = HashMap::new();
 
-    for step in steps {
-        if !visited.contains_key(&step.id) {
-            if has_cycle_dfs(&step.id, steps, &mut visited, &mut rec_stack)? {
+    // For each step, check if it's part of a cycle (O(n))
+    for step_id in step_lookup.keys() {
+        if !visited.contains_key(step_id) {
+            if has_cycle_dfs(step_id, steps, &step_lookup, &mut visited, &mut rec_stack)? {
                 return Ok(true);
             }
         }
@@ -295,23 +304,26 @@ fn has_cycle(steps: &[PipelineStep]) -> std::result::Result<bool, DomainError> {
 fn has_cycle_dfs(
     step_id: &PipelineStepId,
     steps: &[PipelineStep],
+    step_lookup: &HashMap<PipelineStepId, usize>,
     visited: &mut HashMap<PipelineStepId, bool>,
     rec_stack: &mut HashMap<PipelineStepId, bool>,
 ) -> std::result::Result<bool, DomainError> {
     visited.insert(step_id.clone(), true);
     rec_stack.insert(step_id.clone(), true);
 
-    let step = steps
-        .iter()
-        .find(|s| s.id == *step_id)
+    // O(1) lookup instead of O(n) iteration
+    let step_idx = step_lookup
+        .get(step_id)
         .ok_or_else(|| DomainError::Validation(format!("Step not found: {}", step_id)))?;
+
+    let step = &steps[*step_idx];
 
     for dep_id in &step.depends_on {
         let is_visited = visited.get(dep_id).copied().unwrap_or(false);
         let in_recursion = rec_stack.get(dep_id).copied().unwrap_or(false);
 
         if !is_visited {
-            if has_cycle_dfs(dep_id, steps, visited, rec_stack)? {
+            if has_cycle_dfs(dep_id, steps, step_lookup, visited, rec_stack)? {
                 return Ok(true);
             }
         } else if in_recursion {
@@ -324,53 +336,57 @@ fn has_cycle_dfs(
 }
 
 /// Perform topological sort using Kahn's algorithm
+/// Optimized to O(n) by pre-building lookup indices
 fn topological_sort(
     steps: &[PipelineStep],
 ) -> std::result::Result<Vec<PipelineStepId>, DomainError> {
-    // Build adjacency list
-    let mut in_degree = HashMap::new();
-    let mut graph = HashMap::new();
+    // Pre-build lookup table for O(1) index access
+    let step_lookup: HashMap<PipelineStepId, usize> = steps
+        .iter()
+        .enumerate()
+        .map(|(idx, step)| (step.id.clone(), idx))
+        .collect();
 
-    // Initialize in-degrees
-    for step in steps {
-        in_degree.insert(step.id.clone(), 0);
-        graph.insert(step.id.clone(), vec![]);
-    }
+    // Build adjacency list and in-degrees in O(n) time
+    let mut in_degree = vec![0u32; steps.len()];
+    let mut graph = vec![Vec::new(); steps.len()];
 
-    // Build graph and calculate in-degrees
-    for step in steps {
+    // Process dependencies: for each edge dep -> step
+    for (step_idx, step) in steps.iter().enumerate() {
         for dep_id in &step.depends_on {
+            // O(1) lookup instead of O(n)
+            let dep_idx = *step_lookup
+                .get(dep_id)
+                .ok_or_else(|| DomainError::Validation(format!("Step not found: {}", dep_id)))?;
+
             // Edge: dep -> step
-            graph
-                .entry(dep_id.clone())
-                .and_modify(|edges| edges.push(step.id.clone()));
-            in_degree.entry(step.id.clone()).and_modify(|deg| *deg += 1);
+            graph[dep_idx].push(step_idx);
+            in_degree[step_idx] += 1;
         }
     }
 
     // Find nodes with in-degree 0
-    let mut queue: Vec<_> = in_degree
+    let mut queue: Vec<usize> = in_degree
         .iter()
+        .enumerate()
         .filter(|&(_, &deg)| deg == 0)
-        .map(|(step_id, _)| step_id.clone())
+        .map(|(idx, _)| idx)
         .collect();
 
     let mut result = Vec::new();
 
     // Process queue
-    while let Some(step_id) = queue.pop() {
+    while let Some(step_idx) = queue.pop() {
+        // Convert index back to step_id
+        let step_id = &steps[step_idx].id;
         result.push(step_id.clone());
 
         // For each node that this step points to
-        if let Some(neighbors) = graph.get(&step_id) {
-            for neighbor in neighbors {
-                if let Some(deg) = in_degree.get_mut(&neighbor) {
-                    *deg -= 1;
+        for &neighbor in &graph[step_idx] {
+            in_degree[neighbor] -= 1;
 
-                    if *deg == 0 {
-                        queue.push(neighbor.clone());
-                    }
-                }
+            if in_degree[neighbor] == 0 {
+                queue.push(neighbor);
             }
         }
     }

@@ -26,4 +26,8 @@ uuid = { workspace = true }
 tracing = { workspace = true }
 dashmap = { workspace = true }
 
+# Lock-free data structures and batching
+crossbeam = { version = "0.8", features = ["std"] }
+crossbeam-channel = "0.5"
+
 [dev-dependencies]
