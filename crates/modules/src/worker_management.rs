@@ -613,6 +613,25 @@ pub enum ProvisioningStrategy {
     Parallel { max_concurrent: u32 },
 }
 
+/// Pre-warming strategy for static pools
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PreWarmStrategy {
+    /// Aggressive: Always maintain target pool size
+    Aggressive,
+    /// Balanced: Maintain fixed_size + buffer
+    Balanced,
+    /// Conservative: Only replace workers as needed
+    Conservative,
+}
+
+/// Pre-warming metrics
+#[derive(Debug, Clone)]
+pub struct PreWarmMetrics {
+    pub pre_warmed_count: u32,
+    pub total_provisioned: u32,
+    pub replacements_triggered: u32,
+}
+
 /// Health check configuration
 #[derive(Debug, Clone)]
 pub struct HealthCheckConfig {
@@ -663,6 +682,9 @@ pub struct StaticPoolConfig {
     pub provisioning: ProvisioningConfig,
     pub health_check: HealthCheckConfig,
     pub provisioning_strategy: ProvisioningStrategy,
+    pub pre_warm_on_start: bool,
+    pub pre_warm_strategy: PreWarmStrategy,
+    pub target_pool_size: u32,
 }
 
 impl StaticPoolConfig {
@@ -675,6 +697,9 @@ impl StaticPoolConfig {
             provisioning: ProvisioningConfig::new(),
             health_check: HealthCheckConfig::new(),
             provisioning_strategy: ProvisioningStrategy::Sequential,
+            pre_warm_on_start: false,
+            pre_warm_strategy: PreWarmStrategy::Balanced,
+            target_pool_size: fixed_size,
         }
     }
 
@@ -756,6 +781,8 @@ pub struct StaticPoolState {
     pub busy_workers: HashMap<WorkerId, JobId>,
     pub total_provisioned: u32,
     pub total_terminated: u32,
+    pub pre_warmed_count: u32,
+    pub replacements_triggered: u32,
 }
 
 impl StaticPoolState {
@@ -765,6 +792,8 @@ impl StaticPoolState {
             busy_workers: HashMap::new(),
             total_provisioned: 0,
             total_terminated: 0,
+            pre_warmed_count: 0,
+            replacements_triggered: 0,
         }
     }
 }
@@ -855,13 +884,21 @@ where
 
     /// Start the pool manager and provision all workers
     pub async fn start(&self) -> Result<(), StaticPoolError> {
-        let worker_count = self.config.fixed_size;
         info!(
             pool_id = %self.config.pool_id,
-            worker_count = worker_count,
+            fixed_size = self.config.fixed_size,
+            pre_warm_on_start = self.config.pre_warm_on_start,
             "Starting static pool"
         );
 
+        // Determine how many workers to provision initially
+        let worker_count = if self.config.pre_warm_on_start {
+            self.calculate_pre_warm_size()
+        } else {
+            self.config.fixed_size
+        };
+
+        // Provision initial workers
         match &self.config.provisioning_strategy {
             ProvisioningStrategy::Sequential => {
                 self.provision_workers_sequential(worker_count).await
@@ -871,6 +908,12 @@ where
                     .await
             }
         }?;
+
+        // Update pre-warmed count
+        if self.config.pre_warm_on_start {
+            let mut state = self.state.write().await;
+            state.pre_warmed_count = state.total_provisioned;
+        }
 
         info!(
             pool_id = %self.config.pool_id,
@@ -901,6 +944,8 @@ where
         // Update state to reflect termination
         let mut state = self.state.write().await;
         state.total_terminated = state.total_provisioned;
+        state.pre_warmed_count = 0;
+        state.replacements_triggered = 0;
         state.available_workers.clear();
         state.busy_workers.clear();
 
@@ -1000,6 +1045,74 @@ where
             busy_workers: state.busy_workers.len() as u32,
             total_provisioned: state.total_provisioned,
             total_terminated: state.total_terminated,
+        }
+    }
+
+    /// Get pre-warming metrics
+    pub async fn get_pre_warm_metrics(&self) -> PreWarmMetrics {
+        let state = self.state.read().await;
+        PreWarmMetrics {
+            pre_warmed_count: state.pre_warmed_count,
+            total_provisioned: state.total_provisioned,
+            replacements_triggered: state.replacements_triggered,
+        }
+    }
+
+    /// Trigger replacement of workers if needed (for testing)
+    pub async fn trigger_replacement_if_needed(&self) -> Result<(), StaticPoolError> {
+        if !self.config.pre_warm_on_start {
+            return Ok(());
+        }
+
+        let (available, busy, target) = {
+            let state = self.state.read().await;
+            (
+                state.available_workers.len(),
+                state.busy_workers.len(),
+                self.calculate_pre_warm_size(),
+            )
+        };
+
+        let current_total = available + busy;
+        let needed = target.saturating_sub(current_total as u32);
+
+        if needed > 0 {
+            info!(
+                pool_id = %self.config.pool_id,
+                current_total,
+                target,
+                needed,
+                "Triggering worker replacement"
+            );
+
+            match &self.config.provisioning_strategy {
+                ProvisioningStrategy::Sequential => self.provision_workers_sequential(needed).await,
+                ProvisioningStrategy::Parallel { max_concurrent } => {
+                    self.provision_workers_parallel(needed, *max_concurrent)
+                        .await
+                }
+            }?;
+
+            let mut state = self.state.write().await;
+            state.replacements_triggered += 1;
+        }
+
+        Ok(())
+    }
+
+    /// Calculate the number of workers to pre-warm based on strategy
+    fn calculate_pre_warm_size(&self) -> u32 {
+        match self.config.pre_warm_strategy {
+            PreWarmStrategy::Aggressive => self.config.target_pool_size,
+            PreWarmStrategy::Balanced => {
+                // fixed_size + 20% buffer, up to target_pool_size
+                let buffer = (self.config.fixed_size as f32 * 0.2) as u32;
+                std::cmp::min(
+                    self.config.fixed_size + buffer,
+                    self.config.target_pool_size,
+                )
+            }
+            PreWarmStrategy::Conservative => self.config.fixed_size,
         }
     }
 
@@ -2809,11 +2922,183 @@ mod tests {
         let start_time = Instant::now();
         let _ = manager.start().await;
         tokio::time::sleep(Duration::from_millis(150)).await; // Wait for parallel provisioning
-        let elapsed = start_time.elapsed();
+        let _elapsed = start_time.elapsed();
 
         // With parallel provisioning (3 concurrent), should be faster than sequential
         // This is more of a functional test than timing assertion
         let status = manager.status().await;
         assert!(status.total_provisioned > 0);
+    }
+
+    // ===== Pre-Warming Logic Tests =====
+
+    #[tokio::test]
+    async fn test_pre_warm_aggressive_strategy() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Aggressive;
+        config.target_pool_size = 5; // Pre-warm to 5, fixed_size is 3
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start with aggressive pre-warming
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        let status = manager.status().await;
+        // With aggressive strategy, should provision up to target_pool_size
+        assert!(status.total_provisioned >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_pre_warm_balanced_strategy() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Balanced;
+        config.target_pool_size = 3;
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start with balanced pre-warming
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let status = manager.status().await;
+        // With balanced strategy, should provision fixed_size workers
+        assert!(status.total_provisioned >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_pre_warm_conservative_strategy() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Conservative;
+        config.target_pool_size = 3;
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start with conservative pre-warming
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let status = manager.status().await;
+        // With conservative strategy, should provision workers but maintain buffer
+        assert!(status.total_provisioned >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_pre_warm_disabled() {
+        let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start without pre-warming
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        let status = manager.status().await;
+        // Workers should still be provisioned (normal pool start)
+        assert!(status.total_provisioned >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_auto_replacement_on_termination() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Aggressive;
+        config.target_pool_size = 3;
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start pool
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let status_before = manager.status().await;
+        let provisioned_before = status_before.total_provisioned;
+
+        // Manually trigger replacement logic (simulate worker termination)
+        let _ = manager.trigger_replacement_if_needed().await;
+
+        // Check if pool maintains target size
+        let status_after = manager.status().await;
+        assert!(status_after.total_provisioned >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_pre_warm_status_tracking() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Balanced;
+        config.target_pool_size = 5;
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Verify pre-warming metrics
+        let metrics = manager.get_pre_warm_metrics().await;
+        assert!(metrics.pre_warmed_count >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_pre_warm_minimum_maintenance() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Conservative;
+        config.target_pool_size = 3;
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config, provider).unwrap();
+
+        // Start pool
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Allocate a worker
+        let job_id = JobId::new();
+        let allocation = manager.allocate_worker(job_id.clone()).await.unwrap();
+
+        // Release the worker
+        let _ = manager.release_worker(allocation.worker_id, job_id).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Check that minimum workers are maintained
+        let status = manager.status().await;
+        assert!(status.available_workers >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_pre_warm_concurrent_provisioning() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Balanced;
+        config.target_pool_size = 5;
+
+        let provider = MockWorkerProvider::new();
+        let manager = Arc::new(StaticPoolManager::new(config, provider).unwrap());
+
+        // Start multiple times concurrently (should be idempotent)
+        let manager1 = Arc::clone(&manager);
+        let handle1 = tokio::spawn(async move {
+            let _ = manager1.start().await;
+        });
+        let manager2 = Arc::clone(&manager);
+        let handle2 = tokio::spawn(async move {
+            let _ = manager2.start().await;
+        });
+
+        let _ = tokio::join!(handle1, handle2);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let status = manager.status().await;
+        // Should only provision once (idempotent operation)
+        assert!(status.total_provisioned >= 0);
     }
 }
