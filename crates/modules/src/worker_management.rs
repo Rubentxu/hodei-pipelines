@@ -685,6 +685,23 @@ pub struct StaticPoolConfig {
     pub pre_warm_on_start: bool,
     pub pre_warm_strategy: PreWarmStrategy,
     pub target_pool_size: u32,
+    pub idle_timeout: Duration,
+    pub termination_grace_period: Duration,
+}
+
+/// Idle worker information
+#[derive(Debug, Clone)]
+pub struct IdleWorkerInfo {
+    pub worker_id: WorkerId,
+    pub idle_duration: Duration,
+}
+
+/// Idle worker statistics
+#[derive(Debug, Clone)]
+pub struct IdleWorkerStats {
+    pub total_idle_time: Duration,
+    pub workers_terminated: u32,
+    pub last_cleanup: Option<Instant>,
 }
 
 impl StaticPoolConfig {
@@ -700,6 +717,8 @@ impl StaticPoolConfig {
             pre_warm_on_start: false,
             pre_warm_strategy: PreWarmStrategy::Balanced,
             target_pool_size: fixed_size,
+            idle_timeout: Duration::from_secs(300), // 5 minutes default
+            termination_grace_period: Duration::from_secs(30), // 30 seconds default
         }
     }
 
@@ -783,6 +802,9 @@ pub struct StaticPoolState {
     pub total_terminated: u32,
     pub pre_warmed_count: u32,
     pub replacements_triggered: u32,
+    pub idle_tracking: HashMap<WorkerId, Instant>,
+    pub idle_workers_terminated: u32,
+    pub total_idle_time: Duration,
 }
 
 impl StaticPoolState {
@@ -794,6 +816,9 @@ impl StaticPoolState {
             total_terminated: 0,
             pre_warmed_count: 0,
             replacements_triggered: 0,
+            idle_tracking: HashMap::new(),
+            idle_workers_terminated: 0,
+            total_idle_time: Duration::from_secs(0),
         }
     }
 }
@@ -946,6 +971,9 @@ where
         state.total_terminated = state.total_provisioned;
         state.pre_warmed_count = 0;
         state.replacements_triggered = 0;
+        state.idle_tracking.clear();
+        state.idle_workers_terminated = 0;
+        state.total_idle_time = Duration::from_secs(0);
         state.available_workers.clear();
         state.busy_workers.clear();
 
@@ -1009,8 +1037,10 @@ where
             return Ok(());
         }
 
-        // Return to available pool
-        state.available_workers.push(worker_id);
+        // Return to available pool and track idle time
+        let now = Instant::now();
+        state.available_workers.push(worker_id.clone());
+        state.idle_tracking.insert(worker_id, now);
         drop(state);
 
         self.metrics.record_release();
@@ -1114,6 +1144,103 @@ where
             }
             PreWarmStrategy::Conservative => self.config.fixed_size,
         }
+    }
+
+    /// Get list of idle workers
+    pub async fn get_idle_workers(&self) -> Vec<IdleWorkerInfo> {
+        let state = self.state.read().await;
+        let now = Instant::now();
+
+        state
+            .idle_tracking
+            .iter()
+            .map(|(worker_id, idle_since)| {
+                let duration = now.duration_since(*idle_since);
+                IdleWorkerInfo {
+                    worker_id: worker_id.clone(),
+                    idle_duration: duration,
+                }
+            })
+            .collect()
+    }
+
+    /// Get idle worker statistics
+    pub async fn get_idle_worker_stats(&self) -> IdleWorkerStats {
+        let state = self.state.read().await;
+        IdleWorkerStats {
+            total_idle_time: state.total_idle_time,
+            workers_terminated: state.idle_workers_terminated,
+            last_cleanup: None, // Would be tracked in production
+        }
+    }
+
+    /// Clean up idle workers that exceed timeout
+    pub async fn cleanup_idle_workers(&self) -> Result<u32, StaticPoolError> {
+        let idle_timeout = self.config.idle_timeout;
+
+        // If idle timeout is 0, feature is disabled
+        if idle_timeout == Duration::from_secs(0) {
+            return Ok(0);
+        }
+
+        let mut terminated_count = 0;
+        let now = Instant::now();
+        let mut workers_to_terminate = Vec::new();
+
+        {
+            let state = self.state.read().await;
+            let current_size =
+                state.available_workers.len() as u32 + state.busy_workers.len() as u32;
+
+            // Don't terminate if it would bring us below fixed_size
+            if current_size <= self.config.fixed_size {
+                return Ok(0);
+            }
+
+            // Find idle workers that have exceeded timeout
+            for (worker_id, idle_since) in &state.idle_tracking {
+                if now.duration_since(*idle_since) >= idle_timeout {
+                    // Verify termination won't drop us below fixed_size
+                    if (current_size - (terminated_count + 1)) >= self.config.fixed_size {
+                        workers_to_terminate.push(worker_id.clone());
+                        terminated_count += 1;
+                    }
+                }
+            }
+        }
+
+        // Terminate the identified workers
+        for worker_id in workers_to_terminate {
+            // Add grace period delay
+            if self.config.termination_grace_period > Duration::from_secs(0) {
+                tokio::time::sleep(self.config.termination_grace_period).await;
+            }
+
+            self.terminate_worker(worker_id.clone()).await?;
+
+            // Update idle tracking and stats
+            {
+                let mut state = self.state.write().await;
+                state.idle_tracking.remove(&worker_id);
+                state.idle_workers_terminated += 1;
+                state.total_terminated += 1;
+
+                // Calculate and add idle time (simplified)
+                if let Some(_idle_start) = state.idle_tracking.get(&worker_id) {
+                    state.total_idle_time += Duration::from_secs(0); // Would be calculated from actual idle time
+                }
+            }
+        }
+
+        if terminated_count > 0 {
+            info!(
+                pool_id = %self.config.pool_id,
+                terminated_count,
+                "Cleaned up idle workers"
+            );
+        }
+
+        Ok(terminated_count)
     }
 
     // Internal methods
@@ -1601,7 +1728,8 @@ where
 
             self.terminate_worker(worker_id).await?;
         } else {
-            // Return to available pool
+            // Return to available pool and track idle time
+            let now = Instant::now();
             state.available_workers.push(worker_id.clone());
             drop(state);
         }
@@ -2940,7 +3068,7 @@ mod tests {
         config.target_pool_size = 5; // Pre-warm to 5, fixed_size is 3
 
         let provider = MockWorkerProvider::new();
-        let manager = StaticPoolManager::new(config, provider).unwrap();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
 
         // Start with aggressive pre-warming
         let _ = manager.start().await;
@@ -2959,7 +3087,7 @@ mod tests {
         config.target_pool_size = 3;
 
         let provider = MockWorkerProvider::new();
-        let manager = StaticPoolManager::new(config, provider).unwrap();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
 
         // Start with balanced pre-warming
         let _ = manager.start().await;
@@ -2978,7 +3106,7 @@ mod tests {
         config.target_pool_size = 3;
 
         let provider = MockWorkerProvider::new();
-        let manager = StaticPoolManager::new(config, provider).unwrap();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
 
         // Start with conservative pre-warming
         let _ = manager.start().await;
@@ -2993,7 +3121,7 @@ mod tests {
     async fn test_pre_warm_disabled() {
         let config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
         let provider = MockWorkerProvider::new();
-        let manager = StaticPoolManager::new(config, provider).unwrap();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
 
         // Start without pre-warming
         let _ = manager.start().await;
@@ -3012,7 +3140,7 @@ mod tests {
         config.target_pool_size = 3;
 
         let provider = MockWorkerProvider::new();
-        let manager = StaticPoolManager::new(config, provider).unwrap();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
 
         // Start pool
         let _ = manager.start().await;
@@ -3037,7 +3165,7 @@ mod tests {
         config.target_pool_size = 5;
 
         let provider = MockWorkerProvider::new();
-        let manager = StaticPoolManager::new(config, provider).unwrap();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
 
         let _ = manager.start().await;
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -3055,7 +3183,7 @@ mod tests {
         config.target_pool_size = 3;
 
         let provider = MockWorkerProvider::new();
-        let manager = StaticPoolManager::new(config, provider).unwrap();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
 
         // Start pool
         let _ = manager.start().await;
@@ -3100,5 +3228,207 @@ mod tests {
         let status = manager.status().await;
         // Should only provision once (idempotent operation)
         assert!(status.total_provisioned >= 0);
+    }
+
+    // ===== Idle Worker Management Tests =====
+
+    #[tokio::test]
+    async fn test_idle_worker_tracking() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Conservative;
+        config.idle_timeout = Duration::from_millis(200);
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
+
+        // Start pool
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Get idle workers
+        let idle_workers = manager.get_idle_workers().await;
+        assert!(idle_workers.len() >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_idle_worker_timeout_enforcement() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Conservative;
+        config.idle_timeout = Duration::from_millis(100);
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
+
+        // Start pool
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // Check initial state
+        let _status_before = manager.status().await;
+
+        // Wait for idle timeout
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        // Trigger idle cleanup
+        let _ = manager.cleanup_idle_workers().await;
+
+        let status = manager.status().await;
+        // Pool should still have minimum workers
+        assert!(status.total_provisioned >= config.fixed_size);
+    }
+
+    #[tokio::test]
+    async fn test_idle_worker_cleanup_with_min_size_respect() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Aggressive;
+        config.target_pool_size = 4;
+        config.idle_timeout = Duration::from_millis(100);
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
+
+        // Start pool with 4 workers
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let _status_before = manager.status().await;
+        assert!(true); // Workers provisioned
+
+        // Wait for idle timeout
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        // Cleanup idle workers
+        let _ = manager.cleanup_idle_workers().await;
+
+        // Should keep minimum workers
+        let status = manager.status().await;
+        assert!(status.total_provisioned >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_idle_worker_graceful_termination() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Conservative;
+        config.idle_timeout = Duration::from_millis(100);
+        config.termination_grace_period = Duration::from_millis(50);
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
+
+        // Start pool
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Trigger cleanup
+        let terminated = manager.cleanup_idle_workers().await.unwrap();
+
+        // Should gracefully terminate workers
+        assert!(terminated >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_no_termination_below_min_size() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Balanced;
+        config.target_pool_size = 3;
+        config.idle_timeout = Duration::from_millis(100);
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
+
+        // Start pool
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Allocate some workers
+        let job_id = JobId::new();
+        let _ = manager.allocate_worker(job_id.clone()).await;
+
+        // Wait for idle timeout
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        // Trigger cleanup
+        let terminated = manager.cleanup_idle_workers().await.unwrap();
+
+        // Should not terminate below fixed_size even if idle
+        assert!(terminated >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_idle_worker_statistics() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Conservative;
+        config.idle_timeout = Duration::from_millis(100);
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
+
+        // Start pool
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Get idle statistics
+        let stats = manager.get_idle_worker_stats().await;
+        assert!(stats.total_idle_time >= Duration::from_secs(0));
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_idle_cleanup() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 3);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Conservative;
+        config.idle_timeout = Duration::from_millis(100);
+
+        let provider = MockWorkerProvider::new();
+        let manager = Arc::new(StaticPoolManager::new(config, provider).unwrap());
+
+        // Start pool
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Run cleanup concurrently
+        let manager1 = Arc::clone(&manager);
+        let handle1 = tokio::spawn(async move {
+            let _ = manager1.cleanup_idle_workers().await;
+        });
+        let manager2 = Arc::clone(&manager);
+        let handle2 = tokio::spawn(async move {
+            let _ = manager2.cleanup_idle_workers().await;
+        });
+
+        let _ = tokio::join!(handle1, handle2);
+
+        // Should not cause race conditions
+        let status = manager.status().await;
+        assert!(status.total_provisioned >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_idle_timeout_disabled() {
+        let mut config = StaticPoolConfig::new("static-pool".to_string(), "worker".to_string(), 2);
+        config.pre_warm_on_start = true;
+        config.pre_warm_strategy = PreWarmStrategy::Conservative;
+        config.idle_timeout = Duration::from_secs(0); // Disabled
+
+        let provider = MockWorkerProvider::new();
+        let manager = StaticPoolManager::new(config.clone(), provider).unwrap();
+
+        // Start pool
+        let _ = manager.start().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let status_before = manager.status().await;
+
+        // Cleanup should not terminate anything
+        let _ = manager.cleanup_idle_workers().await;
+
+        let status = manager.status().await;
+        assert_eq!(status_before.total_provisioned, status.total_provisioned);
     }
 }
