@@ -24,4 +24,5 @@ pub use crate::worker_client::{WorkerClient, WorkerClientError};
 pub use crate::worker_provider::{
     ProviderConfig, ProviderFactoryTrait, ProviderType, WorkerProvider,
 };
+pub use crate::worker_registration::{WorkerRegistrationError, WorkerRegistrationPort};
 pub use crate::worker_repository::{WorkerRepository, WorkerRepositoryError};

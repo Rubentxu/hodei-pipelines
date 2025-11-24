@@ -23,6 +23,7 @@ pub use crate::repositories::{
     InMemoryJobRepository, InMemoryPipelineRepository, InMemoryWorkerRepository,
 };
 pub use crate::worker_client::{GrpcWorkerClient, HttpWorkerClient};
+pub use crate::worker_registration::{RegistrationConfig, WorkerRegistrationAdapter};
 
 // Re-export types from hodei-ports
 pub use hodei_ports::worker_provider::{ProviderConfig, ProviderType};
