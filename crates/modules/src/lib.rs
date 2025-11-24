@@ -4,11 +4,16 @@
 //! the domain entities through the ports.
 
 pub mod orchestrator;
+pub mod queue_assignment;
 pub mod resource_pool;
 pub mod scheduler;
 pub mod worker_management;
 
 pub use crate::orchestrator::{OrchestratorConfig, OrchestratorModule};
+pub use crate::queue_assignment::{
+    AssignmentRequest, AssignmentResult, QueueAssignmentEngine, QueueError, QueuePriority,
+    QueueType, SchedulingPolicy,
+};
 pub use crate::resource_pool::{
     ResourcePoolService, ResourcePoolServiceError, create_docker_resource_pool,
     create_kubernetes_resource_pool,
