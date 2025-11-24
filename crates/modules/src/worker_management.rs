@@ -484,7 +484,7 @@ mod tests {
     }
 
     #[tokio::test]
-    fn test_worker_management_config_default() {
+    async fn test_worker_management_config_default() {
         let config = WorkerManagementConfig::default();
 
         assert_eq!(config.registration_enabled, true);
@@ -492,7 +492,7 @@ mod tests {
     }
 
     #[tokio::test]
-    fn test_worker_management_config_clone() {
+    async fn test_worker_management_config_clone() {
         let config = WorkerManagementConfig::default();
         let cloned = config.clone();
 
