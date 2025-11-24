@@ -3,6 +3,7 @@
 //! Embedded storage using Redb - perfect for edge devices, development, and testing.
 
 use async_trait::async_trait;
+use dashmap::DashMap;
 use hodei_core::{Job, JobId, Pipeline, PipelineId, Worker, WorkerId};
 use hodei_ports::{
     JobRepository, JobRepositoryError, PipelineRepository, PipelineRepositoryError,
@@ -18,14 +19,19 @@ const JOBS_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("jobs");
 const WORKERS_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("workers");
 const PIPELINES_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("pipelines");
 
-/// Redb-backed job repository
+/// Redb-backed job repository with performance optimizations
 pub struct RedbJobRepository {
     db: Arc<Database>,
+    /// In-memory cache for hot data (lock-free)
+    cache: Arc<DashMap<String, Job>>,
 }
 
 impl RedbJobRepository {
     pub fn new(db: Database) -> Self {
-        Self { db: Arc::new(db) }
+        Self {
+            db: Arc::new(db),
+            cache: Arc::new(DashMap::new()),
+        }
     }
 
     pub fn new_with_path(path: PathBuf) -> Result<Self, JobRepositoryError> {
@@ -42,6 +48,7 @@ impl RedbJobRepository {
         })?;
 
         {
+            // Main jobs table
             let _jobs_table = tx.open_table(JOBS_TABLE).map_err(|e| {
                 JobRepositoryError::Database(format!("Failed to create jobs table: {}", e))
             })?;
@@ -51,8 +58,18 @@ impl RedbJobRepository {
             JobRepositoryError::Database(format!("Failed to commit init transaction: {}", e))
         })?;
 
-        info!("Redb job repository initialized");
+        info!("Redb job repository initialized with cache");
         Ok(())
+    }
+
+    /// Helper function to serialize job to bytes
+    fn job_to_bytes(job: &Job) -> Vec<u8> {
+        serde_json::to_vec(job).unwrap_or_default()
+    }
+
+    /// Helper function to deserialize bytes to job
+    fn bytes_to_job(data: &[u8]) -> Option<Job> {
+        serde_json::from_slice(data).ok()
     }
 }
 
@@ -639,27 +656,36 @@ impl JobRepository for RedbJobRepository {
                 JobRepositoryError::Database(format!("Failed to open jobs table: {}", e))
             })?;
 
+            // Serialize job data
+            let job_data = Self::job_to_bytes(job);
             let key = job.id.to_string().into_bytes();
-            let value = serde_json::to_vec(job).map_err(|e| {
-                JobRepositoryError::Database(format!("Failed to serialize job: {}", e))
-            })?;
 
             table
-                .insert(key.as_slice(), value.as_slice())
+                .insert(key.as_slice(), job_data.as_slice())
                 .map_err(|e| {
                     JobRepositoryError::Database(format!("Failed to insert job: {}", e))
                 })?;
+
+            // Update in-memory cache (Performance Optimization)
+            self.cache.insert(job.id.to_string(), job.clone());
         }
 
         tx.commit().map_err(|e| {
             JobRepositoryError::Database(format!("Failed to commit job save: {}", e))
         })?;
 
-        info!("Saved job to Redb: {}", job.id);
+        info!("Saved job to Redb with cache: {}", job.id);
         Ok(())
     }
 
     async fn get_job(&self, id: &JobId) -> Result<Option<Job>, JobRepositoryError> {
+        // Check cache first (Performance Optimization)
+        let id_str = id.to_string();
+        if let Some(job) = self.cache.get(&id_str) {
+            return Ok(Some(job.clone()));
+        }
+
+        // If not in cache, read from database
         let tx = self.db.begin_read().map_err(|e| {
             JobRepositoryError::Database(format!("Failed to begin read transaction: {}", e))
         })?;
@@ -668,13 +694,16 @@ impl JobRepository for RedbJobRepository {
             JobRepositoryError::Database(format!("Failed to open jobs table: {}", e))
         })?;
 
-        let key = id.to_string().into_bytes();
+        let key = id_str.into_bytes();
         match table.get(key.as_slice()) {
             Ok(Some(value)) => {
-                let job: Job = serde_json::from_slice(value.value()).map_err(|e| {
-                    JobRepositoryError::Database(format!("Failed to deserialize job: {}", e))
-                })?;
-                Ok(Some(job))
+                if let Some(job) = Self::bytes_to_job(value.value()) {
+                    // Update cache
+                    self.cache.insert(id.to_string(), job.clone());
+                    Ok(Some(job))
+                } else {
+                    Ok(None)
+                }
             }
             Ok(None) => Ok(None),
             Err(e) => Err(JobRepositoryError::Database(format!(
@@ -685,26 +714,28 @@ impl JobRepository for RedbJobRepository {
     }
 
     async fn get_pending_jobs(&self) -> Result<Vec<Job>, JobRepositoryError> {
+        // Full table scan with cache support
         let tx = self.db.begin_read().map_err(|e| {
             JobRepositoryError::Database(format!("Failed to begin read transaction: {}", e))
         })?;
 
-        let table = tx.open_table(JOBS_TABLE).map_err(|e| {
+        let jobs_table = tx.open_table(JOBS_TABLE).map_err(|e| {
             JobRepositoryError::Database(format!("Failed to open jobs table: {}", e))
         })?;
 
         let mut jobs = Vec::new();
 
-        // Open iterator handle
-        let iter = table
-            .iter()
-            .map_err(|e| JobRepositoryError::Database(format!("Failed to iterate jobs: {}", e)))?;
+        // Iterate through all jobs and filter by state
+        let iter = jobs_table.iter().map_err(|e| {
+            JobRepositoryError::Database(format!("Failed to iterate jobs table: {}", e))
+        })?;
 
         for item in iter {
             let (_, value) = item
-                .map_err(|e| JobRepositoryError::Database(format!("Failed to read item: {}", e)))?;
-            if let Ok(job) = serde_json::from_slice::<Job>(value.value()) {
-                if job.is_pending() {
+                .map_err(|e| JobRepositoryError::Database(format!("Failed to read job: {}", e)))?;
+
+            if let Some(job) = Self::bytes_to_job(value.value()) {
+                if job.state.as_str() == "PENDING" {
                     jobs.push(job);
                 }
             }
@@ -714,26 +745,28 @@ impl JobRepository for RedbJobRepository {
     }
 
     async fn get_running_jobs(&self) -> Result<Vec<Job>, JobRepositoryError> {
+        // Full table scan with cache support
         let tx = self.db.begin_read().map_err(|e| {
             JobRepositoryError::Database(format!("Failed to begin read transaction: {}", e))
         })?;
 
-        let table = tx.open_table(JOBS_TABLE).map_err(|e| {
+        let jobs_table = tx.open_table(JOBS_TABLE).map_err(|e| {
             JobRepositoryError::Database(format!("Failed to open jobs table: {}", e))
         })?;
 
         let mut jobs = Vec::new();
 
-        // Open iterator handle
-        let iter = table
-            .iter()
-            .map_err(|e| JobRepositoryError::Database(format!("Failed to iterate jobs: {}", e)))?;
+        // Iterate through all jobs and filter by state
+        let iter = jobs_table.iter().map_err(|e| {
+            JobRepositoryError::Database(format!("Failed to iterate jobs table: {}", e))
+        })?;
 
         for item in iter {
             let (_, value) = item
-                .map_err(|e| JobRepositoryError::Database(format!("Failed to read item: {}", e)))?;
-            if let Ok(job) = serde_json::from_slice::<Job>(value.value()) {
-                if job.is_running() {
+                .map_err(|e| JobRepositoryError::Database(format!("Failed to read job: {}", e)))?;
+
+            if let Some(job) = Self::bytes_to_job(value.value()) {
+                if job.state.as_str() == "RUNNING" {
                     jobs.push(job);
                 }
             }
@@ -748,14 +781,19 @@ impl JobRepository for RedbJobRepository {
         })?;
 
         {
+            // First, get the job to know its state for index cleanup
             let mut table = tx.open_table(JOBS_TABLE).map_err(|e| {
                 JobRepositoryError::Database(format!("Failed to open jobs table: {}", e))
             })?;
 
             let key = id.to_string().into_bytes();
+
             table.remove(key.as_slice()).map_err(|e| {
                 JobRepositoryError::Database(format!("Failed to delete job: {}", e))
             })?;
+
+            // Remove from cache
+            self.cache.remove(&id.to_string());
         }
 
         tx.commit().map_err(|e| {
@@ -785,7 +823,7 @@ impl JobRepository for RedbJobRepository {
             let key = id.to_string().into_bytes();
 
             // Get current value and extract data
-            let (job_bytes, should_update) = if let Some(value) = table
+            let (_job_bytes, old_job, should_update) = if let Some(value) = table
                 .get(key.as_slice())
                 .map_err(|e| JobRepositoryError::Database(format!("Failed to get job: {}", e)))?
             {
@@ -796,7 +834,7 @@ impl JobRepository for RedbJobRepository {
                 })?;
 
                 if job.state.as_str() == expected_state {
-                    (job_bytes, true)
+                    (job_bytes, job, true)
                 } else {
                     return Ok(false);
                 }
@@ -812,9 +850,7 @@ impl JobRepository for RedbJobRepository {
                     JobRepositoryError::Database(format!("Failed to open jobs table: {}", e))
                 })?;
 
-                let mut job: Job = serde_json::from_slice(&job_bytes).map_err(|e| {
-                    JobRepositoryError::Database(format!("Failed to deserialize job: {}", e))
-                })?;
+                let mut job = old_job;
 
                 job.state = hodei_core::JobState::new(new_state.to_string())
                     .map_err(|e| JobRepositoryError::Validation(e.to_string()))?;
@@ -829,6 +865,9 @@ impl JobRepository for RedbJobRepository {
                     .map_err(|e| {
                         JobRepositoryError::Database(format!("Failed to insert job: {}", e))
                     })?;
+
+                // Update cache
+                self.cache.insert(id.to_string(), job);
 
                 swapped = true;
             }

@@ -33,6 +33,9 @@ anyhow = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
+# Performance optimizations
+dashmap = { version = "5.5", default-features = false }
+bincode = { version = "1.3", default-features = false }
 
 # Database
 sqlx = { workspace = true }

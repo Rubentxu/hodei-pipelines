@@ -44,7 +44,7 @@ impl PostgreSqlJobRepository {
         }
     }
 
-    /// Initialize database schema
+    /// Initialize database schema with performance indexes
     pub async fn init(&self) -> Result<(), JobRepositoryError> {
         sqlx::query(
             r#"
@@ -52,9 +52,10 @@ impl PostgreSqlJobRepository {
                 id UUID PRIMARY KEY,
                 name TEXT NOT NULL,
                 description TEXT,
+                spec JSONB NOT NULL,
                 state TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL,
-                updated_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 started_at TIMESTAMPTZ,
                 completed_at TIMESTAMPTZ,
                 tenant_id TEXT,
@@ -66,15 +67,25 @@ impl PostgreSqlJobRepository {
         .await
         .map_err(|e| JobRepositoryError::Database(format!("Failed to create jobs table: {}", e)))?;
 
-        // Create index on state for faster queries
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state)")
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| {
-                JobRepositoryError::Database(format!("Failed to create jobs state index: {}", e))
-            })?;
+        // Performance indexes for common query patterns
+        let index_queries = vec![
+            // Single column index for simple lookups
+            "CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state)",
+            // Composite index for pending/running jobs ordered by priority (created_at)
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jobs_state_created ON jobs(state, created_at)",
+            // Composite index for tenant isolation
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jobs_tenant_state ON jobs(tenant_id, state) WHERE tenant_id IS NOT NULL",
+            // Composite index for job completion tracking
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jobs_state_completed ON jobs(state, completed_at) WHERE completed_at IS NOT NULL",
+        ];
 
-        info!("PostgreSQL job repository initialized");
+        for query in index_queries {
+            sqlx::query(query).execute(&*self.pool).await.map_err(|e| {
+                JobRepositoryError::Database(format!("Failed to create index: {}", e))
+            })?;
+        }
+
+        info!("PostgreSQL job repository initialized with performance indexes");
         Ok(())
     }
 }
@@ -653,7 +664,11 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
                                             .depends_on
                                             .unwrap_or_default()
                                             .into_iter()
-                                            .map(|s| PipelineStepId::from_uuid(s.parse().unwrap_or_else(|_| Uuid::new_v4())))
+                                            .map(|s| {
+                                                PipelineStepId::from_uuid(
+                                                    s.parse().unwrap_or_else(|_| Uuid::new_v4()),
+                                                )
+                                            })
                                             .collect(),
                                         timeout_ms: step_json.timeout_ms.unwrap_or(300000),
                                     })
