@@ -70,6 +70,12 @@ pub struct ProviderConfig {
     pub namespace: Option<String>,
     pub docker_host: Option<String>,
     pub kube_config: Option<String>,
+
+    /// Custom Docker image to use (e.g., "hwp-agent:latest")
+    pub custom_image: Option<String>,
+
+    /// Custom Kubernetes Pod manifest (YAML or JSON as String)
+    pub custom_pod_template: Option<String>,
 }
 
 impl ProviderConfig {
@@ -80,6 +86,8 @@ impl ProviderConfig {
             namespace: None,
             docker_host: None,
             kube_config: None,
+            custom_image: None,
+            custom_pod_template: None,
         }
     }
 
@@ -90,7 +98,21 @@ impl ProviderConfig {
             namespace: Some("default".to_string()),
             docker_host: None,
             kube_config: None,
+            custom_image: None,
+            custom_pod_template: None,
         }
+    }
+
+    /// Set custom Docker image (overrides default HWP Agent image)
+    pub fn with_image(mut self, image: String) -> Self {
+        self.custom_image = Some(image);
+        self
+    }
+
+    /// Set custom Kubernetes Pod template (YAML or JSON)
+    pub fn with_pod_template(mut self, template: String) -> Self {
+        self.custom_pod_template = Some(template);
+        self
     }
 }
 

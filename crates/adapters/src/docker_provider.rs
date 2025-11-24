@@ -98,7 +98,8 @@ impl WorkerProvider for DockerProvider {
         let worker_id_clone = worker_id.clone();
         let container_name = Self::create_container_name(&worker_id);
 
-        let image = "ubuntu:20.04";
+        // Use custom image if provided, otherwise default HWP Agent image
+        let image = config.custom_image.as_deref().unwrap_or("hwp-agent:latest");
 
         self.ensure_image(image).await?;
 

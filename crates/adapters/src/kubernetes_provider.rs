@@ -138,10 +138,63 @@ impl KubernetesProvider {
         format!("hodei-worker-{}", worker_id)
     }
 
-    fn create_pod_manifest(worker_id: &WorkerId, namespace: &str) -> Value {
+    fn create_pod_manifest(
+        worker_id: &WorkerId,
+        config: &ProviderConfig,
+        namespace: &str,
+    ) -> Value {
+        // Use custom template if provided
+        if let Some(template) = &config.custom_pod_template {
+            // Try to parse as JSON first
+            if let Ok(mut template_value) = serde_json::from_str::<Value>(template) {
+                // Replace placeholders in the template
+                if let Some(metadata) = template_value
+                    .get_mut("metadata")
+                    .and_then(|m| m.as_object_mut())
+                {
+                    metadata.insert("name".to_string(), json!(Self::create_pod_name(worker_id)));
+                    metadata.insert("namespace".to_string(), json!(namespace));
+
+                    let labels = metadata
+                        .entry("labels")
+                        .or_insert_with(|| json!({}))
+                        .as_object_mut()
+                        .unwrap();
+                    labels.insert("hodei.worker".to_string(), json!("true"));
+                    labels.insert("hodei.worker.id".to_string(), json!(worker_id.to_string()));
+                }
+
+                if let Some(spec) = template_value
+                    .get_mut("spec")
+                    .and_then(|s| s.as_object_mut())
+                {
+                    if let Some(containers) =
+                        spec.get_mut("containers").and_then(|c| c.as_array_mut())
+                    {
+                        for container in containers {
+                            if let Some(env) =
+                                container.get_mut("env").and_then(|e| e.as_array_mut())
+                            {
+                                env.push(
+                                    json!({"name": "WORKER_ID", "value": worker_id.to_string()}),
+                                );
+                                env.push(json!({"name": "HODEI_SERVER_GRPC_URL", "value": std::env::var("HODEI_SERVER_GRPC_URL").unwrap_or_else(|_| "http://hodei-server:50051".to_string())}));
+                            }
+                        }
+                    }
+                }
+
+                return template_value;
+            }
+        }
+
+        // Default template with HWP Agent image
         let pod_name = Self::create_pod_name(worker_id);
         let grpc_url = std::env::var("HODEI_SERVER_GRPC_URL")
             .unwrap_or_else(|_| "http://hodei-server:50051".to_string());
+
+        // Use custom image if provided, otherwise default HWP Agent image
+        let image = config.custom_image.as_deref().unwrap_or("hwp-agent:latest");
 
         json!({
             "apiVersion": "v1",
@@ -158,7 +211,7 @@ impl KubernetesProvider {
                 "restartPolicy": "Never",
                 "containers": [{
                     "name": "worker",
-                    "image": "ubuntu:20.04",
+                    "image": image,
                     "env": [
                         {"name": "WORKER_ID", "value": worker_id.to_string()},
                         {"name": "HODEI_SERVER_GRPC_URL", "value": grpc_url}
@@ -281,7 +334,7 @@ impl WorkerProvider for KubernetesProvider {
     ) -> Result<Worker, ProviderError> {
         let pod_name = Self::create_pod_name(&worker_id);
         let namespace = config.namespace.as_ref().unwrap_or(&self.namespace);
-        let manifest = KubernetesProvider::create_pod_manifest(&worker_id, namespace);
+        let manifest = KubernetesProvider::create_pod_manifest(&worker_id, &config, namespace);
 
         // Create the pod
         let path = format!("/api/v1/namespaces/{}/pods", namespace);
