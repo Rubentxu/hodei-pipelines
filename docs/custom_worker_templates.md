@@ -47,15 +47,30 @@ let config = ProviderConfig::docker("custom-docker".to_string())
     .with_image("registry.company.com/hwp-agent:v1.2.3".to_string());
 ```
 
+**Por qué no necesita template completo:**
+- Docker es más simple: imagen + env vars + volumes
+- Se puede configurar directamente en el código sin template
+- HWP Agent container ya tiene configuración estándar
+- Custom image es suficiente para personalización
+
 **Características:**
 - ✅ Usa la imagen personalizada
 - ✅ Mantiene las labels: `hodei.worker=true`
-- ✅ Mantiene las variables de entorno
+- ✅ Mantiene las variables de entorno estándar
 - ✅ Sigue el contrato `WorkerProvider`
 
 ### Kubernetes Provider
 
 **Default:** HWP Agent Pod con labels estándar
+
+**Custom Pod Template (necesario para K8s):**
+
+**¿Por qué K8s SÍ necesita template?**
+- Pods tienen múltiples campos complejos: affinity, nodeSelector, initContainers, sidecars
+- Resource management, tolerations, security contexts
+- Multi-container Pods, volume mounts, configMaps, secrets
+- Template JSON es más flexible que configurar cada campo en código
+- Permite usar Helm charts, Kustomize, etc.
 
 **Custom Pod Template:**
 ```rust
