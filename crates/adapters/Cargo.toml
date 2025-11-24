@@ -59,8 +59,8 @@ testcontainers = { workspace = true, optional = true }
 # Docker provider
 bollard = { version = "0.16", features = ["buildkit"] }
 
-# Kubernetes provider
-# Note: Using kubectl commands instead of kube client to avoid k8s-openapi dependency issues
+# Kubernetes provider - using REST API via reqwest (no heavy dependencies)
+shellexpand = "3.1"
 
 [dev-dependencies]
 tempfile = { workspace = true }
