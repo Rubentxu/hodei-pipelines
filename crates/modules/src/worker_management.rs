@@ -578,6 +578,139 @@ impl DynamicPoolMetrics {
     }
 }
 
+/// Worker reuse metrics tracking
+#[derive(Debug)]
+pub struct WorkerReuseMetrics {
+    pool_id: String,
+    reuse_counts: std::sync::Mutex<HashMap<WorkerId, u32>>,
+    total_reuses: std::sync::atomic::AtomicU64,
+    successful_reuses: std::sync::atomic::AtomicU64,
+    failed_reuses: std::sync::atomic::AtomicU64,
+    total_provisioning_cost: std::sync::atomic::AtomicU64,
+    provision_time_total: std::sync::atomic::AtomicU64,
+}
+
+/// Snapshot of worker reuse metrics
+#[derive(Debug, Clone)]
+pub struct WorkerReuseSnapshot {
+    pub pool_id: String,
+    pub total_reuses: u64,
+    pub successful_reuses: u64,
+    pub failed_reuses: u64,
+    pub total_provisioning_cost: u64,
+    pub provision_time_total_ms: u64,
+}
+
+impl WorkerReuseMetrics {
+    pub fn new(pool_id: String) -> Self {
+        Self {
+            pool_id,
+            reuse_counts: std::sync::Mutex::new(HashMap::new()),
+            total_reuses: std::sync::atomic::AtomicU64::new(0),
+            successful_reuses: std::sync::atomic::AtomicU64::new(0),
+            failed_reuses: std::sync::atomic::AtomicU64::new(0),
+            total_provisioning_cost: std::sync::atomic::AtomicU64::new(0),
+            provision_time_total: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+
+    /// Record a worker reuse event
+    pub fn record_reuse(&self, worker_id: &WorkerId, success: bool, provision_time: Duration) {
+        // Update per-worker reuse count
+        {
+            let mut counts = self
+                .reuse_counts
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *counts.entry(worker_id.clone()).or_insert(0) += 1;
+        }
+
+        // Update global counters
+        self.total_reuses
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+        if success {
+            self.successful_reuses
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        } else {
+            self.failed_reuses
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        // Track provisioning cost (provision time in ms)
+        let provision_time_ms = provision_time.as_millis() as u64;
+        self.provision_time_total
+            .fetch_add(provision_time_ms, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Get reuse count for a specific worker
+    pub fn get_reuse_count(&self, worker_id: &WorkerId) -> Option<u32> {
+        let counts = self
+            .reuse_counts
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        counts.get(worker_id).copied()
+    }
+
+    /// Get snapshot of all metrics
+    pub fn get_metrics(&self) -> WorkerReuseSnapshot {
+        WorkerReuseSnapshot {
+            pool_id: self.pool_id.clone(),
+            total_reuses: self.total_reuses.load(std::sync::atomic::Ordering::Relaxed),
+            successful_reuses: self
+                .successful_reuses
+                .load(std::sync::atomic::Ordering::Relaxed),
+            failed_reuses: self
+                .failed_reuses
+                .load(std::sync::atomic::Ordering::Relaxed),
+            total_provisioning_cost: self
+                .total_provisioning_cost
+                .load(std::sync::atomic::Ordering::Relaxed),
+            provision_time_total_ms: self
+                .provision_time_total
+                .load(std::sync::atomic::Ordering::Relaxed),
+        }
+    }
+
+    /// Calculate average reuse count per worker
+    pub fn get_average_reuse_per_worker(&self) -> f64 {
+        let counts = self
+            .reuse_counts
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let num_workers = counts.len() as f64;
+
+        if num_workers == 0.0 {
+            return 0.0;
+        }
+
+        let total_reuses = self.total_reuses.load(std::sync::atomic::Ordering::Relaxed) as f64;
+
+        total_reuses / num_workers
+    }
+
+    /// Calculate provisioning cost savings from worker reuse
+    /// savings = (reuse_count - 1) * provision_time_ms * worker_count
+    pub fn calculate_provisioning_cost_savings(&self, provision_time_ms_per_worker: f64) -> f64 {
+        let counts = self
+            .reuse_counts
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        let mut total_savings = 0.0;
+
+        for (_worker_id, &reuse_count) in counts.iter() {
+            if reuse_count > 0 {
+                // Each worker after the first one represents a reuse that saved provisioning
+                let savings_for_worker = (reuse_count as f64 - 1.0) * provision_time_ms_per_worker;
+                total_savings += savings_for_worker;
+            }
+        }
+
+        total_savings
+    }
+}
+
 /// Dynamic pool events
 #[derive(Debug, Clone)]
 pub enum DynamicPoolEvent {
@@ -619,6 +752,7 @@ where
     worker_provider: T,
     registration_adapter: Option<WorkerRegistrationAdapter<MockSchedulerPort>>,
     metrics: DynamicPoolMetrics,
+    reuse_metrics: WorkerReuseMetrics,
     cleanup_task: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -657,6 +791,7 @@ where
     pub fn new(config: DynamicPoolConfig, worker_provider: T) -> Result<Self, DynamicPoolError> {
         config.validate()?;
         let metrics = DynamicPoolMetrics::new(&config.pool_id);
+        let reuse_metrics = WorkerReuseMetrics::new(config.pool_id.clone());
 
         Ok(Self {
             config: config.clone(),
@@ -664,6 +799,7 @@ where
             worker_provider,
             registration_adapter: None,
             metrics,
+            reuse_metrics,
             cleanup_task: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
     }
@@ -676,6 +812,7 @@ where
     ) -> Result<Self, DynamicPoolError> {
         config.validate()?;
         let metrics = DynamicPoolMetrics::new(&config.pool_id);
+        let reuse_metrics = WorkerReuseMetrics::new(config.pool_id.clone());
 
         Ok(Self {
             config: config.clone(),
@@ -683,6 +820,7 @@ where
             worker_provider,
             registration_adapter: Some(registration_adapter),
             metrics,
+            reuse_metrics,
             cleanup_task: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
     }
@@ -1661,5 +1799,200 @@ mod tests {
         // Get provider capabilities
         let capabilities = service.get_provider_capabilities().await.unwrap();
         assert_eq!(capabilities.supports_auto_scaling, true);
+    }
+
+    // ===== Worker Reuse Metrics Tests =====
+
+    #[tokio::test]
+    async fn test_worker_reuse_metrics_creation() {
+        let metrics = WorkerReuseMetrics::new("test-pool".to_string());
+
+        let snapshot = metrics.get_metrics();
+        assert_eq!(snapshot.total_reuses, 0);
+        assert_eq!(snapshot.successful_reuses, 0);
+        assert_eq!(snapshot.failed_reuses, 0);
+    }
+
+    #[tokio::test]
+    async fn test_worker_reuse_metrics_record_reuse() {
+        let metrics = WorkerReuseMetrics::new("test-pool".to_string());
+
+        let worker_id = WorkerId::new();
+
+        // Record successful reuse
+        metrics.record_reuse(&worker_id, true, Duration::from_millis(100));
+        metrics.record_reuse(&worker_id, true, Duration::from_millis(150));
+        metrics.record_reuse(&worker_id, false, Duration::from_millis(200));
+
+        let snapshot = metrics.get_metrics();
+        assert_eq!(snapshot.total_reuses, 3);
+        assert_eq!(snapshot.successful_reuses, 2);
+        assert_eq!(snapshot.failed_reuses, 1);
+
+        let reuse_count = metrics.get_reuse_count(&worker_id);
+        assert_eq!(reuse_count, Some(3));
+    }
+
+    #[tokio::test]
+    async fn test_worker_reuse_metrics_average_reuse() {
+        let metrics = WorkerReuseMetrics::new("test-pool".to_string());
+
+        let worker1 = WorkerId::new();
+        let worker2 = WorkerId::new();
+
+        // Worker 1: 5 reuses
+        for _ in 0..5 {
+            metrics.record_reuse(&worker1, true, Duration::from_millis(100));
+        }
+
+        // Worker 2: 3 reuses
+        for _ in 0..3 {
+            metrics.record_reuse(&worker2, true, Duration::from_millis(150));
+        }
+
+        let avg = metrics.get_average_reuse_per_worker();
+        assert!((avg - 4.0).abs() < f64::EPSILON);
+    }
+
+    #[tokio::test]
+    async fn test_worker_reuse_metrics_cost_savings() {
+        let metrics = WorkerReuseMetrics::new("test-pool".to_string());
+
+        let worker_id = WorkerId::new();
+
+        // Record 5 reuses with 100ms provisioning time each
+        for _ in 0..5 {
+            metrics.record_reuse(&worker_id, true, Duration::from_millis(100));
+        }
+
+        // Calculate savings assuming 500ms per new provision
+        let savings = metrics.calculate_provisioning_cost_savings(500.0);
+        assert_eq!(savings, 2000.0); // (5 reuses - 1 initial) * 500ms * 1 worker
+
+        // Multiple workers with different reuse counts
+        let worker2 = WorkerId::new();
+        for _ in 0..3 {
+            metrics.record_reuse(&worker2, true, Duration::from_millis(100));
+        }
+
+        let total_savings = metrics.calculate_provisioning_cost_savings(500.0);
+        // Worker 1: (5-1)*500 = 2000, Worker 2: (3-1)*500 = 1000
+        assert_eq!(total_savings, 3000.0);
+    }
+
+    #[tokio::test]
+    async fn test_worker_reuse_metrics_nonexistent_worker() {
+        let metrics = WorkerReuseMetrics::new("test-pool".to_string());
+
+        let worker_id = WorkerId::new();
+
+        // Query count for worker that hasn't been reused
+        let reuse_count = metrics.get_reuse_count(&worker_id);
+        assert_eq!(reuse_count, None);
+
+        // Record a reuse for this worker
+        metrics.record_reuse(&worker_id, true, Duration::from_millis(100));
+
+        // Now should have a count
+        let reuse_count = metrics.get_reuse_count(&worker_id);
+        assert_eq!(reuse_count, Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_dynamic_pool_manager_reuse_metrics_integration() {
+        let config = DynamicPoolConfig::new("test-pool".to_string(), "worker".to_string());
+        let provider = MockWorkerProvider::new();
+        let mut manager = DynamicPoolManager::new(config, provider).unwrap();
+
+        // Add reuse metrics to the manager
+        manager.reuse_metrics = WorkerReuseMetrics::new("test-pool".to_string());
+
+        let worker_id = WorkerId::new();
+        let job_id = JobId::new();
+
+        // Simulate worker lifecycle with reuses
+        {
+            let mut state = manager.state.write().await;
+            state.busy_workers.insert(worker_id.clone(), job_id.clone());
+        }
+
+        // Return worker to pool (successful)
+        let result = manager.return_worker_to_pool(&worker_id, &job_id).await;
+        assert!(result.is_ok());
+
+        // Record reuse
+        manager
+            .reuse_metrics
+            .record_reuse(&worker_id, true, Duration::from_millis(100));
+
+        // Verify metrics
+        let snapshot = manager.reuse_metrics.get_metrics();
+        assert_eq!(snapshot.successful_reuses, 1);
+        assert_eq!(snapshot.total_reuses, 1);
+
+        // Simulate another job with same worker
+        let job_id2 = JobId::new();
+        {
+            let mut state = manager.state.write().await;
+            state
+                .busy_workers
+                .insert(worker_id.clone(), job_id2.clone());
+        }
+
+        // Return again
+        let result = manager.return_worker_to_pool(&worker_id, &job_id2).await;
+        assert!(result.is_ok());
+
+        // Record second reuse
+        manager
+            .reuse_metrics
+            .record_reuse(&worker_id, true, Duration::from_millis(120));
+
+        // Verify reuse count
+        let reuse_count = manager.reuse_metrics.get_reuse_count(&worker_id);
+        assert_eq!(reuse_count, Some(2));
+
+        let avg_reuse = manager.reuse_metrics.get_average_reuse_per_worker();
+        assert!((avg_reuse - 2.0).abs() < f64::EPSILON);
+    }
+
+    #[tokio::test]
+    async fn test_reuse_metrics_concurrent_access() {
+        let metrics = Arc::new(WorkerReuseMetrics::new("test-pool".to_string()));
+        let worker_id = WorkerId::new();
+
+        // Simulate concurrent reuses
+        let mut handles = Vec::new();
+        for _ in 0..10 {
+            let metrics_clone = Arc::clone(&metrics);
+            let worker_id_clone = worker_id.clone();
+            let handle = tokio::spawn(async move {
+                metrics_clone.record_reuse(&worker_id_clone, true, Duration::from_millis(100));
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all reuses to complete
+        for handle in handles {
+            handle.await;
+        }
+
+        let reuse_count = metrics.get_reuse_count(&worker_id);
+        assert_eq!(reuse_count, Some(10));
+
+        let snapshot = metrics.get_metrics();
+        assert_eq!(snapshot.total_reuses, 10);
+        assert_eq!(snapshot.successful_reuses, 10);
+    }
+
+    #[tokio::test]
+    async fn test_reuse_metrics_zero_reuses() {
+        let metrics = WorkerReuseMetrics::new("test-pool".to_string());
+
+        let avg_reuse = metrics.get_average_reuse_per_worker();
+        assert_eq!(avg_reuse, 0.0);
+
+        let savings = metrics.calculate_provisioning_cost_savings(500.0);
+        assert_eq!(savings, 0.0);
     }
 }
