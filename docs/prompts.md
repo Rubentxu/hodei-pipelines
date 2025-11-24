@@ -28,7 +28,7 @@ Segun el análisis táctico quiero realices unas propuestas de mejora en el cód
 
 Aquí tienes el CODE_MANIFEST.txt en la raiz de mi repositorio. Este es el mapa de la verdad. No alucines archivos que no están aquí. Úsalo como índice para todas las búsquedas que te pida a continuación.
 
-Actúa como un experto en testing y QA. Basándome en el los ficheros mencionados en  CODE_MANIFEST.txt (ve fichero a fichero progresivamente en lotes, no te dejes ninguna), analiza la estructura de testing del proyecto y genera un informe completo sobre:
+Actúa como un experto en testing y QA. Basándome en el los ficheros mencionados en  CODE_MANIFEST.txt (ve fichero a fichero progresivamente en lotes, no te dejes ninguna), analiza la estructura de testing del proyecto y vayas creando progresivamente un documento de análisis de testing en formato Markdown en el directorio `docs/analysis` con el formato:
 
 **Tu tarea:** Rellena la siguiente tabla de 'Análisis de Testing'.
 
@@ -50,6 +50,12 @@ Actúa como un experto en testing y QA. Basándome en el los ficheros mencionado
 3. **Plan de Mejora:** Roadmap para mejorar la estrategia de testing
 4. **Métricas Clave:** KPIs de calidad y cobertura
 
+---
+### Propuesta de Mejora sobre el análisis de Tests.
+
+Segun el análisis de tests quiero realices unas propuestas de mejora en el código de testing, para mejorar la calidad y eficiencia del mismo. Ten en cuenta que puedes investigar y sugerir mejoras en el código, apoyate en la documentación de BDD y en las mejores practicas de Testing. Utiliza MCP como perplexity o cargo docs para investigar mejores soluciones si lo necesitas.
+IMPORTANTE: todos los cambios seran extrictamente en codigo de testing, no se toca codigo productivo, a menos que sea para corrigir un error detectado en la logica de negocio. 
+
 
 ---
 
@@ -57,7 +63,7 @@ Actúa como un experto en testing y QA. Basándome en el los ficheros mencionado
 ## Análisis de Rendimiento y Optimización
 
 Aquí tienes el CODE_MANIFEST.txt en la raiz de mi repositorio. Este es el mapa de la verdad. No alucines archivos que no están aquí. Úsalo como índice para todas las búsquedas que te pida a continuación.
-Actúa como un experto en Performance Engineering. Basándome en el CODE_MANIFEST.txt (ve fichero a fichero progresivamente en lotes, no te dejes ninguna), analiza el código para identificar bottlenecks y oportunidades de optimización:
+Actúa como un experto en Performance Engineering. Basándome en el CODE_MANIFEST.txt (ve fichero a fichero progresivamente en lotes, no te dejes ninguna), analiza el código para identificar bottlenecks y oportunidades de optimización y vayas creando progresivamente un documento de análisis de Rendimiento en formato Markdown en el directorio `docs/analysis` con el formato:
 
 **Tu tarea:** Rellena la siguiente tabla de 'Análisis de Rendimiento'.
 **Reglas de Oro:**

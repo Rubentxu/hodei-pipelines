@@ -1,0 +1,144 @@
+No,Component Path,Complexity O(),Memory Usage,DB Query Issues,I/O Bottleneck,Concurrency Risk,Performance Score,Optimization Potential
+1,./CLAUDE.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+2,./Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+3,./Makefile,N/A,N/A,N/A,N/A,N/A,10/10,None
+4,./crates/adapters/Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+5,./crates/adapters/src/bus/mod.rs,O(1) pub/sub,Low (broadcast),N/A,Medium (channel),HIGH (single-writer),6/10,40%
+6,./crates/adapters/src/event_bus.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+7,./crates/adapters/src/lib.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+8,./crates/adapters/src/postgres.rs,O(1) SELECT,HIGH (JSON ser/de),CRITICAL (No prepared stmts),Low,Medium,4/10,60%
+9,./crates/adapters/src/redb.rs,O(n) filters,HIGH (JSON ser/de),CRITICAL (No indexes),Low,Medium,3/10,70%
+10,./crates/adapters/src/repositories.rs,O(1) hashmap,Low,N/A,N/A,HIGH (RwLock),6/10,30%
+11,./crates/adapters/src/security/audit.rs,O(1) log,Low,N/A,Medium (blocking I/O),Low,7/10,20%
+12,./crates/adapters/src/security/config.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+13,./crates/adapters/src/security/jwt.rs,O(1) encode/decode,Low,N/A,Low,Low,8/10,15%
+14,./crates/adapters/src/security/masking.rs,O(m) text scan,Medium,N/A,Low,Low,7/10,25%
+15,./crates/adapters/src/security/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+16,./crates/adapters/src/security/mtls.rs,O(1) validate,Medium,N/A,Medium (TLS handshake),Low,7/10,20%
+17,./crates/adapters/src/worker_client.rs,O(1) network call,Medium,N/A,HIGH (blocking I/O),Medium,5/10,50%
+18,./crates/adapters/tests/integration_tests.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+19,./crates/core/Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+20,./crates/core/src/job.rs,O(1) transitions,HIGH (clone),N/A,N/A,Low,6/10,40%
+21,./crates/core/src/job/job_specifications.rs,O(1) validate,Medium,N/A,N/A,Low,7/10,20%
+22,./crates/core/src/lib.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+23,./crates/core/src/mappers/job_mapper.rs,O(1) map,Low,N/A,N/A,Low,8/10,15%
+24,./crates/core/src/mappers/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+25,./crates/core/src/mappers/worker_mapper.rs,O(1) map,Low,N/A,N/A,Low,8/10,15%
+26,./crates/core/src/pipeline.rs,O(n²) validation,HIGH (clone),N/A,N/A,Low,5/10,50%
+27,./crates/core/src/security.rs,O(1) check,Low,N/A,N/A,Low,8/10,15%
+28,./crates/core/src/specifications.rs,O(1) validate,Low,N/A,N/A,Low,8/10,15%
+29,./crates/core/src/worker.rs,O(1) operations,Medium,N/A,N/A,Low,7/10,25%
+30,./crates/e2e-tests/Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+31,./crates/e2e-tests/README.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+32,./crates/e2e-tests/config/docker-compose.yml,N/A,N/A,N/A,N/A,N/A,10/10,None
+33,./crates/e2e-tests/config/prometheus.yml,N/A,N/A,N/A,N/A,N/A,10/10,None
+34,./crates/e2e-tests/src/fixtures/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+35,./crates/e2e-tests/src/helpers/assertions.rs,O(1) assert,Low,N/A,N/A,Low,9/10,10%
+36,./crates/e2e-tests/src/helpers/data.rs,O(n) generate,Medium,N/A,N/A,Low,8/10,15%
+37,./crates/e2e-tests/src/helpers/generators.rs,O(n) generate,Medium,N/A,N/A,Low,8/10,15%
+38,./crates/e2e-tests/src/helpers/http.rs,O(1) request,Medium,N/A,Medium (HTTP),Low,7/10,25%
+39,./crates/e2e-tests/src/helpers/logging.rs,O(1) log,Low,N/A,Low,Low,8/10,15%
+40,./crates/e2e-tests/src/helpers/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+41,./crates/e2e-tests/src/infrastructure/config.rs,O(1) parse,Low,N/A,N/A,Low,9/10,10%
+42,./crates/e2e-tests/src/infrastructure/containers.rs,O(1) start,Medium,N/A,HIGH (Docker),Low,6/10,30%
+43,./crates/e2e-tests/src/infrastructure/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+44,./crates/e2e-tests/src/infrastructure/observability.rs,O(1) metrics,Low,N/A,Medium,Low,8/10,15%
+45,./crates/e2e-tests/src/infrastructure/services.rs,O(1) manage,Medium,N/A,Medium,Low,7/10,25%
+46,./crates/e2e-tests/src/lib.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+47,./crates/e2e-tests/src/scenarios/error_handling.rs,O(n) scenarios,Medium,N/A,Medium,Low,7/10,20%
+48,./crates/e2e-tests/src/scenarios/happy_path.rs,O(n) scenarios,Medium,N/A,Medium,Low,7/10,20%
+49,./crates/e2e-tests/src/scenarios/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+50,./crates/e2e-tests/src/scenarios/performance.rs,O(n log n) load,HIGH,N/A,HIGH,Medium,5/10,50%
+51,./crates/e2e-tests/tests/integration/basic_integration.rs,O(n) tests,Medium,N/A,Medium,Low,7/10,20%
+52,./crates/e2e-tests/tests/integration/file_io_evidence_test.rs,O(n) file scan,HIGH,N/A,HIGH,Low,5/10,50%
+53,./crates/e2e-tests/tests/integration/log_streaming_test.rs,O(1) stream,Medium,N/A,HIGH,Medium,6/10,40%
+54,./crates/e2e-tests/tests/integration/log_streaming_tests_README.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+55,./crates/e2e-tests/tests/integration/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+56,./crates/e2e-tests/tests/integration/real_services_test.rs,O(n) requests,Medium,N/A,Medium,Low,7/10,20%
+57,./crates/hwp-agent/Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+58,./crates/hwp-agent/src/artifacts/compression.rs,O(n) compress,HIGH,N/A,HIGH,Low,6/10,40%
+59,./crates/hwp-agent/src/artifacts/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+60,./crates/hwp-agent/src/artifacts/uploader.rs,O(n) upload,HIGH,N/A,HIGH,Medium,5/10,50%
+61,./crates/hwp-agent/src/config.rs,O(1) parse,Low,N/A,N/A,Low,9/10,10%
+62,./crates/hwp-agent/src/connection/auth.rs,O(1) auth,Medium,N/A,Medium,Low,7/10,25%
+63,./crates/hwp-agent/src/connection/grpc_client.rs,O(1) call,Medium,N/A,Medium,Medium,6/10,40%
+64,./crates/hwp-agent/src/connection/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+65,./crates/hwp-agent/src/executor/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+66,./crates/hwp-agent/src/executor/process.rs,O(1) spawn,Medium,N/A,Medium,Medium,7/10,25%
+67,./crates/hwp-agent/src/executor/pty.rs,O(1) allocate,Medium,N/A,Medium,Low,7/10,25%
+68,./crates/hwp-agent/src/lib.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+69,./crates/hwp-agent/src/logging/buffer.rs,O(1) add,Medium,N/A,Low,HIGH (Mutex),6/10,40%
+70,./crates/hwp-agent/src/logging/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+71,./crates/hwp-agent/src/logging/streaming.rs,O(1) stream,Medium,N/A,HIGH,Medium,6/10,40%
+72,./crates/hwp-agent/src/main.rs,O(1) start,Low,N/A,Low,Low,8/10,15%
+73,./crates/hwp-agent/src/monitor/heartbeat.rs,O(1) send,Low,N/A,Medium,Low,7/10,20%
+74,./crates/hwp-agent/src/monitor/mod.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+75,./crates/hwp-agent/src/monitor/resources.rs,O(1) collect,Medium,N/A,Medium,Low,7/10,20%
+76,./crates/hwp-proto/Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+77,./crates/hwp-proto/protos/hwp.proto,N/A,N/A,N/A,N/A,N/A,10/10,None
+78,./crates/hwp-proto/src/lib.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+79,./crates/modules/Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+80,./crates/modules/src/lib.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+81,./crates/modules/src/orchestrator.rs,O(1) operations,Medium,N/A,Low,Low,7/10,25%
+82,./crates/modules/src/scheduler/mod.rs,O(log n) schedule,HIGH,N/A,Low,HIGH (multiple locks),5/10,50%
+83,./crates/modules/src/scheduler/state_machine.rs,O(1) transition,Low,N/A,N/A,Low,8/10,15%
+84,./crates/modules/tests/test_scheduler_cluster_state.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+85,./crates/ports/Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+86,./crates/ports/src/event_bus.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+87,./crates/ports/src/job_repository.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+88,./crates/ports/src/lib.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+89,./crates/ports/src/pipeline_repository.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+90,./crates/ports/src/security.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+91,./crates/ports/src/worker_client.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+92,./crates/ports/src/worker_repository.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+93,./crates/shared-types/Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+94,./crates/shared-types/src/correlation.rs,O(1) generate,Low,N/A,N/A,Low,9/10,10%
+95,./crates/shared-types/src/error.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+96,./crates/shared-types/src/health_checks.rs,O(1) check,Low,N/A,N/A,Low,9/10,10%
+97,./crates/shared-types/src/job_definitions.rs,O(1) validate,Low,N/A,N/A,Low,8/10,15%
+98,./crates/shared-types/src/job_specifications.rs,O(1) validate,Low,N/A,N/A,Low,8/10,15%
+99,./crates/shared-types/src/lib.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+100,./crates/shared-types/src/specifications.rs,O(1) validate,Low,N/A,N/A,Low,8/10,15%
+101,./crates/shared-types/src/worker_messages.rs,N/A,N/A,N/A,N/A,N/A,10/10,None
+102,./docker-compose.yml,N/A,N/A,N/A,N/A,N/A,10/10,None
+103,./docs/DDD_ANALISIS_TACTICO_COMPLETO.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+104,./docs/IMPLEMENTACION_PIPELINE_DESERIALIZATION.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+105,./docs/MEJORAS_ARQUITECTURA_DDD.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+106,./docs/analysis/01-tactical-ddd-analysis.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+107,./docs/analysis/02-code-improvement-proposals.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+108,./docs/analysis/testing_analysis_report.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+109,./docs/api_flow_diagrams.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+110,./docs/diagrama-arquitectura-hexagonal.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+111,./docs/epics/EPIC-01-migracion-reutilizacion.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+112,./docs/epics/EPIC-01-reestructuracion-hexagonal.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+113,./docs/epics/EPIC-02-inmemory-bus.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+114,./docs/epics/EPIC-03-repository-persistencia-dual.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+115,./docs/epics/EPIC-04-HWP-AGENT.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+116,./docs/epics/EPIC-05-IMPLEMENTATION-COMPLETE.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+117,./docs/epics/EPIC-05-scheduler-telemetria.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+118,./docs/epics/EPIC-06-SECURITY-ENTERPRISE.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+119,./docs/epics/EPIC-06-optimizacion-seguridad.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+120,./docs/epics/EPIC-07-DEPLOYMENT-AUTOMATION.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+121,./docs/epics/EPIC-07-integracion-deployment.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+122,./docs/epics/INDICE_EPICAS_PENDIENTES.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+123,./docs/epics/RESUMEN_ESTADO_ACTUAL.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+124,./docs/prompts.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+125,./docs/sprint_planning/00_estrategia_roadmap_general.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+126,./docs/sprint_planning/01_epica_core_platform_infrastructure.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+127,./docs/sprint_planning/02_epica_intelligent_scheduler_ai.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+128,./docs/sprint_planning/02_epica_k8s_style_scheduler.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+129,./docs/sprint_planning/03_epica_security_compliance.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+130,./docs/sprint_planning/04_epica_worker_management_abstraction.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+131,./docs/sprint_planning/05_epica_observability_operations.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+132,./docs/sprint_planning/06_epica_developer_experience_tools.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+133,./docs/sprint_planning/07_roadmap_sprints_2024.md,N/A,N/A,N/A,N/A,N/A,10/10,None
+134,./monitoring/prometheus/prometheus.yml,N/A,N/A,N/A,N/A,N/A,10/10,None
+135,./scripts/start-services.sh,N/A,N/A,N/A,N/A,N/A,10/10,None
+136,./scripts/stop-services.sh,N/A,N/A,N/A,N/A,N/A,10/10,None
+137,./scripts/test-log-streaming.sh,N/A,N/A,N/A,N/A,N/A,10/10,None
+138,./server/Cargo.toml,N/A,N/A,N/A,N/A,N/A,10/10,None
+139,./server/src/auth.rs,O(1) validate,Low,N/A,Low,Low,8/10,15%
+140,./server/src/grpc.rs,O(1) handle,Medium,N/A,Medium,Medium,7/10,25%
+141,./server/src/main.rs,O(1) start,Low,N/A,Low,Low,8/10,15%
+142,./server/src/metrics.rs,O(1) collect,Low,N/A,Low,Low,8/10,15%
+143,./monitoring/prometheus/prometheus.yml,N/A,N/A,N/A,N/A,N/A,10/10,None
