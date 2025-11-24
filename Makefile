@@ -12,7 +12,7 @@
 #   make stop-services     # Stop all services
 #   make clean             # Clean build artifacts
 
-.PHONY: help build test test-e2e test-basic test-real test-all start-services stop-services clean fmt lint
+.PHONY: help build test test-e2e test-basic test-real test-all test-unit test-integration test-e2e-full test-pyramid-fast test-pyramid-full test-watch test-package-% start-services stop-services clean fmt lint
 
 # Default target
 .DEFAULT_GOAL := help
@@ -33,12 +33,18 @@ help:
 	@echo ""
 	@echo "🧪 TEST COMMANDS:"
 	@echo "  make test               Run all tests (unit + integration)"
-	@echo "  make test-e2e           Run E2E tests only"
+	@echo "  make test-unit          Run unit tests only (270 tests, <1s)"
+	@echo "  make test-integration   Run integration tests with PostgreSQL"
+	@echo "  make test-e2e           Run E2E tests with testcontainers"
+	@echo "  make test-pyramid-fast  Run unit + integration (fast path)"
+	@echo "  make test-pyramid-full  Run complete testing pyramid"
 	@echo "  make test-basic         Run basic integration tests"
 	@echo "  make test-real          Run real services tests"
 	@echo "  make test-real-services Run services tests (starts services first)"
 	@echo "  make test-log-streaming Run log streaming tests (starts worker-manager)"
 	@echo "  make test-all           Run comprehensive test suite"
+	@echo "  make test-watch         Watch mode for unit tests"
+	@echo "  make test-package-<pkg> Run tests for specific package"
 	@echo ""
 	@echo "🚀 RUNTIME COMMANDS:"
 	@echo "  make start-services     Start all services in background"
@@ -84,10 +90,61 @@ test:
 	@echo "🧪 Running all tests..."
 	$(CARGO) test $(TEST_PACKAGE) --all-features
 
-### Run E2E tests only
+### 🧪 TESTING PYRAMID TARGETS
+
+### Run unit tests only (270 tests - Fast, no dependencies)
+test-unit:
+	@echo "⚡ Running unit tests (270 tests)..."
+	@echo "  → hodei-adapters: 122 tests"
+	@echo "  → hodei-ports: 24 tests"
+	@echo "  → hodei-core: 84 tests"
+	@echo "  → hwp-agent: 19 tests"
+	@echo "  → hodei-shared-types: 8 tests"
+	@echo "  → e2e-tests: 13 tests"
+	@echo ""
+	$(CARGO) test --lib
+	@echo ""
+	@echo "✅ All unit tests passed!"
+
+### Run integration tests (PostgreSQL - Requires DATABASE_URL)
+test-integration:
+	@echo "🐘 Running PostgreSQL integration tests..."
+	@echo "  → Requires DATABASE_URL environment variable"
+	@echo "  → Or run with e2e-tests: make test-e2e"
+	@echo ""
+	@echo "  Option 1 - With local PostgreSQL:"
+	@echo "    DATABASE_URL=postgres://user:pass@host/db make test-integration"
+	@echo ""
+	@echo "  Option 2 - Use e2e-tests (recommended):"
+	@echo "    make test-e2e"
+	@echo ""
+	@if [ -z "$$DATABASE_URL" ]; then \
+		echo "⚠️  DATABASE_URL not set. Run with e2e-tests instead:"; \
+		echo "   make test-e2e"; \
+	else \
+		echo "📡 Using DATABASE_URL: $$DATABASE_URL"; \
+		$(CARGO) test -p hodei-adapters --features integration --lib postgres; \
+	fi
+
+### Run E2E tests (13 tests - Complete with testcontainers)
 test-e2e:
-	@echo "🧪 Running E2E tests..."
-	$(CARGO) test $(TEST_PACKAGE) --all-features
+	@echo "🔄 Running E2E tests with testcontainers..."
+	@echo "  → Starting PostgreSQL, NATS, Prometheus containers"
+	@echo "  → Running infrastructure and workflow tests"
+	@echo ""
+	$(CARGO) test -p e2e-tests --lib
+	@echo ""
+	@echo "✅ E2E tests completed!"
+
+### Run E2E tests with full output
+test-e2e-full:
+	@echo "🔄 Running E2E tests (full output)..."
+	@echo "  → Starting PostgreSQL, NATS, Prometheus containers"
+	@echo "  → Running infrastructure and workflow tests"
+	@echo ""
+	$(CARGO) test -p e2e-tests --lib -- --nocapture
+	@echo ""
+	@echo "✅ E2E tests completed!"
 
 ### Run basic integration tests only
 test-basic:
@@ -127,6 +184,41 @@ test-all:
 	@echo "  → Running E2E tests..."
 	$(CARGO) test $(TEST_PACKAGE) --all-features
 	@echo "✅ All tests completed successfully"
+
+### 🏗️ TESTING PYRAMID CONVENIENCE TARGETS
+
+### Run unit + integration tests (fast)
+test-pyramid-fast:
+	@echo "🏗️  Running testing pyramid (Unit + Integration)..."
+	@echo ""
+	@echo "⚡ Phase 1: Unit tests (270 tests)..."
+	$(CARGO) test --lib
+	@echo ""
+	@echo "✅ Phase 1 complete! Run 'make test-integration' for PostgreSQL tests"
+	@echo "   Or run 'make test-e2e' for full E2E with testcontainers"
+
+### Run all tests with detailed output
+test-pyramid-full:
+	@echo "🏗️  Running full testing pyramid..."
+	@echo ""
+	@echo "⚡ Phase 1: Unit tests (270 tests)..."
+	$(CARGO) test --lib -- --test-threads=1
+	@echo ""
+	@echo "🔄 Phase 2: E2E tests (13 tests)..."
+	$(CARGO) test -p e2e-tests --lib -- --test-threads=1
+	@echo ""
+	@echo "✅ All pyramid tests completed!"
+
+### Watch mode for unit tests (rerun on changes)
+test-watch:
+	@echo "👀 Watching for changes..."
+	@echo "  Run: cargo test --lib -- --watch"
+	cargo test --lib -- --watch
+
+### Test specific package
+test-package-%:
+	@echo "🧪 Running tests for package: $*"
+	$(CARGO) test -p $* --lib
 
 ### Run specific test
 test-%:
