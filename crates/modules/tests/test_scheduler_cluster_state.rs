@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod cluster_state_tests {
-    use hodei_core::{WorkerCapabilities, WorkerId};
     use hodei_modules::scheduler::{ClusterState, ResourceUsage};
+    use hodei_shared_types::{WorkerCapabilities, WorkerId};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
@@ -18,7 +18,7 @@ mod cluster_state_tests {
             memory_gb: 8,
             gpu: None,
             labels,
-            architectures: vec!["amd64".to_string()],
+            features: vec!["amd64".to_string()],
             max_concurrent_jobs: 1,
         };
 
@@ -41,7 +41,7 @@ mod cluster_state_tests {
             memory_gb: 8,
             gpu: None,
             labels: HashMap::new(),
-            architectures: vec!["amd64".to_string()],
+            features: vec!["amd64".to_string()],
             max_concurrent_jobs: 1,
         };
 
@@ -81,7 +81,7 @@ mod cluster_state_tests {
                     memory_gb: 8,
                     gpu: None,
                     labels: HashMap::new(),
-                    architectures: vec!["amd64".to_string()],
+                    features: vec!["amd64".to_string()],
                     max_concurrent_jobs: 1,
                 };
                 tokio::spawn(async move {
@@ -110,7 +110,7 @@ mod cluster_state_tests {
             memory_gb: 8,
             gpu: None,
             labels: HashMap::new(),
-            architectures: vec!["amd64".to_string()],
+            features: vec!["amd64".to_string()],
             max_concurrent_jobs: 1,
         };
 
@@ -139,7 +139,7 @@ mod cluster_state_tests {
             memory_gb: 16,
             gpu: None,
             labels: HashMap::new(),
-            architectures: vec!["amd64".to_string()],
+            features: vec!["amd64".to_string()],
             max_concurrent_jobs: 1,
         };
 

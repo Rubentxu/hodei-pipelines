@@ -264,6 +264,8 @@ impl Client {
                         payload: Some(AgentPayload::JobResult(JobResult {
                             job_id: job_id.clone(),
                             exit_code,
+                            stdout: "".to_string(),
+                            stderr: "".to_string(),
                         })),
                     }
                 }
@@ -273,6 +275,8 @@ impl Client {
                         payload: Some(AgentPayload::JobResult(JobResult {
                             job_id: job_id.clone(),
                             exit_code: -1,
+                            stdout: "".to_string(),
+                            stderr: e.to_string(),
                         })),
                     }
                 }
@@ -303,9 +307,14 @@ impl Client {
         job_request: AssignJobRequest,
         tx: mpsc::Sender<AgentMessage>,
     ) -> std::result::Result<i32, String> {
+        let job_spec = job_request
+            .job_spec
+            .as_ref()
+            .ok_or_else(|| "Missing job_spec in AssignJobRequest".to_string())?;
+
         info!(
             "Executing job {}: image={}, command={:?}",
-            job_id, job_request.image, job_request.command
+            job_id, job_spec.image, job_spec.command
         );
 
         // Send initial log
@@ -313,17 +322,17 @@ impl Client {
             .send(AgentMessage {
                 payload: Some(AgentPayload::LogEntry(LogEntry {
                     job_id: job_id.clone(),
-                    data: format!("Starting job: {}", job_request.name),
+                    data: format!("Starting job: {}", job_spec.name),
                 })),
             })
             .await;
 
         // For now, execute the command directly
         // In the future, this would handle docker image pulling, etc.
-        let command = if job_request.command.is_empty() {
+        let command = if job_spec.command.is_empty() {
             vec!["echo".to_string(), "No command specified".to_string()]
         } else {
-            job_request.command
+            job_spec.command.clone()
         };
 
         // Create PTY allocation for the job

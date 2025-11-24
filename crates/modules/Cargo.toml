@@ -11,6 +11,7 @@ repository.workspace = true
 # Workspace core crates
 hodei-core = { workspace = true }
 hodei-ports = { workspace = true }
+hodei-shared-types = { workspace = true }
 
 # Workspace async and serialization
 async-trait = { workspace = true }

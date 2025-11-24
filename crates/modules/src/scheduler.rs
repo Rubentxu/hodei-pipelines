@@ -1,8 +1,9 @@
 use dashmap::DashMap;
-use hodei_core::{Job, JobId, Worker, WorkerCapabilities, WorkerId};
+use hodei_core::{Job, JobId, Worker};
 use hodei_ports::{
     EventPublisher, JobRepository, JobRepositoryError, WorkerClient, WorkerRepository,
 };
+use hodei_shared_types::{WorkerCapabilities, WorkerId};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
@@ -352,18 +353,18 @@ where
         let mut score = 1.0;
 
         // Exact match bonus
-        if worker.capabilities.cpu_cores * 1000 >= job.spec.resources.cpu_m {
-            let cpu_overhead = (worker.capabilities.cpu_cores * 1000 - job.spec.resources.cpu_m)
-                as f64
-                / job.spec.resources.cpu_m as f64;
+        let worker_cpu_m = worker.capabilities.cpu_cores as u64 * 1000;
+        if worker_cpu_m >= job.spec.resources.cpu_m {
+            let cpu_overhead =
+                (worker_cpu_m - job.spec.resources.cpu_m) as f64 / job.spec.resources.cpu_m as f64;
             if cpu_overhead < 0.2 {
                 score += 0.2; // Bonus for minimal overhead
             }
         }
 
-        if worker.capabilities.memory_gb * 1024 >= job.spec.resources.memory_mb {
-            let memory_overhead = (worker.capabilities.memory_gb * 1024
-                - job.spec.resources.memory_mb) as f64
+        let worker_memory_mb = worker.capabilities.memory_gb * 1024;
+        if worker_memory_mb >= job.spec.resources.memory_mb {
+            let memory_overhead = (worker_memory_mb - job.spec.resources.memory_mb) as f64
                 / job.spec.resources.memory_mb as f64;
             if memory_overhead < 0.2 {
                 score += 0.2; // Bonus for minimal overhead
@@ -378,7 +379,7 @@ where
                 .capabilities
                 .labels
                 .iter()
-                .map(|s| s.as_str())
+                .map(|(k, _v)| k.as_str())
                 .collect();
 
             let matching_labels = env_labels.intersection(&worker_labels).count();

@@ -46,6 +46,12 @@ pub enum WorkerClientError {
     #[error("Communication error: {0}")]
     Communication(String),
 
-    #[error("Timeout")]
-    Timeout,
+    #[error("Timeout: {0}")]
+    Timeout(String),
+
+    #[error("Configuration error: {0}")]
+    Configuration(String),
+
+    #[error("Connection error: {0}")]
+    Connection(String),
 }

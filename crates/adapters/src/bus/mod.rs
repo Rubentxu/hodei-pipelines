@@ -174,9 +174,7 @@ mod tests {
         let bus = InMemoryBus::new(100);
 
         // Create a JobSpec
-        let job_spec = JobSpec::builder()
-            .name("test-job".to_string())
-            .image("ubuntu".to_string())
+        let job_spec = JobSpec::builder("test-job".to_string(), "ubuntu".to_string())
             .command(vec!["echo".to_string(), "hello".to_string()])
             .build()
             .unwrap();

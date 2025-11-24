@@ -2,8 +2,9 @@
 //!
 //! These tests verify the repository implementations work correctly.
 
-use hodei_core::{Job, JobId, JobSpec, ResourceQuota, Worker, WorkerCapabilities, WorkerId};
+use hodei_core::{Job, JobId, JobSpec, Worker, WorkerId};
 use hodei_ports::event_bus::SystemEvent;
+use hodei_shared_types::{ResourceQuota, WorkerCapabilities};
 use std::collections::HashMap;
 use std::sync::Arc;
 

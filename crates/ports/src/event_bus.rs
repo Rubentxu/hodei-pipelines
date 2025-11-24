@@ -3,12 +3,14 @@
 //! Defines interfaces for high-performance in-memory event bus.
 
 use async_trait::async_trait;
+use hodei_core::PipelineId;
+use hodei_shared_types::{JobId, JobSpec, WorkerId};
 use std::sync::Arc;
 
 /// Zero-copy log entry (Arc wrapper for data)
 #[derive(Debug, Clone)]
 pub struct LogEntry {
-    pub job_id: hodei_core::JobId,
+    pub job_id: JobId,
     pub data: Arc<Vec<u8>>,
     pub stream_type: StreamType,
     pub sequence: u64,
@@ -25,41 +27,29 @@ pub enum StreamType {
 #[derive(Debug, Clone)]
 pub enum SystemEvent {
     /// Job created event (zero-copy via Arc)
-    JobCreated(Arc<hodei_core::JobSpec>),
+    JobCreated(Arc<JobSpec>),
 
     /// Job scheduled event
-    JobScheduled {
-        job_id: hodei_core::JobId,
-        worker_id: hodei_core::WorkerId,
-    },
+    JobScheduled { job_id: JobId, worker_id: WorkerId },
 
     /// Job started event
-    JobStarted {
-        job_id: hodei_core::JobId,
-        worker_id: hodei_core::WorkerId,
-    },
+    JobStarted { job_id: JobId, worker_id: WorkerId },
 
     /// Job completed event
-    JobCompleted {
-        job_id: hodei_core::JobId,
-        exit_code: i32,
-    },
+    JobCompleted { job_id: JobId, exit_code: i32 },
 
     /// Job failed event
-    JobFailed {
-        job_id: hodei_core::JobId,
-        error: String,
-    },
+    JobFailed { job_id: JobId, error: String },
 
     /// Worker connected event
-    WorkerConnected { worker_id: hodei_core::WorkerId },
+    WorkerConnected { worker_id: WorkerId },
 
     /// Worker disconnected event
-    WorkerDisconnected { worker_id: hodei_core::WorkerId },
+    WorkerDisconnected { worker_id: WorkerId },
 
     /// Worker heartbeat event
     WorkerHeartbeat {
-        worker_id: hodei_core::WorkerId,
+        worker_id: WorkerId,
         timestamp: std::time::SystemTime,
     },
 
@@ -70,10 +60,10 @@ pub enum SystemEvent {
     PipelineCreated(Arc<hodei_core::Pipeline>),
 
     /// Pipeline started event
-    PipelineStarted { pipeline_id: hodei_core::PipelineId },
+    PipelineStarted { pipeline_id: PipelineId },
 
     /// Pipeline completed event
-    PipelineCompleted { pipeline_id: hodei_core::PipelineId },
+    PipelineCompleted { pipeline_id: PipelineId },
 }
 
 /// Event bus error types

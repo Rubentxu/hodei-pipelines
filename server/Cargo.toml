@@ -13,6 +13,7 @@ hodei-core = { workspace = true, path = "crates/core" }
 hodei-ports = { workspace = true, path = "crates/ports" }
 hodei-modules = { workspace = true, path = "crates/modules" }
 hodei-adapters = { workspace = true, path = "crates/adapters" }
+hodei-shared-types = { workspace = true, path = "crates/shared-types" }
 hwp-proto = { workspace = true }
 
 # Workspace dependencies
@@ -33,6 +34,7 @@ anyhow = { workspace = true }
 uuid = { workspace = true }
 prometheus = { workspace = true }
 config = { workspace = true }
+chrono = { workspace = true }
 
 [[bin]]
 name = "hodei-server"

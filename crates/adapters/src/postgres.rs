@@ -3,16 +3,18 @@
 //! Production-grade persistence using PostgreSQL with async SQLx driver.
 
 use async_trait::async_trait;
-use hodei_core::{Job, JobId, Pipeline, PipelineId, Worker, WorkerCapabilities, WorkerId};
+use hodei_core::{Job, JobId, Pipeline, PipelineId, Worker};
 use hodei_ports::{
     JobRepository, JobRepositoryError, PipelineRepository, PipelineRepositoryError,
     WorkerRepository, WorkerRepositoryError,
 };
+use hodei_shared_types::{WorkerCapabilities, WorkerId};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres, Row};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
+use uuid::Uuid;
 
 /// Workflow Definition structure for JSON deserialization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -386,7 +388,7 @@ impl WorkerRepository for PostgreSqlWorkerRepository {
         sqlx::query(query)
             .bind(&worker.id)
             .bind(&worker.name)
-            .bind(&worker.status)
+            .bind(&worker.status.status)
             .bind(worker.created_at)
             .bind(worker.updated_at)
             .bind(worker.tenant_id.as_deref())
@@ -504,11 +506,20 @@ impl PostgreSqlWorkerRepository {
         };
 
         let metadata: Option<serde_json::Value> = row.get("metadata");
+        let status_string: String = row.get("status");
+        let current_jobs_uuids: Vec<Uuid> = row.get("current_jobs");
+
+        let worker_status = hodei_shared_types::WorkerStatus {
+            worker_id: id.clone(),
+            status: status_string,
+            current_jobs: current_jobs_uuids.into_iter().map(Into::into).collect(),
+            last_heartbeat: chrono::Utc::now().into(),
+        };
 
         Ok(Worker {
             id,
             name: row.get("name"),
-            status: row.get("status"),
+            status: worker_status,
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
             tenant_id: row.get("tenant_id"),

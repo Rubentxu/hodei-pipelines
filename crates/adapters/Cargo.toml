@@ -11,6 +11,7 @@ repository.workspace = true
 # Workspace core crates
 hodei-core = { workspace = true, features = ["sqlx"] }
 hodei-ports = { workspace = true }
+hodei-shared-types = { workspace = true, features = ["sqlx"] }
 hwp-proto = { workspace = true }
 
 # Workspace async and utilities

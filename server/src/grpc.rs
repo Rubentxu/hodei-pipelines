@@ -1,3 +1,4 @@
+use chrono;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -10,12 +11,13 @@ use hwp_proto::{
     LogEntry, ServerMessage, ServerPayload, WorkerRegistration, WorkerService, WorkerStatus,
 };
 
-use hodei_core::{Worker, WorkerCapabilities, WorkerId};
+use hodei_core::{Worker, WorkerId};
 use hodei_modules::SchedulerModule;
 use hodei_ports::event_bus::EventPublisher;
 use hodei_ports::job_repository::JobRepository;
 use hodei_ports::worker_client::WorkerClient;
 use hodei_ports::worker_repository::WorkerRepository;
+use hodei_shared_types::WorkerCapabilities;
 
 pub struct HwpService<J, B, C, W>
 where
@@ -66,6 +68,8 @@ where
             Ok(_) => Ok(Response::new(WorkerStatus {
                 worker_id: req.worker_id,
                 state: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0),
             })),
             Err(e) => {
                 error!("Failed to register worker: {}", e);
@@ -93,6 +97,31 @@ where
         _request: Request<CancelJobRequest>,
     ) -> Result<Response<Empty>, Status> {
         Err(Status::unimplemented("Use JobStream for cancellation"))
+    }
+
+    async fn get_worker_status(
+        &self,
+        request: Request<hwp_proto::GetWorkerStatusRequest>,
+    ) -> Result<Response<WorkerStatus>, Status> {
+        let req = request.into_inner();
+        info!("Getting worker status: {}", req.worker_id);
+
+        Ok(Response::new(WorkerStatus {
+            worker_id: req.worker_id,
+            state: "IDLE".to_string(),
+            current_jobs: vec![],
+            last_heartbeat: chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0),
+        }))
+    }
+
+    async fn heartbeat(
+        &self,
+        request: Request<hwp_proto::HeartbeatRequest>,
+    ) -> Result<Response<Empty>, Status> {
+        let req = request.into_inner();
+        info!("Heartbeat from worker: {}", req.worker_id);
+
+        Ok(Response::new(Empty {}))
     }
 
     async fn job_stream(

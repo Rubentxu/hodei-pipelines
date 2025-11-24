@@ -14,7 +14,7 @@ pub use crate::bus::{InMemoryBus, InMemoryBusBuilder};
 pub use crate::repositories::{
     InMemoryJobRepository, InMemoryPipelineRepository, InMemoryWorkerRepository,
 };
-pub use crate::worker_client::MockWorkerClient;
+pub use crate::worker_client::{GrpcWorkerClient, HttpWorkerClient};
 
 // PostgreSQL implementations
 pub use crate::postgres::{

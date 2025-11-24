@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 /// Worker identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
 pub struct WorkerId(pub Uuid);
 
 impl WorkerId {
@@ -53,6 +54,9 @@ pub struct WorkerStatus {
     pub current_jobs: Vec<super::JobId>,
     pub last_heartbeat: std::time::SystemTime,
 }
+
+// For simplicity, WorkerStatus is stored as JSON in PostgreSQL
+// No direct SQLx Type implementation needed
 
 impl WorkerStatus {
     pub const IDLE: &'static str = "IDLE";
@@ -120,7 +124,21 @@ pub struct WorkerCapabilities {
     pub memory_gb: u64,
     pub gpu: Option<u8>,
     pub features: Vec<String>,
+    pub labels: std::collections::HashMap<String, String>,
     pub max_concurrent_jobs: u32,
+}
+
+impl WorkerCapabilities {
+    pub fn new(cpu_cores: u32, memory_gb: u64) -> Self {
+        Self {
+            cpu_cores,
+            memory_gb,
+            gpu: None,
+            features: Vec::new(),
+            labels: std::collections::HashMap::new(),
+            max_concurrent_jobs: 4,
+        }
+    }
 }
 
 /// Worker message envelope for distributed communication

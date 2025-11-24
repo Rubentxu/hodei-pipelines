@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 /// Job identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
 pub struct JobId(pub Uuid);
 
 impl JobId {
@@ -26,6 +27,12 @@ impl JobId {
 impl Default for JobId {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl From<Uuid> for JobId {
+    fn from(uuid: Uuid) -> Self {
+        Self(uuid)
     }
 }
 
@@ -55,6 +62,16 @@ impl ResourceQuota {
     pub fn with_gpu(mut self, gpu: u8) -> Self {
         self.gpu = Some(gpu);
         self
+    }
+}
+
+impl Default for ResourceQuota {
+    fn default() -> Self {
+        Self {
+            cpu_m: 1000,
+            memory_mb: 1024,
+            gpu: None,
+        }
     }
 }
 
@@ -97,10 +114,89 @@ impl JobSpec {
 
         Ok(())
     }
+
+    /// Create a new JobSpec builder
+    pub fn builder(name: String, image: String) -> JobSpecBuilder {
+        JobSpecBuilder::new(name, image)
+    }
+}
+
+/// Builder for JobSpec
+pub struct JobSpecBuilder {
+    name: String,
+    image: String,
+    command: Vec<String>,
+    resources: ResourceQuota,
+    timeout_ms: u64,
+    retries: u8,
+    env: HashMap<String, String>,
+    secret_refs: Vec<String>,
+}
+
+impl JobSpecBuilder {
+    pub fn new(name: String, image: String) -> Self {
+        Self {
+            name,
+            image,
+            command: Vec::new(),
+            resources: ResourceQuota::default(),
+            timeout_ms: 300000, // 5 minutes default
+            retries: 0,
+            env: HashMap::new(),
+            secret_refs: Vec::new(),
+        }
+    }
+
+    pub fn command(mut self, command: Vec<String>) -> Self {
+        self.command = command;
+        self
+    }
+
+    pub fn resources(mut self, resources: ResourceQuota) -> Self {
+        self.resources = resources;
+        self
+    }
+
+    pub fn timeout_ms(mut self, timeout_ms: u64) -> Self {
+        self.timeout_ms = timeout_ms;
+        self
+    }
+
+    pub fn retries(mut self, retries: u8) -> Self {
+        self.retries = retries;
+        self
+    }
+
+    pub fn env(mut self, env: HashMap<String, String>) -> Self {
+        self.env = env;
+        self
+    }
+
+    pub fn secret_refs(mut self, secret_refs: Vec<String>) -> Self {
+        self.secret_refs = secret_refs;
+        self
+    }
+
+    pub fn build(self) -> Result<JobSpec, DomainError> {
+        let job_spec = JobSpec {
+            name: self.name,
+            image: self.image,
+            command: self.command,
+            resources: self.resources,
+            timeout_ms: self.timeout_ms,
+            retries: self.retries,
+            env: self.env,
+            secret_refs: self.secret_refs,
+        };
+
+        job_spec.validate()?;
+        Ok(job_spec)
+    }
 }
 
 /// Job state value object
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
 pub struct JobState(String);
 
 impl JobState {

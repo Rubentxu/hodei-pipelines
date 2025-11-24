@@ -9,13 +9,47 @@ message WorkerRegistration {
 message WorkerStatus {
   string worker_id = 1;
   string state = 2;
+  repeated string current_jobs = 3;
+  int64 last_heartbeat = 4;
+}
+
+message ResourceQuota {
+  uint64 cpu_m = 1;
+  uint64 memory_mb = 2;
+  uint32 gpu = 3;
+}
+
+message JobSpec {
+  string name = 1;
+  string image = 2;
+  repeated string command = 3;
+  ResourceQuota resources = 4;
+  uint64 timeout_ms = 5;
+  uint32 retries = 6;
+  map<string, string> env = 7;
+  repeated string secret_refs = 8;
 }
 
 message AssignJobRequest {
-  string job_id = 1;
-  string name = 2;
-  string image = 3;
-  repeated string command = 4;
+  string worker_id = 1;
+  string job_id = 2;
+  JobSpec job_spec = 3;
+}
+
+message GetWorkerStatusRequest {
+  string worker_id = 1;
+}
+
+message HeartbeatRequest {
+  string worker_id = 1;
+  int64 timestamp = 2;
+  ResourceUsage resource_usage = 3;
+}
+
+message ResourceUsage {
+  uint64 cpu_usage_m = 1;
+  uint64 memory_usage_mb = 2;
+  uint32 active_jobs = 3;
 }
 
 message JobAccepted {
@@ -25,6 +59,8 @@ message JobAccepted {
 message JobResult {
   string job_id = 1;
   int32 exit_code = 2;
+  string stdout = 3;
+  string stderr = 4;
 }
 
 message LogEntry {
@@ -33,7 +69,8 @@ message LogEntry {
 }
 
 message CancelJobRequest {
-  string job_id = 1;
+  string worker_id = 1;
+  string job_id = 2;
 }
 
 message Empty {
@@ -63,6 +100,12 @@ service WorkerService {
 
   // Original unary job assignment (for simple cases)
   rpc AssignJob(AssignJobRequest) returns (JobAccepted);
+
+  // Get current worker status
+  rpc GetWorkerStatus(GetWorkerStatusRequest) returns (WorkerStatus);
+
+  // Send heartbeat with resource usage
+  rpc Heartbeat(HeartbeatRequest) returns (Empty);
 
   // Client streaming for logs
   rpc StreamLogs(stream LogEntry) returns (Empty);

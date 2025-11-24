@@ -8,7 +8,8 @@ pub mod pb {
 }
 
 pub use pb::{
-    AgentMessage, AssignJobRequest, CancelJobRequest, Empty, JobAccepted, JobResult, LogEntry,
+    AgentMessage, AssignJobRequest, CancelJobRequest, Empty, GetWorkerStatusRequest,
+    HeartbeatRequest, JobAccepted, JobResult, JobSpec, LogEntry, ResourceQuota, ResourceUsage,
     ServerMessage, WorkerRegistration, WorkerStatus,
 };
 

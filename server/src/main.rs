@@ -10,11 +10,12 @@ use axum::{
 use std::sync::Arc;
 
 use hodei_adapters::{
-    InMemoryBus, InMemoryJobRepository, InMemoryPipelineRepository, InMemoryWorkerRepository,
-    MockWorkerClient,
+    GrpcWorkerClient, HttpWorkerClient, InMemoryBus, InMemoryJobRepository,
+    InMemoryPipelineRepository, InMemoryWorkerRepository,
 };
-use hodei_core::{JobSpec, Worker, WorkerCapabilities};
+use hodei_core::{JobSpec, Worker};
 use hodei_modules::{OrchestratorModule, SchedulerModule};
+use hodei_shared_types::WorkerCapabilities;
 use serde_json::{Value, json};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -32,7 +33,7 @@ struct AppState {
         SchedulerModule<
             InMemoryJobRepository,
             InMemoryBus,
-            MockWorkerClient,
+            GrpcWorkerClient,
             InMemoryWorkerRepository,
         >,
     >,
@@ -56,7 +57,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let worker_repo = Arc::new(InMemoryWorkerRepository::new());
     let pipeline_repo = Arc::new(InMemoryPipelineRepository::new());
     let event_bus = Arc::new(InMemoryBus::new(10_000));
-    let worker_client = Arc::new(MockWorkerClient::new());
+    let worker_client = Arc::new(GrpcWorkerClient::new(
+        tonic::transport::Channel::from_static("http://localhost:8080")
+            .connect()
+            .await?,
+        std::time::Duration::from_secs(30),
+    ));
     let metrics = MetricsRegistry::new().expect("Failed to initialize metrics registry");
 
     // Create modules

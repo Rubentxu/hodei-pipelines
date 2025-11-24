@@ -4,12 +4,14 @@
 //! worker communication, replacing mock implementations for production use.
 
 use async_trait::async_trait;
-use hodei_core::{JobId, JobSpec, WorkerId, WorkerStatus};
+use chrono;
+use hodei_core::{JobId, JobSpec};
 use hodei_ports::{WorkerClient, WorkerClientError};
+use hodei_shared_types::{WorkerId, WorkerStatus};
 use std::time::Duration;
 use tokio::time::timeout;
 use tonic::{Status, transport::Channel};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// gRPC-based Worker Client for production use
 pub struct GrpcWorkerClient {
@@ -28,10 +30,8 @@ impl GrpcWorkerClient {
     }
 
     /// Get worker service client
-    fn worker_service_client(
-        &self,
-    ) -> hwp_proto::worker_service_client::WorkerServiceClient<Channel> {
-        hwp_proto::worker_service_client::WorkerServiceClient::new(self.channel.clone())
+    fn worker_service_client(&self) -> hwp_proto::WorkerServiceClient<Channel> {
+        hwp_proto::WorkerServiceClient::new(self.channel.clone())
     }
 }
 
@@ -53,7 +53,7 @@ impl WorkerClient for GrpcWorkerClient {
                 resources: Some(hwp_proto::ResourceQuota {
                     cpu_m: job_spec.resources.cpu_m,
                     memory_mb: job_spec.resources.memory_mb,
-                    gpu: job_spec.resources.gpu.unwrap_or(0),
+                    gpu: job_spec.resources.gpu.unwrap_or(0) as u32,
                 }),
                 timeout_ms: job_spec.timeout_ms,
                 retries: job_spec.retries as u32,
@@ -77,12 +77,12 @@ impl WorkerClient for GrpcWorkerClient {
         })?
         .map_err(|status| {
             error!("gRPC assign_job failed: {}", status);
-            match status {
-                Status::NotFound(_) => WorkerClientError::NotFound(worker_id.clone()),
-                Status::DeadlineExceeded(_) => {
-                    WorkerClientError::Timeout("gRPC deadline exceeded".to_string())
-                }
-                _ => WorkerClientError::Communication(status.message().to_string()),
+            if status.code() == tonic::Code::NotFound {
+                WorkerClientError::NotFound(worker_id.clone())
+            } else if status.code() == tonic::Code::DeadlineExceeded {
+                WorkerClientError::Timeout("gRPC deadline exceeded".to_string())
+            } else {
+                WorkerClientError::Communication(status.message().to_string())
             }
         })?;
 
@@ -118,12 +118,12 @@ impl WorkerClient for GrpcWorkerClient {
         })?
         .map_err(|status| {
             error!("gRPC cancel_job failed: {}", status);
-            match status {
-                Status::NotFound(_) => WorkerClientError::NotFound(worker_id.clone()),
-                Status::DeadlineExceeded(_) => {
-                    WorkerClientError::Timeout("gRPC deadline exceeded".to_string())
-                }
-                _ => WorkerClientError::Communication(status.message().to_string()),
+            if status.code() == tonic::Code::NotFound {
+                WorkerClientError::NotFound(worker_id.clone())
+            } else if status.code() == tonic::Code::DeadlineExceeded {
+                WorkerClientError::Timeout("gRPC deadline exceeded".to_string())
+            } else {
+                WorkerClientError::Communication(status.message().to_string())
             }
         })?;
 
@@ -155,31 +155,22 @@ impl WorkerClient for GrpcWorkerClient {
         })?
         .map_err(|status| {
             error!("gRPC get_worker_status failed: {}", status);
-            match status {
-                Status::NotFound(_) => WorkerClientError::NotFound(worker_id.clone()),
-                Status::DeadlineExceeded(_) => {
-                    WorkerClientError::Timeout("gRPC deadline exceeded".to_string())
-                }
-                _ => WorkerClientError::Communication(status.message().to_string()),
+            if status.code() == tonic::Code::NotFound {
+                WorkerClientError::NotFound(worker_id.clone())
+            } else if status.code() == tonic::Code::DeadlineExceeded {
+                WorkerClientError::Timeout("gRPC deadline exceeded".to_string())
+            } else {
+                WorkerClientError::Communication(status.message().to_string())
             }
         })?;
 
-        let response = result.into_inner();
-        let status = response.status.ok_or_else(|| {
-            WorkerClientError::Communication("Empty worker status response".to_string())
-        })?;
+        let proto_status = result.into_inner();
 
-        let worker_status = hodei_core::WorkerStatus {
+        let worker_status = WorkerStatus {
             worker_id: worker_id.clone(),
-            status: match status.state.as_str() {
-                "IDLE" => hodei_core::WorkerStatus::IDLE,
-                "BUSY" => hodei_core::WorkerStatus::BUSY,
-                "OFFLINE" => hodei_core::WorkerStatus::OFFLINE,
-                "DRAINING" => hodei_core::WorkerStatus::DRAINING,
-                _ => hodei_core::WorkerStatus::OFFLINE,
-            },
+            status: proto_status.state,
             current_jobs: vec![], // Parse from response if available
-            last_heartbeat: std::time::SystemTime::now(),
+            last_heartbeat: chrono::Utc::now().into(),
         };
 
         Ok(worker_status)
@@ -356,15 +347,9 @@ impl WorkerClient for HttpWorkerClient {
         // Parse worker status from JSON response
         let status_str = worker_data["status"].as_str().unwrap_or("OFFLINE");
 
-        let worker_status = hodei_core::WorkerStatus {
+        let worker_status = WorkerStatus {
             worker_id: worker_id.clone(),
-            status: match status_str {
-                "IDLE" => hodei_core::WorkerStatus::IDLE,
-                "BUSY" => hodei_core::WorkerStatus::BUSY,
-                "OFFLINE" => hodei_core::WorkerStatus::OFFLINE,
-                "DRAINING" => hodei_core::WorkerStatus::DRAINING,
-                _ => hodei_core::WorkerStatus::OFFLINE,
-            },
+            status: status_str.to_string(),
             current_jobs: vec![], // Parse from response if available
             last_heartbeat: std::time::SystemTime::now(),
         };
