@@ -1,104 +1,69 @@
-version: '3.8'
-
-networks:
-  hodei-network:
-    driver: bridge
-
-volumes:
-  prometheus-data:
-  jaeger-data:
+# ========================================
+# Docker Compose para Hodei Jobs Server
+# Entorno Productivo con API REST y Swagger UI
+# ========================================
 
 services:
-  # Infrastructure Services
-  nats:
-    image: nats:2.10-alpine
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-    networks:
-      - hodei-network
-    command: ["-js", "-sd", "/data"]
-    volumes:
-      - nats-data:/data
-    healthcheck:
-      test: ["CMD", "nats", "report"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+  # ========================================
+  # Base de Datos PostgreSQL
+  # ========================================
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
+    container_name: hodei-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: hodei
+      POSTGRES_PASSWORD: hodei_password_2024
       POSTGRES_DB: hodei_jobs
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
-    networks:
-      - hodei-network
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U hodei"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # Observability
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
     networks:
       - hodei-network
-    volumes:
-      - prometheus-data:/prometheus
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  jaeger:
-    image: jaegertracing/all-in-one:1.54
-    ports:
-      - "16686:16686"
-      - "14268:14268"
-      - "14250:14250"
-    networks:
-      - hodei-network
-    environment:
-      COLLECTOR_OTLP_ENABLED: true
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:16686/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Application Services
-  orchestrator:
+  # ========================================
+  # Hodei Server (API Principal)
+  # ========================================
+  hodei-server:
     build:
-      context: ./crates/orchestration/orchestrator
+      context: .
       dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-    networks:
-      - hodei-network
+    container_name: hodei-server
+    restart: unless-stopped
     environment:
-      ORCHESTRATOR_PORT: 8080
-      NATS_URL: nats://nats:4222
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hodei_jobs
+      # Configuración del servidor
+      HODEI_PORT: 8080
+      HODEI_GRPC_PORT: 50051
+
+      # Configuración de base de datos
+      DATABASE_URL: postgresql://hodei:hodei_password_2024@postgres:5432/hodei_jobs
+
+      # Configuración de seguridad
+      HODEI_JWT_SECRET: super_secret_jwt_key_change_in_production_2024
+      HODEI_TLS_ENABLED: "false"
+
+      # Configuración de logging
+      RUST_LOG: info
+      RUST_BACKTRACE: 1
+
+      # Configuración de recursos
+      MAX_CONCURRENT_JOBS: 100
+      SCHEDULING_INTERVAL_MS: 100
+      WORKER_HEARTBEAT_TIMEOUT_MS: 30000
+    ports:
+      # API REST
+      - "8080:8080"
+      # gRPC API
+      - "50051:50051"
     depends_on:
-      nats:
-        condition: service_started
       postgres:
         condition: service_healthy
     healthcheck:
@@ -107,88 +72,108 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  scheduler:
-    build:
-      context: ./crates/scheduler
-      dockerfile: Dockerfile
-    ports:
-      - "8081:8081"
-    networks:
-      - hodei-network
-    environment:
-      SCHEDULER_PORT: 8081
-      NATS_URL: nats://nats:4222
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hodei_jobs
-      ORCHESTRATOR_URL: http://orchestrator:8080
-    depends_on:
-      nats:
-        condition: service_started
-      postgres:
-        condition: service_healthy
-      orchestrator:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  worker-lifecycle-manager:
-    build:
-      context: ./crates/worker-lifecycle-manager
-      dockerfile: Dockerfile
-    ports:
-      - "8082:8082"
-    networks:
-      - hodei-network
-    environment:
-      WORKER_MANAGER_PORT: 8082
-      NATS_URL: nats://nats:4222
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hodei_jobs
-      ORCHESTRATOR_URL: http://orchestrator:8080
-      SCHEDULER_URL: http://scheduler:8081
-    depends_on:
-      nats:
-        condition: service_started
-      postgres:
-        condition: service_healthy
-      orchestrator:
-        condition: service_healthy
-      scheduler:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # Optional: Grafana for metrics visualization
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    networks:
-      - hodei-network
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_USERS_ALLOW_SIGN_UP: false
     volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./logs:/app/logs
+    networks:
+      - hodei-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hodei-api.rule=Host('api.hodei.local')"
+      - "traefik.http.routers.hodei-api.tls=true"
+      - "traefik.http.services.hodei-server.loadbalancer.server.port=8080"
+
+  # ========================================
+  # Worker 01 - Nodo de ejecución de jobs
+  # ========================================
+  worker-01:
+    build:
+      context: .
+      dockerfile: crates/hwp-agent/Dockerfile
+    container_name: hodei-worker-01
+    restart: unless-stopped
+    environment:
+      WORKER_ID: worker-01
+      SERVER_URL: http://hodei-server:8080
+      GRPC_SERVER_URL: http://hodei-server:50051
+      WORKER_NAME: worker-01
+      WORKER_CPU_CORES: 4
+      WORKER_MEMORY_GB: 8
+      RUST_LOG: info
     depends_on:
-      - prometheus
+      hodei-server:
+        condition: service_healthy
+    networks:
+      - hodei-network
     profiles:
-      - monitoring
+      - workers
 
+  # ========================================
+  # Worker 02 - Nodo de ejecución de jobs
+  # ========================================
+  worker-02:
+    build:
+      context: .
+      dockerfile: crates/hwp-agent/Dockerfile
+    container_name: hodei-worker-02
+    restart: unless-stopped
+    environment:
+      WORKER_ID: worker-02
+      SERVER_URL: http://hodei-server:8080
+      GRPC_SERVER_URL: http://hodei-server:50051
+      WORKER_NAME: worker-02
+      WORKER_CPU_CORES: 4
+      WORKER_MEMORY_GB: 8
+      RUST_LOG: info
+    depends_on:
+      hodei-server:
+        condition: service_healthy
+    networks:
+      - hodei-network
+    profiles:
+      - workers
+
+  # ========================================
+  # Worker 03 - Nodo de ejecución de jobs
+  # ========================================
+  worker-03:
+    build:
+      context: .
+      dockerfile: crates/hwp-agent/Dockerfile
+    container_name: hodei-worker-03
+    restart: unless-stopped
+    environment:
+      WORKER_ID: worker-03
+      SERVER_URL: http://hodei-server:8080
+      GRPC_SERVER_URL: http://hodei-server:50051
+      WORKER_NAME: worker-03
+      WORKER_CPU_CORES: 2
+      WORKER_MEMORY_GB: 4
+      RUST_LOG: info
+    depends_on:
+      hodei-server:
+        condition: service_healthy
+    networks:
+      - hodei-network
+    profiles:
+      - workers
+
+# ========================================
+# Volumes Persistentes
+# ========================================
 volumes:
-  nats-data:
-  postgres-data:
-  prometheus-data:
-  jaeger-data:
-  grafana-data:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
 
-# Development override - use this for local development
-# docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ========================================
+# Network
+# ========================================
+networks:
+  hodei-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

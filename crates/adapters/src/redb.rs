@@ -105,12 +105,10 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let job = Job {
-            id: JobId::new(),
-            name: "test-job".to_string(),
-            description: Some("Test job".to_string()),
-            spec: JobSpec {
-                name: "test".to_string(),
+        let job = Job::new(
+            JobId::new(),
+            JobSpec {
+                name: "test-job".to_string(),
                 image: "test:latest".to_string(),
                 command: vec!["echo".to_string(), "hello".to_string()],
                 resources: ResourceQuota::default(),
@@ -119,20 +117,16 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            state: JobState::new("PENDING".to_string()).unwrap(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            started_at: None,
-            completed_at: None,
-            tenant_id: Some("test-tenant".to_string()),
-            result: serde_json::Value::Null,
-        };
+        )
+        .unwrap()
+        .with_description("Test job")
+        .with_tenant("test-tenant");
 
         repo.save_job(&job).await.unwrap();
 
         let retrieved = repo.get_job(&job.id).await.unwrap();
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().name, "test-job");
+        assert_eq!(retrieved.unwrap().name(), "test-job");
     }
 
     #[test]
@@ -157,58 +151,46 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let pending_job = Job {
-            id: JobId::new(),
-            name: "pending-job".to_string(),
-            description: None,
-            spec: JobSpec {
-                name: "test".to_string(),
+        let pending_job = Job::new(
+            JobId::new(),
+            JobSpec {
+                name: "test-job".to_string(),
                 image: "test:latest".to_string(),
-                command: vec![],
+                command: vec!["echo".to_string()],
                 resources: ResourceQuota::default(),
                 timeout_ms: 30000,
                 retries: 3,
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            state: JobState::new("PENDING".to_string()).unwrap(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            started_at: None,
-            completed_at: None,
-            tenant_id: None,
-            result: serde_json::Value::Null,
-        };
+        )
+        .unwrap()
+        .with_description("pending-job");
 
-        let running_job = Job {
-            id: JobId::new(),
-            name: "running-job".to_string(),
-            description: None,
-            spec: JobSpec {
-                name: "test".to_string(),
+        let mut running_job = Job::new(
+            JobId::new(),
+            JobSpec {
+                name: "test-job".to_string(),
                 image: "test:latest".to_string(),
-                command: vec![],
+                command: vec!["echo".to_string()],
                 resources: ResourceQuota::default(),
                 timeout_ms: 30000,
                 retries: 3,
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            state: JobState::new("RUNNING".to_string()).unwrap(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            started_at: None,
-            completed_at: None,
-            tenant_id: None,
-            result: serde_json::Value::Null,
-        };
+        )
+        .unwrap()
+        .with_description("running-job");
+        running_job.schedule().unwrap();
+        running_job.start().unwrap();
 
         repo.save_job(&pending_job).await.unwrap();
         repo.save_job(&running_job).await.unwrap();
 
         let pending = repo.get_pending_jobs().await.unwrap();
         assert_eq!(pending.len(), 1);
-        assert_eq!(pending[0].name, "pending-job");
+        assert_eq!(pending[0].name(), "test-job");
     }
 
     #[test]
@@ -219,58 +201,46 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let pending_job = Job {
-            id: JobId::new(),
-            name: "pending-job".to_string(),
-            description: None,
-            spec: JobSpec {
-                name: "test".to_string(),
+        let pending_job = Job::new(
+            JobId::new(),
+            JobSpec {
+                name: "test-job".to_string(),
                 image: "test:latest".to_string(),
-                command: vec![],
+                command: vec!["echo".to_string()],
                 resources: ResourceQuota::default(),
                 timeout_ms: 30000,
                 retries: 3,
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            state: JobState::new("PENDING".to_string()).unwrap(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            started_at: None,
-            completed_at: None,
-            tenant_id: None,
-            result: serde_json::Value::Null,
-        };
+        )
+        .unwrap()
+        .with_description("pending-job");
 
-        let running_job = Job {
-            id: JobId::new(),
-            name: "running-job".to_string(),
-            description: None,
-            spec: JobSpec {
-                name: "test".to_string(),
+        let mut running_job = Job::new(
+            JobId::new(),
+            JobSpec {
+                name: "test-job".to_string(),
                 image: "test:latest".to_string(),
-                command: vec![],
+                command: vec!["echo".to_string()],
                 resources: ResourceQuota::default(),
                 timeout_ms: 30000,
                 retries: 3,
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            state: JobState::new("RUNNING".to_string()).unwrap(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            started_at: None,
-            completed_at: None,
-            tenant_id: None,
-            result: serde_json::Value::Null,
-        };
+        )
+        .unwrap()
+        .with_description("running-job");
+        running_job.schedule().unwrap();
+        running_job.start().unwrap();
 
         repo.save_job(&pending_job).await.unwrap();
         repo.save_job(&running_job).await.unwrap();
 
         let running = repo.get_running_jobs().await.unwrap();
         assert_eq!(running.len(), 1);
-        assert_eq!(running[0].name, "running-job");
+        assert_eq!(running[0].name(), "test-job");
     }
 
     #[test]
@@ -281,28 +251,21 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let job = Job {
-            id: JobId::new(),
-            name: "test-job".to_string(),
-            description: None,
-            spec: JobSpec {
-                name: "test".to_string(),
+        let job = Job::new(
+            JobId::new(),
+            JobSpec {
+                name: "test-job".to_string(),
                 image: "test:latest".to_string(),
-                command: vec![],
+                command: vec!["echo".to_string()],
                 resources: ResourceQuota::default(),
                 timeout_ms: 30000,
                 retries: 3,
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            state: JobState::new("PENDING".to_string()).unwrap(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            started_at: None,
-            completed_at: None,
-            tenant_id: None,
-            result: serde_json::Value::Null,
-        };
+        )
+        .unwrap()
+        .with_description("test-job");
 
         repo.save_job(&job).await.unwrap();
         assert!(repo.get_job(&job.id).await.unwrap().is_some());
@@ -319,28 +282,21 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let job = Job {
-            id: JobId::new(),
-            name: "test-job".to_string(),
-            description: None,
-            spec: JobSpec {
-                name: "test".to_string(),
+        let job = Job::new(
+            JobId::new(),
+            JobSpec {
+                name: "test-job".to_string(),
                 image: "test:latest".to_string(),
-                command: vec![],
+                command: vec!["echo".to_string()],
                 resources: ResourceQuota::default(),
                 timeout_ms: 30000,
                 retries: 3,
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            state: JobState::new("PENDING".to_string()).unwrap(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            started_at: None,
-            completed_at: None,
-            tenant_id: None,
-            result: serde_json::Value::Null,
-        };
+        )
+        .unwrap()
+        .with_description("test-job");
 
         repo.save_job(&job).await.unwrap();
 
@@ -362,28 +318,21 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let job = Job {
-            id: JobId::new(),
-            name: "test-job".to_string(),
-            description: None,
-            spec: JobSpec {
-                name: "test".to_string(),
+        let job = Job::new(
+            JobId::new(),
+            JobSpec {
+                name: "test-job".to_string(),
                 image: "test:latest".to_string(),
-                command: vec![],
+                command: vec!["echo".to_string()],
                 resources: ResourceQuota::default(),
                 timeout_ms: 30000,
                 retries: 3,
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            state: JobState::new("PENDING".to_string()).unwrap(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            started_at: None,
-            completed_at: None,
-            tenant_id: None,
-            result: serde_json::Value::Null,
-        };
+        )
+        .unwrap()
+        .with_description("test-job");
 
         repo.save_job(&job).await.unwrap();
 
@@ -588,9 +537,9 @@ mod tests {
                 id: PipelineStepId::new(),
                 name: "step1".to_string(),
                 job_spec: JobSpec {
-                    name: "test".to_string(),
+                    name: "test-job".to_string(),
                     image: "test:latest".to_string(),
-                    command: vec![],
+                    command: vec!["echo".to_string()],
                     resources: ResourceQuota::default(),
                     timeout_ms: 30000,
                     retries: 3,

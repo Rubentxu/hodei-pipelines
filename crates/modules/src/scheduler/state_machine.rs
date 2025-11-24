@@ -435,11 +435,9 @@ mod tests {
     }
 
     fn create_test_job() -> Job {
-        Job {
-            id: JobId::new(),
-            name: "test-job".to_string(),
-            description: Some("Test job".to_string()),
-            spec: JobSpec {
+        Job::new(
+            JobId::new(),
+            JobSpec {
                 name: "test-job".to_string(),
                 image: "ubuntu:latest".to_string(),
                 command: vec!["echo".to_string(), "hello".to_string()],
@@ -449,13 +447,9 @@ mod tests {
                 env: std::collections::HashMap::new(),
                 secret_refs: Vec::new(),
             },
-            state: hodei_core::JobState::new("PENDING".to_string()).unwrap(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            started_at: None,
-            completed_at: None,
-            tenant_id: Some("test".to_string()),
-            result: serde_json::Value::Null,
-        }
+        )
+        .unwrap()
+        .with_description("Test job")
+        .with_tenant("test")
     }
 }

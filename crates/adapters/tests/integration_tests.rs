@@ -38,7 +38,7 @@ fn create_test_worker(id: &str) -> Worker {
 #[tokio::test]
 async fn test_job_creation() {
     let job = create_test_job();
-    assert_eq!(job.name, "test-job");
+    assert_eq!(job.name(), "test-job");
     assert!(job.is_pending());
 }
 
@@ -52,7 +52,7 @@ async fn test_worker_creation() {
 #[tokio::test]
 async fn test_system_event_creation() {
     let job = create_test_job();
-    let event = SystemEvent::JobCreated(Arc::new(job.spec.clone()));
+    let event = SystemEvent::JobCreated(job.spec.clone());
 
     match event {
         SystemEvent::JobCreated(job) => {

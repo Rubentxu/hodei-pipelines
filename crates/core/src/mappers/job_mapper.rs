@@ -6,7 +6,9 @@
 use crate::{Job, JobId, JobSpec, JobState, ResourceQuota};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Database row representation for Job entity
 #[derive(Debug, Clone)]
@@ -55,15 +57,15 @@ impl JobMapper for SqlxJobMapper {
     fn to_row(&self, job: &Job) -> JobRow {
         JobRow {
             id: job.id.clone(),
-            name: job.name.clone(),
-            description: job.description.clone(),
-            spec_json: serde_json::to_value(&job.spec).unwrap_or_else(|_| Value::Null),
+            name: job.name.as_ref().clone(),
+            description: job.description.as_ref().map(|cow| cow.as_ref().to_string()),
+            spec_json: serde_json::to_value(job.spec.as_ref()).unwrap_or_else(|_| Value::Null),
             state: job.state.to_string(),
             created_at: job.created_at,
             updated_at: job.updated_at,
             started_at: job.started_at,
             completed_at: job.completed_at,
-            tenant_id: job.tenant_id.clone(),
+            tenant_id: job.tenant_id.as_ref().map(|arc| arc.as_ref().clone()),
             result: job.result.clone(),
         }
     }
@@ -77,15 +79,15 @@ impl JobMapper for SqlxJobMapper {
 
         Ok(Job {
             id: row.id,
-            name: row.name,
-            description: row.description,
-            spec: job_spec,
+            name: Arc::new(row.name),
+            description: row.description.map(|s| Cow::Owned(s)),
+            spec: Arc::new(job_spec),
             state: job_state,
             created_at: row.created_at,
             updated_at: row.updated_at,
             started_at: row.started_at,
             completed_at: row.completed_at,
-            tenant_id: row.tenant_id,
+            tenant_id: row.tenant_id.map(Arc::new),
             result: row.result,
         })
     }
@@ -95,13 +97,18 @@ impl JobMapper for SqlxJobMapper {
         let mut params = Vec::new();
 
         updates.push(format!("name = ${}", params.len() + 1));
-        params.push(job.name.clone());
+        params.push(job.name.as_ref().clone());
 
         updates.push(format!("description = ${}", params.len() + 1));
-        params.push(job.description.as_ref().cloned().unwrap_or_default());
+        params.push(
+            job.description
+                .as_ref()
+                .map(|cow| cow.as_ref().to_string())
+                .unwrap_or_default(),
+        );
 
         updates.push(format!("spec = ${}", params.len() + 1));
-        params.push(serde_json::to_string(&job.spec).unwrap_or_else(|_| "{}".to_string()));
+        params.push(serde_json::to_string(job.spec.as_ref()).unwrap_or_else(|_| "{}".to_string()));
 
         updates.push(format!("state = ${}", params.len() + 1));
         params.push(job.state.to_string());
@@ -121,7 +128,7 @@ impl JobMapper for SqlxJobMapper {
 
         if let Some(tenant) = &job.tenant_id {
             updates.push(format!("tenant_id = ${}", params.len() + 1));
-            params.push(tenant.clone());
+            params.push(tenant.as_ref().clone());
         }
 
         let query = format!(
@@ -143,9 +150,9 @@ mod tests {
     fn create_test_job() -> Job {
         Job {
             id: JobId::new(),
-            name: "test-job".to_string(),
-            description: Some("Test job description".to_string()),
-            spec: JobSpec {
+            name: Arc::new("test-job".to_string()),
+            description: Some(Cow::Owned("Test job description".to_string())),
+            spec: Arc::new(JobSpec {
                 name: "test-job".to_string(),
                 image: "ubuntu:latest".to_string(),
                 command: vec!["echo".to_string(), "hello".to_string()],
@@ -154,13 +161,13 @@ mod tests {
                 retries: 3,
                 env: HashMap::new(),
                 secret_refs: Vec::new(),
-            },
+            }),
             state: JobState::new("PENDING".to_string()).unwrap(),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             started_at: None,
             completed_at: None,
-            tenant_id: Some("test-tenant".to_string()),
+            tenant_id: Some(Arc::new("test-tenant".to_string())),
             result: serde_json::Value::Null,
         }
     }
@@ -171,7 +178,7 @@ mod tests {
         let job = create_test_job();
 
         let row = mapper.to_row(&job);
-        assert_eq!(row.name, job.name);
+        assert_eq!(row.name, *job.name);
         assert_eq!(row.state, job.state.to_string());
 
         let recovered_job = mapper.from_row(row).unwrap();

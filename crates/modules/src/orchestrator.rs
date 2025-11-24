@@ -58,9 +58,7 @@ where
             .map_err(OrchestratorError::JobRepository)?;
 
         self.event_bus
-            .publish(hodei_ports::SystemEvent::JobCreated(Arc::new(
-                job.spec.clone(),
-            )))
+            .publish(hodei_ports::SystemEvent::JobCreated(job.spec.clone()))
             .await
             .map_err(OrchestratorError::EventBus)?;
 

@@ -28,6 +28,9 @@ hostname = { workspace = true }
 reqwest = { workspace = true, features = ["json", "stream"] }
 flate2 = { workspace = true }
 
+# Lock-free data structures and atomics
+crossbeam = { workspace = true }
+
 # HTTP utilities
 tokio-util = { workspace = true, features = ["codec"] }
 

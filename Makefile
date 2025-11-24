@@ -1,411 +1,308 @@
-# Hodei Jobs Platform - Makefile
-#
-# This Makefile provides convenient commands for building, testing,
-# and running the distributed job orchestration platform.
-#
-# Usage:
-#   make help              # Show all available commands
-#   make build             # Build all services
-#   make test              # Run all tests
-#   make test-e2e          # Run E2E tests
-#   make start-services    # Start all services
-#   make stop-services     # Stop all services
-#   make clean             # Clean build artifacts
+# ========================================
+# Makefile para Hodei Jobs Server
+# Comandos comunes para Docker y desarrollo
+# ========================================
 
-.PHONY: help build test test-e2e test-basic test-real test-all test-unit test-integration test-e2e-full test-pyramid-fast test-pyramid-full test-watch test-package-% start-services stop-services clean fmt lint
+.PHONY: help build build-all up up-workers up down logs clean test launch launch-full
 
-# Default target
-.DEFAULT_GOAL := help
+# Colores para output
+RED=\033[0;31m
+GREEN=\033[0;32m
+YELLOW=\033[1;33m
+BLUE=\033[0;34m
+NC=\033[0m # No Color
 
 # Variables
-CARGO := cargo
-SERVICES := orchestrator scheduler worker-manager
-TEST_PACKAGE := --package e2e-tests
+COMPOSE_FILE=docker-compose.yml
+COMPOSE_ENV_FILE=.env
+CONTAINER_NAME=hodei-server
 
-## 📚 Help: Show all available commands
-help:
-	@echo "Hodei Jobs Platform - Available Commands"
-	@echo "=========================================="
+# ========================================
+# Comandos Principales
+# ========================================
+launch: build-all up-workers ## 🚀 Comando principal: Compilar y lanzar aplicación completa
 	@echo ""
-	@echo "🏗️  BUILD COMMANDS:"
-	@echo "  make build              Build all services"
-	@echo "  make build-<service>    Build specific service (orchestrator|scheduler|worker-manager)"
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)   ¡Hodei Jobs Server está listo!   $(NC)"
+	@echo "$(GREEN)========================================$(NC)"
 	@echo ""
-	@echo "🧪 TEST COMMANDS:"
-	@echo "  make test               Run all tests (unit + integration)"
-	@echo "  make test-unit          Run unit tests only (270 tests, <1s)"
-	@echo "  make test-integration   Run integration tests with PostgreSQL"
-	@echo "  make test-e2e           Run E2E tests with testcontainers"
-	@echo "  make test-pyramid-fast  Run unit + integration (fast path)"
-	@echo "  make test-pyramid-full  Run complete testing pyramid"
-	@echo "  make test-basic         Run basic integration tests"
-	@echo "  make test-real          Run real services tests"
-	@echo "  make test-real-services Run services tests (starts services first)"
-	@echo "  make test-log-streaming Run log streaming tests (starts worker-manager)"
-	@echo "  make test-all           Run comprehensive test suite"
-	@echo "  make test-watch         Watch mode for unit tests"
-	@echo "  make test-package-<pkg> Run tests for specific package"
+	@echo "$(BLUE)🌐 Accesos:$(NC)"
+	@echo "  - API REST:      http://localhost:8080"
+	@echo "  - Swagger UI:    http://localhost:8080/api/docs"
+	@echo "  - OpenAPI JSON:  http://localhost:8080/api/openapi.json"
+	@echo "  - Health Check:  http://localhost:8080/health"
 	@echo ""
-	@echo "🚀 RUNTIME COMMANDS:"
-	@echo "  make start-services     Start all services in background"
-	@echo "  make stop-services      Stop all running services"
-	@echo "  make status             Check service status"
+	@echo "$(BLUE)⚙️  Workers activos:$(NC)"
+	@echo "  - worker-01: 4 cores, 8GB RAM"
+	@echo "  - worker-02: 4 cores, 8GB RAM"
+	@echo "  - worker-03: 2 cores, 4GB RAM"
 	@echo ""
-	@echo "🔧 UTILITY COMMANDS:"
-	@echo "  make clean              Clean build artifacts"
-	@echo "  make fmt                Format code"
-	@echo "  make lint               Run lints (clippy)"
+	@echo "$(YELLOW)📝 Comandos útiles:$(NC)"
+	@echo "  - make logs          (ver logs)"
+	@echo "  - make health        (verificar estado)"
+	@echo "  - make workers       (estado de workers)"
+	@echo "  - ./test-api.sh      (probar API)"
 	@echo ""
 
-## 🏗️ BUILD TARGETS
-
-### Build all services
-build:
-	@echo "🏗️  Building all services..."
-	$(CARGO) build --bin orchestrator
-	$(CARGO) build --bin scheduler
-	$(CARGO) build --bin worker-manager
-	@echo "✅ All services built successfully"
-
-### Build individual services
-build-orchestrator:
-	@echo "🏗️  Building Orchestrator..."
-	$(CARGO) build --bin orchestrator
-	@echo "✅ Orchestrator built"
-
-build-scheduler:
-	@echo "🏗️  Building Scheduler..."
-	$(CARGO) build --bin scheduler
-	@echo "✅ Scheduler built"
-
-build-worker-manager:
-	@echo "🏗️  Building Worker Manager..."
-	$(CARGO) build --bin worker-manager
-	@echo "✅ Worker Manager built"
-
-## 🧪 TEST TARGETS
-
-### Run all tests
-test:
-	@echo "🧪 Running all tests..."
-	$(CARGO) test $(TEST_PACKAGE) --all-features
-
-### 🧪 TESTING PYRAMID TARGETS
-
-### Run unit tests only (270 tests - Fast, no dependencies)
-test-unit:
-	@echo "⚡ Running unit tests (270 tests)..."
-	@echo "  → hodei-adapters: 122 tests"
-	@echo "  → hodei-ports: 24 tests"
-	@echo "  → hodei-core: 84 tests"
-	@echo "  → hwp-agent: 19 tests"
-	@echo "  → hodei-shared-types: 8 tests"
-	@echo "  → e2e-tests: 13 tests"
+launch-full: build-all up-workers-with-monitoring ## 🚀 Launch completo con monitoreo (server + workers + Grafana + Prometheus)
 	@echo ""
-	$(CARGO) test --lib
+	@echo "$(GREEN)========================================$(NC)"
+	@echo "$(GREEN)   ¡Stack completo iniciado!   $(NC)"
+	@echo "$(GREEN)========================================$(NC)"
 	@echo ""
-	@echo "✅ All unit tests passed!"
+	@echo "$(BLUE)🌐 Accesos:$(NC)"
+	@echo "  - API REST:      http://localhost:8080"
+	@echo "  - Swagger UI:    http://localhost:8080/api/docs"
+	@echo "  - Prometheus:    http://localhost:9090"
+	@echo "  - Grafana:       http://localhost:3000 (admin/grafana_admin_2024)"
+	@echo ""
 
-### Run integration tests (PostgreSQL - Requires DATABASE_URL)
-test-integration:
-	@echo "🐘 Running PostgreSQL integration tests..."
-	@echo "  → Requires DATABASE_URL environment variable"
-	@echo "  → Or run with e2e-tests: make test-e2e"
+# ========================================
+# Help
+# ========================================
+help: ## Mostrar ayuda
+	@echo "$(BLUE)========================================$(NC)"
+	@echo "$(BLUE)   Hodei Jobs Server - Comandos Docker   $(NC)"
+	@echo "$(BLUE)========================================$(NC)"
 	@echo ""
-	@echo "  Option 1 - With local PostgreSQL:"
-	@echo "    DATABASE_URL=postgres://user:pass@host/db make test-integration"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-35s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "  Option 2 - Use e2e-tests (recommended):"
-	@echo "    make test-e2e"
+	@echo "$(GREEN)🎯 COMANDOS PRINCIPALES:$(NC)"
+	@echo "  $(YELLOW)make launch$(NC)              - Lanzar aplicación completa (server + 3 workers)"
+	@echo "  $(YELLOW)make launch-full$(NC)         - Lanzar stack completo + monitoreo"
 	@echo ""
-	@if [ -z "$$DATABASE_URL" ]; then \
-		echo "⚠️  DATABASE_URL not set. Run with e2e-tests instead:"; \
-		echo "   make test-e2e"; \
+	@echo "$(BLUE)📚 DOCUMENTACIÓN:$(NC)"
+	@echo "  - README-DOCKER.md     - Guía completa de Docker"
+	@echo "  - docs/WORKERS-DEPLOYMENT.md - Opciones para manejar workers"
+	@echo ""
+
+# ========================================
+# Setup Inicial
+# ========================================
+init: ## Inicializar entorno (crear directorios, permisos, etc.)
+	@echo "$(GREEN)Inicializando entorno...$(NC)"
+	@mkdir -p data/{postgres,redis,prometheus,grafana,traefik}
+	@mkdir -p logs
+	@echo "$(GREEN)Directorios creados en ./data/$(NC)"
+	@echo "$(YELLOW)Recuerda copiar .env a .env.local y configurar las variables$(NC)"
+	@echo ""
+
+build: ## Construir imagen del servidor
+	@echo "$(BLUE)Construyendo imagen de Hodei Server...$(NC)"
+	docker compose build $(COMPOSE_FILE) hodei-server
+	@echo "$(GREEN)¡Build completado!$(NC)"
+
+build-all: ## Construir servidor y workers
+	@echo "$(BLUE)Construyendo imágenes completas...$(NC)"
+	docker compose build hodei-server worker-01 worker-02 worker-03
+	@echo "$(GREEN)¡Builds completados!$(NC)"
+
+# ========================================
+# Servicios
+# ========================================
+up: ## Levantar servicios core (PostgreSQL, Server)
+	@echo "$(GREEN)Levantando servicios core...$(NC)"
+	docker compose up -d postgres $(CONTAINER_NAME)
+	@echo "$(GREEN)Servicios levantados$(NC)"
+	@echo ""
+	@echo "$(BLUE)Accesos:$(NC)"
+	@echo "  - API REST: http://localhost:8080"
+	@echo "  - Swagger UI: http://localhost:8080/api/docs"
+	@echo "  - OpenAPI: http://localhost:8080/api/openapi.json"
+
+up-full: ## Levantar stack completo (incluye monitoreo)
+	@echo "$(GREEN)Levantando stack completo con monitoreo...$(NC)"
+	docker compose --profile monitoring up -d
+	@echo "$(GREEN)Stack completo levantado$(NC)"
+
+up-proxy: ## Levantar con Traefik proxy
+	@echo "$(GREEN)Levantando con Traefik reverse proxy...$(NC)"
+	docker compose --profile proxy up -d
+	@echo "$(GREEN)Proxy configurado$(NC)"
+
+up-workers: ## Levantar server + 3 workers
+	@echo "$(GREEN)Levantando server + workers...$(NC)"
+	docker compose up -d postgres hodei-server worker-01 worker-02 worker-03
+	@echo "$(GREEN)Server y workers levantados$(NC)"
+	@echo ""
+	@echo "$(BLUE)Accesos:$(NC)"
+	@echo "  - API REST: http://localhost:8080"
+	@echo "  - Swagger UI: http://localhost:8080/api/docs"
+	@echo ""
+	@echo "$(BLUE)Workers activos:$(NC)"
+	@echo "  - worker-01: 4 cores, 8GB RAM"
+	@echo "  - worker-02: 4 cores, 8GB RAM"
+	@echo "  - worker-03: 2 cores, 4GB RAM"
+
+up-workers-with-monitoring: ## Levantar stack completo + workers + monitoreo
+	@echo "$(GREEN)Levantando stack completo con workers y monitoreo...$(NC)"
+	docker compose --profile monitoring --profile workers up -d
+	@echo "$(GREEN)Stack completo levantado$(NC)"
+
+down: ## Detener todos los servicios
+	@echo "$(YELLOW)Deteniendo servicios...$(NC)"
+	docker compose down
+	@echo "$(GREEN)Servicios detenidos$(NC)"
+
+# ========================================
+# Logs
+# ========================================
+logs: ## Ver logs del servidor en tiempo real
+	docker compose logs -f $(CONTAINER_NAME)
+
+logs-all: ## Ver logs de todos los servicios
+	docker compose logs -f
+
+logs-postgres: ## Ver logs de PostgreSQL
+	docker compose logs -f postgres
+
+logs-redis: ## Ver logs de Redis
+	docker compose logs -f redis
+
+# ========================================
+# Estado y Monitoreo
+# ========================================
+ps: ## Ver estado de los contenedores
+	@echo "$(BLUE)Estado de los contenedores:$(NC)"
+	docker compose ps
+
+stats: ## Ver uso de recursos
+	@echo "$(BLUE)Estadísticas de contenedores:$(NC)"
+	docker stats
+
+health: ## Verificar health checks
+	@echo "$(BLUE)Health checks:$(NC)"
+	docker compose ps
+	@echo ""
+	@echo "$(BLUE)Testing health endpoints...$(NC)"
+	@curl -s http://localhost:8080/health | jq '.' || echo "Server no disponible aún"
+
+workers: ## Ver estado de los workers
+	@echo "$(BLUE)Estado de los workers:$(NC)"
+	@docker compose ps worker-01 worker-02 worker-03
+	@echo ""
+	@echo "$(BLUE)Workers en la red:$(NC)"
+	@docker network inspect hodei-jobs_hodei-network --format '{{range .Containers}}{{.Name}}: {{.IPv4Address}}{{"\n"}}{{end}}' 2>/dev/null | grep worker || echo "No workers found in network"
+
+# ========================================
+# API Testing
+# ========================================
+test-health: ## Probar endpoint de health
+	@echo "$(BLUE)Probando /health...$(NC)"
+	curl -s http://localhost:8080/health | jq '.' || echo "$(RED)Error: Server no disponible$(NC)"
+
+test-swagger: ## Abrir Swagger UI en el navegador
+	@echo "$(BLUE)Abrindo Swagger UI...$(NC)"
+	@if command -v xdg-open > /dev/null; then \
+		xdg-open http://localhost:8080/api/docs; \
+	elif command -v open > /dev/null; then \
+		open http://localhost:8080/api/docs; \
 	else \
-		echo "📡 Using DATABASE_URL: $$DATABASE_URL"; \
-		$(CARGO) test -p hodei-adapters --features integration --lib postgres; \
+		echo "Swagger UI: http://localhost:8080/api/docs"; \
 	fi
 
-### Run E2E tests (13 tests - Complete with testcontainers)
-test-e2e:
-	@echo "🔄 Running E2E tests with testcontainers..."
-	@echo "  → Starting PostgreSQL, NATS, Prometheus containers"
-	@echo "  → Running infrastructure and workflow tests"
-	@echo ""
-	$(CARGO) test -p e2e-tests --lib
-	@echo ""
-	@echo "✅ E2E tests completed!"
+# ========================================
+# Database
+# ========================================
+db-shell: ## Conectar a PostgreSQL
+	@echo "$(BLUE)Conectando a PostgreSQL...$(NC)"
+	docker compose exec postgres psql -U hodei -d hodei_jobs
 
-### Run E2E tests with full output
-test-e2e-full:
-	@echo "🔄 Running E2E tests (full output)..."
-	@echo "  → Starting PostgreSQL, NATS, Prometheus containers"
-	@echo "  → Running infrastructure and workflow tests"
-	@echo ""
-	$(CARGO) test -p e2e-tests --lib -- --nocapture
-	@echo ""
-	@echo "✅ E2E tests completed!"
+db-backup: ## Crear backup de la base de datos
+	@echo "$(YELLOW)Creando backup...$(NC)"
+	@mkdir -p backups
+	docker compose exec postgres pg_dump -U hodei hodei_jobs > backups/hodei_$(shell date +%Y%m%d_%H%M%S).sql
+	@echo "$(GREEN)Backup creado en backups/$(NC)"
 
-### Run basic integration tests only
-test-basic:
-	@echo "🧪 Running basic integration tests..."
-	$(CARGO) test $(TEST_PACKAGE) --test basic_integration --all-features
+# ========================================
+# Desarrollo
+# ========================================
+dev: up ## Levantar servicios de desarrollo (dev profile)
+	@echo "$(GREEN)Modo desarrollo activado$(NC)"
 
-### Run real services tests only
-test-real:
-	@echo "🧪 Running real services tests..."
-	$(CARGO) test $(TEST_PACKAGE) real_services_test --all-features
+shell: ## Abrir shell en el contenedor del servidor
+	docker compose exec $(CONTAINER_NAME) /bin/bash
 
-### Run log streaming E2E tests (requires worker-manager running on port 8082)
-test-log-streaming:
-	@echo "🧪 Running Log Streaming E2E tests..."
-	@./scripts/test-log-streaming.sh
+restart: ## Reiniciar servidor
+	@echo "$(YELLOW)Reiniciando servidor...$(NC)"
+	docker compose restart $(CONTAINER_NAME)
 
-### Run real services tests that need running services
-test-real-services:
-	@echo "🧪 Running real services tests..."
-	@echo "  → Building services..."
-	$(CARGO) build --bin orchestrator --bin scheduler --bin worker-manager
-	@echo "  → Starting all services..."
-	@make start-services -s
-	@echo "  → Waiting for services to be healthy..."
-	@sleep 5
-	@echo "  → Running real services tests..."
-	$(CARGO) test $(TEST_PACKAGE) real_services_test --all-features
-	@echo "  → Stopping services..."
-	@make stop-services -s
-	@echo "✅ Real services tests completed!"
+rebuild: ## Rebuild completo y levantar
+	@echo "$(YELLOW)Rebuilding servidor...$(NC)"
+	docker compose build --no-cache $(CONTAINER_NAME)
+	docker compose up -d $(CONTAINER_NAME)
 
-### Run comprehensive test suite
-test-all:
-	@echo "🧪 Running comprehensive test suite..."
-	@echo "  → Building services..."
-	$(CARGO) build --bin orchestrator --bin scheduler --bin worker-manager
-	@echo "  → Running E2E tests..."
-	$(CARGO) test $(TEST_PACKAGE) --all-features
-	@echo "✅ All tests completed successfully"
+# ========================================
+# Limpieza
+# ========================================
+clean: down ## Detener servicios
+	@echo "$(YELLOW)Limpiando contenedores y redes...$(NC)"
+	docker compose down --remove-orphans
 
-### 🏗️ TESTING PYRAMID CONVENIENCE TARGETS
-
-### Run unit + integration tests (fast)
-test-pyramid-fast:
-	@echo "🏗️  Running testing pyramid (Unit + Integration)..."
-	@echo ""
-	@echo "⚡ Phase 1: Unit tests (270 tests)..."
-	$(CARGO) test --lib
-	@echo ""
-	@echo "✅ Phase 1 complete! Run 'make test-integration' for PostgreSQL tests"
-	@echo "   Or run 'make test-e2e' for full E2E with testcontainers"
-
-### Run all tests with detailed output
-test-pyramid-full:
-	@echo "🏗️  Running full testing pyramid..."
-	@echo ""
-	@echo "⚡ Phase 1: Unit tests (270 tests)..."
-	$(CARGO) test --lib -- --test-threads=1
-	@echo ""
-	@echo "🔄 Phase 2: E2E tests (13 tests)..."
-	$(CARGO) test -p e2e-tests --lib -- --test-threads=1
-	@echo ""
-	@echo "✅ All pyramid tests completed!"
-
-### Watch mode for unit tests (rerun on changes)
-test-watch:
-	@echo "👀 Watching for changes..."
-	@echo "  Run: cargo test --lib -- --watch"
-	cargo test --lib -- --watch
-
-### Test specific package
-test-package-%:
-	@echo "🧪 Running tests for package: $*"
-	$(CARGO) test -p $* --lib
-
-### Run specific test
-test-%:
-	@echo "🧪 Running test: $*"
-	$(CARGO) test $(TEST_PACKAGE) $* --all-features
-
-## 🚀 RUNTIME TARGETS
-
-### Start all services in background
-start-services:
-	@echo "🚀 Starting all services..."
-	@if [ ! -f "./target/debug/orchestrator" ]; then \
-		echo "❌ Binaries not found. Run 'make build' first"; \
-		exit 1; \
+clean-volumes: down ## Detener y eliminar volúmenes (¡CUIDADO! Borra datos)
+	@echo "$(RED)¡ATENCIÓN! Esto borrará todos los datos$(NC)"
+	@read -p "¿Estás seguro? [y/N] " -r; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		docker compose down -v; \
+		$(MAKE) clean; \
+		echo "$(GREEN)Limpieza completa realizada$(NC)"; \
+	else \
+		echo "$(YELLOW)Cancelado$(NC)"; \
 	fi
-	@echo "📦 Starting Orchestrator on port 8080..."
-	./target/debug/orchestrator > /tmp/orchestrator.log 2>&1 &
-	@echo "📦 Starting Scheduler on port 8081..."
-	./target/debug/scheduler > /tmp/scheduler.log 2>&1 &
-	@echo "📦 Starting Worker Manager on port 8082..."
-	./target/debug/worker-manager > /tmp/worker-manager.log 2>&1 &
-	@echo "⏳ Waiting for services to start..."
-	@sleep 3
-	@echo "🔍 Checking service health..."
-	@curl -s http://localhost:8080/health > /dev/null && echo "✅ Orchestrator: http://localhost:8080" || echo "❌ Orchestrator: Not responding"
-	@curl -s http://localhost:8081/health > /dev/null && echo "✅ Scheduler: http://localhost:8081" || echo "❌ Scheduler: Not responding"
-	@curl -s http://localhost:8082/health > /dev/null && echo "✅ Worker Manager: http://localhost:8082" || echo "❌ Worker Manager: Not responding"
-	@echo "🎉 All services started!"
 
-### Stop all running services
-stop-services:
-	@echo "🛑 Stopping all services..."
-	@if pgrep -f orchestrator > /dev/null; then \
-		echo "  → Stopping Orchestrator..."; \
-		pkill -f orchestrator; \
+clean-images: ## Eliminar imágenes del proyecto
+	@echo "$(YELLOW)Eliminando imágenes...$(NC)"
+	docker compose down --rmi all
+	docker rmi $$(docker images | grep hodei | awk '{print $$3}') 2>/dev/null || true
+
+clean-all: clean clean-volumes clean-images ## Limpiar TODO (contenedores, imágenes, volúmenes)
+	@echo "$(GREEN)Limpieza total completada$(NC)"
+
+# ========================================
+# Monitoreo
+# ========================================
+grafana: ## Abrir Grafana en el navegador
+	@echo "$(BLUE)Grafana: http://localhost:3000 (admin/grafana_admin_2024)$(NC)"
+	@if command -v xdg-open > /dev/null; then \
+		xdg-open http://localhost:3000; \
+	elif command -v open > /dev/null; then \
+		open http://localhost:3000; \
+	else \
+		echo "Abra manualmente: http://localhost:3000"; \
 	fi
-	@if pgrep -f scheduler > /dev/null; then \
-		echo "  → Stopping Scheduler..."; \
-		pkill -f scheduler; \
+
+prometheus: ## Abrir Prometheus en el navegador
+	@echo "$(BLUE)Prometheus: http://localhost:9090$(NC)"
+	@if command -v xdg-open > /dev/null; then \
+		xdg-open http://localhost:9090; \
+	elif command -v open > /dev/null; then \
+		open http://localhost:9090; \
+	else \
+		echo "Abra manualmente: http://localhost:9090"; \
 	fi
-	@if pgrep -f worker-manager > /dev/null; then \
-		echo "  → Stopping Worker Manager..."; \
-		pkill -f worker-manager; \
-	fi
-	@echo "✅ All services stopped"
 
-### Check service status
-status:
-	@echo "📊 Service Status:"
-	@echo "=================="
+# ========================================
+# Utilities
+# ========================================
+version: ## Mostrar versiones
+	@echo "$(BLUE)Versión de Docker:$(NC)"
+	@docker --version
+	@echo "$(BLUE)Versión de Docker Compose:$(NC)"
+	@docker compose version
+	@echo "$(BLUE)Versión de Hodei Server:$(NC)"
+	@docker compose exec $(CONTAINER_NAME) hodei-server --version 2>/dev/null || echo "Server no ejecutándose"
+
+info: ## Mostrar información completa del sistema
+	@echo "$(BLUE)========================================$(NC)"
+	@echo "$(BLUE)   Hodei Jobs Server - Info del Sistema   $(NC)"
+	@echo "$(BLUE)========================================$(NC)"
 	@echo ""
-	@echo "Orchestrator:"
-	@curl -s http://localhost:8080/health 2>/dev/null | jq '.' || echo "  ❌ Not running"
+	@echo "$(YELLOW)Servicios Activos:$(NC)"
+	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
 	@echo ""
-	@echo "Scheduler:"
-	@curl -s http://localhost:8081/health 2>/dev/null | jq '.' || echo "  ❌ Not running"
-	@echo ""
-	@echo "Worker Manager:"
-	@curl -s http://localhost:8082/health 2>/dev/null | jq '.' || echo "  ❌ Not running"
-
-### View service logs
-logs:
-	@echo "📝 Service Logs:"
-	@echo "================"
-	@echo ""
-	@echo "--- Orchestrator (last 20 lines) ---"
-	@tail -20 /tmp/orchestrator.log 2>/dev/null || echo "No logs available"
-	@echo ""
-	@echo "--- Scheduler (last 20 lines) ---"
-	@tail -20 /tmp/scheduler.log 2>/dev/null || echo "No logs available"
-	@echo ""
-	@echo "--- Worker Manager (last 20 lines) ---"
-	@tail -20 /tmp/worker-manager.log 2>/dev/null || echo "No logs available"
-
-## 🐳 DOCKER COMPOSE TARGETS
-
-### Start with Docker Compose
-docker-up:
-	@echo "🐳 Starting all services with Docker Compose..."
-	docker-compose up -d
-	@echo "⏳ Waiting for services to be healthy..."
-	@sleep 10
-	@make status
-
-### Stop Docker Compose services
-docker-down:
-	@echo "🐳 Stopping Docker Compose services..."
-	docker-compose down
-	@echo "✅ All services stopped"
-
-### View Docker Compose logs
-docker-logs:
-	@echo "🐳 Docker Compose Logs:"
-	docker-compose logs -f
-
-## 🔧 UTILITY TARGETS
-
-### Clean build artifacts
-clean:
-	@echo "🧹 Cleaning build artifacts..."
-	$(CARGO) clean
-	@echo "✅ Clean completed"
-
-### Format code
-fmt:
-	@echo "🎨 Formatting code..."
-	$(CARGO) fmt --all
-	@echo "✅ Code formatted"
-
-### Run lints (clippy)
-lint:
-	@echo "🔍 Running lints..."
-	$(CARGO) clippy --all-targets --all-features -- -D warnings
-	@echo "✅ Lints passed"
-
-### Check code
-check:
-	@echo "✅ Running cargo check..."
-	$(CARGO) check --all-features
-	@echo "✅ Check completed"
-
-## 🔄 CI/CD TARGETS
-
-### Run CI pipeline
-ci:
-	@echo "🔄 Running CI pipeline..."
-	@echo "  → Formatting code..."
-	$(CARGO) fmt --all -- --check
-	@echo "  → Running lints..."
-	$(CARGO) clippy --all-targets --all-features -- -D warnings
-	@echo "  → Building..."
-	$(CARGO) build --all-features
-	@echo "  → Running tests..."
-	$(CARGO) test $(TEST_PACKAGE) --all-features
-	@echo "✅ CI pipeline completed successfully"
-
-### Quick development cycle
-dev:
-	@echo "🔄 Development cycle..."
-	@echo "  → Building..."
-	$(CARGO) build --bin orchestrator --bin scheduler --bin worker-manager
-	@echo "  → Running basic tests..."
-	$(CARGO) test $(TEST_PACKAGE) basic_integration --all-features
-	@echo "✅ Development cycle completed"
-
-## 📊 METRICS TARGETS
-
-### Show test coverage
-coverage:
-	@echo "📊 Test coverage not implemented yet"
-	@echo "   (Run with: cargo tarpaulin --out html)"
-
-### Show build size
-build-size:
-	@echo "📊 Build Size:"
-	@ls -lh target/debug/orchestrator 2>/dev/null | awk '{print "  Orchestrator: " $$5}'
-	@ls -lh target/debug/scheduler 2>/dev/null | awk '{print "  Scheduler: " $$5}'
-	@ls -lh target/debug/worker-manager 2>/dev/null | awk '{print "  Worker Manager: " $$5}'
-
-## 🎯 QUICK START TARGETS
-
-### Complete setup and test
-setup:
-	@echo "🎯 Setting up complete environment..."
-	@echo "  → Building services..."
-	$(CARGO) build --bin orchestrator --bin scheduler --bin worker-manager
-	@echo "  → Starting services..."
-	./scripts/start-services.sh
-	@echo "  → Running tests..."
-	$(CARGO) test $(TEST_PACKAGE) --all-features
-	@echo "✅ Setup completed!"
-	@echo ""
-	@echo "📊 Services are running:"
-	@echo "   Orchestrator: http://localhost:8080"
-	@echo "   Scheduler: http://localhost:8081"
-	@echo "   Worker Manager: http://localhost:8082"
-	@echo ""
-	@echo "🔗 Quick access:"
-	@echo "   Swagger UI: http://localhost:8080/swagger-ui"
-	@echo ""
-	@echo "🛑 To stop: make stop-services"
-
-### Complete teardown
-teardown:
-	@echo "🧹 Tearing down environment..."
-	@echo "  → Stopping services..."
-	./scripts/stop-services.sh
-	@echo "  → Cleaning artifacts..."
-	$(CARGO) clean
-	@echo "✅ Teardown completed!"
+	@echo "$(YELLOW)Accesos:$(NC)"
+	@echo "  - API REST:      http://localhost:8080"
+	@echo "  - Swagger UI:    http://localhost:8080/api/docs"
+	@echo "  - OpenAPI JSON:  http://localhost:8080/api/openapi.json"
+	@echo "  - Prometheus:    http://localhost:9090"
+	@echo "  - Grafana:       http://localhost:3000"

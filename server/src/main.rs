@@ -1,4 +1,10 @@
-//! Hodei Jobs Server - Monolithic Modular Architecture
+//! Hodei Jobs Server - Monolithic Modular Architecture with OpenAPI Documentation
+//!
+//! # API Documentation
+//!
+//! Interactive API documentation is available at: http://localhost:8080/api/docs
+//!
+//! OpenAPI specification: http://localhost:8080/api/openapi.json
 
 use axum::{
     Router,
@@ -13,13 +19,23 @@ use hodei_adapters::{
     GrpcWorkerClient, HttpWorkerClient, InMemoryBus, InMemoryJobRepository,
     InMemoryPipelineRepository, InMemoryWorkerRepository,
 };
-use hodei_core::{JobSpec, Worker};
-use hodei_modules::{OrchestratorModule, SchedulerModule};
-use hodei_shared_types::WorkerCapabilities;
+use hodei_core::{Job, JobId, Worker, WorkerId};
+use hodei_modules::{OrchestratorModule, SchedulerModule, WorkerManagementService};
+use hodei_shared_types::{JobSpec, ResourceQuota, WorkerCapabilities};
 use serde_json::{Value, json};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
+
+// API types
+mod api_docs;
+use api_docs::{
+    CreateDynamicWorkerRequest, CreateDynamicWorkerResponse, CreateJobRequest,
+    DynamicWorkerStatusResponse, HealthResponse, JobResponse, ListDynamicWorkersResponse,
+    MessageResponse, ProviderCapabilitiesResponse, RegisterWorkerRequest,
+};
+
+use utoipa::{IntoParams, ToSchema};
 
 mod metrics;
 use metrics::MetricsRegistry;
@@ -39,6 +55,7 @@ struct AppState {
     >,
     orchestrator:
         Arc<OrchestratorModule<InMemoryJobRepository, InMemoryBus, InMemoryPipelineRepository>>,
+    worker_management: Arc<WorkerManagementService>,
     metrics: MetricsRegistry,
 }
 
@@ -47,6 +64,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     info!("🚀 Starting Hodei Jobs Server");
+    info!("📚 API Documentation: http://localhost:8080/api/docs");
+    info!("🔗 OpenAPI Spec: http://localhost:8080/api/openapi.json");
 
     let port = std::env::var("HODEI_PORT")
         .unwrap_or_else(|_| "8080".to_string())
@@ -88,22 +107,325 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     ));
 
+    // Create Worker Management Service
+    let worker_management =
+        hodei_modules::worker_management::create_default_worker_management_service()
+            .await
+            .map_err(|e| {
+                tracing::warn!("Failed to initialize worker management: {}", e);
+                anyhow::anyhow!("Failed to initialize worker management: {}", e)
+            })?;
+
     scheduler.clone().start().await?;
 
     let app_state = AppState {
         scheduler: scheduler.clone(),
         orchestrator: orchestrator.clone(),
+        worker_management: Arc::new(worker_management),
         metrics: metrics.clone(),
     };
 
+    // Handler functions
+    let health_handler = {
+        || async {
+            Json(HealthResponse {
+                status: "healthy".to_string(),
+                service: "hodei-server".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_string(),
+                architecture: "monolithic_modular".to_string(),
+            })
+        }
+    };
+
+    let create_job_handler = {
+        let orchestrator = orchestrator.clone();
+        move |State(_): State<AppState>, Json(payload): Json<CreateJobRequest>| async move {
+            let job_spec = JobSpec {
+                name: payload.name,
+                image: payload.image,
+                command: payload.command,
+                resources: payload.resources,
+                timeout_ms: payload.timeout_ms,
+                retries: payload.retries,
+                env: payload.env,
+                secret_refs: payload.secret_refs,
+            };
+
+            match orchestrator.create_job(job_spec).await {
+                Ok(job) => Ok(Json(JobResponse {
+                    id: job.id.to_string(),
+                    name: job.name().to_string(),
+                    spec: job.spec.as_ref().clone(),
+                    state: job.state.as_str().to_string(),
+                    created_at: job.created_at,
+                    updated_at: job.updated_at,
+                    started_at: job.started_at,
+                    completed_at: job.completed_at,
+                    result: Some(job.result),
+                })),
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    };
+
+    let get_job_handler = {
+        let orchestrator = orchestrator.clone();
+        move |State(_): State<AppState>, axum::extract::Path(id): axum::extract::Path<String>| async move {
+            let job_id =
+                JobId::from(uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?);
+
+            match orchestrator.get_job(&job_id).await {
+                Ok(Some(job)) => Ok(Json(JobResponse {
+                    id: job.id.to_string(),
+                    name: job.name().to_string(),
+                    spec: job.spec.as_ref().clone(),
+                    state: job.state.as_str().to_string(),
+                    created_at: job.created_at,
+                    updated_at: job.updated_at,
+                    started_at: job.started_at,
+                    completed_at: job.completed_at,
+                    result: Some(job.result),
+                })),
+                Ok(None) => Err(StatusCode::NOT_FOUND),
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    };
+
+    let cancel_job_handler = {
+        let orchestrator = orchestrator.clone();
+        move |State(_): State<AppState>, axum::extract::Path(id): axum::extract::Path<String>| async move {
+            let job_id =
+                JobId::from(uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?);
+
+            match orchestrator.cancel_job(&job_id).await {
+                Ok(_) => Ok(Json(MessageResponse {
+                    message: "Job cancelled successfully".to_string(),
+                })),
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    };
+
+    let register_worker_handler = {
+        let scheduler = scheduler.clone();
+        move |State(_): State<AppState>, Json(payload): Json<RegisterWorkerRequest>| async move {
+            let capabilities = WorkerCapabilities::new(payload.cpu_cores, payload.memory_gb * 1024);
+            let worker = Worker::new(WorkerId::new(), payload.name, capabilities);
+
+            match scheduler.register_worker(worker).await {
+                Ok(_) => Ok(Json(MessageResponse {
+                    message: "Worker registered successfully".to_string(),
+                })),
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    };
+
+    let worker_heartbeat_handler = {
+        let scheduler = scheduler.clone();
+        move |State(_): State<AppState>, axum::extract::Path(id): axum::extract::Path<String>| async move {
+            let worker_id = WorkerId::from_uuid(
+                uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?,
+            );
+
+            match scheduler.process_heartbeat(&worker_id, None).await {
+                Ok(_) => Ok(Json(MessageResponse {
+                    message: "Heartbeat processed successfully".to_string(),
+                })),
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    };
+
+    let get_metrics_handler = {
+        move |State(state): State<AppState>| async move {
+            match state.metrics.gather() {
+                Ok(metrics) => Ok(metrics),
+                Err(e) => {
+                    tracing::error!("Failed to gather metrics: {}", e);
+                    Err(StatusCode::INTERNAL_SERVER_ERROR)
+                }
+            }
+        }
+    };
+
+    let create_dynamic_worker_handler = {
+        let worker_management = Arc::clone(&app_state.worker_management);
+        move |State(_): State<AppState>, Json(payload): Json<CreateDynamicWorkerRequest>| async move {
+            match worker_management
+                .provision_worker(payload.image, payload.cpu_cores, payload.memory_mb)
+                .await
+            {
+                Ok(worker) => Ok(Json(CreateDynamicWorkerResponse {
+                    worker_id: worker.id.to_string(),
+                    container_id: None, // Could extract from metadata
+                    state: "starting".to_string(),
+                    message: "Worker provisioned successfully".to_string(),
+                })),
+                Err(e) => {
+                    tracing::error!("Failed to provision worker: {}", e);
+                    Err(StatusCode::INTERNAL_SERVER_ERROR)
+                }
+            }
+        }
+    };
+
+    let get_dynamic_worker_status_handler = {
+        let worker_management = Arc::clone(&app_state.worker_management);
+        move |State(_): State<AppState>,
+              axum::extract::Path(worker_id): axum::extract::Path<String>| async move {
+            let worker_id_uuid =
+                uuid::Uuid::parse_str(&worker_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+            let worker_id = hodei_core::WorkerId::from_uuid(worker_id_uuid);
+
+            match worker_management.get_worker_status(&worker_id).await {
+                Ok(status) => Ok(Json(DynamicWorkerStatusResponse {
+                    worker_id: worker_id.to_string(),
+                    state: status.as_str().to_string(),
+                    container_id: None,
+                    created_at: chrono::Utc::now(),
+                })),
+                Err(_) => Err(StatusCode::NOT_FOUND),
+            }
+        }
+    };
+
+    let list_dynamic_workers_handler = {
+        let worker_management = Arc::clone(&app_state.worker_management);
+        move |State(_): State<AppState>| async move {
+            match worker_management.list_workers().await {
+                Ok(worker_ids) => {
+                    let mut workers = Vec::new();
+                    for worker_id in worker_ids {
+                        match worker_management.get_worker_status(&worker_id).await {
+                            Ok(status) => {
+                                workers.push(DynamicWorkerStatusResponse {
+                                    worker_id: worker_id.to_string(),
+                                    state: status.as_str().to_string(),
+                                    container_id: None,
+                                    created_at: chrono::Utc::now(),
+                                });
+                            }
+                            Err(_) => {
+                                // Skip workers with errors
+                                workers.push(DynamicWorkerStatusResponse {
+                                    worker_id: worker_id.to_string(),
+                                    state: "unknown".to_string(),
+                                    container_id: None,
+                                    created_at: chrono::Utc::now(),
+                                });
+                            }
+                        }
+                    }
+
+                    Ok(Json(ListDynamicWorkersResponse { workers }))
+                }
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    };
+
+    let get_provider_capabilities_handler = {
+        let worker_management = Arc::clone(&app_state.worker_management);
+        move |State(_): State<AppState>| async move {
+            match worker_management.get_provider_capabilities().await {
+                Ok(capabilities) => Ok(Json(ProviderCapabilitiesResponse {
+                    provider_type: "docker".to_string(), // From provider
+                    name: "docker-provider".to_string(),
+                    capabilities: api_docs::ProviderCapabilitiesInfo {
+                        supports_auto_scaling: capabilities.supports_auto_scaling,
+                        supports_health_checks: capabilities.supports_health_checks,
+                        supports_volumes: capabilities.supports_volumes,
+                        max_workers: capabilities.max_workers,
+                        estimated_provision_time_ms: capabilities.estimated_provision_time_ms,
+                    },
+                })),
+                Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        }
+    };
+
+    let stop_dynamic_worker_handler = {
+        let worker_management = Arc::clone(&app_state.worker_management);
+        move |State(_): State<AppState>,
+              axum::extract::Path(worker_id): axum::extract::Path<String>| async move {
+            let worker_id_uuid =
+                uuid::Uuid::parse_str(&worker_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+            let worker_id = hodei_core::WorkerId::from_uuid(worker_id_uuid);
+
+            match worker_management.stop_worker(&worker_id, true).await {
+                Ok(_) => Ok(Json(api_docs::MessageResponse {
+                    message: "Worker stopped successfully".to_string(),
+                })),
+                Err(_) => Err(StatusCode::NOT_FOUND),
+            }
+        }
+    };
+
+    let delete_dynamic_worker_handler = {
+        let worker_management = Arc::clone(&app_state.worker_management);
+        move |State(_): State<AppState>,
+              axum::extract::Path(worker_id): axum::extract::Path<String>| async move {
+            let worker_id_uuid =
+                uuid::Uuid::parse_str(&worker_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+            let worker_id = hodei_core::WorkerId::from_uuid(worker_id_uuid);
+
+            match worker_management.delete_worker(&worker_id).await {
+                Ok(_) => Ok(Json(api_docs::MessageResponse {
+                    message: "Worker deleted successfully".to_string(),
+                })),
+                Err(_) => Err(StatusCode::NOT_FOUND),
+            }
+        }
+    };
+
     let app = Router::new()
+        // API Documentation
+        .route("/api/openapi.json", get(|| async {
+            use serde_json::json;
+
+            Json(json!({
+                "openapi": "3.0.0",
+                "info": {
+                    "title": "Hodei Jobs API",
+                    "version": "1.0.0",
+                    "description": "API para gestionar jobs, workers y pipelines en el sistema Hodei Jobs"
+                },
+                "paths": {},
+                "components": {
+                    "schemas": {}
+                }
+            }))
+        }))
         .route("/health", get(health_handler))
-        .route("/api/v1/jobs", post(create_job))
-        .route("/api/v1/jobs/{id}", get(get_job))
-        .route("/api/v1/jobs/{id}/cancel", post(cancel_job))
-        .route("/api/v1/workers", post(register_worker))
-        .route("/api/v1/workers/{id}/heartbeat", post(worker_heartbeat))
-        .route("/api/v1/metrics", get(get_metrics))
+        .route("/api/v1/jobs", post(create_job_handler))
+        .route("/api/v1/jobs/{id}", get(get_job_handler))
+        .route("/api/v1/jobs/{id}/cancel", post(cancel_job_handler))
+        .route("/api/v1/workers", post(register_worker_handler))
+        .route(
+            "/api/v1/workers/{id}/heartbeat",
+            post(worker_heartbeat_handler),
+        )
+        .route("/api/v1/metrics", get(get_metrics_handler))
+        .route("/api/v1/dynamic-workers", post(create_dynamic_worker_handler))
+        .route("/api/v1/dynamic-workers", get(list_dynamic_workers_handler))
+        .route(
+            "/api/v1/dynamic-workers/{id}",
+            get(get_dynamic_worker_status_handler),
+        )
+        .route(
+            "/api/v1/dynamic-workers/{id}/stop",
+            post(stop_dynamic_worker_handler),
+        )
+        .route(
+            "/api/v1/dynamic-workers/{id}",
+            axum::routing::delete(delete_dynamic_worker_handler),
+        )
+        .route("/api/v1/providers/capabilities", get(get_provider_capabilities_handler))
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
@@ -175,109 +497,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, app).await?;
 
     Ok(())
-}
-
-async fn health_handler() -> Json<Value> {
-    Json(json!({
-        "status": "healthy",
-        "service": "hodei-server",
-        "version": env!("CARGO_PKG_VERSION"),
-        "architecture": "monolithic_modular",
-    }))
-}
-
-async fn create_job(
-    State(state): State<AppState>,
-    Json(payload): Json<Value>,
-) -> Result<Json<Value>, StatusCode> {
-    let job_spec: JobSpec = match serde_json::from_value(payload) {
-        Ok(spec) => spec,
-        Err(_) => return Err(StatusCode::BAD_REQUEST),
-    };
-
-    match state.orchestrator.create_job(job_spec).await {
-        Ok(job) => Ok(Json(json!({ "job": job }))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-async fn get_job(
-    State(state): State<AppState>,
-    axum::extract::Path(_id): axum::extract::Path<String>,
-) -> Result<Json<Value>, StatusCode> {
-    let job_id = hodei_core::JobId::new();
-
-    match state.orchestrator.get_job(&job_id).await {
-        Ok(Some(job)) => Ok(Json(json!({ "job": job }))),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-async fn cancel_job(
-    State(state): State<AppState>,
-    axum::extract::Path(_id): axum::extract::Path<String>,
-) -> Result<Json<Value>, StatusCode> {
-    let job_id = hodei_core::JobId::new();
-
-    match state.orchestrator.cancel_job(&job_id).await {
-        Ok(_) => Ok(Json(json!({ "message": "Job cancelled" }))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-async fn register_worker(
-    State(state): State<AppState>,
-    Json(payload): Json<Value>,
-) -> Result<Json<Value>, StatusCode> {
-    let name = payload
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("worker");
-    let cpu_cores = payload
-        .get("cpu_cores")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(4) as u32;
-    let memory_gb = payload
-        .get("memory_gb")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(8192);
-
-    let capabilities = WorkerCapabilities::new(cpu_cores, memory_gb);
-    let worker = Worker::new(hodei_core::WorkerId::new(), name.to_string(), capabilities);
-
-    match state.scheduler.register_worker(worker).await {
-        Ok(_) => Ok(Json(json!({ "message": "Worker registered" }))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-async fn worker_heartbeat(
-    State(state): State<AppState>,
-    axum::extract::Path(_id): axum::extract::Path<String>,
-) -> Result<Json<Value>, StatusCode> {
-    let worker_id = hodei_core::WorkerId::new();
-
-    // For now, we don't have resource usage from the endpoint
-    // In a real implementation, this would come from the request body
-    let resource_usage = None;
-
-    match state
-        .scheduler
-        .process_heartbeat(&worker_id, resource_usage)
-        .await
-    {
-        Ok(_) => Ok(Json(json!({ "message": "Heartbeat processed" }))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-async fn get_metrics(State(state): State<AppState>) -> Result<String, StatusCode> {
-    match state.metrics.gather() {
-        Ok(metrics) => Ok(metrics),
-        Err(e) => {
-            tracing::error!("Failed to gather metrics: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
 }

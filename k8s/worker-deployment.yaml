@@ -1,0 +1,183 @@
+# ========================================
+# Kubernetes Deployment para HWP Worker
+# ========================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hwp-worker
+  namespace: hodei-jobs
+  labels:
+    app: hwp-worker
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hwp-worker
+  template:
+    metadata:
+      labels:
+        app: hwp-worker
+    spec:
+      # Service Account para RBAC
+      serviceAccountName: hwp-worker
+
+      # Tolerations para taints de nodes
+      tolerations:
+      - key: "hodei-worker"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+
+      # Node selector para workers
+      nodeSelector:
+        worker-type: hwp-worker
+
+      containers:
+      - name: hwp-agent
+        image: hodei-jobs/hwp-agent:latest
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 50052
+          name: grpc
+          protocol: TCP
+
+        env:
+        # Configuración del Worker
+        - name: WORKER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+
+        - name: WORKER_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+
+        # URLs del servidor
+        - name: SERVER_URL
+          value: "http://hodei-server.hodei-jobs.svc.cluster.local:8080"
+
+        - name: GRPC_SERVER_URL
+          value: "http://hodei-server.hodei-jobs.svc.cluster.local:50051"
+
+        # Configuración de recursos
+        - name: WORKER_CPU_CORES
+          value: "4"
+
+        - name: WORKER_MEMORY_GB
+          value: "8"
+
+        # Logging
+        - name: RUST_LOG
+          value: "info"
+
+        - name: HWP_LOG_DIR
+          value: "/var/log/hwp-agent"
+
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+
+        # Volume mounts
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log/hwp-agent
+        - name: tmp
+          mountPath: /tmp
+
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 50052
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 50052
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+      volumes:
+      - name: varlog
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+
+---
+# ========================================
+# Service para Workers
+# ========================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: hwp-worker-service
+  namespace: hodei-jobs
+  labels:
+    app: hwp-worker
+spec:
+  type: ClusterIP
+  ports:
+  - port: 50052
+    targetPort: 50052
+    protocol: TCP
+    name: grpc
+  selector:
+    app: hwp-worker
+
+---
+# ========================================
+# Service Account
+# ========================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hwp-worker
+  namespace: hodei-jobs
+
+---
+# ========================================
+# Cluster Role para Workers
+# ========================================
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hwp-worker
+rules:
+- apiGroups: [""]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+
+---
+# ========================================
+# Cluster Role Binding
+# ========================================
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hwp-worker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hwp-worker
+subjects:
+- kind: ServiceAccount
+  name: hwp-worker
+  namespace: hodei-jobs

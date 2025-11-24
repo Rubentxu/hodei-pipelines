@@ -107,6 +107,20 @@ impl JobSpec {
     pub fn builder(name: String, image: String) -> JobSpecBuilder {
         JobSpecBuilder::new(name, image)
     }
+
+    /// Estimate memory size of JobSpec (in bytes)
+    pub fn estimated_size(&self) -> usize {
+        self.name.len()
+            + self.image.len()
+            + self.command.iter().map(|s| s.len()).sum::<usize>()
+            + self
+                .env
+                .iter()
+                .map(|(k, v)| k.len() + v.len())
+                .sum::<usize>()
+            + self.secret_refs.iter().map(|s| s.len()).sum::<usize>()
+            + std::mem::size_of::<Self>()
+    }
 }
 
 /// Builder for JobSpec

@@ -26,6 +26,7 @@ daggy = { workspace = true }
 
 [features]
 sqlx = ["dep:sqlx"]
+serde = []
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 # Workspace core crates
-hodei-core = { workspace = true, features = ["sqlx"] }
+hodei-core = { workspace = true, features = ["sqlx", "serde"] }
 hodei-ports = { workspace = true }
 hodei-shared-types = { workspace = true, features = ["sqlx"] }
 hwp-proto = { workspace = true }
@@ -56,12 +56,21 @@ reqwest = { workspace = true, features = ["json"] }
 # Testcontainers for integration tests (used when integration feature is enabled)
 testcontainers = { workspace = true, optional = true }
 
+# Docker provider
+bollard = { version = "0.16", features = ["buildkit"] }
+
+# Kubernetes provider
+# Note: Using kubectl commands instead of kube client to avoid k8s-openapi dependency issues
+
 [dev-dependencies]
 tempfile = { workspace = true }
 tracing-test = "0.2.5"
 
 [features]
 integration = ["testcontainers", "sqlx/runtime-tokio-rustls", "hodei-core/sqlx", "hodei-shared-types/sqlx"]
+docker-provider = []
+kubernetes-provider = []
+default = []
 
 # Perfiles de test
 [profile.integration]

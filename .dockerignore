@@ -1,0 +1,94 @@
+# ========================================
+# .dockerignore para Docker Build
+# Excluir archivos innecesarios para reducir contexto
+# ========================================
+
+# Note: Cargo.lock no existe en workspace (root)
+# Los Dockerfiles solo copian Cargo.toml
+
+# Directorios de datos
+data/
+logs/
+target/release/hodei-server
+
+# Archivos de desarrollo
+.env.local
+.env.*.local
+
+# Documentación (generados)
+docs/generated/
+target/doc/
+
+# Git y version control
+.git/
+.gitignore
+.gitattributes
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Rust
+target/
+Cargo.lock
+
+# Testing
+coverage/
+*.profraw
+*.lcov
+
+# Docker
+docker-compose.override.yml
+Dockerfile*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Monitoring configs (no needed in build)
+monitoring/prometheus/*.yml
+monitoring/grafana/**/*
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Documentation files
+*.md
+!README.md
+
+# E2E tests - keep for workspace
+!crates/e2e-tests/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+
+# Lock files (keep Cargo.lock for build)
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
+
+# Node modules (if any)
+node_modules/
