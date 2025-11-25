@@ -119,6 +119,10 @@ use cooldown_management::{CooldownsAppState, cooldowns_routes};
 mod scaling_history;
 use scaling_history::{ScalingHistoryAppState, scaling_history_routes};
 
+// Resource Pool Metrics module (US-09.5.1)
+mod resource_pool_metrics;
+use resource_pool_metrics::{ResourcePoolMetricsAppState, resource_pool_metrics_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -195,6 +199,8 @@ struct AppState {
     cooldown_app_state: CooldownsAppState,
     // US-09.4.4: Scaling History
     scaling_history_app_state: ScalingHistoryAppState,
+    // US-09.5.1: Resource Pool Metrics
+    resource_pool_metrics_app_state: ResourcePoolMetricsAppState,
 }
 
 #[tokio::main]
@@ -394,6 +400,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: scaling_history_service,
     };
 
+    // Create resource pool metrics service
+    let resource_pool_metrics_service =
+        Arc::new(resource_pool_metrics::ResourcePoolMetricsService::new());
+    let resource_pool_metrics_app_state = ResourcePoolMetricsAppState {
+        service: resource_pool_metrics_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -440,6 +453,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cooldown_router = cooldowns_routes().with_state(cooldown_app_state.clone());
     let scaling_history_router =
         scaling_history_routes().with_state(scaling_history_app_state.clone());
+    let resource_pool_metrics_router =
+        resource_pool_metrics_routes().with_state(resource_pool_metrics_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -464,6 +479,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scaling_triggers_app_state,
         cooldown_app_state,
         scaling_history_app_state,
+        resource_pool_metrics_app_state,
     };
 
     // Handler functions
@@ -915,6 +931,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", cooldown_router)
         // US-09.4.4: Scaling History Routes
         .nest("/api/v1", scaling_history_router)
+        // US-09.5.1: Resource Pool Metrics Routes
+        .nest("/api/v1", resource_pool_metrics_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
