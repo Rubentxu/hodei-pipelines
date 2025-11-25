@@ -131,6 +131,10 @@ use cost_optimization::{CostOptimizationAppState, cost_optimization_routes};
 mod cost_reports;
 use cost_reports::{CostReportsAppState, cost_reports_routes};
 
+// Historical Metrics module (US-09.5.4)
+mod historical_metrics;
+use historical_metrics::{HistoricalMetricsAppState, historical_metrics_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -213,6 +217,8 @@ struct AppState {
     cost_optimization_app_state: CostOptimizationAppState,
     // US-09.5.3: Cost Reports
     cost_reports_app_state: CostReportsAppState,
+    // US-09.5.4: Historical Metrics
+    historical_metrics_app_state: HistoricalMetricsAppState,
 }
 
 #[tokio::main]
@@ -431,6 +437,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: cost_reports_service,
     };
 
+    // Create historical metrics service
+    let historical_metrics_service = Arc::new(historical_metrics::HistoricalMetricsService::new());
+    let historical_metrics_app_state = HistoricalMetricsAppState {
+        service: historical_metrics_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -482,6 +494,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cost_optimization_router =
         cost_optimization_routes().with_state(cost_optimization_app_state.clone());
     let cost_reports_router = cost_reports_routes().with_state(cost_reports_app_state.clone());
+    let historical_metrics_router =
+        historical_metrics_routes().with_state(historical_metrics_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -509,6 +523,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         resource_pool_metrics_app_state,
         cost_optimization_app_state,
         cost_reports_app_state,
+        historical_metrics_app_state,
     };
 
     // Handler functions
@@ -966,6 +981,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", cost_optimization_router)
         // US-09.5.3: Cost Reports Routes
         .nest("/api/v1", cost_reports_router)
+        // US-09.5.4: Historical Metrics Routes
+        .nest("/api/v1", historical_metrics_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
