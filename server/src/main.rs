@@ -111,6 +111,10 @@ use scaling_policies::{ScalingPoliciesAppState, scaling_policies_routes};
 mod scaling_triggers;
 use scaling_triggers::{ScalingTriggersAppState, scaling_triggers_routes};
 
+// Cooldown Management module (US-09.4.3)
+mod cooldown_management;
+use cooldown_management::{CooldownsAppState, cooldowns_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -183,6 +187,8 @@ struct AppState {
     scaling_policies_app_state: ScalingPoliciesAppState,
     // US-09.4.2: Scaling Triggers
     scaling_triggers_app_state: ScalingTriggersAppState,
+    // US-09.4.3: Cooldown Management
+    cooldown_app_state: CooldownsAppState,
 }
 
 #[tokio::main]
@@ -370,6 +376,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: scaling_triggers_service,
     };
 
+    // Create cooldown management service
+    let cooldown_service = Arc::new(cooldown_management::CooldownsService::new());
+    let cooldown_app_state = CooldownsAppState {
+        service: cooldown_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -413,6 +425,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scaling_policies_routes().with_state(scaling_policies_app_state.clone());
     let scaling_triggers_router =
         scaling_triggers_routes().with_state(scaling_triggers_app_state.clone());
+    let cooldown_router = cooldowns_routes().with_state(cooldown_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -435,6 +448,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool_lifecycle_app_state,
         scaling_policies_app_state,
         scaling_triggers_app_state,
+        cooldown_app_state,
     };
 
     // Handler functions
@@ -882,6 +896,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", scaling_policies_router)
         // US-09.4.2: Scaling Triggers Routes
         .nest("/api/v1", scaling_triggers_router)
+        // US-09.4.3: Cooldown Management Routes
+        .nest("/api/v1", cooldown_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
