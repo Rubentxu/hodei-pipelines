@@ -375,9 +375,9 @@ mod tests {
             min_size: 1,
             max_size: 10,
             default_resources: hodei_shared_types::ResourceQuota {
-                cpu_cores: 2.0,
+                cpu_m: 2000,
                 memory_mb: 4096,
-                storage_gb: 100,
+                gpu: None,
             },
             tags: Some(HashMap::from([("env".to_string(), "test".to_string())])),
         };
@@ -401,9 +401,9 @@ mod tests {
             min_size: 2,
             max_size: 20,
             default_resources: hodei_shared_types::ResourceQuota {
-                cpu_cores: 4.0,
+                cpu_m: 4000,
                 memory_mb: 8192,
-                storage_gb: 200,
+                gpu: None,
             },
             tags: None,
         };
@@ -427,9 +427,9 @@ mod tests {
             min_size: 5,
             max_size: 5,
             default_resources: hodei_shared_types::ResourceQuota {
-                cpu_cores: 1.0,
+                cpu_m: 1000,
                 memory_mb: 2048,
-                storage_gb: 50,
+                gpu: None,
             },
             tags: None,
         };
@@ -441,9 +441,9 @@ mod tests {
             min_size: 0,
             max_size: 100,
             default_resources: hodei_shared_types::ResourceQuota {
-                cpu_cores: 8.0,
+                cpu_m: 8000,
                 memory_mb: 16384,
-                storage_gb: 500,
+                gpu: None,
             },
             tags: None,
         };
@@ -468,9 +468,9 @@ mod tests {
             min_size: 1,
             max_size: 10,
             default_resources: hodei_shared_types::ResourceQuota {
-                cpu_cores: 2.0,
+                cpu_m: 2000,
                 memory_mb: 4096,
-                storage_gb: 100,
+                gpu: None,
             },
             tags: None,
         };
@@ -503,9 +503,9 @@ mod tests {
             min_size: 1,
             max_size: 5,
             default_resources: hodei_shared_types::ResourceQuota {
-                cpu_cores: 2.0,
+                cpu_m: 2000,
                 memory_mb: 4096,
-                storage_gb: 100,
+                gpu: None,
             },
             tags: None,
         };
@@ -531,9 +531,9 @@ mod tests {
             min_size: 1,
             max_size: 10,
             default_resources: hodei_shared_types::ResourceQuota {
-                cpu_cores: 2.0,
+                cpu_m: 2000,
                 memory_mb: 4096,
-                storage_gb: 100,
+                gpu: None,
             },
             tags: None,
         };

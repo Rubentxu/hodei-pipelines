@@ -451,7 +451,7 @@ impl DynamicPoolManagementService {
 }
 
 /// Request to create a dynamic pool
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct CreateDynamicPoolRequest {
     pub name: String,
     pub provider_type: String,
@@ -470,7 +470,7 @@ pub struct CreateDynamicPoolRequest {
 }
 
 /// Scaling policy request
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ScalingPolicyRequest {
     pub policy_type: ScalingPolicyType,
     pub target_utilization: f64,

@@ -391,7 +391,7 @@ impl StaticPoolManagementService {
 }
 
 /// Request to create a static pool
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct CreateStaticPoolRequest {
     pub name: String,
     pub provider_type: String,

@@ -316,7 +316,7 @@ pub async fn get_violations_handler(
 pub fn sla_tracking_routes() -> Router<SLATrackingAppState> {
     Router::new()
         .route("/api/v1/sla/register", post(register_job_handler))
-        .route("/api/v1/sla/status/:job_id", get(get_status_handler))
+        .route("/api/v1/sla/status/{job_id}", get(get_status_handler))
         .route("/api/v1/sla/stats", get(get_stats_handler))
         .route("/api/v1/sla/metrics", get(get_metrics_handler))
         .route("/api/v1/sla/violations", get(get_violations_handler))

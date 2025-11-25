@@ -351,8 +351,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_overall_status() {
-        let prioritization_engine = Arc::new(RwLock::new(QueuePrioritizationEngine::new()));
-        let wfq_engine = Arc::new(RwLock::new(WeightedFairQueueingEngine::new()));
+        let sla_tracker = Arc::new(hodei_modules::sla_tracking::SLATracker::new());
+        let prioritization_engine =
+            Arc::new(RwLock::new(QueuePrioritizationEngine::new(sla_tracker)));
+        let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig::default();
+        let wfq_engine = Arc::new(RwLock::new(WeightedFairQueueingEngine::new(wfq_config)));
 
         let service = QueueStatusService::new(prioritization_engine, wfq_engine);
         let status = service.get_overall_status().await.unwrap();
@@ -363,8 +366,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_queue_depth() {
-        let prioritization_engine = Arc::new(RwLock::new(QueuePrioritizationEngine::new()));
-        let wfq_engine = Arc::new(RwLock::new(WeightedFairQueueingEngine::new()));
+        let sla_tracker = Arc::new(hodei_modules::sla_tracking::SLATracker::new());
+        let prioritization_engine =
+            Arc::new(RwLock::new(QueuePrioritizationEngine::new(sla_tracker)));
+        let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig::default();
+        let wfq_engine = Arc::new(RwLock::new(WeightedFairQueueingEngine::new(wfq_config)));
 
         let service = QueueStatusService::new(prioritization_engine, wfq_engine);
         let depths = service.get_queue_depth().await.unwrap();
@@ -374,8 +380,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_queue_health() {
-        let prioritization_engine = Arc::new(RwLock::new(QueuePrioritizationEngine::new()));
-        let wfq_engine = Arc::new(RwLock::new(WeightedFairQueueingEngine::new()));
+        let sla_tracker = Arc::new(hodei_modules::sla_tracking::SLATracker::new());
+        let prioritization_engine =
+            Arc::new(RwLock::new(QueuePrioritizationEngine::new(sla_tracker)));
+        let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig::default();
+        let wfq_engine = Arc::new(RwLock::new(WeightedFairQueueingEngine::new(wfq_config)));
 
         let service = QueueStatusService::new(prioritization_engine, wfq_engine);
         let health = service.get_queue_health().await.unwrap();
@@ -386,8 +395,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_queue_statistics() {
-        let prioritization_engine = Arc::new(RwLock::new(QueuePrioritizationEngine::new()));
-        let wfq_engine = Arc::new(RwLock::new(WeightedFairQueueingEngine::new()));
+        let sla_tracker = Arc::new(hodei_modules::sla_tracking::SLATracker::new());
+        let prioritization_engine =
+            Arc::new(RwLock::new(QueuePrioritizationEngine::new(sla_tracker)));
+        let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig::default();
+        let wfq_engine = Arc::new(RwLock::new(WeightedFairQueueingEngine::new(wfq_config)));
 
         let service = QueueStatusService::new(prioritization_engine, wfq_engine);
         let stats = service.get_queue_statistics().await.unwrap();

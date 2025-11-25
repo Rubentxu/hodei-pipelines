@@ -499,19 +499,22 @@ pub async fn check_quota_handler(
 pub fn resource_quotas_routes() -> Router<ResourceQuotasAppState> {
     Router::new()
         .route(
-            "/tenants/:tenant_id/quota/info",
+            "/tenants/{tenant_id}/quota/info",
             get(get_quota_info_handler),
         )
         .route(
-            "/tenants/:tenant_id/quota/default",
+            "/tenants/{tenant_id}/quota/default",
             get(get_default_quota_handler),
         )
         .route(
-            "/tenants/:tenant_id/pools/:pool_id/quota",
+            "/tenants/{tenant_id}/pools/{pool_id}/quota",
             put(set_pool_quota_handler),
         )
-        .route("/tenants/:tenant_id/usage", get(get_usage_handler))
-        .route("/tenants/:tenant_id/quota/check", post(check_quota_handler))
+        .route("/tenants/{tenant_id}/usage", get(get_usage_handler))
+        .route(
+            "/tenants/{tenant_id}/quota/check",
+            post(check_quota_handler),
+        )
 }
 
 #[cfg(test)]

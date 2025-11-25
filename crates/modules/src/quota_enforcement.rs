@@ -5,6 +5,7 @@
 
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
@@ -83,7 +84,7 @@ pub struct PreemptionCandidate {
 /// Quota enforcement engine
 #[derive(Debug)]
 pub struct QuotaEnforcementEngine {
-    quota_manager: MultiTenancyQuotaManager,
+    quota_manager: Arc<MultiTenancyQuotaManager>,
     policy: EnforcementPolicy,
     queued_requests: HashMap<TenantId, Vec<QueuedRequest>>,
     stats: EnforcementStats,
@@ -110,7 +111,7 @@ pub enum EnforcementError {
 
 impl QuotaEnforcementEngine {
     /// Create a new quota enforcement engine
-    pub fn new(quota_manager: MultiTenancyQuotaManager, policy: EnforcementPolicy) -> Self {
+    pub fn new(quota_manager: Arc<MultiTenancyQuotaManager>, policy: EnforcementPolicy) -> Self {
         Self {
             quota_manager,
             policy,
@@ -517,7 +518,7 @@ mod tests {
         );
         let policy = EnforcementPolicy::default();
 
-        let engine = QuotaEnforcementEngine::new(quota_manager, policy);
+        let engine = QuotaEnforcementEngine::new(Arc::new(quota_manager), policy);
 
         let stats = engine.get_stats();
         assert_eq!(stats.total_requests, 0);
@@ -536,7 +537,7 @@ mod tests {
         quota_manager.register_tenant(quota).await.unwrap();
 
         let policy = EnforcementPolicy::default();
-        let mut engine = QuotaEnforcementEngine::new(quota_manager, policy);
+        let mut engine = QuotaEnforcementEngine::new(Arc::new(quota_manager), policy);
 
         // Evaluate request within quota
         let request = create_test_request("tenant-1", 10);
@@ -568,7 +569,7 @@ mod tests {
         policy.strict_mode = true;
         policy.queue_on_violation = false;
 
-        let mut engine = QuotaEnforcementEngine::new(quota_manager, policy);
+        let mut engine = QuotaEnforcementEngine::new(Arc::new(quota_manager), policy);
 
         // Allocate resources first to reach limit
         let request = create_test_request("tenant-1", 100); // Max limit
@@ -608,7 +609,7 @@ mod tests {
             queue_on_violation: true,
             ..Default::default()
         };
-        let mut engine = QuotaEnforcementEngine::new(quota_manager, policy);
+        let mut engine = QuotaEnforcementEngine::new(Arc::new(quota_manager), policy);
 
         // Allocate resources first
         let request = create_test_request("tenant-1", 100); // Max limit
@@ -645,7 +646,7 @@ mod tests {
         quota_manager.register_tenant(quota).await.unwrap();
 
         let policy = EnforcementPolicy::default();
-        let mut engine = QuotaEnforcementEngine::new(quota_manager, policy);
+        let mut engine = QuotaEnforcementEngine::new(Arc::new(quota_manager), policy);
 
         // Queue a request
         let request = create_test_request("tenant-1", 10);
@@ -672,7 +673,7 @@ mod tests {
         quota_manager.register_tenant(quota).await.unwrap();
 
         let policy = EnforcementPolicy::default();
-        let mut engine = QuotaEnforcementEngine::new(quota_manager, policy);
+        let mut engine = QuotaEnforcementEngine::new(Arc::new(quota_manager), policy);
 
         // Admit request
         let request = create_test_request("tenant-1", 10);
@@ -697,7 +698,7 @@ mod tests {
         let mut policy = EnforcementPolicy::default();
         policy.queue_on_violation = true;
         policy.max_queue_size = 10;
-        let mut engine = QuotaEnforcementEngine::new(quota_manager, policy);
+        let mut engine = QuotaEnforcementEngine::new(Arc::new(quota_manager), policy);
 
         // Queue multiple requests
         for i in 0..5 {

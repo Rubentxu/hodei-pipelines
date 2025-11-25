@@ -246,11 +246,7 @@ impl<T> ApiResponseDto<T> {
 impl QuotaEnforcementService {
     /// Create new quota enforcement service
     pub fn new(quota_manager: Arc<MultiTenancyQuotaManager>, policy: EnforcementPolicy) -> Self {
-        let quota_manager_clone = Arc::clone(&quota_manager);
-        let quota_manager_inner =
-            Arc::try_unwrap(quota_manager_clone).unwrap_or_else(|_| unreachable!());
-
-        let enforcement_engine = QuotaEnforcementEngine::new(quota_manager_inner, policy);
+        let enforcement_engine = QuotaEnforcementEngine::new(quota_manager, policy);
 
         Self {
             enforcement_engine: Arc::new(tokio::sync::Mutex::new(enforcement_engine)),
@@ -451,11 +447,11 @@ pub fn quota_enforcement_routes() -> Router<QuotaEnforcementAppState> {
         .route("/api/v1/quotas/enforce/admit", post(admit_request_handler))
         .route("/api/v1/enforcement/stats", get(get_stats_handler))
         .route(
-            "/api/v1/tenants/:tenant_id/enforcement/queued",
+            "/api/v1/tenants/{tenant_id}/enforcement/queued",
             get(get_queued_requests_handler),
         )
         .route(
-            "/api/v1/tenants/:tenant_id/enforcement/clear",
+            "/api/v1/tenants/{tenant_id}/enforcement/clear",
             post(clear_queue_handler),
         )
         .route(
@@ -469,11 +465,49 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
-    use hodei_modules::multi_tenancy_quota_manager::{QuotaManagerConfig, TenantQuota};
+    use chrono::Utc;
+    use hodei_modules::multi_tenancy_quota_manager::{
+        BillingTier, BurstPolicy, QuotaLimits, QuotaManagerConfig, QuotaType, TenantQuota,
+    };
+    use std::time::Duration;
     use tower::ServiceExt;
 
-    fn create_test_app_state() -> QuotaEnforcementAppState {
+    async fn create_test_app_state() -> QuotaEnforcementAppState {
         let quota_manager = Arc::new(MultiTenancyQuotaManager::new(QuotaManagerConfig::default()));
+
+        // Create a test tenant with sufficient resources
+        let test_quota = TenantQuota {
+            tenant_id: "tenant-1".to_string(),
+            limits: QuotaLimits {
+                max_cpu_cores: 1000,
+                max_memory_mb: 10240,
+                max_concurrent_workers: 100,
+                max_concurrent_jobs: 50,
+                max_daily_cost: 1000.0,
+                max_monthly_jobs: 10000,
+            },
+            pool_access: HashMap::new(),
+            burst_policy: BurstPolicy {
+                allowed: true,
+                max_burst_multiplier: 2.0,
+                burst_duration: Duration::from_secs(300),
+                cooldown_period: Duration::from_secs(600),
+                max_bursts_per_day: 10,
+            },
+            billing_tier: BillingTier::Standard,
+            quota_type: QuotaType::HardLimit,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        // Register the test tenant
+        // Note: We're in a test context, so we need to handle this properly
+        let quota_manager_clone = Arc::clone(&quota_manager);
+        quota_manager_clone
+            .register_tenant(test_quota)
+            .await
+            .unwrap();
+
         let policy = EnforcementPolicy {
             strict_mode: false,
             queue_on_violation: true,
@@ -491,7 +525,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_evaluate_admission_allowed() {
-        let state = create_test_app_state();
+        let state = create_test_app_state().await;
 
         let request = ResourceRequestDto {
             tenant_id: "tenant-1".to_string(),
@@ -512,7 +546,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_admit_request() {
-        let state = create_test_app_state();
+        let state = create_test_app_state().await;
 
         let request = ResourceRequestDto {
             tenant_id: "tenant-1".to_string(),
@@ -530,7 +564,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_stats() {
-        let state = create_test_app_state();
+        let state = create_test_app_state().await;
 
         let result = state.service.get_stats().await;
         assert!(result.is_ok());
@@ -541,7 +575,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_queued_requests_empty() {
-        let state = create_test_app_state();
+        let state = create_test_app_state().await;
 
         let result = state.service.get_queued_requests("tenant-1").await;
         assert!(result.is_ok());
@@ -554,7 +588,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_clear_queue() {
-        let state = create_test_app_state();
+        let state = create_test_app_state().await;
 
         // Clear non-existent queue should succeed
         let result = state.service.clear_queue("tenant-1").await;
@@ -563,7 +597,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_queued_requests() {
-        let state = create_test_app_state();
+        let state = create_test_app_state().await;
 
         let result = state.service.process_queued_requests().await;
         assert!(result.is_ok());
@@ -571,8 +605,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_api_endpoints() {
-        let state = create_test_app_state();
-        let app = quota_enforcement_routes(state.clone());
+        let state = create_test_app_state().await;
+        let app = quota_enforcement_routes().with_state(state);
 
         // Test stats endpoint
         let response = app
@@ -621,8 +655,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_evaluate_admission_api() {
-        let state = create_test_app_state();
-        let app = quota_enforcement_routes(state.clone());
+        let state = create_test_app_state().await;
+        let app = quota_enforcement_routes().with_state(state);
 
         let request_body = serde_json::to_string(&ResourceRequestDto {
             tenant_id: "tenant-1".to_string(),
@@ -653,8 +687,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_admit_request_api() {
-        let state = create_test_app_state();
-        let app = quota_enforcement_routes(state.clone());
+        let state = create_test_app_state().await;
+        let app = quota_enforcement_routes().with_state(state);
 
         let request_body = serde_json::to_string(&ResourceRequestDto {
             tenant_id: "tenant-1".to_string(),
@@ -685,8 +719,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_queued_requests_api() {
-        let state = create_test_app_state();
-        let app = quota_enforcement_routes(state.clone());
+        let state = create_test_app_state().await;
+        let app = quota_enforcement_routes().with_state(state);
 
         let response = app
             .clone()

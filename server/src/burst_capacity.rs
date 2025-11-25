@@ -449,16 +449,16 @@ pub struct BurstCapacityCheckResponse {
 pub fn burst_capacity_routes() -> Router<BurstCapacityAppState> {
     Router::new()
         .route(
-            "/api/v1/tenants/:tenant_id/burst/request",
+            "/api/v1/tenants/{tenant_id}/burst/request",
             post(request_burst_handler),
         )
         .route(
-            "/api/v1/tenants/:tenant_id/burst/sessions",
+            "/api/v1/tenants/{tenant_id}/burst/sessions",
             get(get_tenant_sessions_handler),
         )
         .route("/api/v1/burst/sessions", get(get_all_sessions_handler))
         .route(
-            "/api/v1/burst/sessions/:session_id",
+            "/api/v1/burst/sessions/{session_id}",
             delete(terminate_session_handler),
         )
         .route("/api/v1/burst/stats", get(get_stats_handler))

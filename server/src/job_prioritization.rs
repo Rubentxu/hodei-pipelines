@@ -499,7 +499,7 @@ pub fn job_prioritization_routes() -> Router<JobPrioritizationAppState> {
         .route("/api/v1/jobs/prioritize", post(prioritize_job_handler))
         .route("/api/v1/jobs/next", get(get_next_job_handler))
         .route(
-            "/api/v1/jobs/:job_id/preemption-candidates",
+            "/api/v1/jobs/{job_id}/preemption-candidates",
             post(check_preemption_candidates_handler),
         )
         .route("/api/v1/jobs/preemption", post(execute_preemption_handler))
@@ -512,7 +512,7 @@ pub fn job_prioritization_routes() -> Router<JobPrioritizationAppState> {
             "/api/v1/jobs/prioritization/clear",
             post(clear_queue_handler),
         )
-        .route("/api/v1/jobs/:job_id", delete(remove_job_handler))
+        .route("/api/v1/jobs/{job_id}", delete(remove_job_handler))
 }
 
 #[cfg(test)]
