@@ -143,6 +143,10 @@ use prometheus_integration::{PrometheusIntegrationAppState, prometheus_integrati
 mod grafana_dashboards;
 use grafana_dashboards::{GrafanaDashboardsAppState, grafana_dashboards_routes};
 
+// Alerting Rules module (US-09.6.3)
+mod alerting_rules;
+use alerting_rules::{AlertingRulesAppState, alerting_rules_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -231,6 +235,8 @@ struct AppState {
     prometheus_integration_app_state: PrometheusIntegrationAppState,
     // US-09.6.2: Grafana Dashboards
     grafana_dashboards_app_state: GrafanaDashboardsAppState,
+    // US-09.6.3: Alerting Rules
+    alerting_rules_app_state: AlertingRulesAppState,
 }
 
 #[tokio::main]
@@ -468,6 +474,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: grafana_dashboards_service,
     };
 
+    // Create alerting rules service
+    let alerting_rules_service = Arc::new(alerting_rules::AlertingRulesService::new());
+    let alerting_rules_app_state = AlertingRulesAppState {
+        service: alerting_rules_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -525,6 +537,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         prometheus_integration_routes().with_state(prometheus_integration_app_state.clone());
     let grafana_dashboards_router =
         grafana_dashboards_routes().with_state(grafana_dashboards_app_state.clone());
+    let alerting_rules_router =
+        alerting_rules_routes().with_state(alerting_rules_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -555,6 +569,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         historical_metrics_app_state,
         prometheus_integration_app_state,
         grafana_dashboards_app_state,
+        alerting_rules_app_state,
     };
 
     // Handler functions
@@ -1018,6 +1033,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", prometheus_integration_router)
         // US-09.6.2: Grafana Dashboards Routes
         .nest("/api/v1", grafana_dashboards_router)
+        // US-09.6.3: Alerting Rules Routes
+        .nest("/api/v1", alerting_rules_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
