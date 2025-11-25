@@ -28,7 +28,11 @@ sqlx = ["dep:sqlx"]
 dashmap = ["dep:dashmap"]
 serde = []
 sysinfo = ["dep:sysinfo"]
+# Integration tests require PostgreSQL
+event-store-tests = ["sqlx"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+
+# Test dependencies

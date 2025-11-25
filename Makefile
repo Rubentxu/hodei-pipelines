@@ -3,7 +3,7 @@
 # Comandos comunes para Docker y desarrollo
 # ========================================
 
-.PHONY: help build build-all up up-workers up down logs clean test launch launch-full
+.PHONY: help build build-all up up-workers up down logs clean test test-all test-unit test-integration launch launch-full
 
 # Colores para output
 RED=\033[0;31m
@@ -257,6 +257,71 @@ clean-images: ## Eliminar imágenes del proyecto
 
 clean-all: clean clean-volumes clean-images ## Limpiar TODO (contenedores, imágenes, volúmenes)
 	@echo "$(GREEN)Limpieza total completada$(NC)"
+
+# ========================================
+# Testing
+# ========================================
+test: test-unit ## Ejecutar unit tests (por defecto, rápido)
+	@echo ""
+	@echo "$(GREEN)✅ Unit tests completados$(NC)"
+	@echo "$(YELLOW)💡 Para tests completos, ejecuta: make test-all$(NC)"
+
+test-unit: ## Ejecutar solo unit tests (sin PostgreSQL, muy rápido)
+	@echo "$(BLUE)🧪 Ejecutando unit tests...$(NC)"
+	@echo ""
+	cargo test --lib
+	@echo ""
+	@echo "$(GREEN)✅ Unit tests completados$(NC)"
+
+test-integration: ## Ejecutar integration tests (requiere PostgreSQL)
+	@echo "$(BLUE)🧪 Ejecutando integration tests con Event Store...$(NC)"
+	@echo "$(YELLOW)⚠️  Levantando PostgreSQL...$(NC)"
+	@docker run -d --name hodei-postgres-test \
+		-e POSTGRES_PASSWORD=testpass \
+		-e POSTGRES_USER=testuser \
+		-e POSTGRES_DB=hodei_test \
+		-p 5433:5432 \
+		postgres:15 > /dev/null 2>&1 || true
+	@sleep 5
+	@export DATABASE_URL="postgres://testuser:testpass@localhost:5433/hodei_test" && \
+	cargo test -p hodei-core --test event_store_tests --features event-store-tests
+	@echo "$(YELLOW)🧹 Limpiando PostgreSQL...$(NC)"
+	@docker stop hodei-postgres-test > /dev/null 2>&1 || true
+	@docker rm hodei-postgres-test > /dev/null 2>&1 || true
+	@echo "$(GREEN)✅ Integration tests completados$(NC)"
+
+test-all: ## Ejecutar TODOS los tests (unit + integration)
+	@echo "$(BLUE)🧪 Ejecutando TODOS los tests...$(NC)"
+	@echo "$(YELLOW)⚠️  Levantando PostgreSQL...$(NC)"
+	@docker run -d --name hodei-postgres-test \
+		-e POSTGRES_PASSWORD=testpass \
+		-e POSTGRES_USER=testuser \
+		-e POSTGRES_DB=hodei_test \
+		-p 5433:5432 \
+		postgres:15 > /dev/null 2>&1 || true
+	@sleep 5
+	@export DATABASE_URL="postgres://testuser:testpass@localhost:5433/hodei_test" && \
+	cargo test --workspace --features event-store-tests
+	TEST_RESULT=$$?; \
+	echo "$(YELLOW)🧹 Limpiando PostgreSQL...$(NC)"; \
+	docker stop hodei-postgres-test > /dev/null 2>&1 || true; \
+	docker rm hodei-postgres-test > /dev/null 2>&1 || true; \
+	if [ $$TEST_RESULT -eq 0 ]; then \
+		echo ""; \
+		echo "$(GREEN)✅ TODOS LOS TESTS PASARON!$(NC)"; \
+		echo "$(GREEN)🎉 ¡El workspace está 100% funcional!$(NC)"; \
+	else \
+		exit $$TEST_RESULT; \
+	fi
+
+test-watch: ## Ejecutar tests en modo watch (requiere cargo-watch)
+	@echo "$(BLUE)👀 Ejecutando tests en modo watch...$(NC)"
+	@if command -v cargo-watch > /dev/null; then \
+		cargo-watch -x test; \
+	else \
+		echo "$(RED)Error: cargo-watch no está instalado$(NC)"; \
+		echo "Instala con: cargo install cargo-watch"; \
+	fi
 
 # ========================================
 # Monitoreo
