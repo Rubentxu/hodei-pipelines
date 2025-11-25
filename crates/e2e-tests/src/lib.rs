@@ -1,4 +1,4 @@
-//! E2E Testing Framework for Hodei Jobs Platform
+//! E2E Testing Framework for Hodei Pipelines Platform
 
 pub mod helpers;
 pub mod infrastructure;

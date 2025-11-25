@@ -1,5 +1,5 @@
 # ========================================
-# Makefile para Hodei Jobs Server
+# Makefile para Hodei Pipelines Server
 # Comandos comunes para Docker y desarrollo
 # ========================================
 
@@ -23,7 +23,7 @@ CONTAINER_NAME=hodei-server
 launch: build-all up-workers ## 🚀 Comando principal: Compilar y lanzar aplicación completa
 	@echo ""
 	@echo "$(GREEN)========================================$(NC)"
-	@echo "$(GREEN)   ¡Hodei Jobs Server está listo!   $(NC)"
+	@echo "$(GREEN)   ¡Hodei Pipelines Server está listo!   $(NC)"
 	@echo "$(GREEN)========================================$(NC)"
 	@echo ""
 	@echo "$(BLUE)🌐 Accesos:$(NC)"
@@ -62,7 +62,7 @@ launch-full: build-all up-workers-with-monitoring ## 🚀 Launch completo con mo
 # ========================================
 help: ## Mostrar ayuda
 	@echo "$(BLUE)========================================$(NC)"
-	@echo "$(BLUE)   Hodei Jobs Server - Comandos Docker   $(NC)"
+	@echo "$(BLUE)   Hodei Pipelines Server - Comandos Docker   $(NC)"
 	@echo "$(BLUE)========================================$(NC)"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-35s$(NC) %s\n", $$1, $$2}'
@@ -294,7 +294,7 @@ version: ## Mostrar versiones
 
 info: ## Mostrar información completa del sistema
 	@echo "$(BLUE)========================================$(NC)"
-	@echo "$(BLUE)   Hodei Jobs Server - Info del Sistema   $(NC)"
+	@echo "$(BLUE)   Hodei Pipelines Server - Info del Sistema   $(NC)"
 	@echo "$(BLUE)========================================$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Servicios Activos:$(NC)"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========================================
-# Script de inicio rápido para Hodei Jobs
+# Script de inicio rápido para Hodei Pipelines
 # Levanta la aplicación con Docker Compose
 # ========================================
 
@@ -21,7 +21,7 @@ print_message() {
 
 # Banner
 print_message $BLUE "========================================"
-print_message $BLUE "   Hodei Jobs Server - Quick Start"
+print_message $BLUE "   Hodei Pipelines Server - Quick Start"
 print_message $BLUE "========================================"
 echo ""
 

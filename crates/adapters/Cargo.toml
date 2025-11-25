@@ -3,7 +3,7 @@ name = "hodei-adapters"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Adapters (infrastructure implementations) for Hodei Jobs"
+description = "Adapters (infrastructure implementations) for Hodei Pipelines"
 license.workspace = true
 repository.workspace = true
 

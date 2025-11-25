@@ -355,7 +355,7 @@ impl GrafanaDashboardsService {
             "overwrite": true,
             "inputs": [],
             "folderId": null,
-            "message": "Updated by Hodei Jobs"
+            "message": "Updated by Hodei Pipelines"
         });
 
         Ok(json)

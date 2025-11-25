@@ -2,7 +2,7 @@
 
 ## 📋 Epic Overview
 
-This document defines EPIC-09, which focuses on integrating the comprehensive Resource Pool Architecture (EPIC-08) into the Hodei Jobs Server API. This epic will expose all new capabilities through REST API endpoints, gRPC services, and monitoring integrations.
+This document defines EPIC-09, which focuses on integrating the comprehensive Resource Pool Architecture (EPIC-08) into the Hodei Pipelines Server API. This epic will expose all new capabilities through REST API endpoints, gRPC services, and monitoring integrations.
 
 **Epic Duration**: 10 weeks
 **Total User Stories**: 22 stories

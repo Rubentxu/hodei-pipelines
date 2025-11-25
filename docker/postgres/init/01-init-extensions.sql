@@ -1,6 +1,6 @@
 -- ========================================
 -- Script de inicialización de PostgreSQL
--- Crear extensiones y usuario para Hodei Jobs
+-- Crear extensiones y usuario para Hodei Pipelines
 -- ========================================
 
 -- Crear extensión para UUID

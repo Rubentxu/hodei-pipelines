@@ -3,7 +3,7 @@ name = "hodei-core"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Domain core for Hodei Jobs - pure business logic"
+description = "Domain core for Hodei Pipelines - pure business logic"
 license.workspace = true
 repository.workspace = true
 

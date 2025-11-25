@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-**EPIC-09** integrates the comprehensive Resource Pool Architecture (EPIC-08) into the Hodei Jobs Server API. This provides multi-tenancy, fair scheduling, cost optimization, and full observability.
+**EPIC-09** integrates the comprehensive Resource Pool Architecture (EPIC-08) into the Hodei Pipelines Server API. This provides multi-tenancy, fair scheduling, cost optimization, and full observability.
 
 **Status**: 🏁 In Progress
 **Current Focus**: US-09.1.1 - Tenant Management API

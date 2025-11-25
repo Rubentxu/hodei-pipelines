@@ -3,7 +3,7 @@ name = "hodei-ports"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Ports (traits) for Hodei Jobs hexagonal architecture"
+description = "Ports (traits) for Hodei Pipelines hexagonal architecture"
 license.workspace = true
 repository.workspace = true
 

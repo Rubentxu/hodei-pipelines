@@ -1,6 +1,6 @@
-# Hodei Jobs
+# Hodei Pipelines
 
-[![Build Status](https://github.com/Rubentxu/hodei-jobs/actions/workflows/ci.yml/badge.svg)](https://github.com/Rubentxu/hodei-jobs/actions)
+[![Build Status](https://github.com/Rubentxu/hodei-pipelines/actions/workflows/ci.yml/badge.svg)](https://github.com/Rubentxu/hodei-pipelines/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A high-performance, distributed job orchestration system built in Rust with hexagonal architecture.

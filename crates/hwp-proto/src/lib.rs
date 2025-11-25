@@ -1,7 +1,7 @@
 //! Hodei Worker Protocol (HWP) Protobuf Definitions
 //!
 //! This crate contains the Protocol Buffer definitions for the HWP protocol,
-//! which is used for communication between the Hodei Jobs server and worker agents.
+//! which is used for communication between the Hodei Pipelines server and worker agents.
 
 pub mod pb {
     tonic::include_proto!("hwp");

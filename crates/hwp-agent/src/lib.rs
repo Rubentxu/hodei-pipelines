@@ -1,4 +1,4 @@
-//! HWP Agent - Lightweight Worker Agent for Hodei Jobs
+//! HWP Agent - Lightweight Worker Agent for Hodei Pipelines
 //!
 //! This crate implements the HWP (Hodei Worker Protocol) agent that runs
 //! inside containers/VMs and connects to the Hodei server via gRPC.

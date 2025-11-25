@@ -2,7 +2,7 @@
 
 ## 🎯 Executive Summary
 
-We have successfully completed EPIC-08 (Resource Pool Architecture Implementation) with **231 tests passing** and **100% compilation success**. Now we need to integrate this comprehensive functionality into the Hodei Jobs Server crate through EPIC-09.
+We have successfully completed EPIC-08 (Resource Pool Architecture Implementation) with **231 tests passing** and **100% compilation success**. Now we need to integrate this comprehensive functionality into the Hodei Pipelines Server crate through EPIC-09.
 
 This document outlines the complete integration plan, required changes, and next steps.
 

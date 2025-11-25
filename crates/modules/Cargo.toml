@@ -3,7 +3,7 @@ name = "hodei-modules"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Application modules for Hodei Jobs - use cases"
+description = "Application modules for Hodei Pipelines - use cases"
 license.workspace = true
 repository.workspace = true
 

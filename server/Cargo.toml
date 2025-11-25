@@ -3,7 +3,7 @@ name = "hodei-server"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Hodei Jobs Server - Monolithic Modular Architecture"
+description = "Hodei Pipelines Server - Monolithic Modular Architecture"
 license.workspace = true
 repository.workspace = true
 

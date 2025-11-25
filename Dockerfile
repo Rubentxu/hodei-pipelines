@@ -1,5 +1,5 @@
 # ========================================
-# Dockerfile para Hodei Jobs Server
+# Dockerfile para Hodei Pipelines Server
 # Arquitectura: Multi-stage build para optimización
 # ========================================
 

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Stop all Hodei Jobs services
+# Stop all Hodei Pipelines services
 
-echo "🛑 Stopping Hodei Jobs Platform Services"
+echo "🛑 Stopping Hodei Pipelines Platform Services"
 echo "========================================"
 
 # Kill processes by name

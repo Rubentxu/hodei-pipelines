@@ -227,10 +227,10 @@ impl PrometheusIntegrationService {
 
     /// Get metrics endpoint for Prometheus scraping
     pub async fn get_metrics_endpoint(&self) -> String {
-        "# HELP hodei_jobs_info Hodei Jobs information\n".to_string()
+        "# HELP hodei_jobs_info Hodei Pipelines information\n".to_string()
             + "# TYPE hodei_jobs_info gauge\n"
             + "hodei_jobs_info{version=\"0.1.0\",build=\"dev\"} 1\n\n"
-            + "# HELP hodei_jobs_uptime Hodei Jobs uptime in seconds\n"
+            + "# HELP hodei_jobs_uptime Hodei Pipelines uptime in seconds\n"
             + "# TYPE hodei_jobs_uptime gauge\n"
             + "hodei_jobs_uptime 3600\n\n"
             + "# HELP hodei_jobs_jobs_total Total number of jobs\n"

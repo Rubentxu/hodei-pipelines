@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========================================
-# API Testing Script para Hodei Jobs
+# API Testing Script para Hodei Pipelines
 # Probar endpoints de la API
 # ========================================
 
@@ -235,7 +235,7 @@ test_openapi() {
 
 # Menú principal
 show_menu() {
-    print_header "API Testing - Hodei Jobs"
+    print_header "API Testing - Hodei Pipelines"
 
     echo "Selecciona qué test ejecutar:"
     echo "1)  Health Check"

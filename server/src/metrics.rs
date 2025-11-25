@@ -1,4 +1,4 @@
-//! Prometheus Metrics for Hodei Jobs Server
+//! Prometheus Metrics for Hodei Pipelines Server
 //!
 //! This module provides comprehensive metrics collection and export for Prometheus.
 

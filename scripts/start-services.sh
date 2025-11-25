@@ -1,9 +1,9 @@
 #!/bin/bash
-# Quick start script for all Hodei Jobs services
+# Quick start script for all Hodei Pipelines services
 
 set -e
 
-echo "🚀 Starting Hodei Jobs Platform Services"
+echo "🚀 Starting Hodei Pipelines Platform Services"
 echo "========================================"
 
 # Check if binaries exist

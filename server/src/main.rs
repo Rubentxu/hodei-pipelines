@@ -1,4 +1,4 @@
-//! Hodei Jobs Server - Monolithic Modular Architecture with OpenAPI Documentation
+//! Hodei Pipelines Server - Monolithic Modular Architecture with OpenAPI Documentation
 //!
 //! # API Documentation
 //!
@@ -249,7 +249,7 @@ struct AppState {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    info!("🚀 Starting Hodei Jobs Server");
+    info!("🚀 Starting Hodei Pipelines Server");
     info!("📚 API Documentation: http://localhost:8080/api/docs");
     info!("🔗 OpenAPI Spec: http://localhost:8080/api/openapi.json");
 
@@ -965,9 +965,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Json(json!({
                 "openapi": "3.0.0",
                 "info": {
-                    "title": "Hodei Jobs API",
+                    "title": "Hodei Pipelines API",
                     "version": "1.0.0",
-                    "description": "API para gestionar jobs, workers y pipelines en el sistema Hodei Jobs"
+                    "description": "API para gestionar jobs, workers y pipelines en el sistema Hodei Pipelines"
                 },
                 "paths": {},
                 "components": {

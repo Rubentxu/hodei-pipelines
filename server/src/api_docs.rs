@@ -1,6 +1,6 @@
 //! API Documentation using OpenAPI 3.0 with utoipa
 //!
-//! This module provides comprehensive API documentation for the Hodei Jobs API.
+//! This module provides comprehensive API documentation for the Hodei Pipelines API.
 //! Access the interactive Swagger UI at: http://localhost:8080/api/docs
 
 use chrono::{DateTime, Utc};
