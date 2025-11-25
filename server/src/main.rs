@@ -147,6 +147,10 @@ use grafana_dashboards::{GrafanaDashboardsAppState, grafana_dashboards_routes};
 mod alerting_rules;
 use alerting_rules::{AlertingRulesAppState, alerting_rules_routes};
 
+// Observability API module (US-09.6.4)
+mod observability_api;
+use observability_api::{ObservabilityApiAppState, observability_api_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -237,6 +241,8 @@ struct AppState {
     grafana_dashboards_app_state: GrafanaDashboardsAppState,
     // US-09.6.3: Alerting Rules
     alerting_rules_app_state: AlertingRulesAppState,
+    // US-09.6.4: Observability API
+    observability_api_app_state: ObservabilityApiAppState,
 }
 
 #[tokio::main]
@@ -480,6 +486,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: alerting_rules_service,
     };
 
+    // Create observability API service
+    let observability_api_service = Arc::new(observability_api::ObservabilityApiService::new());
+    let observability_api_app_state = ObservabilityApiAppState {
+        service: observability_api_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -539,6 +551,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         grafana_dashboards_routes().with_state(grafana_dashboards_app_state.clone());
     let alerting_rules_router =
         alerting_rules_routes().with_state(alerting_rules_app_state.clone());
+    let observability_api_router =
+        observability_api_routes().with_state(observability_api_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -570,6 +584,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         prometheus_integration_app_state,
         grafana_dashboards_app_state,
         alerting_rules_app_state,
+        observability_api_app_state,
     };
 
     // Handler functions
@@ -1035,6 +1050,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", grafana_dashboards_router)
         // US-09.6.3: Alerting Rules Routes
         .nest("/api/v1", alerting_rules_router)
+        // US-09.6.4: Observability API Routes
+        .nest("/api/v1", observability_api_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
