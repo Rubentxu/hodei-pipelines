@@ -68,6 +68,12 @@ use quota_enforcement::{
 mod burst_capacity;
 use burst_capacity::{BurstCapacityAppState, BurstCapacityService, burst_capacity_routes};
 
+// Job Prioritization module (US-09.2.1)
+mod job_prioritization;
+use job_prioritization::{
+    JobPrioritizationAppState, JobPrioritizationService, job_prioritization_routes,
+};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -120,6 +126,8 @@ struct AppState {
     quota_enforcement_app_state: QuotaEnforcementAppState,
     // US-09.1.4: Burst Capacity
     burst_capacity_app_state: BurstCapacityAppState,
+    // US-09.2.1: Job Prioritization
+    job_prioritization_app_state: JobPrioritizationAppState,
 }
 
 #[tokio::main]
@@ -233,6 +241,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: burst_capacity_service,
     };
 
+    // Create job prioritization service
+    let sla_tracker = Arc::new(hodei_modules::sla_tracking::SLATracker::new());
+    let prioritization_engine =
+        hodei_modules::queue_prioritization::QueuePrioritizationEngine::new(sla_tracker);
+    let job_prioritization_service = JobPrioritizationService::new(prioritization_engine);
+    let job_prioritization_app_state = JobPrioritizationAppState {
+        service: job_prioritization_service,
+    };
+
     // Create routes that will be nested
     let resource_quotas_router =
         resource_quotas_routes().with_state(resource_quotas_app_state.clone());
@@ -240,6 +257,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         quota_enforcement_routes().with_state(quota_enforcement_app_state.clone());
     let burst_capacity_router =
         burst_capacity_routes().with_state(burst_capacity_app_state.clone());
+    let job_prioritization_router =
+        job_prioritization_routes().with_state(job_prioritization_app_state.clone());
 
     let app_state = AppState {
         scheduler: scheduler.clone(),
@@ -250,6 +269,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         resource_quotas_app_state,
         quota_enforcement_app_state,
         burst_capacity_app_state,
+        job_prioritization_app_state,
     };
 
     // Handler functions
@@ -677,6 +697,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", quota_enforcement_router)
         // US-09.1.4: Burst Capacity Routes
         .nest("/api/v1", burst_capacity_router)
+        // US-09.2.1: Job Prioritization Routes
+        .nest("/api/v1", job_prioritization_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
