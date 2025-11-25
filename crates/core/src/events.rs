@@ -19,7 +19,7 @@ use uuid::Uuid;
 use dashmap::DashMap;
 
 /// Trait for all domain events
-pub trait DomainEvent: Send + Sync {
+pub trait DomainEvent: Send + Sync + serde::Serialize {
     /// Unique identifier of the event
     fn event_id(&self) -> Uuid;
 
@@ -34,6 +34,40 @@ pub trait DomainEvent: Send + Sync {
 
     /// Event version (for optimistic locking)
     fn version(&self) -> u64;
+
+    /// Convert to trait object
+    fn as_trait_object(&self) -> Box<dyn DomainEvent>;
+}
+
+impl<T> DomainEvent for T
+where
+    T: Send + Sync + serde::Serialize + Clone + 'static,
+{
+    fn event_id(&self) -> Uuid {
+        // Default implementation using event's own methods
+        // This will be overridden by specific event types
+        Uuid::new_v4()
+    }
+
+    fn event_type(&self) -> &'static str {
+        std::any::type_name::<T>()
+    }
+
+    fn aggregate_id(&self) -> Uuid {
+        Uuid::new_v4()
+    }
+
+    fn occurred_at(&self) -> DateTime<Utc> {
+        Utc::now()
+    }
+
+    fn version(&self) -> u64 {
+        1
+    }
+
+    fn as_trait_object(&self) -> Box<dyn DomainEvent> {
+        Box::new(self.clone())
+    }
 }
 
 /// Event metadata for storage
@@ -111,25 +145,23 @@ impl<T> BaseEvent<T> {
 }
 
 /// Event Sourced Aggregate
-pub trait EventSourcedAggregate {
-    type Event: DomainEvent;
-
+pub trait EventSourcedAggregate: Send + Sync {
     /// Get current version of the aggregate
     fn version(&self) -> u64;
 
     /// Get uncommitted events (new events since last save)
-    fn take_uncommitted_events(&mut self) -> Vec<Self::Event>;
+    fn take_uncommitted_events(&mut self) -> Vec<Box<dyn DomainEvent>>;
 
     /// Mark all uncommitted events as committed
     fn mark_events_as_committed(&mut self);
 
     /// Load state from a sequence of events
-    fn load_from_events(&mut self, events: &[Self::Event]);
+    fn load_from_events(&mut self, events: &[Box<dyn DomainEvent>]);
 }
 
 /// Event Store trait for persisting events
 #[async_trait::async_trait]
-pub trait EventStore {
+pub trait EventStore: Send + Sync {
     /// Save events to the store
     async fn save_events(
         &self,
@@ -272,6 +304,257 @@ impl EventStore for InMemoryEventStore {
 impl Default for InMemoryEventStore {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// PostgreSQL Event Store implementation
+#[cfg(feature = "sqlx")]
+pub struct PostgreSqlEventStore {
+    pool: std::sync::Arc<sqlx::PgPool>,
+}
+
+#[cfg(feature = "sqlx")]
+impl PostgreSqlEventStore {
+    pub fn new(pool: std::sync::Arc<sqlx::PgPool>) -> Self {
+        Self { pool }
+    }
+
+    /// Initialize the events table
+    pub async fn init(&self) -> Result<(), EventStoreError> {
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS events (
+                event_id UUID PRIMARY KEY,
+                aggregate_id UUID NOT NULL,
+                aggregate_type VARCHAR(255) NOT NULL,
+                event_type VARCHAR(255) NOT NULL,
+                event_data JSONB NOT NULL,
+                version BIGINT NOT NULL,
+                occurred_at TIMESTAMPTZ NOT NULL,
+                user_id VARCHAR(255),
+                correlation_id VARCHAR(255),
+                metadata JSONB
+            );
+        "#,
+        )
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        // Create index on aggregate_id for faster lookups
+        sqlx::query(
+            r#"
+            CREATE INDEX IF NOT EXISTS idx_events_aggregate_id
+            ON events (aggregate_id, version);
+        "#,
+        )
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        // Create index on event_type for filtering
+        sqlx::query(
+            r#"
+            CREATE INDEX IF NOT EXISTS idx_events_event_type
+            ON events (event_type);
+        "#,
+        )
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "sqlx")]
+#[async_trait::async_trait]
+impl EventStore for PostgreSqlEventStore {
+    async fn save_events(
+        &self,
+        aggregate_id: Uuid,
+        events: &[Box<dyn DomainEvent>],
+        expected_version: u64,
+    ) -> Result<Vec<EventMetadata>, EventStoreError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        // Check current version for optimistic locking
+        let row: (i64,) =
+            sqlx::query_as("SELECT COALESCE(MAX(version), -1) FROM events WHERE aggregate_id = $1")
+                .bind(aggregate_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        let current_version = (row.0 + 1) as u64;
+
+        if current_version != expected_version {
+            tx.rollback()
+                .await
+                .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+            return Err(EventStoreError::ConcurrencyError {
+                expected: expected_version,
+                actual: current_version,
+            });
+        }
+
+        let mut metadata_list = Vec::new();
+
+        for (idx, event) in events.iter().enumerate() {
+            let expected_ev_version = expected_version + idx as u64;
+            let event_version = event.version();
+
+            // Verify event version matches expected
+            if event_version != expected_ev_version {
+                tx.rollback()
+                    .await
+                    .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+                return Err(EventStoreError::ConcurrencyError {
+                    expected: expected_ev_version,
+                    actual: event_version,
+                });
+            }
+
+            let event_data = serde_json::to_value(&event)
+                .map_err(|e| EventStoreError::SerializationError(e.to_string()))?;
+
+            let metadata = EventMetadata::new(
+                event.event_id(),
+                event.event_type().to_string(),
+                event.aggregate_id(),
+                "Job".to_string(),
+                event.occurred_at(),
+                event.version(),
+            );
+
+            sqlx::query(
+                r#"
+                INSERT INTO events (
+                    event_id, aggregate_id, aggregate_type, event_type,
+                    event_data, version, occurred_at, user_id, correlation_id, metadata
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            "#,
+            )
+            .bind(event.event_id())
+            .bind(event.aggregate_id())
+            .bind(&metadata.aggregate_type)
+            .bind(event.event_type())
+            .bind(event_data)
+            .bind(event.version() as i64)
+            .bind(event.occurred_at())
+            .bind(&metadata.user_id)
+            .bind(&metadata.correlation_id)
+            .bind(&metadata.metadata)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+            metadata_list.push(metadata);
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        Ok(metadata_list)
+    }
+
+    async fn load_events(
+        &self,
+        aggregate_id: Uuid,
+        from_version: Option<u64>,
+    ) -> Result<Vec<Box<dyn DomainEvent>>, EventStoreError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT event_id, aggregate_id, event_type, event_data, version, occurred_at
+            FROM events
+            WHERE aggregate_id = $1 AND version >= $2
+            ORDER BY version ASC
+        "#,
+        )
+        .bind(aggregate_id)
+        .bind(from_version.unwrap_or(0) as i64)
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        let mut events = Vec::new();
+
+        for row in rows {
+            let event_type: String = row.get("event_type");
+            let event_data: serde_json::Value = row.get("event_data");
+
+            // Deserialize based on event type
+            // This is a simplified approach - in production, you'd use a registry
+            let event: Box<dyn DomainEvent> = match event_type.as_str() {
+                _ => {
+                    // For now, deserialize as a generic event
+                    // In production, you'd have a proper event deserialization registry
+                    return Err(EventStoreError::DatabaseError(
+                        "Event type not recognized".to_string(),
+                    ));
+                }
+            };
+
+            events.push(event);
+        }
+
+        Ok(events)
+    }
+
+    async fn load_events_by_type(
+        &self,
+        event_type: &'static str,
+        _from_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<Vec<Box<dyn DomainEvent>>, EventStoreError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT event_id, aggregate_id, event_type, event_data, version, occurred_at
+            FROM events
+            WHERE event_type = $1
+            ORDER BY occurred_at ASC
+        "#,
+        )
+        .bind(event_type)
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        let mut events = Vec::new();
+
+        for row in rows {
+            let event_type_str: String = row.get("event_type");
+            let event_data: serde_json::Value = row.get("event_data");
+
+            if event_type_str == event_type {
+                // Deserialize based on event type
+                let event: Box<dyn DomainEvent> = match event_type {
+                    _ => {
+                        return Err(EventStoreError::DatabaseError(
+                            "Event type not recognized".to_string(),
+                        ));
+                    }
+                };
+                events.push(event);
+            }
+        }
+
+        Ok(events)
+    }
+
+    async fn get_latest_version(&self, aggregate_id: Uuid) -> Result<u64, EventStoreError> {
+        let row: (Option<i64>,) =
+            sqlx::query_as("SELECT MAX(version) FROM events WHERE aggregate_id = $1")
+                .bind(aggregate_id)
+                .fetch_one(&*self.pool)
+                .await
+                .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        Ok(row.0.unwrap_or(-1) as u64 + 1)
     }
 }
 

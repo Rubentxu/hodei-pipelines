@@ -5,14 +5,21 @@
 
 pub mod circuit_breaker;
 pub mod correlation;
+pub mod cqrs;
 pub mod error;
+pub mod event_registry;
+pub mod event_sourced_job;
 pub mod events;
 pub mod health_checks;
 pub mod job;
+pub mod job_cqrs;
 pub mod job_definitions;
+pub mod job_events;
+pub mod job_handlers;
 pub mod job_specifications;
 pub mod mappers;
 pub mod pipeline;
+pub mod projections;
 pub mod security;
 pub mod specifications;
 pub mod worker;
