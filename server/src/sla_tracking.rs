@@ -17,10 +17,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{error, info};
 
 use hodei_core::JobId;
-use hodei_modules::sla_tracking::{
-    PriorityAdjustment, SLALevel, SLARegistrationRequest, SLAResponse, SLATracker,
-    SLAViolationEvent,
-};
+use hodei_modules::sla_tracking::{PriorityAdjustment, SLALevel, SLATracker};
 
 /// API application state
 #[derive(Clone)]
@@ -148,9 +145,9 @@ impl SLATrackingService {
     pub async fn get_status(&self, job_id: &str) -> Result<SLAStatusResponse, String> {
         let job_id_obj = JobId::from(uuid::Uuid::parse_str(job_id).map_err(|_| "Invalid job ID")?);
 
-        let (status, time_remaining) = self.tracker.read().await.get_sla_status(&job_id_obj).await;
+        let status_option = self.tracker.read().await.get_sla_status(&job_id_obj).await;
 
-        match status {
+        match status_option {
             Some((status, time_remaining)) => {
                 Ok(SLAStatusResponse {
                     job_id: job_id.to_string(),

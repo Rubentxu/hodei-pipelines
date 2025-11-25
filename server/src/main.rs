@@ -15,6 +15,7 @@ use axum::{
     routing::{get, post},
 };
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use hodei_adapters::{
     DockerProvider, GrpcWorkerClient, HttpWorkerClient, InMemoryBus, InMemoryJobRepository,
@@ -82,6 +83,10 @@ use job_prioritization::{
 mod sla_tracking;
 use sla_tracking::{SLATrackingAppState, SLATrackingService, sla_tracking_routes};
 
+// Queue Status module (US-09.2.4)
+mod queue_status;
+use queue_status::{QueueStatusAppState, queue_status_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -140,6 +145,8 @@ struct AppState {
     // wfq_integration_app_state: WFQIntegrationAppState,
     // US-09.2.3: SLA Tracking
     sla_tracking_app_state: SLATrackingAppState,
+    // US-09.2.4: Queue Status
+    queue_status_app_state: QueueStatusAppState,
 }
 
 #[tokio::main]
@@ -269,6 +276,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: sla_tracking_service,
     };
 
+    // Create queue status service
+    let wfq_engine = Arc::new(RwLock::new(
+        hodei_modules::weighted_fair_queuing::WeightedFairQueueingEngine::new(
+            hodei_modules::weighted_fair_queuing::WFQConfig::default(),
+        ),
+    ));
+    let prioritization_engine_for_status = Arc::new(RwLock::new(
+        hodei_modules::queue_prioritization::QueuePrioritizationEngine::new(sla_tracker.clone()),
+    ));
+    let queue_status_app_state = QueueStatusAppState {
+        prioritization_engine: prioritization_engine_for_status,
+        wfq_engine,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -299,6 +320,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let job_prioritization_router =
         job_prioritization_routes().with_state(job_prioritization_app_state.clone());
     let sla_tracking_router = sla_tracking_routes().with_state(sla_tracking_app_state.clone());
+    let queue_status_router = queue_status_routes().with_state(queue_status_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -314,6 +336,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         job_prioritization_app_state,
         // wfq_integration_app_state,
         sla_tracking_app_state,
+        queue_status_app_state,
     };
 
     // Handler functions
@@ -747,6 +770,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // .nest("/api/v1", wfq_integration_router)
         // US-09.2.3: SLA Tracking Routes
         .nest("/api/v1", sla_tracking_router)
+        // US-09.2.4: Queue Status Routes
+        .nest("/api/v1", queue_status_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
