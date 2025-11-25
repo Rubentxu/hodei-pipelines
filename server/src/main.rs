@@ -99,6 +99,10 @@ use static_pool_management::{StaticPoolManagementAppState, static_pool_managemen
 mod dynamic_pool_management;
 use dynamic_pool_management::{DynamicPoolManagementAppState, dynamic_pool_management_routes};
 
+// Pool Lifecycle module (US-09.3.4)
+mod pool_lifecycle;
+use pool_lifecycle::{PoolLifecycleAppState, pool_lifecycle_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -165,6 +169,8 @@ struct AppState {
     static_pool_management_app_state: StaticPoolManagementAppState,
     // US-09.3.3: Dynamic Pool Management
     dynamic_pool_management_app_state: DynamicPoolManagementAppState,
+    // US-09.3.4: Pool Lifecycle
+    pool_lifecycle_app_state: PoolLifecycleAppState,
 }
 
 #[tokio::main]
@@ -334,6 +340,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scaling_history: dynamic_scaling_history,
     };
 
+    // Create pool lifecycle service
+    let pool_lifecycle_service = Arc::new(pool_lifecycle::PoolLifecycleService::new());
+    let pool_lifecycle_app_state = PoolLifecycleAppState {
+        service: pool_lifecycle_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -371,6 +383,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         static_pool_management_routes().with_state(static_pool_management_app_state.clone());
     let dynamic_pool_management_router =
         dynamic_pool_management_routes().with_state(dynamic_pool_management_app_state.clone());
+    let pool_lifecycle_router =
+        pool_lifecycle_routes().with_state(pool_lifecycle_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -390,6 +404,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         resource_pool_crud_app_state,
         static_pool_management_app_state,
         dynamic_pool_management_app_state,
+        pool_lifecycle_app_state,
     };
 
     // Handler functions
@@ -831,6 +846,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", static_pool_management_router)
         // US-09.3.3: Dynamic Pool Management Routes
         .nest("/api/v1", dynamic_pool_management_router)
+        // US-09.3.4: Pool Lifecycle Routes
+        .nest("/api/v1", pool_lifecycle_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()

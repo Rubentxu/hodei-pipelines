@@ -4,11 +4,11 @@
 //! based on demand. Dynamic pools provision workers on-demand and scale up/down.
 
 use axum::{
+    Router,
     extract::{Path, State},
     http::StatusCode,
-    response::{Json, IntoResponse},
-    routing::{get, post, put, delete},
-    Router,
+    response::{IntoResponse, Json},
+    routing::{delete, get, post, put},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -410,10 +410,7 @@ impl DynamicPoolManagementService {
     }
 
     /// Get pool scaling history
-    pub async fn get_scaling_history(
-        &self,
-        pool_id: &str,
-    ) -> Result<Vec<ScalingEvent>, String> {
+    pub async fn get_scaling_history(&self, pool_id: &str) -> Result<Vec<ScalingEvent>, String> {
         let history = self.scaling_history.read().await;
         match history.get(pool_id) {
             Some(events) => Ok(events.clone()),
@@ -422,21 +419,19 @@ impl DynamicPoolManagementService {
     }
 
     /// Get pool metrics
-    pub async fn get_pool_metrics(&self, pool_id: &str) -> Result<DynamicPoolMetricsResponse, String> {
+    pub async fn get_pool_metrics(
+        &self,
+        pool_id: &str,
+    ) -> Result<DynamicPoolMetricsResponse, String> {
         let pools = self.dynamic_pools.read().await;
         match pools.get(pool_id) {
             Some(pool) => {
                 let history = self.scaling_history.read().await;
-                let events = history.get(pool_id).unwrap_or(&vec![]);
+                let events = history.get(pool_id).cloned().unwrap_or_else(Vec::new);
 
                 let recent_events = events
                     .iter()
-                    .filter(|e| {
-                        Utc::now()
-                            .signed_duration_since(e.timestamp)
-                            .num_hours()
-                            < 24
-                    })
+                    .filter(|e| Utc::now().signed_duration_since(e.timestamp).num_hours() < 24)
                     .count();
 
                 Ok(DynamicPoolMetricsResponse {
@@ -713,10 +708,22 @@ pub fn dynamic_pool_management_routes() -> Router<DynamicPoolManagementAppState>
         .route("/dynamic-pools", get(list_dynamic_pools_handler))
         .route("/dynamic-pools/{pool_id}", get(get_dynamic_pool_handler))
         .route("/dynamic-pools/{pool_id}", put(update_dynamic_pool_handler))
-        .route("/dynamic-pools/{pool_id}", delete(delete_dynamic_pool_handler))
-        .route("/dynamic-pools/{pool_id}/scale", post(scale_dynamic_pool_handler))
-        .route("/dynamic-pools/{pool_id}/scaling-history", get(get_dynamic_pool_scaling_history_handler))
-        .route("/dynamic-pools/{pool_id}/metrics", get(get_dynamic_pool_metrics_handler))
+        .route(
+            "/dynamic-pools/{pool_id}",
+            delete(delete_dynamic_pool_handler),
+        )
+        .route(
+            "/dynamic-pools/{pool_id}/scale",
+            post(scale_dynamic_pool_handler),
+        )
+        .route(
+            "/dynamic-pools/{pool_id}/scaling-history",
+            get(get_dynamic_pool_scaling_history_handler),
+        )
+        .route(
+            "/dynamic-pools/{pool_id}/metrics",
+            get(get_dynamic_pool_metrics_handler),
+        )
 }
 
 #[cfg(test)]
@@ -729,7 +736,8 @@ mod tests {
         let dynamic_pools = Arc::new(RwLock::new(HashMap::new()));
         let pool_configs = Arc::new(RwLock::new(HashMap::new()));
         let scaling_history = Arc::new(RwLock::new(HashMap::new()));
-        let service = DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
+        let service =
+            DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
 
         let request = CreateDynamicPoolRequest {
             name: "test-dynamic-pool".to_string(),
@@ -765,7 +773,8 @@ mod tests {
         let dynamic_pools = Arc::new(RwLock::new(HashMap::new()));
         let pool_configs = Arc::new(RwLock::new(HashMap::new()));
         let scaling_history = Arc::new(RwLock::new(HashMap::new()));
-        let service = DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
+        let service =
+            DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
 
         let request = CreateDynamicPoolRequest {
             name: "pool1".to_string(),
@@ -802,7 +811,8 @@ mod tests {
         let dynamic_pools = Arc::new(RwLock::new(HashMap::new()));
         let pool_configs = Arc::new(RwLock::new(HashMap::new()));
         let scaling_history = Arc::new(RwLock::new(HashMap::new()));
-        let service = DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
+        let service =
+            DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
 
         let request = CreateDynamicPoolRequest {
             name: "scale-test".to_string(),
@@ -838,7 +848,8 @@ mod tests {
         let dynamic_pools = Arc::new(RwLock::new(HashMap::new()));
         let pool_configs = Arc::new(RwLock::new(HashMap::new()));
         let scaling_history = Arc::new(RwLock::new(HashMap::new()));
-        let service = DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
+        let service =
+            DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
 
         let request = CreateDynamicPoolRequest {
             name: "history-test".to_string(),
@@ -876,7 +887,8 @@ mod tests {
         let dynamic_pools = Arc::new(RwLock::new(HashMap::new()));
         let pool_configs = Arc::new(RwLock::new(HashMap::new()));
         let scaling_history = Arc::new(RwLock::new(HashMap::new()));
-        let service = DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
+        let service =
+            DynamicPoolManagementService::new(dynamic_pools, pool_configs, scaling_history);
 
         let request = CreateDynamicPoolRequest {
             name: "metrics-test".to_string(),
