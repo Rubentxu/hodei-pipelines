@@ -127,6 +127,10 @@ use resource_pool_metrics::{ResourcePoolMetricsAppState, resource_pool_metrics_r
 mod cost_optimization;
 use cost_optimization::{CostOptimizationAppState, cost_optimization_routes};
 
+// Cost Reports module (US-09.5.3)
+mod cost_reports;
+use cost_reports::{CostReportsAppState, cost_reports_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -207,6 +211,8 @@ struct AppState {
     resource_pool_metrics_app_state: ResourcePoolMetricsAppState,
     // US-09.5.2: Cost Optimization
     cost_optimization_app_state: CostOptimizationAppState,
+    // US-09.5.3: Cost Reports
+    cost_reports_app_state: CostReportsAppState,
 }
 
 #[tokio::main]
@@ -419,6 +425,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: cost_optimization_service,
     };
 
+    // Create cost reports service
+    let cost_reports_service = Arc::new(cost_reports::CostReportsService::new());
+    let cost_reports_app_state = CostReportsAppState {
+        service: cost_reports_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -469,6 +481,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         resource_pool_metrics_routes().with_state(resource_pool_metrics_app_state.clone());
     let cost_optimization_router =
         cost_optimization_routes().with_state(cost_optimization_app_state.clone());
+    let cost_reports_router = cost_reports_routes().with_state(cost_reports_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -495,6 +508,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scaling_history_app_state,
         resource_pool_metrics_app_state,
         cost_optimization_app_state,
+        cost_reports_app_state,
     };
 
     // Handler functions
@@ -950,6 +964,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", resource_pool_metrics_router)
         // US-09.5.2: Cost Optimization Routes
         .nest("/api/v1", cost_optimization_router)
+        // US-09.5.3: Cost Reports Routes
+        .nest("/api/v1", cost_reports_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
