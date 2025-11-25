@@ -87,6 +87,10 @@ use sla_tracking::{SLATrackingAppState, SLATrackingService, sla_tracking_routes}
 mod queue_status;
 use queue_status::{QueueStatusAppState, queue_status_routes};
 
+// Resource Pool CRUD module (US-09.3.1)
+mod resource_pool_crud;
+use resource_pool_crud::{ResourcePoolCrudAppState, resource_pool_crud_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -147,6 +151,8 @@ struct AppState {
     sla_tracking_app_state: SLATrackingAppState,
     // US-09.2.4: Queue Status
     queue_status_app_state: QueueStatusAppState,
+    // US-09.3.1: Resource Pool CRUD
+    resource_pool_crud_app_state: ResourcePoolCrudAppState,
 }
 
 #[tokio::main]
@@ -290,6 +296,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         wfq_engine,
     };
 
+    // Create resource pool CRUD service
+    let pools = Arc::new(RwLock::new(std::collections::HashMap::new()));
+    let pool_statuses = Arc::new(RwLock::new(std::collections::HashMap::new()));
+    let resource_pool_crud_app_state = ResourcePoolCrudAppState {
+        pools,
+        pool_statuses,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -321,6 +335,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         job_prioritization_routes().with_state(job_prioritization_app_state.clone());
     let sla_tracking_router = sla_tracking_routes().with_state(sla_tracking_app_state.clone());
     let queue_status_router = queue_status_routes().with_state(queue_status_app_state.clone());
+    let resource_pool_crud_router =
+        resource_pool_crud_routes().with_state(resource_pool_crud_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -337,6 +353,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // wfq_integration_app_state,
         sla_tracking_app_state,
         queue_status_app_state,
+        resource_pool_crud_app_state,
     };
 
     // Handler functions
@@ -772,6 +789,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", sla_tracking_router)
         // US-09.2.4: Queue Status Routes
         .nest("/api/v1", queue_status_router)
+        // US-09.3.1: Resource Pool CRUD Routes
+        .nest("/api/v1", resource_pool_crud_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
