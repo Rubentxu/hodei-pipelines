@@ -135,6 +135,10 @@ use cost_reports::{CostReportsAppState, cost_reports_routes};
 mod historical_metrics;
 use historical_metrics::{HistoricalMetricsAppState, historical_metrics_routes};
 
+// Prometheus Integration module (US-09.6.1)
+mod prometheus_integration;
+use prometheus_integration::{PrometheusIntegrationAppState, prometheus_integration_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -219,6 +223,8 @@ struct AppState {
     cost_reports_app_state: CostReportsAppState,
     // US-09.5.4: Historical Metrics
     historical_metrics_app_state: HistoricalMetricsAppState,
+    // US-09.6.1: Prometheus Integration
+    prometheus_integration_app_state: PrometheusIntegrationAppState,
 }
 
 #[tokio::main]
@@ -443,6 +449,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: historical_metrics_service,
     };
 
+    // Create Prometheus integration service
+    let prometheus_integration_service =
+        Arc::new(prometheus_integration::PrometheusIntegrationService::new());
+    let prometheus_integration_app_state = PrometheusIntegrationAppState {
+        service: prometheus_integration_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -496,6 +509,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cost_reports_router = cost_reports_routes().with_state(cost_reports_app_state.clone());
     let historical_metrics_router =
         historical_metrics_routes().with_state(historical_metrics_app_state.clone());
+    let prometheus_integration_router =
+        prometheus_integration_routes().with_state(prometheus_integration_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -524,6 +539,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cost_optimization_app_state,
         cost_reports_app_state,
         historical_metrics_app_state,
+        prometheus_integration_app_state,
     };
 
     // Handler functions
@@ -983,6 +999,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", cost_reports_router)
         // US-09.5.4: Historical Metrics Routes
         .nest("/api/v1", historical_metrics_router)
+        // US-09.6.1: Prometheus Integration Routes
+        .nest("/api/v1", prometheus_integration_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
