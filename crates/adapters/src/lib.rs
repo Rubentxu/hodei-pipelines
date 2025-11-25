@@ -5,6 +5,7 @@
 pub mod bus;
 pub mod docker_provider;
 pub mod event_bus;
+pub mod extractors;
 pub mod kubernetes_provider;
 pub mod kubernetes_provider_tests;
 pub mod postgres;

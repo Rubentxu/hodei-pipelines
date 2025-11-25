@@ -70,10 +70,17 @@ impl WorkerMapper for SqlxWorkerMapper {
             None => WorkerCapabilities::new(1, 1024), // Default capabilities
         };
 
+        // Preserve current_jobs antes de mover row
+        let current_job_ids = row.current_jobs.clone();
+
         let worker_status = hodei_shared_types::WorkerStatus {
             worker_id: row.id.clone(),
             status: row.status,
-            current_jobs: row.current_jobs.into_iter().map(Into::into).collect(),
+            current_jobs: current_job_ids
+                .clone()
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             last_heartbeat: chrono::Utc::now().into(),
         };
 
@@ -90,7 +97,7 @@ impl WorkerMapper for SqlxWorkerMapper {
                 .and_then(|v| serde_json::from_value::<Option<HashMap<String, String>>>(v).ok())
                 .flatten()
                 .unwrap_or_default(),
-            current_jobs: Vec::new(),
+            current_jobs: current_job_ids, // ✅ Preserved from row
             last_heartbeat: chrono::Utc::now(),
         })
     }
@@ -125,14 +132,45 @@ mod tests {
     #[test]
     fn test_to_row_from_row() {
         let mapper = SqlxWorkerMapper;
-        let worker = create_test_worker();
+        let mut worker = create_test_worker();
+
+        // Agregar algunos jobs al worker
+        worker.current_jobs.push(Uuid::new_v4());
+        worker.current_jobs.push(Uuid::new_v4());
 
         let row = mapper.to_row(&worker);
-        assert_eq!(row.name, worker.name);
-        assert_eq!(row.status, worker.status.status);
+        assert_eq!(row.current_jobs.len(), 2);
 
         let recovered_worker = mapper.from_row(row).unwrap();
         assert_eq!(recovered_worker.name, worker.name);
         assert_eq!(recovered_worker.capabilities.max_concurrent_jobs, 4);
+
+        // ✅ VERIFICACIÓN: current_jobs se preserva correctamente
+        assert_eq!(recovered_worker.current_jobs.len(), 2);
+        assert_eq!(recovered_worker.current_jobs, worker.current_jobs);
+    }
+
+    #[test]
+    fn test_current_jobs_preservation() {
+        let mapper = SqlxWorkerMapper;
+        let mut worker = create_test_worker();
+
+        // Simular worker con jobs activos
+        let job1_id = Uuid::new_v4();
+        let job2_id = Uuid::new_v4();
+        let job3_id = Uuid::new_v4();
+
+        worker.current_jobs = vec![job1_id, job2_id, job3_id];
+
+        // Roundtrip: Worker → Row → Worker
+        let row = mapper.to_row(&worker);
+        let restored_worker = mapper.from_row(row).unwrap();
+
+        // Verificar que current_jobs se preservó correctamente
+        assert_eq!(restored_worker.current_jobs.len(), 3);
+        assert_eq!(restored_worker.current_jobs[0], job1_id);
+        assert_eq!(restored_worker.current_jobs[1], job2_id);
+        assert_eq!(restored_worker.current_jobs[2], job3_id);
+        assert_eq!(restored_worker.current_jobs, worker.current_jobs);
     }
 }

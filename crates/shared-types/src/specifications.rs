@@ -1,6 +1,7 @@
-//! Specification pattern implementation for domain validation
+//! Specification Pattern for composable business rules validation
 
 use crate::error::DomainError;
+use std::fmt;
 use std::marker::PhantomData;
 
 /// Result of specification validation with detailed error information
@@ -29,6 +30,14 @@ impl SpecificationResult {
             Err(DomainError::Validation(self.errors.join(", ")))
         }
     }
+
+    pub fn satisfied() -> Self {
+        Self { errors: Vec::new() }
+    }
+
+    pub fn failed(errors: Vec<String>) -> Self {
+        Self { errors }
+    }
 }
 
 impl Default for SpecificationResult {
@@ -37,11 +46,41 @@ impl Default for SpecificationResult {
     }
 }
 
+/// Helper struct to build and evaluate composite specifications
+pub struct SpecificationResultBuilder<'a, T> {
+    candidate: &'a T,
+    errors: Vec<String>,
+}
+
+impl<'a, T> SpecificationResultBuilder<'a, T> {
+    pub fn new(candidate: &'a T) -> Self {
+        Self {
+            candidate,
+            errors: Vec::new(),
+        }
+    }
+
+    pub fn add_error<S: Into<String>>(&mut self, error: S) {
+        self.errors.push(error.into());
+    }
+
+    pub fn is_satisfied(&self) -> bool {
+        self.errors.is_empty()
+    }
+
+    pub fn build(self) -> SpecificationResult {
+        SpecificationResult {
+            errors: self.errors,
+        }
+    }
+}
+
 /// Specification trait for composable validation rules
 pub trait Specification<T> {
+    /// Check if the candidate satisfies this specification
     fn is_satisfied_by(&self, candidate: &T) -> bool;
 
-    /// Compose this specification with another using AND logic
+    /// Combine this specification with another using AND logic
     fn and<U>(self, other: U) -> AndSpec<Self, U, T>
     where
         Self: Sized,
@@ -50,7 +89,7 @@ pub trait Specification<T> {
         AndSpec::new(self, other)
     }
 
-    /// Compose this specification with another using OR logic
+    /// Combine this specification with another using OR logic
     fn or<U>(self, other: U) -> OrSpec<Self, U, T>
     where
         Self: Sized,
@@ -96,6 +135,16 @@ where
     }
 }
 
+impl<A, B, T> fmt::Display for AndSpec<A, B, T>
+where
+    A: fmt::Display,
+    B: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} AND {})", self.left, self.right)
+    }
+}
+
 /// Composite specification for OR logic
 #[derive(Debug)]
 pub struct OrSpec<A, B, T> {
@@ -124,6 +173,16 @@ where
     }
 }
 
+impl<A, B, T> fmt::Display for OrSpec<A, B, T>
+where
+    A: fmt::Display,
+    B: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} OR {})", self.left, self.right)
+    }
+}
+
 /// Composite specification for NOT logic
 #[derive(Debug)]
 pub struct NotSpec<A, T> {
@@ -146,6 +205,15 @@ where
 {
     fn is_satisfied_by(&self, candidate: &T) -> bool {
         !self.inner.is_satisfied_by(candidate)
+    }
+}
+
+impl<A, T> fmt::Display for NotSpec<A, T>
+where
+    A: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "NOT ({})", self.inner)
     }
 }
 

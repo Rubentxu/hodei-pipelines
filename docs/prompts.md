@@ -20,7 +20,9 @@ Actúa como un experto en DDD. Quiero que analices los archivos de código que e
 
 ### Propuesta de Mejora sobre el análisis táctico.
 
-Segun el análisis táctico quiero realices unas propuestas de mejora en el código, para mejorar la calidad y eficiencia del mismo. Ten en cuenta que puedes investigar y sugerir mejoras en el código, apoyate en la documentación de DDD y en los principios SOLID. MCP como perplexity o cargo docs para buscar mejores soluciones.
+1. Segun el análisis táctico quiero realices unas propuestas de mejora en el código, para mejorar la calidad y eficiencia del mismo y lo persistas en un documento markdown en docs/analysis. Ten en cuenta que puedes investigar y sugerir mejoras en el código, apoyate en la documentación de DDD y en los principios SOLID. MCP como perplexity o cargo docs para buscar mejores soluciones. No te dejes ninguna linea que tenga errores de diseño.
+
+2. Implementa las propuestas de mejora definidas en el documento, asegurate que los tests a los que pueda afectar se actualicen y pasen correctamente junto con los cambios en el código que se realicen.
 
 ---
 
