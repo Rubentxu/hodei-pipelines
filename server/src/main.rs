@@ -107,6 +107,10 @@ use pool_lifecycle::{PoolLifecycleAppState, pool_lifecycle_routes};
 mod scaling_policies;
 use scaling_policies::{ScalingPoliciesAppState, scaling_policies_routes};
 
+// Scaling Triggers module (US-09.4.2)
+mod scaling_triggers;
+use scaling_triggers::{ScalingTriggersAppState, scaling_triggers_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -177,6 +181,8 @@ struct AppState {
     pool_lifecycle_app_state: PoolLifecycleAppState,
     // US-09.4.1: Scaling Policies
     scaling_policies_app_state: ScalingPoliciesAppState,
+    // US-09.4.2: Scaling Triggers
+    scaling_triggers_app_state: ScalingTriggersAppState,
 }
 
 #[tokio::main]
@@ -358,6 +364,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: scaling_policies_service,
     };
 
+    // Create scaling triggers service
+    let scaling_triggers_service = Arc::new(scaling_triggers::ScalingTriggersService::new());
+    let scaling_triggers_app_state = ScalingTriggersAppState {
+        service: scaling_triggers_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -399,6 +411,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool_lifecycle_routes().with_state(pool_lifecycle_app_state.clone());
     let scaling_policies_router =
         scaling_policies_routes().with_state(scaling_policies_app_state.clone());
+    let scaling_triggers_router =
+        scaling_triggers_routes().with_state(scaling_triggers_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -420,6 +434,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         dynamic_pool_management_app_state,
         pool_lifecycle_app_state,
         scaling_policies_app_state,
+        scaling_triggers_app_state,
     };
 
     // Handler functions
@@ -865,6 +880,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", pool_lifecycle_router)
         // US-09.4.1: Scaling Policies Routes
         .nest("/api/v1", scaling_policies_router)
+        // US-09.4.2: Scaling Triggers Routes
+        .nest("/api/v1", scaling_triggers_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
