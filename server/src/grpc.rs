@@ -11,44 +11,28 @@ use hwp_proto::{
     LogEntry, ServerMessage, ServerPayload, WorkerRegistration, WorkerService, WorkerStatus,
 };
 
+use hodei_core::WorkerCapabilities;
 use hodei_core::{Worker, WorkerId};
 use hodei_modules::SchedulerModule;
 use hodei_ports::event_bus::EventPublisher;
 use hodei_ports::job_repository::JobRepository;
 use hodei_ports::worker_client::WorkerClient;
 use hodei_ports::worker_repository::WorkerRepository;
-use hodei_shared_types::WorkerCapabilities;
 
-pub struct HwpService<J, B, C, W>
-where
-    J: JobRepository + Send + Sync + 'static,
-    B: EventPublisher + Send + Sync + 'static,
-    C: WorkerClient + Send + Sync + 'static,
-    W: WorkerRepository + Send + Sync + 'static,
-{
-    scheduler: Arc<SchedulerModule<J, B, C, W>>,
+pub struct HwpService {
+    scheduler: Arc<dyn hodei_ports::scheduler_port::SchedulerPort + Send + Sync>,
 }
 
-impl<J, B, C, W> HwpService<J, B, C, W>
-where
-    J: JobRepository + Send + Sync + 'static,
-    B: EventPublisher + Send + Sync + 'static,
-    C: WorkerClient + Send + Sync + 'static,
-    W: WorkerRepository + Send + Sync + 'static,
-{
-    pub fn new(scheduler: Arc<SchedulerModule<J, B, C, W>>) -> Self {
+impl HwpService {
+    pub fn new(
+        scheduler: Arc<dyn hodei_ports::scheduler_port::SchedulerPort + Send + Sync>,
+    ) -> Self {
         Self { scheduler }
     }
 }
 
 #[tonic::async_trait]
-impl<J, B, C, W> WorkerService for HwpService<J, B, C, W>
-where
-    J: JobRepository + Send + Sync + 'static,
-    B: EventPublisher + Send + Sync + 'static,
-    C: WorkerClient + Send + Sync + 'static,
-    W: WorkerRepository + Send + Sync + 'static,
-{
+impl WorkerService for HwpService {
     type JobStreamStream = Pin<Box<dyn Stream<Item = Result<ServerMessage, Status>> + Send>>;
 
     async fn register_worker(
@@ -64,7 +48,7 @@ where
 
         let worker = Worker::new(WorkerId::new(), req.worker_id.clone(), capabilities);
 
-        match self.scheduler.register_worker(worker).await {
+        match self.scheduler.register_worker(&worker).await {
             Ok(_) => Ok(Response::new(WorkerStatus {
                 worker_id: req.worker_id,
                 state: "IDLE".to_string(),

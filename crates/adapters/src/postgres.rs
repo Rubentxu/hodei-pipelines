@@ -3,17 +3,19 @@
 //! Production-grade persistence using PostgreSQL with async SQLx driver.
 
 use async_trait::async_trait;
+use futures::future::join_all;
 use hodei_core::{Job, JobId, Pipeline, PipelineId, Worker, pipeline::PipelineStepId};
 use hodei_ports::{
     JobRepository, JobRepositoryError, PipelineRepository, PipelineRepositoryError,
     WorkerRepository, WorkerRepositoryError,
 };
-use hodei_shared_types::{WorkerCapabilities, WorkerId};
+use hodei_core::{WorkerCapabilities, WorkerId};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres, Row};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Workflow Definition structure for JSON deserialization
@@ -77,6 +79,8 @@ impl PostgreSqlJobRepository {
             "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jobs_tenant_state ON jobs(tenant_id, state) WHERE tenant_id IS NOT NULL",
             // Composite index for job completion tracking
             "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jobs_state_completed ON jobs(state, completed_at) WHERE completed_at IS NOT NULL",
+            // Full-text search GIN index for efficient text search across name, description, and command
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jobs_fulltext ON jobs USING GIN (to_tsvector('english', name || ' ' || COALESCE(description, '') || ' ' || (spec->>'command')))",
         ];
 
         for query in index_queries {
@@ -184,53 +188,21 @@ impl JobRepository for PostgreSqlJobRepository {
     }
 
     async fn get_pending_jobs(&self) -> Result<Vec<Job>, JobRepositoryError> {
-        let rows = sqlx::query("SELECT * FROM jobs WHERE state = 'PENDING'")
-            .fetch_all(&*self.pool)
+        let rows =
+            sqlx::query("SELECT * FROM jobs WHERE state = 'PENDING' ORDER BY created_at DESC")
+                .fetch_all(&*self.pool)
+                .await
+                .map_err(|e| {
+                    JobRepositoryError::Database(format!("Failed to fetch pending jobs: {}", e))
+                })?;
+
+        debug!("Fetched {} pending jobs from database", rows.len());
+
+        // Use parallel processing for row conversion (performance optimization)
+        let jobs: Vec<Job> = join_all(rows.into_iter().map(|row| self.row_to_job(row)))
             .await
-            .map_err(|e| {
-                JobRepositoryError::Database(format!("Failed to fetch pending jobs: {}", e))
-            })?;
-
-        let jobs: Vec<Job> = rows
             .into_iter()
-            .map(|row| {
-                let result: Option<serde_json::Value> = row.get("result");
-                let state_str: String = row.get("state");
-                let spec_json: Option<serde_json::Value> = row.get("spec");
-                let name: String = row.get("name");
-                let description: Option<String> = row.get("description");
-                let tenant_id: Option<String> = row.get("tenant_id");
-
-                Job {
-                    id: row.get("id"),
-                    name: Arc::new(name),
-                    description: description.map(|s| std::borrow::Cow::Owned(s)),
-                    spec: Arc::new(
-                        spec_json
-                            .and_then(|v| serde_json::from_value::<hodei_core::JobSpec>(v).ok())
-                            .unwrap_or_else(|| hodei_core::JobSpec {
-                                name: "unknown".to_string(),
-                                image: "unknown".to_string(),
-                                command: vec![],
-                                resources: hodei_core::ResourceQuota::default(),
-                                timeout_ms: 30000,
-                                retries: 3,
-                                env: std::collections::HashMap::new(),
-                                secret_refs: vec![],
-                            }),
-                    ),
-                    state: hodei_core::JobState::new(state_str).unwrap_or_else(|_| {
-                        hodei_core::JobState::new("PENDING".to_string()).unwrap()
-                    }),
-                    created_at: row.get("created_at"),
-                    updated_at: row.get("updated_at"),
-                    started_at: row.get("started_at"),
-                    completed_at: row.get("completed_at"),
-                    tenant_id: tenant_id.map(Arc::new),
-                    result: result.unwrap_or_default(),
-                }
-            })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(jobs)
     }
@@ -329,6 +301,46 @@ impl JobRepository for PostgreSqlJobRepository {
             })?;
 
         Ok(result.is_some())
+    }
+}
+
+impl PostgreSqlJobRepository {
+    /// Helper method to convert a database row to Job (avoids code duplication)
+    async fn row_to_job(&self, row: sqlx::postgres::PgRow) -> Result<Job, JobRepositoryError> {
+        let result: Option<serde_json::Value> = row.get("result");
+        let state_str: String = row.get("state");
+        let spec_json: Option<serde_json::Value> = row.get("spec");
+        let name: String = row.get("name");
+        let description: Option<String> = row.get("description");
+        let tenant_id: Option<String> = row.get("tenant_id");
+
+        Ok(Job {
+            id: row.get("id"),
+            name: Arc::new(name),
+            description: description.map(|s| std::borrow::Cow::Owned(s)),
+            spec: Arc::new(
+                spec_json
+                    .and_then(|v| serde_json::from_value::<hodei_core::JobSpec>(v).ok())
+                    .unwrap_or_else(|| hodei_core::JobSpec {
+                        name: "unknown".to_string(),
+                        image: "unknown".to_string(),
+                        command: vec![],
+                        resources: hodei_core::ResourceQuota::default(),
+                        timeout_ms: 30000,
+                        retries: 3,
+                        env: std::collections::HashMap::new(),
+                        secret_refs: vec![],
+                    }),
+            ),
+            state: hodei_core::JobState::new(state_str)
+                .map_err(|e| JobRepositoryError::Validation(e.to_string()))?,
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+            started_at: row.get("started_at"),
+            completed_at: row.get("completed_at"),
+            tenant_id: tenant_id.map(Arc::new),
+            result: result.unwrap_or_default(),
+        })
     }
 }
 
@@ -538,7 +550,7 @@ impl PostgreSqlWorkerRepository {
         let status_string: String = row.get("status");
         let current_jobs_uuids: Vec<Uuid> = row.get("current_jobs");
 
-        let worker_status = hodei_shared_types::WorkerStatus {
+        let worker_status = hodei_core::WorkerStatus {
             worker_id: id.clone(),
             status: status_string,
             current_jobs: current_jobs_uuids.into_iter().map(Into::into).collect(),

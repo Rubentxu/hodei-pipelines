@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use hodei_core::Worker;
-use hodei_shared_types::WorkerId;
+use hodei_core::WorkerId;
 
 /// Worker registration port error
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]

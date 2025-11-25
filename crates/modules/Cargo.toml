@@ -11,7 +11,6 @@ repository.workspace = true
 # Workspace core crates
 hodei-core = { workspace = true }
 hodei-ports = { workspace = true }
-hodei-shared-types = { workspace = true }
 hodei-adapters = { workspace = true }
 
 # Workspace async and serialization
@@ -25,6 +24,10 @@ chrono = { workspace = true }
 # Workspace utilities
 uuid = { workspace = true }
 tracing = { workspace = true }
+tracing-opentelemetry = "0.23"
+opentelemetry = "0.22"
+opentelemetry_sdk = "0.22"
+opentelemetry-otlp = "0.15"
 dashmap = { workspace = true }
 rand = "0.8"
 

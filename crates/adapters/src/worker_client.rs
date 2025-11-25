@@ -5,10 +5,13 @@
 
 use async_trait::async_trait;
 use chrono;
+use hodei_core::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
 use hodei_core::{JobId, JobSpec};
+use hodei_core::{WorkerId, WorkerStatus};
 use hodei_ports::{WorkerClient, WorkerClientError};
-use hodei_shared_types::{WorkerId, WorkerStatus};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tokio::time::timeout;
 use tonic::{Status, transport::Channel};
 use tracing::{debug, error, info, warn};
@@ -383,6 +386,128 @@ impl WorkerClient for HttpWorkerClient {
     }
 }
 
+/// Resilient Worker Client with Circuit Breaker protection
+pub struct ResilientWorkerClient {
+    inner: Box<dyn WorkerClient + Send + Sync>,
+    circuit_breaker: Arc<Mutex<CircuitBreaker>>,
+}
+
+impl ResilientWorkerClient {
+    /// Create a new resilient worker client with default circuit breaker config
+    pub fn new(worker_client: Box<dyn WorkerClient + Send + Sync>) -> Self {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 5,
+            recovery_timeout: Duration::from_secs(30),
+            expected_exception: None,
+        };
+        Self::new_with_config(worker_client, config)
+    }
+
+    /// Create a new resilient worker client with custom circuit breaker config
+    pub fn new_with_config(
+        worker_client: Box<dyn WorkerClient + Send + Sync>,
+        config: CircuitBreakerConfig,
+    ) -> Self {
+        Self {
+            inner: worker_client,
+            circuit_breaker: Arc::new(Mutex::new(CircuitBreaker::new(config))),
+        }
+    }
+
+    /// Get the underlying circuit breaker (for monitoring/inspection)
+    pub fn get_circuit_breaker(&self) -> &Arc<Mutex<CircuitBreaker>> {
+        &self.circuit_breaker
+    }
+
+    /// Reset the circuit breaker
+    pub async fn reset_circuit_breaker(&self) {
+        let mut circuit_breaker = self.circuit_breaker.lock().await;
+        circuit_breaker.reset().await;
+    }
+
+    /// Get current circuit breaker state
+    pub async fn get_circuit_state(&self) -> String {
+        let circuit_breaker = self.circuit_breaker.lock().await;
+        circuit_breaker.get_state_string()
+    }
+
+    /// Get failure count
+    pub async fn get_failure_count(&self) -> u32 {
+        let circuit_breaker = self.circuit_breaker.lock().await;
+        circuit_breaker.get_failure_count()
+    }
+}
+
+#[async_trait]
+impl WorkerClient for ResilientWorkerClient {
+    async fn assign_job(
+        &self,
+        worker_id: &WorkerId,
+        job_id: &JobId,
+        job_spec: &JobSpec,
+    ) -> Result<(), WorkerClientError> {
+        let mut circuit_breaker = self.circuit_breaker.lock().await;
+        let inner = &self.inner;
+        match circuit_breaker
+            .execute(|| async {
+                inner
+                    .assign_job(worker_id, job_id, job_spec)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            })
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(WorkerClientError::Communication(e.to_string())),
+        }
+    }
+
+    async fn cancel_job(
+        &self,
+        worker_id: &WorkerId,
+        job_id: &JobId,
+    ) -> Result<(), WorkerClientError> {
+        let mut circuit_breaker = self.circuit_breaker.lock().await;
+        let inner = &self.inner;
+        match circuit_breaker
+            .execute(|| async {
+                inner
+                    .cancel_job(worker_id, job_id)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            })
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(WorkerClientError::Communication(e.to_string())),
+        }
+    }
+
+    async fn get_worker_status(
+        &self,
+        worker_id: &WorkerId,
+    ) -> Result<WorkerStatus, WorkerClientError> {
+        let mut circuit_breaker = self.circuit_breaker.lock().await;
+        let inner = &self.inner;
+        match circuit_breaker
+            .execute(|| async {
+                inner
+                    .get_worker_status(worker_id)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            })
+            .await
+        {
+            Ok(status) => Ok(status),
+            Err(e) => Err(WorkerClientError::Communication(e.to_string())),
+        }
+    }
+
+    async fn send_heartbeat(&self, worker_id: &WorkerId) -> Result<(), WorkerClientError> {
+        self.inner.send_heartbeat(worker_id).await
+    }
+}
+
 /// Factory for creating worker clients
 pub struct WorkerClientFactory;
 
@@ -406,6 +531,29 @@ impl WorkerClientFactory {
     /// Create an HTTP worker client
     pub fn create_http(base_url: String, timeout: Duration) -> HttpWorkerClient {
         HttpWorkerClient::new(base_url, timeout)
+    }
+
+    /// Create a resilient gRPC worker client with circuit breaker protection
+    pub async fn create_resilient_grpc(
+        worker_endpoint: String,
+        timeout: Duration,
+        circuit_breaker_config: CircuitBreakerConfig,
+    ) -> Result<ResilientWorkerClient, WorkerClientError> {
+        let grpc_client = Self::create_grpc(worker_endpoint, timeout).await?;
+        Ok(ResilientWorkerClient::new_with_config(
+            Box::new(grpc_client),
+            circuit_breaker_config,
+        ))
+    }
+
+    /// Create a resilient HTTP worker client with circuit breaker protection
+    pub fn create_resilient_http(
+        base_url: String,
+        timeout: Duration,
+        circuit_breaker_config: CircuitBreakerConfig,
+    ) -> ResilientWorkerClient {
+        let http_client = Self::create_http(base_url, timeout);
+        ResilientWorkerClient::new_with_config(Box::new(http_client), circuit_breaker_config)
     }
 }
 

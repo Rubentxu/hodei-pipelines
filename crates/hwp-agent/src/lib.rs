@@ -48,9 +48,9 @@ pub enum AgentError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Timeout: {0}")]
-    Timeout(String),
+    #[error("Worker client error: {0}")]
+    WorkerClient(#[from] hodei_ports::WorkerClientError),
 
     #[error("Other error: {0}")]
-    Other(#[from] anyhow::Error),
+    Other(String),
 }

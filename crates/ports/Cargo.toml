@@ -10,7 +10,6 @@ repository.workspace = true
 [dependencies]
 # Workspace core crates
 hodei-core = { workspace = true }
-hodei-shared-types = { workspace = true }
 
 # Workspace async and serialization
 async-trait = { workspace = true }

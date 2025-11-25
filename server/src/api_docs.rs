@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use utoipa::{IntoParams, ToSchema};
 
 // Re-export shared types for API documentation
-pub use hodei_shared_types::{JobSpec, ResourceQuota, WorkerCapabilities};
+pub use hodei_core::{JobSpec, ResourceQuota, WorkerCapabilities};
 
 /// Health check response
 #[derive(Serialize, Deserialize, ToSchema)]

@@ -7,7 +7,6 @@ members = [
     "crates/hwp-proto",
     "crates/hwp-agent",
     "server",
-    "crates/shared-types",
 ]
 exclude = [
     "code-manifest",
@@ -41,6 +40,10 @@ futures = "0.3"
 # Logging & Tracing
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3", features = ["json"] }
+tracing-opentelemetry = "0.23"
+opentelemetry = "0.22"
+opentelemetry_sdk = "0.22"
+opentelemetry_otlp = "0.15"
 
 # gRPC & Protobuf
 tonic = { version = "0.14.2", features = ["transport", "tls-native-roots"] }
@@ -98,11 +101,11 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 # Workspace crates
 hodei-core = { path = "crates/core" }
+hodei-shared-types = { path = "crates/shared-types" }
 hodei-ports = { path = "crates/ports" }
 hodei-modules = { path = "crates/modules" }
 hodei-adapters = { path = "crates/adapters" }
 hwp-proto = { path = "crates/hwp-proto" }
-hodei-shared-types = { path = "crates/shared-types" }
 
 [workspace.build-dependencies]
 

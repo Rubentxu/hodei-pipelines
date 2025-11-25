@@ -6,9 +6,10 @@
 //! - Compact representations for frequently accessed fields
 //!
 //! NOTE: Value objects (JobId, JobState, JobSpec, ResourceQuota) are
-//! defined in shared-types crate to avoid duplication across bounded contexts.
+//! defined in this crate to avoid duplication.
 
-pub use hodei_shared_types::{DomainError, ExecResult, JobId, JobSpec, JobState, ResourceQuota};
+pub use crate::error::DomainError;
+pub use crate::job_definitions::{ExecResult, JobId, JobSpec, JobState, ResourceQuota};
 
 use crate::Result;
 use std::borrow::Cow;

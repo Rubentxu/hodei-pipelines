@@ -1030,7 +1030,7 @@ mod tests {
                 let worker = Worker::new(
                     worker_id.clone(),
                     format!("{}-worker", self.pool_id),
-                    hodei_shared_types::WorkerCapabilities::new(4, 8192),
+                    hodei_core::WorkerCapabilities::new(4, 8192),
                 );
                 Ok((worker_id, worker))
             } else {

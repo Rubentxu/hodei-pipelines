@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use hodei_core::WorkerId;
-use hodei_shared_types::{ResourceQuota, WorkerStatus};
+use hodei_core::{ResourceQuota, WorkerStatus};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};

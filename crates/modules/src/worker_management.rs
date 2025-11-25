@@ -15,7 +15,7 @@ use hodei_ports::ProviderFactoryTrait;
 use hodei_ports::scheduler_port::SchedulerPort;
 use hodei_ports::worker_provider::{ProviderConfig, ProviderError, WorkerProvider};
 use hodei_ports::{WorkerRegistrationError, WorkerRegistrationPort};
-use hodei_shared_types;
+use hodei_core;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -200,7 +200,7 @@ where
     pub async fn get_worker_status(
         &self,
         worker_id: &WorkerId,
-    ) -> Result<hodei_shared_types::WorkerStatus, WorkerManagementError> {
+    ) -> Result<hodei_core::WorkerStatus, WorkerManagementError> {
         let status = self
             .provider
             .get_worker_status(worker_id)
@@ -2289,7 +2289,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use hodei_ports::worker_provider::ProviderCapabilities;
-    use hodei_shared_types::WorkerCapabilities;
+    use hodei_core::WorkerCapabilities;
 
     // Mock implementation for testing
     #[derive(Debug, Clone)]
@@ -2357,8 +2357,8 @@ mod tests {
         async fn get_worker_status(
             &self,
             worker_id: &WorkerId,
-        ) -> Result<hodei_shared_types::WorkerStatus, ProviderError> {
-            Ok(hodei_shared_types::WorkerStatus::create_with_status(
+        ) -> Result<hodei_core::WorkerStatus, ProviderError> {
+            Ok(hodei_core::WorkerStatus::create_with_status(
                 "IDLE".to_string(),
             ))
         }

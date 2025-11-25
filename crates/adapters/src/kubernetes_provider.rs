@@ -8,7 +8,7 @@ use hodei_core::{Worker, WorkerId};
 use hodei_ports::worker_provider::{
     ProviderCapabilities, ProviderConfig, ProviderError, ProviderType, WorkerProvider,
 };
-use hodei_shared_types::WorkerStatus;
+use hodei_core::WorkerStatus;
 use reqwest::{Client as HttpClient, Response};
 use serde_json::{Value, json};
 use std::fs;
@@ -361,7 +361,7 @@ impl WorkerProvider for KubernetesProvider {
         let worker = Worker::new(
             worker_id,
             worker_name,
-            hodei_shared_types::WorkerCapabilities::new(2, 4096),
+            hodei_core::WorkerCapabilities::new(2, 4096),
         );
 
         Ok(worker)

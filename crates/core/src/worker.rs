@@ -2,9 +2,10 @@
 //!
 //! This module contains the Worker aggregate root and related value objects.
 
-pub use hodei_shared_types::{WorkerCapabilities, WorkerId, WorkerStatus};
+pub use crate::worker_messages::{WorkerCapabilities, WorkerId, WorkerStatus};
 
-use crate::{DomainError, Result};
+use crate::Result;
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

@@ -8,10 +8,11 @@ use crossbeam::queue::SegQueue;
 use crossbeam::utils::CachePadded;
 use dashmap::DashMap;
 use hodei_core::{Job, JobId, Worker};
+use hodei_core::{WorkerCapabilities, WorkerId};
 use hodei_ports::{
-    EventPublisher, JobRepository, JobRepositoryError, WorkerClient, WorkerRepository,
+    EventPublisher, JobRepository, JobRepositoryError, SchedulerPort, WorkerClient,
+    WorkerRepository,
 };
-use hodei_shared_types::{WorkerCapabilities, WorkerId};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
@@ -912,10 +913,10 @@ mod tests {
     use super::*;
     use hodei_core::Worker;
     use hodei_core::{Job, JobId, JobSpec};
+    use hodei_core::{WorkerCapabilities, WorkerId};
     use hodei_ports::{
         EventPublisher, JobRepository, JobRepositoryError, WorkerClient, WorkerRepository,
     };
-    use hodei_shared_types::{WorkerCapabilities, WorkerId};
     use std::sync::Arc;
 
     // Mock implementations for testing
@@ -992,8 +993,8 @@ mod tests {
         async fn get_worker_status(
             &self,
             _worker_id: &WorkerId,
-        ) -> Result<hodei_shared_types::WorkerStatus, hodei_ports::WorkerClientError> {
-            Ok(hodei_shared_types::WorkerStatus {
+        ) -> Result<hodei_core::WorkerStatus, hodei_ports::WorkerClientError> {
+            Ok(hodei_core::WorkerStatus {
                 worker_id: WorkerId::new(),
                 status: "IDLE".to_string(),
                 current_jobs: vec![],
@@ -1175,4 +1176,47 @@ mod tests {
         assert_eq!(scheduler.config.worker_heartbeat_timeout_ms, 30000);
     }
     */
+}
+
+#[async_trait::async_trait]
+impl<R, E, W, WR> SchedulerPort for SchedulerModule<R, E, W, WR>
+where
+    R: JobRepository + Send + Sync + 'static,
+    E: EventPublisher + Send + Sync + 'static,
+    W: WorkerClient + Send + Sync + 'static,
+    WR: WorkerRepository + Send + Sync + 'static,
+{
+    async fn register_worker(
+        &self,
+        worker: &Worker,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        if let Err(e) = self.worker_repo.save_worker(worker).await {
+            return Err(
+                hodei_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
+            );
+        }
+        Ok(())
+    }
+
+    async fn unregister_worker(
+        &self,
+        worker_id: &WorkerId,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        if let Err(e) = self.worker_repo.delete_worker(worker_id).await {
+            return Err(
+                hodei_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
+            );
+        }
+        Ok(())
+    }
+
+    async fn get_registered_workers(
+        &self,
+    ) -> Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
+        let workers =
+            self.worker_repo.get_all_workers().await.map_err(|e| {
+                hodei_ports::scheduler_port::SchedulerError::internal(e.to_string())
+            })?;
+        Ok(workers.into_iter().map(|w| w.id).collect())
+    }
 }

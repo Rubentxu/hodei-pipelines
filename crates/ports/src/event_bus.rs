@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use hodei_core::PipelineId;
-use hodei_shared_types::{JobId, JobSpec, WorkerId};
+use hodei_core::{JobId, JobSpec, WorkerId};
 use std::sync::Arc;
 
 /// Zero-copy log entry (Arc wrapper for data)

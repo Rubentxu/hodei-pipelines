@@ -7,7 +7,7 @@
 
 use async_trait::async_trait;
 use hodei_core::Worker;
-use hodei_shared_types::WorkerId;
+use hodei_core::WorkerId;
 
 /// Scheduler port error
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
@@ -240,7 +240,7 @@ mod tests {
         let worker = Worker::new(
             WorkerId::new(),
             "test-worker".to_string(),
-            hodei_shared_types::WorkerCapabilities::new(4, 8192),
+            hodei_core::WorkerCapabilities::new(4, 8192),
         );
 
         let result = mock.register_worker(&worker).await;
@@ -254,7 +254,7 @@ mod tests {
         let worker = Worker::new(
             WorkerId::new(),
             "test-worker".to_string(),
-            hodei_shared_types::WorkerCapabilities::new(4, 8192),
+            hodei_core::WorkerCapabilities::new(4, 8192),
         );
 
         let result = mock.register_worker(&worker).await;
@@ -312,7 +312,7 @@ mod tests {
                 .register_worker(&Worker::new(
                     WorkerId::new(),
                     "test".to_string(),
-                    hodei_shared_types::WorkerCapabilities::new(4, 8192),
+                    hodei_core::WorkerCapabilities::new(4, 8192),
                 ))
                 .await
                 .is_ok()
@@ -382,7 +382,7 @@ mod tests {
                 .register_worker(&Worker::new(
                     WorkerId::new(),
                     "test".to_string(),
-                    hodei_shared_types::WorkerCapabilities::new(4, 8192),
+                    hodei_core::WorkerCapabilities::new(4, 8192),
                 ))
                 .await
                 .is_ok()

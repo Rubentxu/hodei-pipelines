@@ -516,7 +516,7 @@ mod tests {
         AllocationStatus, ResourceAllocation, ResourceAllocationRequest, ResourcePool,
         ResourcePoolConfig, ResourcePoolStatus, ResourcePoolType,
     };
-    use hodei_shared_types::{ResourceQuota, WorkerCapabilities};
+    use hodei_core::{ResourceQuota, WorkerCapabilities};
     use std::collections::HashMap;
 
     // Mock ResourcePool for testing

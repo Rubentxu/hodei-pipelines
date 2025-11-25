@@ -402,7 +402,7 @@ mod tests {
         let worker = Worker {
             id: WorkerId::new(),
             name: "test-worker".to_string(),
-            status: hodei_shared_types::WorkerStatus {
+            status: hodei_core::WorkerStatus {
                 worker_id: WorkerId::new(),
                 status: "IDLE".to_string(),
                 current_jobs: vec![],
@@ -411,7 +411,7 @@ mod tests {
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             tenant_id: Some("test-tenant".to_string()),
-            capabilities: hodei_shared_types::WorkerCapabilities::new(4, 8192),
+            capabilities: hodei_core::WorkerCapabilities::new(4, 8192),
             metadata: HashMap::new(),
             current_jobs: vec![],
             last_heartbeat: chrono::Utc::now(),
@@ -435,7 +435,7 @@ mod tests {
         let worker1 = Worker {
             id: WorkerId::new(),
             name: "worker-1".to_string(),
-            status: hodei_shared_types::WorkerStatus {
+            status: hodei_core::WorkerStatus {
                 worker_id: WorkerId::new(),
                 status: "IDLE".to_string(),
                 current_jobs: vec![],
@@ -444,7 +444,7 @@ mod tests {
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             tenant_id: None,
-            capabilities: hodei_shared_types::WorkerCapabilities::new(2, 4096),
+            capabilities: hodei_core::WorkerCapabilities::new(2, 4096),
             metadata: HashMap::new(),
             current_jobs: vec![],
             last_heartbeat: chrono::Utc::now(),
@@ -453,7 +453,7 @@ mod tests {
         let worker2 = Worker {
             id: WorkerId::new(),
             name: "worker-2".to_string(),
-            status: hodei_shared_types::WorkerStatus {
+            status: hodei_core::WorkerStatus {
                 worker_id: WorkerId::new(),
                 status: "IDLE".to_string(),
                 current_jobs: vec![],
@@ -462,7 +462,7 @@ mod tests {
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             tenant_id: None,
-            capabilities: hodei_shared_types::WorkerCapabilities::new(4, 8192),
+            capabilities: hodei_core::WorkerCapabilities::new(4, 8192),
             metadata: HashMap::new(),
             current_jobs: vec![],
             last_heartbeat: chrono::Utc::now(),
@@ -486,7 +486,7 @@ mod tests {
         let worker = Worker {
             id: WorkerId::new(),
             name: "test-worker".to_string(),
-            status: hodei_shared_types::WorkerStatus {
+            status: hodei_core::WorkerStatus {
                 worker_id: WorkerId::new(),
                 status: "IDLE".to_string(),
                 current_jobs: vec![],
@@ -495,7 +495,7 @@ mod tests {
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             tenant_id: None,
-            capabilities: hodei_shared_types::WorkerCapabilities::new(2, 4096),
+            capabilities: hodei_core::WorkerCapabilities::new(2, 4096),
             metadata: HashMap::new(),
             current_jobs: vec![],
             last_heartbeat: chrono::Utc::now(),

@@ -62,7 +62,7 @@ pub trait WorkerProvider: Send + Sync + std::fmt::Debug {
     async fn get_worker_status(
         &self,
         worker_id: &WorkerId,
-    ) -> Result<hodei_shared_types::WorkerStatus, ProviderError>;
+    ) -> Result<hodei_core::WorkerStatus, ProviderError>;
 
     async fn stop_worker(&self, worker_id: &WorkerId, graceful: bool) -> Result<(), ProviderError>;
 

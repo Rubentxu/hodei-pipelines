@@ -87,3 +87,98 @@ Actúa como un experto en Performance Engineering. Basándome en el CODE_MANIFES
 ---
 ### Propuesta de Mejora sobre el análisis de Rendimiento.
 Revisa este analisis y realia las mejoras necesarias para el codigo de nuestra aplicacion y que no tenga los posibles problemas detectados en el analisis. Ten en cuenta que puedes investigar y sugerir mejoras en el código, apoyate en la documentación de internet y en las mejores practicas de Rendimiento en rust. Usa perplexity para generar investigar si te hace falta.
+
+---
+
+Para aplicar el **"Movimiento de Pinza"** (Pincer Movement) que explica Fernando, la generación del **Bounded Context Canvas** no debe hacerse "en frío" solo leyendo el código. Se debe hacer **utilizando la información táctica que extrajiste previamente** (el Manifiesto de Código y la Tabla de Análisis Táctico de clases/ficheros).
+
+Si intentas generar el Canvas directamente desde el código sin el paso intermedio, el LLM alucinará o será demasiado genérico ("Este es un sistema de gestión de usuarios").
+
+Aquí tienes el Prompt Maestro y la Template exacta basada en las diapositivas del video.
+
+---
+
+
+### El Prompt para el Agente IA Bounded Context Canvas (Markdown)
+
+> **Rol:** Actúa como un Arquitecto de Software experto en Domain-Driven Design (DDD) Estratégico.
+>
+> **Objetivo:** Vamos a realizar un "Movimiento de Pinza" (Pincer Movement). Usando la evidencia de bajo nivel (el código y el análisis táctico que tienes en contexto), vas a construir la definición estratégica de alto nivel: el **Bounded Context Canvas**.
+>
+> **Instrucciones CRÍTICAS (Anti-Alucinación):**
+> 1.  **Evidencia sobre Creatividad:** No inventes un propósito de negocio que suene bien. Deduce el propósito basándote estrictamente en lo que el código *hace*, no en lo que *debería hacer*.
+> 2.  **Lenguaje Ubicuo Real:** En la sección de Lenguaje Ubicuo, solo puedes listar términos que aparezcan explícitamente en el código (nombres de Clases, Enums o Métodos públicos). Si en el código se llama `Client` y no `Customer`, usa `Client`.
+> 3.  **Detección de Fugas:** En la sección "Strategic Classification", si ves que el código tiene demasiadas dependencias de frameworks o librerías de utilidad, clasifícalo como "Generic" o "Supporting", no como "Core", y explica por qué.
+> 4.  **Crítica Socrática:** La sección "Open Questions" es la más importante. Quiero que critiques la arquitectura. Si ves lógica de negocio en un Controlador, o Entidades anémicas (sin métodos de lógica), denúncialo ahí.
+>
+> **Formato de Salida:**
+> Rellena estrictamente la siguiente plantilla Markdown. Si no tienes información para una celda, pon "NO EVIDENCIA EN CÓDIGO", no te lo inventes.
+>
+```markdown
+# Bounded Context Canvas: [Nombre Sugerido del Contexto]
+
+## 1. Strategic Overview
+| Section | Description |
+|---------|-------------|
+| **Purpose** | *¿Para qué existe este contexto? ¿Qué dolor de negocio resuelve? (No técnico)* |
+| **Strategic Classification** | *[Core Domain / Supporting Subdomain / Generic Subdomain] - Justifica tu elección.* |
+| **Key Stakeholders** | *¿Quién usa esto? (Ej: Administradores, Clientes finales, Sistemas externos)* |
+
+## 2. Ubiquitous Language (Evidence-Based)
+*Extrae los términos clave que se repiten en Nombres de Clases, Métodos y Variables.*
+
+| Term | Definition (Based on Code Behavior) | Primary Implementation Files |
+|------|-------------------------------------|------------------------------|
+| `[Term]` | *[Definición]* | `[Ruta del archivo]` |
+| `[Term]` | *[Definición]* | `[Ruta del archivo]` |
+
+## 3. Business Decisions & Policies (The "Rules")
+*Qué reglas de negocio complejas o políticas se aplican aquí.*
+
+| Policy Name | Description | Enforced By (Pattern/Class) |
+|-------------|-------------|-----------------------------|
+| *Ej: Política de Cancelación* | *No se puede cancelar si faltan < 24h* | *Guard Clause en `Booking.java`* |
+
+## 4. Interactions (Flow of Control)
+*Cómo se comunica este contexto con el mundo.*
+
+| Direction | Type | Description | Handled By |
+|-----------|------|-------------|------------|
+| **Inbound** | *[API / Event / Cron]* | *[Qué entra]* | *[Controller/Listener]* |
+| **Outbound** | *[Event / DB / API Call]* | *[Qué sale o cambia]* | *[Repository/Publisher]* |
+
+## 5. Assumptions & Verification Metrics
+*Cosas que el código asume que son ciertas.*
+
+* **Assumption:** [Ej: El usuario siempre tiene un email válido antes de llegar aquí]
+* **Metric:** [Ej: Latencia esperada o volumen de datos]
+
+## 6. Open Questions & Tech Debt (Socratic Critique)
+*Aquí es donde aplicas el juicio crítico. ¿Qué huele mal?*
+
+* [ ] *Ej: El término "Manager" es ambiguo en `UserManager.java`. Parece un God Object.*
+* [ ] *Ej: Reglas de negocio filtradas en la capa de Infraestructura en lugar del Dominio.*
+```
+
+---
+
+### 3. Cómo completar y refinar el Canvas (El toque humano)
+
+Fernando explica que el LLM te dará un borrador "decente", pero tú debes aplicar el **Diálogo Socrático** para pulirlo. Una vez que el agente genere el Canvas, usa estos "Contra-Prompts" para mejorarlo:
+
+**Para validar la Clasificación Estratégica:**
+> "Has clasificado este contexto como 'Core Domain'. Sin embargo, veo que el 80% del código son operaciones CRUD simples sin reglas complejas en la tabla de Business Policies. ¿Estás seguro de que no es un 'Supporting Subdomain'? Reevalúa tu respuesta basándote en la complejidad ciclomática de las entidades."
+
+**Para pulir el Lenguaje Ubicuo:**
+> "En la tabla de Lenguaje Ubicuo has puesto 'Pedido'. Pero mirando el Manifiesto de Código, veo un fichero `Order.java` y otro `PurchaseRequest.java`. ¿Cuál de los dos es el término real del dominio y cuál es un DTO? Corrige la tabla."
+
+**Para las Interacciones:**
+> "En 'Inbound Interactions' solo has puesto la API REST. Revisa el código buscando anotaciones de `@KafkaListener` o `RabbitListener` o implementaciones de `Consumer`. ¿Hay eventos de dominio entrando que te has perdido?"
+
+### Resumen del Flujo
+1.  **Input:** Manifiesto + Código.
+2.  **Paso 1:** Generar Tabla Táctica (Fichero a fichero).
+3.  **Paso 2:** Usar el Prompt de arriba + Template para generar el Canvas Estratégico.
+4.  **Paso 3:** Discutir con la IA (Socrático) para corregir las asunciones erróneas.
+
+Este proceso transforma un montón de código ilegible en un mapa estratégico que puedes usar para explicar el sistema a un Product Owner o a un nuevo desarrollador.

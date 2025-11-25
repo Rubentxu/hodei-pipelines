@@ -3,9 +3,9 @@
 //! This module provides the mapping layer between domain objects and database rows,
 //! reducing Feature Envy in the repository adapters.
 
-use crate::{Worker, WorkerId};
+use crate::WorkerCapabilities;
+use crate::{Worker, WorkerId, WorkerStatus};
 use chrono::{DateTime, Utc};
-use hodei_shared_types::WorkerCapabilities;
 use serde_json::Value;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -73,7 +73,7 @@ impl WorkerMapper for SqlxWorkerMapper {
         // Preserve current_jobs antes de mover row
         let current_job_ids = row.current_jobs.clone();
 
-        let worker_status = hodei_shared_types::WorkerStatus {
+        let worker_status = WorkerStatus {
             worker_id: row.id.clone(),
             status: row.status,
             current_jobs: current_job_ids
@@ -107,13 +107,13 @@ impl WorkerMapper for SqlxWorkerMapper {
 mod tests {
     use super::*;
     use crate::Worker;
-    use hodei_shared_types::{WorkerCapabilities, WorkerId};
+    use {WorkerCapabilities, WorkerId};
 
     fn create_test_worker() -> Worker {
         Worker {
             id: WorkerId::new(),
             name: "test-worker".to_string(),
-            status: hodei_shared_types::WorkerStatus {
+            status: WorkerStatus {
                 worker_id: WorkerId::new(),
                 status: "IDLE".to_string(),
                 current_jobs: Vec::new(),

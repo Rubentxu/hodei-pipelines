@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use hodei_core::JobSpec;
-use hodei_shared_types::{JobId, WorkerId, WorkerStatus};
+use hodei_core::{JobId, WorkerId, WorkerStatus};
 
 /// Worker client port for communicating with worker agents
 #[async_trait]

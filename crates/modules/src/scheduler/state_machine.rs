@@ -278,7 +278,7 @@ mod tests {
     use hodei_ports::{
         EventPublisher, JobRepository, JobRepositoryError, WorkerClient, WorkerRepository,
     };
-    use hodei_shared_types::{WorkerCapabilities, WorkerId, WorkerStatus};
+    use hodei_core::{WorkerCapabilities, WorkerId, WorkerStatus};
     use std::sync::Arc;
 
     // Mock implementations

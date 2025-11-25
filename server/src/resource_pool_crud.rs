@@ -195,7 +195,7 @@ pub struct CreatePoolRequest {
     pub provider_name: String,
     pub min_size: u32,
     pub max_size: u32,
-    pub default_resources: hodei_shared_types::ResourceQuota,
+    pub default_resources: hodei_core::ResourceQuota,
     pub tags: Option<HashMap<String, String>>,
 }
 
@@ -374,7 +374,7 @@ mod tests {
             provider_name: "docker".to_string(),
             min_size: 1,
             max_size: 10,
-            default_resources: hodei_shared_types::ResourceQuota {
+            default_resources: hodei_core::ResourceQuota {
                 cpu_m: 2000,
                 memory_mb: 4096,
                 gpu: None,
@@ -400,7 +400,7 @@ mod tests {
             provider_name: "kubernetes".to_string(),
             min_size: 2,
             max_size: 20,
-            default_resources: hodei_shared_types::ResourceQuota {
+            default_resources: hodei_core::ResourceQuota {
                 cpu_m: 4000,
                 memory_mb: 8192,
                 gpu: None,
@@ -426,7 +426,7 @@ mod tests {
             provider_name: "static".to_string(),
             min_size: 5,
             max_size: 5,
-            default_resources: hodei_shared_types::ResourceQuota {
+            default_resources: hodei_core::ResourceQuota {
                 cpu_m: 1000,
                 memory_mb: 2048,
                 gpu: None,
@@ -440,7 +440,7 @@ mod tests {
             provider_name: "aws".to_string(),
             min_size: 0,
             max_size: 100,
-            default_resources: hodei_shared_types::ResourceQuota {
+            default_resources: hodei_core::ResourceQuota {
                 cpu_m: 8000,
                 memory_mb: 16384,
                 gpu: None,
@@ -467,7 +467,7 @@ mod tests {
             provider_name: "docker".to_string(),
             min_size: 1,
             max_size: 10,
-            default_resources: hodei_shared_types::ResourceQuota {
+            default_resources: hodei_core::ResourceQuota {
                 cpu_m: 2000,
                 memory_mb: 4096,
                 gpu: None,
@@ -502,7 +502,7 @@ mod tests {
             provider_name: "k8s".to_string(),
             min_size: 1,
             max_size: 5,
-            default_resources: hodei_shared_types::ResourceQuota {
+            default_resources: hodei_core::ResourceQuota {
                 cpu_m: 2000,
                 memory_mb: 4096,
                 gpu: None,
@@ -530,7 +530,7 @@ mod tests {
             provider_name: "docker".to_string(),
             min_size: 1,
             max_size: 10,
-            default_resources: hodei_shared_types::ResourceQuota {
+            default_resources: hodei_core::ResourceQuota {
                 cpu_m: 2000,
                 memory_mb: 4096,
                 gpu: None,

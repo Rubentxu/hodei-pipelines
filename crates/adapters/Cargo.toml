@@ -11,7 +11,6 @@ repository.workspace = true
 # Workspace core crates
 hodei-core = { workspace = true, features = ["sqlx", "serde"] }
 hodei-ports = { workspace = true }
-hodei-shared-types = { workspace = true, features = ["sqlx"] }
 hwp-proto = { workspace = true }
 
 # Workspace async and utilities
@@ -33,6 +32,7 @@ anyhow = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
+itertools = "0.13"
 # Performance optimizations
 dashmap = { version = "5.5", default-features = false }
 bincode = { version = "1.3", default-features = false }
@@ -67,7 +67,7 @@ tempfile = { workspace = true }
 tracing-test = "0.2.5"
 
 [features]
-integration = ["testcontainers", "sqlx/runtime-tokio-rustls", "hodei-core/sqlx", "hodei-shared-types/sqlx"]
+integration = ["testcontainers", "sqlx/runtime-tokio-rustls", "hodei-core/sqlx"]
 docker-provider = []
 kubernetes-provider = []
 default = []

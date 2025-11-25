@@ -16,7 +16,7 @@ mod auto_registration_tests {
     use hodei_ports::WorkerRegistrationPort;
     use hodei_ports::scheduler_port::{SchedulerError, SchedulerPort};
     use hodei_ports::worker_provider::{ProviderCapabilities, ProviderError, WorkerProvider};
-    use hodei_shared_types::{WorkerCapabilities, WorkerStatus};
+    use hodei_core::{WorkerCapabilities, WorkerStatus};
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};

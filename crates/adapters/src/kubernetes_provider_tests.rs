@@ -8,7 +8,7 @@ mod tests {
     use super::*;
     use hodei_core::WorkerId;
     use hodei_ports::worker_provider::{ProviderConfig, ProviderType};
-    use hodei_shared_types::WorkerStatus;
+    use hodei_core::WorkerStatus;
     use std::str::FromStr;
 
     #[tokio::test]

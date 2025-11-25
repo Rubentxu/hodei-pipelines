@@ -14,7 +14,7 @@ use hodei_core::{Worker, WorkerId};
 use hodei_ports::worker_provider::{
     ProviderCapabilities, ProviderConfig, ProviderError, ProviderType, WorkerProvider,
 };
-use hodei_shared_types::WorkerStatus;
+use hodei_core::WorkerStatus;
 
 /// Docker worker provider implementation
 #[derive(Debug, Clone)]
@@ -152,7 +152,7 @@ impl WorkerProvider for DockerProvider {
         let worker = Worker::new(
             worker_id,
             format!("worker-{}", worker_id_clone),
-            hodei_shared_types::WorkerCapabilities::new(2, 4096),
+            hodei_core::WorkerCapabilities::new(2, 4096),
         );
 
         Ok(worker)

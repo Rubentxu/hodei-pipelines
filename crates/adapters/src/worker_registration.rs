@@ -9,7 +9,7 @@ use hodei_core::Worker;
 use hodei_ports::{
     SchedulerPort, WorkerRegistrationError, WorkerRegistrationPort, scheduler_port::SchedulerError,
 };
-use hodei_shared_types::WorkerId;
+use hodei_core::WorkerId;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
@@ -294,7 +294,7 @@ mod tests {
     use async_trait::async_trait;
     use hodei_core::Worker;
     use hodei_ports::scheduler_port::SchedulerPort;
-    use hodei_shared_types::WorkerCapabilities;
+    use hodei_core::WorkerCapabilities;
 
     // Mock implementation for testing
     #[derive(Debug, Clone)]

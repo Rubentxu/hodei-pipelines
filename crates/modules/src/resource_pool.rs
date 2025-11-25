@@ -14,7 +14,7 @@ use hodei_ports::{
     },
     worker_provider::{ProviderConfig, ProviderError, WorkerProvider},
 };
-use hodei_shared_types::{ResourceQuota, WorkerStatus};
+use hodei_core::{ResourceQuota, WorkerStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;

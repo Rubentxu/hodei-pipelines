@@ -8,7 +8,6 @@ use tracing::{error, info};
 
 use super::{CompressionType, Compressor};
 use crate::{AgentError, Result};
-use anyhow::anyhow;
 
 /// Artifact upload configuration
 #[derive(Debug, Clone)]
@@ -51,11 +50,11 @@ impl ArtifactUploader {
         // Check file size
         let metadata = fs::metadata(&file_path)
             .await
-            .map_err(|e| AgentError::Other(anyhow!("Failed to read file metadata: {}", e)))?;
+            .map_err(|e| AgentError::Other(format!("Failed to read file metadata: {}", e)))?;
         let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
 
         if size_mb > self.config.max_file_size_mb as f64 {
-            return Err(AgentError::Other(anyhow!(
+            return Err(AgentError::Other(format!(
                 "File too large: {:.2} MB",
                 size_mb
             )));
@@ -64,14 +63,14 @@ impl ArtifactUploader {
         // Read file
         let data = fs::read(&file_path)
             .await
-            .map_err(|e| AgentError::Other(anyhow!("Failed to read file: {}", e)))?;
+            .map_err(|e| AgentError::Other(format!("Failed to read file: {}", e)))?;
 
         // Compress if needed
         let (data, _ext) = if matches!(self.config.compression, CompressionType::Gzip) {
             let compressed = self
                 .compressor
                 .compress(&data)
-                .map_err(|e| AgentError::Other(anyhow!("Compression failed: {}", e)))?;
+                .map_err(|e| AgentError::Other(format!("Compression failed: {}", e)))?;
             (compressed, ".gz".to_string())
         } else {
             (data, String::new())
@@ -118,12 +117,12 @@ impl ArtifactUploader {
         while let Some(current_dir) = stack.pop() {
             let mut entries = fs::read_dir(&current_dir)
                 .await
-                .map_err(|e| AgentError::Other(anyhow!("Failed to read directory: {}", e)))?;
+                .map_err(|e| AgentError::Other(format!("Failed to read directory: {}", e)))?;
 
             while let Some(entry) = entries
                 .next_entry()
                 .await
-                .map_err(|e| AgentError::Other(anyhow!("Failed to read directory entry: {}", e)))?
+                .map_err(|e| AgentError::Other(format!("Failed to read directory entry: {}", e)))?
             {
                 let path = entry.path();
 

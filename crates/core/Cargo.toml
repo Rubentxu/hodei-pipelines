@@ -3,14 +3,11 @@ name = "hodei-core"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Domain core for Hodei Pipelines - pure business logic"
+description = "Domain core for Hodei Pipelines - pure business logic and shared types"
 license.workspace = true
 repository.workspace = true
 
 [dependencies]
-# Shared Kernel - Value Objects and common types
-hodei-shared-types = { workspace = true }
-
 # Workspace dependencies
 uuid = { workspace = true, features = ["v4", "serde"] }
 serde = { workspace = true, features = ["derive"] }
@@ -19,14 +16,19 @@ chrono = { workspace = true, features = ["serde"] }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 parking_lot = { workspace = true }
-dashmap = { workspace = true }
 tracing = { workspace = true }
 sqlx = { workspace = true, optional = true }
 daggy = { workspace = true }
+dashmap = { workspace = true, optional = true }
+async-trait = { workspace = true }
+sysinfo = { workspace = true, optional = true }
 
 [features]
 sqlx = ["dep:sqlx"]
+dashmap = ["dep:dashmap"]
 serde = []
+sysinfo = ["dep:sysinfo"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
