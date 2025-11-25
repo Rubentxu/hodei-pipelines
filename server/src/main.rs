@@ -95,6 +95,10 @@ use resource_pool_crud::{ResourcePoolCrudAppState, resource_pool_crud_routes};
 mod static_pool_management;
 use static_pool_management::{StaticPoolManagementAppState, static_pool_management_routes};
 
+// Dynamic Pool Management module (US-09.3.3)
+mod dynamic_pool_management;
+use dynamic_pool_management::{DynamicPoolManagementAppState, dynamic_pool_management_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -159,6 +163,8 @@ struct AppState {
     resource_pool_crud_app_state: ResourcePoolCrudAppState,
     // US-09.3.2: Static Pool Management
     static_pool_management_app_state: StaticPoolManagementAppState,
+    // US-09.3.3: Dynamic Pool Management
+    dynamic_pool_management_app_state: DynamicPoolManagementAppState,
 }
 
 #[tokio::main]
@@ -318,6 +324,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool_configs: static_pool_configs,
     };
 
+    // Create dynamic pool management service
+    let dynamic_pools = Arc::new(RwLock::new(std::collections::HashMap::new()));
+    let dynamic_pool_configs = Arc::new(RwLock::new(std::collections::HashMap::new()));
+    let dynamic_scaling_history = Arc::new(RwLock::new(std::collections::HashMap::new()));
+    let dynamic_pool_management_app_state = DynamicPoolManagementAppState {
+        dynamic_pools,
+        pool_configs: dynamic_pool_configs,
+        scaling_history: dynamic_scaling_history,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -353,6 +369,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         resource_pool_crud_routes().with_state(resource_pool_crud_app_state.clone());
     let static_pool_management_router =
         static_pool_management_routes().with_state(static_pool_management_app_state.clone());
+    let dynamic_pool_management_router =
+        dynamic_pool_management_routes().with_state(dynamic_pool_management_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -371,6 +389,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         queue_status_app_state,
         resource_pool_crud_app_state,
         static_pool_management_app_state,
+        dynamic_pool_management_app_state,
     };
 
     // Handler functions
@@ -810,6 +829,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", resource_pool_crud_router)
         // US-09.3.2: Static Pool Management Routes
         .nest("/api/v1", static_pool_management_router)
+        // US-09.3.3: Dynamic Pool Management Routes
+        .nest("/api/v1", dynamic_pool_management_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
