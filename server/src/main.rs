@@ -103,6 +103,10 @@ use dynamic_pool_management::{DynamicPoolManagementAppState, dynamic_pool_manage
 mod pool_lifecycle;
 use pool_lifecycle::{PoolLifecycleAppState, pool_lifecycle_routes};
 
+// Scaling Policies module (US-09.4.1)
+mod scaling_policies;
+use scaling_policies::{ScalingPoliciesAppState, scaling_policies_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -171,6 +175,8 @@ struct AppState {
     dynamic_pool_management_app_state: DynamicPoolManagementAppState,
     // US-09.3.4: Pool Lifecycle
     pool_lifecycle_app_state: PoolLifecycleAppState,
+    // US-09.4.1: Scaling Policies
+    scaling_policies_app_state: ScalingPoliciesAppState,
 }
 
 #[tokio::main]
@@ -346,6 +352,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: pool_lifecycle_service,
     };
 
+    // Create scaling policies service
+    let scaling_policies_service = Arc::new(scaling_policies::ScalingPoliciesService::new());
+    let scaling_policies_app_state = ScalingPoliciesAppState {
+        service: scaling_policies_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -385,6 +397,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         dynamic_pool_management_routes().with_state(dynamic_pool_management_app_state.clone());
     let pool_lifecycle_router =
         pool_lifecycle_routes().with_state(pool_lifecycle_app_state.clone());
+    let scaling_policies_router =
+        scaling_policies_routes().with_state(scaling_policies_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -405,6 +419,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         static_pool_management_app_state,
         dynamic_pool_management_app_state,
         pool_lifecycle_app_state,
+        scaling_policies_app_state,
     };
 
     // Handler functions
@@ -848,6 +863,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", dynamic_pool_management_router)
         // US-09.3.4: Pool Lifecycle Routes
         .nest("/api/v1", pool_lifecycle_router)
+        // US-09.4.1: Scaling Policies Routes
+        .nest("/api/v1", scaling_policies_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
