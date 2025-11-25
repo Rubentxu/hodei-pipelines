@@ -139,6 +139,10 @@ use historical_metrics::{HistoricalMetricsAppState, historical_metrics_routes};
 mod prometheus_integration;
 use prometheus_integration::{PrometheusIntegrationAppState, prometheus_integration_routes};
 
+// Grafana Dashboards module (US-09.6.2)
+mod grafana_dashboards;
+use grafana_dashboards::{GrafanaDashboardsAppState, grafana_dashboards_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -225,6 +229,8 @@ struct AppState {
     historical_metrics_app_state: HistoricalMetricsAppState,
     // US-09.6.1: Prometheus Integration
     prometheus_integration_app_state: PrometheusIntegrationAppState,
+    // US-09.6.2: Grafana Dashboards
+    grafana_dashboards_app_state: GrafanaDashboardsAppState,
 }
 
 #[tokio::main]
@@ -456,6 +462,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: prometheus_integration_service,
     };
 
+    // Create Grafana dashboards service
+    let grafana_dashboards_service = Arc::new(grafana_dashboards::GrafanaDashboardsService::new());
+    let grafana_dashboards_app_state = GrafanaDashboardsAppState {
+        service: grafana_dashboards_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -511,6 +523,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         historical_metrics_routes().with_state(historical_metrics_app_state.clone());
     let prometheus_integration_router =
         prometheus_integration_routes().with_state(prometheus_integration_app_state.clone());
+    let grafana_dashboards_router =
+        grafana_dashboards_routes().with_state(grafana_dashboards_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -540,6 +554,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cost_reports_app_state,
         historical_metrics_app_state,
         prometheus_integration_app_state,
+        grafana_dashboards_app_state,
     };
 
     // Handler functions
@@ -1001,6 +1016,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", historical_metrics_router)
         // US-09.6.1: Prometheus Integration Routes
         .nest("/api/v1", prometheus_integration_router)
+        // US-09.6.2: Grafana Dashboards Routes
+        .nest("/api/v1", grafana_dashboards_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
