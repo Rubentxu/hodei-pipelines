@@ -74,6 +74,10 @@ use job_prioritization::{
     JobPrioritizationAppState, JobPrioritizationService, job_prioritization_routes,
 };
 
+// WFQ Integration module (US-09.2.2) - TODO: Fix handler signatures
+// mod wfq_integration;
+// use wfq_integration::{WFQIntegrationAppState, WFQIntegrationService, wfq_integration_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -128,6 +132,8 @@ struct AppState {
     burst_capacity_app_state: BurstCapacityAppState,
     // US-09.2.1: Job Prioritization
     job_prioritization_app_state: JobPrioritizationAppState,
+    // US-09.2.2: WFQ Integration - TODO: Fix handler signatures
+    // wfq_integration_app_state: WFQIntegrationAppState,
 }
 
 #[tokio::main]
@@ -250,6 +256,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: job_prioritization_service,
     };
 
+    // Create WFQ integration service - TODO: Fix handler signatures
+    // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
+    //     enable_virtual_time: true,
+    //     min_weight: 0.1,
+    //     max_weight: 10.0,
+    //     default_strategy: hodei_modules::weighted_fair_queuing::WeightStrategy::BillingTier,
+    //     starvation_threshold: 0.5,
+    //     weight_update_interval: std::time::Duration::from_secs(60),
+    //     default_packet_size: 1000,
+    //     enable_dynamic_weights: true,
+    //     starvation_window: std::time::Duration::from_secs(300),
+    //     fair_share_window: std::time::Duration::from_secs(3600),
+    // };
+    // let wfq_engine =
+    //     hodei_modules::weighted_fair_queuing::WeightedFairQueueingEngine::new(wfq_config);
+    // let wfq_integration_service = WFQIntegrationService::new(wfq_engine);
+    // let wfq_integration_app_state = WFQIntegrationAppState {
+    //     service: wfq_integration_service,
+    // };
+
     // Create routes that will be nested
     let resource_quotas_router =
         resource_quotas_routes().with_state(resource_quotas_app_state.clone());
@@ -259,6 +285,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         burst_capacity_routes().with_state(burst_capacity_app_state.clone());
     let job_prioritization_router =
         job_prioritization_routes().with_state(job_prioritization_app_state.clone());
+    // let wfq_integration_router =
+    //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
     let app_state = AppState {
         scheduler: scheduler.clone(),
@@ -270,6 +298,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         quota_enforcement_app_state,
         burst_capacity_app_state,
         job_prioritization_app_state,
+        // wfq_integration_app_state,
     };
 
     // Handler functions
@@ -699,6 +728,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", burst_capacity_router)
         // US-09.2.1: Job Prioritization Routes
         .nest("/api/v1", job_prioritization_router)
+        // US-09.2.2: WFQ Integration Routes - TODO: Fix handler signatures
+        // .nest("/api/v1", wfq_integration_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
