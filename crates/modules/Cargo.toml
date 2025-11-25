@@ -26,6 +26,7 @@ chrono = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
 dashmap = { workspace = true }
+rand = "0.8"
 
 # Lock-free data structures and batching
 crossbeam = { version = "0.8", features = ["std"] }

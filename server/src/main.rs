@@ -6,6 +6,7 @@
 //!
 //! OpenAPI specification: http://localhost:8080/api/openapi.json
 
+use async_trait::async_trait;
 use axum::{
     Router,
     extract::State,
@@ -16,11 +17,17 @@ use axum::{
 use std::sync::Arc;
 
 use hodei_adapters::{
-    GrpcWorkerClient, HttpWorkerClient, InMemoryBus, InMemoryJobRepository,
+    DockerProvider, GrpcWorkerClient, HttpWorkerClient, InMemoryBus, InMemoryJobRepository,
     InMemoryPipelineRepository, InMemoryWorkerRepository, ProviderConfig, ProviderType,
+    WorkerRegistrationAdapter,
 };
 use hodei_core::{Job, JobId, Worker, WorkerId};
-use hodei_modules::{OrchestratorModule, SchedulerModule, WorkerManagementService};
+use hodei_modules::{
+    OrchestratorModule, SchedulerModule, WorkerManagementConfig, WorkerManagementService,
+    multi_tenancy_quota_manager::MultiTenancyQuotaManager,
+};
+use hodei_ports::worker_provider::WorkerProvider;
+use hodei_ports::{ProviderFactoryTrait, SchedulerPort};
 use hodei_shared_types::{JobSpec, ResourceQuota, WorkerCapabilities};
 use serde_json::{Value, json};
 use tower_http::cors::{Any, CorsLayer};
@@ -37,13 +44,49 @@ use api_docs::{
     RegisterWorkerRequest,
 };
 
-use utoipa::{IntoParams, ToSchema};
-
 mod metrics;
 use metrics::MetricsRegistry;
 
 mod auth;
 mod grpc;
+
+// Tenant Management module (EPIC-09)
+mod tenant_management;
+use tenant_management::{TenantAppState, TenantManagementService, tenant_routes};
+
+// Resource Quotas module (US-09.1.2)
+mod resource_quotas;
+use resource_quotas::{ResourceQuotasAppState, ResourceQuotasService, resource_quotas_routes};
+
+// Define a concrete type for WorkerManagementService
+// For now, we'll use a mock scheduler port
+#[derive(Clone)]
+struct MockSchedulerPort;
+
+#[async_trait::async_trait]
+impl SchedulerPort for MockSchedulerPort {
+    async fn register_worker(
+        &self,
+        _worker: &Worker,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        Ok(())
+    }
+
+    async fn unregister_worker(
+        &self,
+        _worker_id: &WorkerId,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        Ok(())
+    }
+
+    async fn get_registered_workers(
+        &self,
+    ) -> Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
+        Ok(Vec::new())
+    }
+}
+
+type ConcreteWorkerManagementService = WorkerManagementService<DockerProvider, MockSchedulerPort>;
 
 #[derive(Clone)]
 struct AppState {
@@ -57,8 +100,12 @@ struct AppState {
     >,
     orchestrator:
         Arc<OrchestratorModule<InMemoryJobRepository, InMemoryBus, InMemoryPipelineRepository>>,
-    worker_management: Arc<WorkerManagementService>,
+    worker_management: Arc<ConcreteWorkerManagementService>,
     metrics: MetricsRegistry,
+    // EPIC-09: Tenant management
+    tenant_app_state: TenantAppState,
+    // US-09.1.2: Resource Quotas
+    resource_quotas_app_state: ResourceQuotasAppState,
 }
 
 #[tokio::main]
@@ -110,21 +157,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
     // Create Worker Management Service
-    let worker_management =
-        hodei_modules::worker_management::create_default_worker_management_service()
-            .await
-            .map_err(|e| {
-                tracing::warn!("Failed to initialize worker management: {}", e);
-                anyhow::anyhow!("Failed to initialize worker management: {}", e)
-            })?;
+    let config = WorkerManagementConfig {
+        registration_enabled: true,
+        registration_max_retries: 3,
+    };
+
+    // Create a Docker provider for now (in production, could use other providers)
+    let provider_config = ProviderConfig::docker("default".to_string());
+    let provider = DockerProvider::new(provider_config)
+        .await
+        .expect("Failed to create Docker provider");
+
+    let worker_management = Arc::new(WorkerManagementService::new(provider, config));
+
+    // Create Tenant Management Service (EPIC-09)
+    let quota_manager_config =
+        hodei_modules::multi_tenancy_quota_manager::QuotaManagerConfig::default();
+    let quota_manager = Arc::new(MultiTenancyQuotaManager::new(quota_manager_config));
+    let tenant_service = TenantManagementService::new(quota_manager.clone());
+    let tenant_app_state = TenantAppState { tenant_service };
 
     scheduler.clone().start().await?;
+
+    // Create tenant routes before moving into AppState
+    let tenant_router = Router::new().nest(
+        "/tenants",
+        tenant_routes().with_state(tenant_app_state.clone()),
+    );
+
+    // Create resource quotas service
+    let resource_quotas_service = ResourceQuotasService::new(quota_manager.clone());
+    let resource_quotas_app_state = ResourceQuotasAppState {
+        service: resource_quotas_service,
+    };
 
     let app_state = AppState {
         scheduler: scheduler.clone(),
         orchestrator: orchestrator.clone(),
-        worker_management: Arc::new(worker_management),
+        worker_management: worker_management.clone(),
         metrics: metrics.clone(),
+        tenant_app_state,
+        resource_quotas_app_state,
     };
 
     // Handler functions
@@ -253,7 +326,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let create_dynamic_worker_handler = {
-        let worker_management = Arc::clone(&app_state.worker_management);
+        let worker_management: Arc<ConcreteWorkerManagementService> =
+            Arc::clone(&app_state.worker_management);
         move |State(_): State<AppState>, Json(payload): Json<CreateDynamicWorkerRequest>| async move {
             // Parse provider type
             let provider_type = match payload.provider_type.to_lowercase().as_str() {
@@ -310,7 +384,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let get_dynamic_worker_status_handler = {
-        let worker_management = Arc::clone(&app_state.worker_management);
+        let worker_management: Arc<ConcreteWorkerManagementService> =
+            Arc::clone(&app_state.worker_management);
         move |State(_): State<AppState>,
               axum::extract::Path(worker_id): axum::extract::Path<String>| async move {
             let worker_id_uuid =
@@ -331,7 +406,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let list_dynamic_workers_handler = {
-        let worker_management = Arc::clone(&app_state.worker_management);
+        let worker_management: Arc<ConcreteWorkerManagementService> =
+            Arc::clone(&app_state.worker_management);
         move |State(_): State<AppState>| async move {
             match worker_management.list_workers().await {
                 Ok(worker_ids) => {
@@ -366,7 +442,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let get_provider_capabilities_handler = {
-        let worker_management = Arc::clone(&app_state.worker_management);
+        let worker_management: Arc<ConcreteWorkerManagementService> =
+            Arc::clone(&app_state.worker_management);
         move |State(_): State<AppState>| async move {
             match worker_management.get_provider_capabilities().await {
                 Ok(capabilities) => Ok(Json(ProviderCapabilitiesResponse {
@@ -386,7 +463,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let stop_dynamic_worker_handler = {
-        let worker_management = Arc::clone(&app_state.worker_management);
+        let worker_management: Arc<ConcreteWorkerManagementService> =
+            Arc::clone(&app_state.worker_management);
         move |State(_): State<AppState>,
               axum::extract::Path(worker_id): axum::extract::Path<String>| async move {
             let worker_id_uuid =
@@ -404,7 +482,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let delete_dynamic_worker_handler = {
-        let worker_management = Arc::clone(&app_state.worker_management);
+        let worker_management: Arc<ConcreteWorkerManagementService> =
+            Arc::clone(&app_state.worker_management);
         move |State(_): State<AppState>,
               axum::extract::Path(worker_id): axum::extract::Path<String>| async move {
             let worker_id_uuid =
@@ -445,7 +524,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let create_provider_handler = {
-        let worker_management = Arc::clone(&app_state.worker_management);
+        let worker_management: Arc<ConcreteWorkerManagementService> =
+            Arc::clone(&app_state.worker_management);
         move |State(_): State<AppState>, Json(payload): Json<CreateProviderRequest>| async move {
             // Build provider config
             let provider_type = match payload.provider_type {
@@ -490,6 +570,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    // Create resource quotas routes
+    let resource_quotas_router =
+        resource_quotas_routes().with_state(app_state.resource_quotas_app_state.clone());
+
     let app = Router::new()
         // API Documentation
         .route("/api/openapi.json", get(|| async {
@@ -509,6 +593,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }))
         }))
         .route("/health", get(health_handler))
+        .with_state(app_state.clone())
+        // Main API routes
         .route("/api/v1/jobs", post(create_job_handler))
         .route("/api/v1/jobs/{id}", get(get_job_handler))
         .route("/api/v1/jobs/{id}/cancel", post(cancel_job_handler))
@@ -535,6 +621,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/providers/capabilities", get(get_provider_capabilities_handler))
         .route("/api/v1/providers", get(list_providers_handler))
         .route("/api/v1/providers", post(create_provider_handler))
+        // EPIC-09: Tenant Management Routes
+        .nest("/api/v1", tenant_router)
+        // US-09.1.2: Resource Quotas Routes
+        .nest("/api/v1", resource_quotas_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()

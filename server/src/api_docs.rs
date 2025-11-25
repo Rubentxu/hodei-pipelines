@@ -373,3 +373,96 @@ pub struct ProviderResponse {
     /// Creation timestamp
     pub created_at: DateTime<Utc>,
 }
+
+// ============================================================================
+// EPIC-09: Tenant Management Schemas
+// ============================================================================
+
+/// Create tenant request (EPIC-09)
+#[derive(Serialize, Deserialize, ToSchema)]
+#[schema(example = json!({
+    "name": "tenant-a",
+    "email": "admin@tenant-a.com"
+}))]
+pub struct CreateTenantRequest {
+    /// Tenant name
+    pub name: String,
+    /// Tenant admin email
+    pub email: String,
+}
+
+/// Update tenant request (EPIC-09)
+#[derive(Serialize, Deserialize, ToSchema)]
+#[schema(example = json!({
+    "name": "tenant-a-updated",
+    "email": "admin-updated@tenant-a.com"
+}))]
+pub struct UpdateTenantRequest {
+    /// Tenant name
+    pub name: String,
+    /// Tenant admin email
+    pub email: String,
+}
+
+/// Tenant response (EPIC-09)
+#[derive(Serialize, Deserialize, ToSchema)]
+#[schema(example = json!({
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "tenant-a",
+    "email": "admin@tenant-a.com",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+}))]
+pub struct TenantResponse {
+    /// Unique tenant identifier
+    pub id: String,
+    /// Tenant name
+    pub name: String,
+    /// Tenant admin email
+    pub email: String,
+    /// Creation timestamp
+    pub created_at: DateTime<Utc>,
+    /// Last update timestamp
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Quota response (EPIC-09)
+#[derive(Serialize, Deserialize, ToSchema)]
+#[schema(example = json!({
+    "cpu_m": 4000,
+    "memory_mb": 8192,
+    "max_concurrent_jobs": 10,
+    "current_usage": {
+        "cpu_m": 1500,
+        "memory_mb": 2048,
+        "active_jobs": 3
+    }
+}))]
+pub struct QuotaResponse {
+    /// CPU allocation in millicores
+    pub cpu_m: u64,
+    /// Memory allocation in MB
+    pub memory_mb: u64,
+    /// Maximum concurrent jobs
+    pub max_concurrent_jobs: u32,
+    /// Current resource usage
+    pub current_usage: QuotaUsage,
+}
+
+/// Quota usage (EPIC-09)
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct QuotaUsage {
+    /// Currently used CPU in millicores
+    pub cpu_m: u64,
+    /// Currently used memory in MB
+    pub memory_mb: u64,
+    /// Currently active jobs
+    pub active_jobs: u32,
+}
+
+/// List tenants response (EPIC-09)
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct ListTenantsResponse {
+    /// List of tenants
+    pub tenants: Vec<TenantResponse>,
+}

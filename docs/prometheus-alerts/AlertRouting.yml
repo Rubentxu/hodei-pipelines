@@ -1,0 +1,137 @@
+# Alert Routing Configuration
+# This file defines how alerts should be routed to different notification channels
+
+# Slack Configuration
+slack:
+  webhook_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  channels:
+    critical: "#alerts-critical"
+    warning: "#alerts-warning"
+    info: "#alerts-info"
+  
+  # Severity-based routing
+  routing:
+    critical:
+      - slack:critical
+      - pagerduty:critical
+    warning:
+      - slack:warning
+    info:
+      - slack:info
+
+# PagerDuty Configuration
+pagerduty:
+  integration_key: "YOUR_PAGERDUTY_INTEGRATION_KEY"
+  service_key: "YOUR_SERVICE_KEY"
+  
+  # Escalation policies
+  escalation_policy_id: "ESCALATION_POLICY_ID"
+
+# Email Configuration
+email:
+  smtp_host: "smtp.yourcompany.com"
+  smtp_port: 587
+  username: "alerts@yourcompany.com"
+  password: "YOUR_EMAIL_PASSWORD"
+  
+  recipients:
+    critical: ["ops-team@yourcompany.com", "sre@yourcompany.com"]
+    warning: ["ops-team@yourcompany.com"]
+    info: ["team@yourcompany.com"]
+
+# Notification Templates
+templates:
+  slack_critical: |
+    🚨 *CRITICAL ALERT*
+    
+    *Alert:* {{ .CommonLabels.alertname }}
+    *Pool:* {{ .CommonLabels.pool_id }}
+    *Severity:* {{ .CommonLabels.severity }}
+    
+    {{ range .Alerts }}
+    *Description:* {{ .Annotations.summary }}
+    *Details:* {{ .Annotations.description }}
+    {{ end }}
+    
+    Runbook: {{ with .Annotations.runbook_url }}{{ . }}{{ else }}N/A{{ end }}
+    Timestamp: {{ .CommonAnnotations.timestamp }}
+  
+  slack_warning: |
+    ⚠️ *WARNING*
+    
+    *Alert:* {{ .CommonLabels.alertname }}
+    *Pool:* {{ .CommonLabels.pool_id }}
+    
+    {{ range .Alerts }}
+    *Description:* {{ .Annotations.summary }}
+    {{ end }}
+  
+  pagerduty: |
+    {{ range .Alerts }}
+    Service: {{ .Labels.service }}
+    Severity: {{ .Labels.severity }}
+    Summary: {{ .Annotations.summary }}
+    {{ end }}
+
+# Alert Silence Rules
+# These can be used to silence specific alerts during maintenance windows
+silences:
+  - matchers:
+      - name: pool_id
+        value: "pool-maintenance-001"
+      - name: alertname
+        value: "PoolCapacityExhausted"
+    starts_at: "2025-11-25T20:00:00Z"
+    ends_at: "2025-11-25T22:00:00Z"
+    created_by: "sre@yourcompany.com"
+    comment: "Planned maintenance window"
+
+# Integration Endpoints
+integrations:
+  # Webhook for custom integrations
+  custom_webhook:
+    url: "https://yourcompany.com/webhooks/alerts"
+    headers:
+      Authorization: "Bearer YOUR_TOKEN"
+  
+  # SNS for AWS integration
+  sns:
+    topic_arn: "arn:aws:sns:us-east-1:123456789012:hodei-alerts"
+    region: "us-east-1"
+
+# Alert Thresholds
+thresholds:
+  # These can be used to dynamically adjust alert sensitivity
+  allocation_latency:
+    warning: 1000
+    critical: 5000
+  
+  error_rate:
+    warning: 0.02
+    critical: 0.05
+  
+  quota_utilization:
+    warning: 0.9
+    critical: 1.0
+  
+  utilization:
+    low: 0.5
+    high: 0.95
+
+# Alert Suppression Rules
+# Automatically suppress alerts based on conditions
+suppression_rules:
+  - name: "suppress-during-deployment"
+    matchers:
+      - name: pool_id
+        value: "pool-*"
+      - name: deployment_id
+        value: "current"
+    until: "2025-11-25T23:59:59Z"
+  
+  - name: "suppress-known-issues"
+    matchers:
+      - name: pool_id
+        value: "pool-known-issue-001"
+    enabled: false
+    comment: "Known issue, being tracked in JIRA-1234"

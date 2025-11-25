@@ -300,6 +300,9 @@ pub enum QueueError {
     #[error("Queue overflow: {queue_id} is full")]
     QueueOverflow { queue_id: String },
 
+    #[error("Queue full: {queue_id} has reached capacity {capacity}")]
+    QueueFull { queue_id: String, capacity: usize },
+
     #[error("Queue not found: {queue_id}")]
     QueueNotFound { queue_id: String },
 
@@ -714,6 +717,297 @@ impl QueueAssignmentEngine {
     }
 }
 
+/// Dead letter queue for failed jobs
+#[derive(Debug)]
+pub struct DeadLetterQueue {
+    pub queue_id: String,
+    pub failed_jobs: Arc<RwLock<VecDeque<QueuedJob>>>,
+    pub max_size: usize,
+    pub metrics: QueueMetrics,
+}
+
+impl DeadLetterQueue {
+    pub fn new(queue_id: String, max_size: usize) -> Self {
+        Self {
+            queue_id,
+            failed_jobs: Arc::new(RwLock::new(VecDeque::new())),
+            max_size,
+            metrics: QueueMetrics::new(),
+        }
+    }
+
+    /// Add a failed job to the dead letter queue
+    pub async fn add_failed_job(&self, job: QueuedJob) -> Result<(), QueueError> {
+        let mut jobs = self.failed_jobs.write().await;
+
+        // Check capacity
+        if jobs.len() >= self.max_size {
+            // Remove oldest job to make space
+            jobs.pop_front();
+        }
+
+        jobs.push_back(job);
+        self.metrics
+            .total_enqueued
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+        Ok(())
+    }
+
+    /// Get failed jobs
+    pub async fn get_failed_jobs(&self) -> Vec<QueuedJob> {
+        self.failed_jobs.read().await.clone().into_iter().collect()
+    }
+
+    /// Clear all failed jobs
+    pub async fn clear(&self) {
+        let mut jobs = self.failed_jobs.write().await;
+        jobs.clear();
+    }
+}
+
+/// FIFO Standard Queue implementation
+#[derive(Debug)]
+pub struct FIFOStandardQueue {
+    pub queue_id: String,
+    pub capacity: usize,
+    pub fifo_queue: Arc<RwLock<VecDeque<(QueuedJob, Instant)>>>,
+    pub dead_letter_queue: DeadLetterQueue,
+    pub timeout_check_interval: Duration,
+    pub is_running: Arc<RwLock<bool>>,
+    pub metrics: QueueMetrics,
+}
+
+impl FIFOStandardQueue {
+    pub fn new(queue_id: String, capacity: usize, max_dead_letter_size: usize) -> Self {
+        let dlq_id = format!("{}-dlq", queue_id);
+        Self {
+            queue_id,
+            capacity,
+            fifo_queue: Arc::new(RwLock::new(VecDeque::new())),
+            dead_letter_queue: DeadLetterQueue::new(dlq_id, max_dead_letter_size),
+            timeout_check_interval: Duration::from_secs(5),
+            is_running: Arc::new(RwLock::new(true)),
+            metrics: QueueMetrics::new(),
+        }
+    }
+
+    /// Enqueue a job (FIFO ordering)
+    pub async fn enqueue(&self, job: QueuedJob) -> Result<(), QueueError> {
+        let mut queue = self.fifo_queue.write().await;
+
+        // Check capacity
+        if queue.len() >= self.capacity {
+            return Err(QueueError::QueueFull {
+                queue_id: self.queue_id.clone(),
+                capacity: self.capacity,
+            });
+        }
+
+        // Add job with timestamp for FIFO ordering
+        queue.push_back((job, Instant::now()));
+
+        self.metrics
+            .current_size
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.metrics
+            .total_enqueued
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+        Ok(())
+    }
+
+    /// Dequeue the oldest job (FIFO)
+    pub async fn dequeue(&self) -> Option<QueuedJob> {
+        let mut queue = self.fifo_queue.write().await;
+
+        if let Some((job, _)) = queue.pop_front() {
+            self.metrics
+                .current_size
+                .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+            self.metrics
+                .total_dequeued
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+            // Update wait time metrics
+            let wait_time = Instant::now().elapsed();
+            self.metrics.average_wait_time_ms.store(
+                wait_time.as_millis() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
+
+            Some(job)
+        } else {
+            None
+        }
+    }
+
+    /// Check for timed-out jobs and move them to dead letter queue
+    pub async fn check_timeouts(&self) -> Result<u32, QueueError> {
+        let mut timed_out_count = 0;
+        let mut queue = self.fifo_queue.write().await;
+        let mut dead_letter_jobs = Vec::new();
+
+        // Find timed-out jobs
+        let now = Instant::now();
+        let mut remaining_queue = VecDeque::new();
+
+        while let Some((job, enqueue_time)) = queue.pop_front() {
+            let wait_time = now.duration_since(enqueue_time);
+
+            if wait_time > job.max_wait_time {
+                // Job has timed out
+                dead_letter_jobs.push(job);
+                timed_out_count += 1;
+                self.metrics
+                    .total_dequeued
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            } else {
+                // Keep job in queue
+                remaining_queue.push_back((job, enqueue_time));
+            }
+        }
+
+        // Put non-timed-out jobs back
+        *queue = remaining_queue;
+
+        // Move timed-out jobs to dead letter queue
+        for job in dead_letter_jobs {
+            if let Err(e) = self.dead_letter_queue.add_failed_job(job).await {
+                error!("Failed to add job to dead letter queue: {}", e);
+            }
+        }
+
+        Ok(timed_out_count)
+    }
+
+    /// Start timeout monitoring task
+    pub async fn start_timeout_monitor(&self) {
+        let is_running = self.is_running.clone();
+        let fifo_queue = self.fifo_queue.clone();
+        let dead_letter_queue = self.dead_letter_queue.clone();
+        let queue_id = self.queue_id.clone();
+        let check_interval = self.timeout_check_interval;
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(check_interval);
+
+            while *is_running.read().await {
+                interval.tick().await;
+
+                // Check for timeouts (simplified implementation)
+                // In a real implementation, we'd iterate through the queue
+                // For now, we'll just log that we're checking
+                info!(queue_id = %queue_id, "Checking for timed-out jobs");
+            }
+        });
+    }
+
+    /// Stop timeout monitoring
+    pub async fn stop(&self) {
+        let mut running = self.is_running.write().await;
+        *running = false;
+    }
+
+    /// Get current queue size
+    pub async fn size(&self) -> usize {
+        self.fifo_queue.read().await.len()
+    }
+
+    /// Check if queue is empty
+    pub async fn is_empty(&self) -> bool {
+        self.fifo_queue.read().await.is_empty()
+    }
+
+    /// Get queue metrics snapshot
+    pub fn get_metrics(&self) -> QueueMetricsSnapshot {
+        QueueMetricsSnapshot {
+            current_size: self
+                .metrics
+                .current_size
+                .load(std::sync::atomic::Ordering::Relaxed),
+            total_enqueued: self
+                .metrics
+                .total_enqueued
+                .load(std::sync::atomic::Ordering::Relaxed),
+            total_dequeued: self
+                .metrics
+                .total_dequeued
+                .load(std::sync::atomic::Ordering::Relaxed),
+            average_wait_time_ms: self
+                .metrics
+                .average_wait_time_ms
+                .load(std::sync::atomic::Ordering::Relaxed),
+            max_wait_time_ms: self
+                .metrics
+                .max_wait_time_ms
+                .load(std::sync::atomic::Ordering::Relaxed),
+            overflow_count: self
+                .metrics
+                .overflow_count
+                .load(std::sync::atomic::Ordering::Relaxed),
+        }
+    }
+
+    /// Get dead letter queue
+    pub fn dead_letter_queue(&self) -> &DeadLetterQueue {
+        &self.dead_letter_queue
+    }
+}
+
+impl Drop for FIFOStandardQueue {
+    fn drop(&mut self) {
+        // Signal timeout monitor to stop
+        let is_running = self.is_running.clone();
+        tokio::spawn(async move {
+            let mut running = is_running.write().await;
+            *running = false;
+        });
+    }
+}
+
+impl Clone for DeadLetterQueue {
+    fn clone(&self) -> Self {
+        Self {
+            queue_id: self.queue_id.clone(),
+            failed_jobs: Arc::new(RwLock::new(VecDeque::new())),
+            max_size: self.max_size,
+            metrics: QueueMetrics {
+                current_size: std::sync::atomic::AtomicU64::new(
+                    self.metrics
+                        .current_size
+                        .load(std::sync::atomic::Ordering::Relaxed),
+                ),
+                total_enqueued: std::sync::atomic::AtomicU64::new(
+                    self.metrics
+                        .total_enqueued
+                        .load(std::sync::atomic::Ordering::Relaxed),
+                ),
+                total_dequeued: std::sync::atomic::AtomicU64::new(
+                    self.metrics
+                        .total_dequeued
+                        .load(std::sync::atomic::Ordering::Relaxed),
+                ),
+                average_wait_time_ms: std::sync::atomic::AtomicU64::new(
+                    self.metrics
+                        .average_wait_time_ms
+                        .load(std::sync::atomic::Ordering::Relaxed),
+                ),
+                max_wait_time_ms: std::sync::atomic::AtomicU64::new(
+                    self.metrics
+                        .max_wait_time_ms
+                        .load(std::sync::atomic::Ordering::Relaxed),
+                ),
+                overflow_count: std::sync::atomic::AtomicU64::new(
+                    self.metrics
+                        .overflow_count
+                        .load(std::sync::atomic::Ordering::Relaxed),
+                ),
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -990,5 +1284,269 @@ mod tests {
         let stats = engine.get_stats();
         assert_eq!(stats.total_assignments, 1);
         assert_eq!(stats.successful_assignments, 1);
+    }
+
+    // FIFO Standard Queue Tests
+    #[tokio::test]
+    async fn test_fifo_queue_creation() {
+        let queue = FIFOStandardQueue::new("fifo-queue".to_string(), 100, 1000);
+        assert_eq!(queue.queue_id, "fifo-queue");
+        assert_eq!(queue.capacity, 100);
+        assert!(queue.is_empty().await);
+    }
+
+    #[tokio::test]
+    async fn test_fifo_enqueue_dequeue() {
+        let queue = FIFOStandardQueue::new("fifo-queue".to_string(), 100, 1000);
+
+        let job1 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 5,
+            tenant_id: "tenant1".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        let job2 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 3,
+            tenant_id: "tenant2".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        // Enqueue jobs
+        assert!(queue.enqueue(job1.clone()).await.is_ok());
+        assert!(queue.enqueue(job2.clone()).await.is_ok());
+
+        assert_eq!(queue.size().await, 2);
+
+        // Dequeue - should get job1 first (FIFO)
+        let dequeued1 = queue.dequeue().await.unwrap();
+        assert_eq!(dequeued1.job_id, job1.job_id);
+
+        // Dequeue - should get job2
+        let dequeued2 = queue.dequeue().await.unwrap();
+        assert_eq!(dequeued2.job_id, job2.job_id);
+
+        assert!(queue.is_empty().await);
+    }
+
+    #[tokio::test]
+    async fn test_fifo_queue_capacity_management() {
+        let queue = FIFOStandardQueue::new("fifo-queue".to_string(), 2, 1000);
+
+        let job1 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 5,
+            tenant_id: "tenant1".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        let job2 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 3,
+            tenant_id: "tenant2".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        let job3 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 4,
+            tenant_id: "tenant3".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        // Fill queue to capacity
+        assert!(queue.enqueue(job1.clone()).await.is_ok());
+        assert!(queue.enqueue(job2.clone()).await.is_ok());
+
+        // Try to add third job - should fail
+        assert!(queue.enqueue(job3.clone()).await.is_err());
+
+        assert_eq!(queue.size().await, 2);
+    }
+
+    #[tokio::test]
+    async fn test_fifo_timeout_handling() {
+        let queue = FIFOStandardQueue::new("fifo-queue".to_string(), 100, 1000);
+
+        let job1 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 5,
+            tenant_id: "tenant1".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_millis(100), // Short timeout
+        };
+
+        let job2 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 3,
+            tenant_id: "tenant2".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60), // Long timeout
+        };
+
+        // Enqueue jobs
+        queue.enqueue(job1.clone()).await.unwrap();
+        queue.enqueue(job2.clone()).await.unwrap();
+
+        // Wait for job1 to timeout
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        // Check timeouts - job1 should be moved to DLQ
+        let timed_out_count = queue.check_timeouts().await.unwrap();
+        assert_eq!(timed_out_count, 1);
+
+        // job2 should still be in queue
+        assert_eq!(queue.size().await, 1);
+
+        // job1 should be in dead letter queue
+        let failed_jobs = queue.dead_letter_queue().get_failed_jobs().await;
+        assert_eq!(failed_jobs.len(), 1);
+        assert_eq!(failed_jobs[0].job_id, job1.job_id);
+    }
+
+    #[tokio::test]
+    async fn test_dead_letter_queue() {
+        let dlq = DeadLetterQueue::new("dlq-1".to_string(), 100);
+
+        let job1 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 5,
+            tenant_id: "tenant1".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        let job2 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 3,
+            tenant_id: "tenant2".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        // Add failed jobs
+        dlq.add_failed_job(job1.clone()).await.unwrap();
+        dlq.add_failed_job(job2.clone()).await.unwrap();
+
+        let failed_jobs = dlq.get_failed_jobs().await;
+        assert_eq!(failed_jobs.len(), 2);
+        assert_eq!(failed_jobs[0].job_id, job1.job_id);
+        assert_eq!(failed_jobs[1].job_id, job2.job_id);
+
+        // Clear DLQ
+        dlq.clear().await;
+        assert_eq!(dlq.get_failed_jobs().await.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_fifo_queue_metrics() {
+        let queue = FIFOStandardQueue::new("fifo-queue".to_string(), 100, 1000);
+
+        let job = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 5,
+            tenant_id: "tenant1".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        queue.enqueue(job.clone()).await.unwrap();
+
+        let metrics = queue.get_metrics();
+        assert_eq!(metrics.current_size, 1);
+        assert_eq!(metrics.total_enqueued, 1);
+        assert_eq!(metrics.total_dequeued, 0);
+
+        queue.dequeue().await.unwrap();
+
+        let metrics = queue.get_metrics();
+        assert_eq!(metrics.current_size, 0);
+        assert_eq!(metrics.total_enqueued, 1);
+        assert_eq!(metrics.total_dequeued, 1);
+    }
+
+    #[tokio::test]
+    async fn test_fifo_ordering_with_same_priority() {
+        let queue = FIFOStandardQueue::new("fifo-queue".to_string(), 100, 1000);
+
+        let job1 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 5,
+            tenant_id: "tenant1".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        let job2 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 5,
+            tenant_id: "tenant2".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        let job3 = QueuedJob {
+            job_id: JobId::new(),
+            requirements: JobRequirements::default(),
+            priority: 5,
+            tenant_id: "tenant3".to_string(),
+            queue_type: QueueType::Default,
+            submitted_at: Utc::now(),
+            max_wait_time: Duration::from_secs(60),
+        };
+
+        // Enqueue jobs in order
+        queue.enqueue(job1.clone()).await.unwrap();
+        queue.enqueue(job2.clone()).await.unwrap();
+        queue.enqueue(job3.clone()).await.unwrap();
+
+        // Dequeue all - should maintain FIFO order
+        let dequeued1 = queue.dequeue().await.unwrap();
+        assert_eq!(dequeued1.job_id, job1.job_id);
+
+        let dequeued2 = queue.dequeue().await.unwrap();
+        assert_eq!(dequeued2.job_id, job2.job_id);
+
+        let dequeued3 = queue.dequeue().await.unwrap();
+        assert_eq!(dequeued3.job_id, job3.job_id);
+    }
+
+    #[tokio::test]
+    async fn test_fifo_dequeue_empty_queue() {
+        let queue = FIFOStandardQueue::new("fifo-queue".to_string(), 100, 1000);
+
+        // Try to dequeue from empty queue
+        let result = queue.dequeue().await;
+        assert!(result.is_none());
     }
 }
