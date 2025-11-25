@@ -248,7 +248,7 @@ impl CooldownsService {
 
         let mut active_list: Vec<CooldownPeriod> = cooldowns
             .values()
-            .filter(|c| c.status == CooldownStatus::Active &&c.end_time > now)
+            .filter(|c| c.status == CooldownStatus::Active && c.end_time > now)
             .cloned()
             .collect();
 
@@ -335,7 +335,7 @@ impl CooldownsService {
 
     /// Record cooldown history entry
     pub async fn record_cooldown_end(&self, cooldown_id: &str, prevented_scaling: bool) {
-        if let Some(cooldown) = self.cooldowns.read().await.get(cooldown_id) {
+        if let Some(_cooldown) = self.cooldowns.read().await.get(cooldown_id) {
             let mut history = self.cooldown_history.write().await;
 
             // Find and update the history entry
