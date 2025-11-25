@@ -64,6 +64,10 @@ use quota_enforcement::{
     QuotaEnforcementAppState, QuotaEnforcementService, quota_enforcement_routes,
 };
 
+// Burst Capacity module (US-09.1.4)
+mod burst_capacity;
+use burst_capacity::{BurstCapacityAppState, BurstCapacityService, burst_capacity_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -114,6 +118,8 @@ struct AppState {
     resource_quotas_app_state: ResourceQuotasAppState,
     // US-09.1.3: Quota Enforcement
     quota_enforcement_app_state: QuotaEnforcementAppState,
+    // US-09.1.4: Burst Capacity
+    burst_capacity_app_state: BurstCapacityAppState,
 }
 
 #[tokio::main]
@@ -211,11 +217,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: quota_enforcement_service,
     };
 
+    // Create burst capacity service
+    let burst_config = hodei_modules::burst_capacity_manager::BurstCapacityConfig {
+        enabled: true,
+        default_multiplier: 1.5,
+        max_burst_duration: std::time::Duration::from_secs(3600),
+        burst_cooldown: std::time::Duration::from_secs(600),
+        global_burst_pool_ratio: 0.2,
+        max_concurrent_bursts: 100,
+        burst_cost_multiplier: 2.0,
+        enable_burst_queuing: true,
+    };
+    let burst_capacity_service = BurstCapacityService::new(quota_manager.clone(), burst_config);
+    let burst_capacity_app_state = BurstCapacityAppState {
+        service: burst_capacity_service,
+    };
+
     // Create routes that will be nested
     let resource_quotas_router =
         resource_quotas_routes().with_state(resource_quotas_app_state.clone());
     let quota_enforcement_router =
         quota_enforcement_routes().with_state(quota_enforcement_app_state.clone());
+    let burst_capacity_router =
+        burst_capacity_routes().with_state(burst_capacity_app_state.clone());
 
     let app_state = AppState {
         scheduler: scheduler.clone(),
@@ -225,6 +249,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tenant_app_state,
         resource_quotas_app_state,
         quota_enforcement_app_state,
+        burst_capacity_app_state,
     };
 
     // Handler functions
@@ -650,6 +675,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", resource_quotas_router)
         // US-09.1.3: Quota Enforcement Routes
         .nest("/api/v1", quota_enforcement_router)
+        // US-09.1.4: Burst Capacity Routes
+        .nest("/api/v1", burst_capacity_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
