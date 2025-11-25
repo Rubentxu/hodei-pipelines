@@ -115,6 +115,10 @@ use scaling_triggers::{ScalingTriggersAppState, scaling_triggers_routes};
 mod cooldown_management;
 use cooldown_management::{CooldownsAppState, cooldowns_routes};
 
+// Scaling History module (US-09.4.4)
+mod scaling_history;
+use scaling_history::{ScalingHistoryAppState, scaling_history_routes};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -189,6 +193,8 @@ struct AppState {
     scaling_triggers_app_state: ScalingTriggersAppState,
     // US-09.4.3: Cooldown Management
     cooldown_app_state: CooldownsAppState,
+    // US-09.4.4: Scaling History
+    scaling_history_app_state: ScalingHistoryAppState,
 }
 
 #[tokio::main]
@@ -382,6 +388,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         service: cooldown_service,
     };
 
+    // Create scaling history service
+    let scaling_history_service = Arc::new(scaling_history::ScalingHistoryService::new());
+    let scaling_history_app_state = ScalingHistoryAppState {
+        service: scaling_history_service,
+    };
+
     // Create WFQ integration service - TODO: Fix handler signatures
     // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
     //     enable_virtual_time: true,
@@ -426,6 +438,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let scaling_triggers_router =
         scaling_triggers_routes().with_state(scaling_triggers_app_state.clone());
     let cooldown_router = cooldowns_routes().with_state(cooldown_app_state.clone());
+    let scaling_history_router =
+        scaling_history_routes().with_state(scaling_history_app_state.clone());
     // let wfq_integration_router =
     //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
@@ -449,6 +463,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scaling_policies_app_state,
         scaling_triggers_app_state,
         cooldown_app_state,
+        scaling_history_app_state,
     };
 
     // Handler functions
@@ -898,6 +913,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", scaling_triggers_router)
         // US-09.4.3: Cooldown Management Routes
         .nest("/api/v1", cooldown_router)
+        // US-09.4.4: Scaling History Routes
+        .nest("/api/v1", scaling_history_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
