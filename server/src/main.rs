@@ -58,6 +58,12 @@ use tenant_management::{TenantAppState, TenantManagementService, tenant_routes};
 mod resource_quotas;
 use resource_quotas::{ResourceQuotasAppState, ResourceQuotasService, resource_quotas_routes};
 
+// Quota Enforcement module (US-09.1.3)
+mod quota_enforcement;
+use quota_enforcement::{
+    QuotaEnforcementAppState, QuotaEnforcementService, quota_enforcement_routes,
+};
+
 // Define a concrete type for WorkerManagementService
 // For now, we'll use a mock scheduler port
 #[derive(Clone)]
@@ -106,6 +112,8 @@ struct AppState {
     tenant_app_state: TenantAppState,
     // US-09.1.2: Resource Quotas
     resource_quotas_app_state: ResourceQuotasAppState,
+    // US-09.1.3: Quota Enforcement
+    quota_enforcement_app_state: QuotaEnforcementAppState,
 }
 
 #[tokio::main]
@@ -180,16 +188,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     scheduler.clone().start().await?;
 
     // Create tenant routes before moving into AppState
-    let tenant_router = Router::new().nest(
-        "/tenants",
-        tenant_routes().with_state(tenant_app_state.clone()),
-    );
+    let tenant_router = tenant_routes().with_state(tenant_app_state.clone());
 
     // Create resource quotas service
     let resource_quotas_service = ResourceQuotasService::new(quota_manager.clone());
     let resource_quotas_app_state = ResourceQuotasAppState {
         service: resource_quotas_service,
     };
+
+    // Create quota enforcement service
+    let policy = hodei_modules::quota_enforcement::EnforcementPolicy {
+        strict_mode: false,
+        queue_on_violation: true,
+        preemption_enabled: false,
+        grace_period: std::time::Duration::from_secs(30),
+        enforcement_delay: std::time::Duration::from_secs(5),
+        max_queue_size: 100,
+        enable_burst_enforcement: true,
+    };
+    let quota_enforcement_service = QuotaEnforcementService::new(quota_manager.clone(), policy);
+    let quota_enforcement_app_state = QuotaEnforcementAppState {
+        service: quota_enforcement_service,
+    };
+
+    // Create routes that will be nested
+    let resource_quotas_router =
+        resource_quotas_routes().with_state(resource_quotas_app_state.clone());
+    let quota_enforcement_router =
+        quota_enforcement_routes().with_state(quota_enforcement_app_state.clone());
 
     let app_state = AppState {
         scheduler: scheduler.clone(),
@@ -198,6 +224,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         metrics: metrics.clone(),
         tenant_app_state,
         resource_quotas_app_state,
+        quota_enforcement_app_state,
     };
 
     // Handler functions
@@ -570,10 +597,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Create resource quotas routes
-    let resource_quotas_router =
-        resource_quotas_routes().with_state(app_state.resource_quotas_app_state.clone());
-
     let app = Router::new()
         // API Documentation
         .route("/api/openapi.json", get(|| async {
@@ -625,6 +648,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", tenant_router)
         // US-09.1.2: Resource Quotas Routes
         .nest("/api/v1", resource_quotas_router)
+        // US-09.1.3: Quota Enforcement Routes
+        .nest("/api/v1", quota_enforcement_router)
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()
