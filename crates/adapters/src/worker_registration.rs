@@ -6,10 +6,10 @@
 
 use async_trait::async_trait;
 use hodei_core::Worker;
+use hodei_core::WorkerId;
 use hodei_ports::{
     SchedulerPort, WorkerRegistrationError, WorkerRegistrationPort, scheduler_port::SchedulerError,
 };
-use hodei_core::WorkerId;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
@@ -284,6 +284,30 @@ fn convert_scheduler_error(error: SchedulerError) -> WorkerRegistrationError {
         SchedulerError::WorkerNotFound(worker_id) => {
             WorkerRegistrationError::worker_not_found(worker_id)
         }
+        SchedulerError::Validation(msg) => {
+            WorkerRegistrationError::internal(format!("Validation error: {}", msg))
+        }
+        SchedulerError::Config(msg) => {
+            WorkerRegistrationError::internal(format!("Configuration error: {}", msg))
+        }
+        SchedulerError::NoEligibleWorkers => {
+            WorkerRegistrationError::internal("No eligible workers found".to_string())
+        }
+        SchedulerError::JobRepository(msg) => {
+            WorkerRegistrationError::internal(format!("Job repository error: {}", msg))
+        }
+        SchedulerError::WorkerRepository(msg) => {
+            WorkerRegistrationError::internal(format!("Worker repository error: {}", msg))
+        }
+        SchedulerError::WorkerClient(msg) => {
+            WorkerRegistrationError::internal(format!("Worker client error: {}", msg))
+        }
+        SchedulerError::EventBus(msg) => {
+            WorkerRegistrationError::internal(format!("Event bus error: {}", msg))
+        }
+        SchedulerError::ClusterState(msg) => {
+            WorkerRegistrationError::internal(format!("Cluster state error: {}", msg))
+        }
         SchedulerError::Internal(msg) => WorkerRegistrationError::internal(msg),
     }
 }
@@ -293,8 +317,9 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use hodei_core::Worker;
-    use hodei_ports::scheduler_port::SchedulerPort;
     use hodei_core::WorkerCapabilities;
+    use hodei_ports::scheduler_port::SchedulerPort;
+    use hwp_proto::ServerMessage;
 
     // Mock implementation for testing
     #[derive(Debug, Clone)]
@@ -346,6 +371,38 @@ mod tests {
                 return Err(self.fail_with.clone());
             }
             Ok(self.registered_workers.clone())
+        }
+
+        async fn register_transmitter(
+            &self,
+            _worker_id: &WorkerId,
+            _transmitter: tokio::sync::mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
+        ) -> Result<(), SchedulerError> {
+            if self.should_fail {
+                return Err(self.fail_with.clone());
+            }
+            Ok(())
+        }
+
+        async fn unregister_transmitter(
+            &self,
+            _worker_id: &WorkerId,
+        ) -> Result<(), SchedulerError> {
+            if self.should_fail {
+                return Err(self.fail_with.clone());
+            }
+            Ok(())
+        }
+
+        async fn send_to_worker(
+            &self,
+            _worker_id: &WorkerId,
+            _message: ServerMessage,
+        ) -> Result<(), SchedulerError> {
+            if self.should_fail {
+                return Err(self.fail_with.clone());
+            }
+            Ok(())
         }
     }
 

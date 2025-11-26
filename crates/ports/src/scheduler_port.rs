@@ -11,6 +11,8 @@ use hodei_core::WorkerId;
 use hwp_proto::ServerMessage;
 use tokio::sync::mpsc;
 
+use crate::{EventBusError, JobRepositoryError, WorkerClientError, WorkerRepositoryError};
+
 /// Scheduler port error
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[error("Scheduler error: {0}")]
@@ -20,6 +22,30 @@ pub enum SchedulerError {
 
     #[error("Worker not found: {0}")]
     WorkerNotFound(WorkerId),
+
+    #[error("Validation error: {0}")]
+    Validation(String),
+
+    #[error("Configuration error: {0}")]
+    Config(String),
+
+    #[error("No eligible workers found")]
+    NoEligibleWorkers,
+
+    #[error("Job repository error: {0}")]
+    JobRepository(String),
+
+    #[error("Worker repository error: {0}")]
+    WorkerRepository(String),
+
+    #[error("Worker client error: {0}")]
+    WorkerClient(String),
+
+    #[error("Event bus error: {0}")]
+    EventBus(String),
+
+    #[error("Cluster state error: {0}")]
+    ClusterState(String),
 
     #[error("Internal error: {0}")]
     Internal(String),
@@ -87,7 +113,7 @@ pub trait SchedulerPort: Send + Sync {
     async fn register_transmitter(
         &self,
         worker_id: &WorkerId,
-        transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+        transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
     ) -> Result<(), SchedulerError>;
 
     /// Unregister a transmitter for a worker
@@ -235,7 +261,7 @@ mod tests {
         pub registered_workers: Vec<WorkerId>,
         pub registered_transmitters: std::collections::HashMap<
             WorkerId,
-            mpsc::UnboundedSender<Result<ServerMessage, String>>,
+            mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
         >,
         pub should_fail: bool,
         pub fail_with: SchedulerError,
@@ -299,8 +325,8 @@ mod tests {
 
         async fn register_transmitter(
             &self,
-            worker_id: &WorkerId,
-            transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+            _worker_id: &WorkerId,
+            _transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
         ) -> Result<(), SchedulerError> {
             if self.should_fail {
                 return Err(self.fail_with.clone());
@@ -308,7 +334,10 @@ mod tests {
             Ok(())
         }
 
-        async fn unregister_transmitter(&self, worker_id: &WorkerId) -> Result<(), SchedulerError> {
+        async fn unregister_transmitter(
+            &self,
+            _worker_id: &WorkerId,
+        ) -> Result<(), SchedulerError> {
             if self.should_fail {
                 return Err(self.fail_with.clone());
             }
@@ -317,8 +346,8 @@ mod tests {
 
         async fn send_to_worker(
             &self,
-            worker_id: &WorkerId,
-            message: ServerMessage,
+            _worker_id: &WorkerId,
+            _message: ServerMessage,
         ) -> Result<(), SchedulerError> {
             if self.should_fail {
                 return Err(self.fail_with.clone());
@@ -420,7 +449,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_scheduler_port_register_transmitter_success() {
         let mock = MockSchedulerPort::new();
-        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, String>>();
+        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, SchedulerError>>();
         let worker_id = WorkerId::new();
 
         let result = mock.register_transmitter(&worker_id, tx).await;
@@ -431,7 +460,7 @@ mod tests {
     async fn test_mock_scheduler_port_register_transmitter_failure() {
         let error = SchedulerError::registration_failed("Test error".to_string());
         let mock = MockSchedulerPort::new().with_failure(error.clone());
-        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, String>>();
+        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, SchedulerError>>();
         let worker_id = WorkerId::new();
 
         let result = mock.register_transmitter(&worker_id, tx).await;
@@ -483,7 +512,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_scheduler_port_with_transmitter_builder() {
-        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, String>>();
+        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, SchedulerError>>();
         let worker_id = WorkerId::new();
         let worker_id_clone = worker_id.clone();
         let mock = MockSchedulerPort::new()
@@ -496,7 +525,7 @@ mod tests {
     #[tokio::test]
     async fn test_transmitter_methods_with_trait_object() {
         let mock = MockSchedulerPort::new();
-        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, String>>();
+        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, SchedulerError>>();
         let worker_id = WorkerId::new();
 
         let boxed: Box<dyn SchedulerPort> = Box::new(mock);
@@ -568,7 +597,7 @@ mod tests {
             async fn register_transmitter(
                 &self,
                 _worker_id: &WorkerId,
-                _transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+                _transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
             ) -> Result<(), SchedulerError> {
                 Ok(())
             }

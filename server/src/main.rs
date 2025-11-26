@@ -177,6 +177,31 @@ impl SchedulerPort for MockSchedulerPort {
     ) -> Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
         Ok(Vec::new())
     }
+
+    async fn register_transmitter(
+        &self,
+        _worker_id: &WorkerId,
+        _transmitter: tokio::sync::mpsc::UnboundedSender<
+            Result<hwp_proto::pb::ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+        >,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        Ok(())
+    }
+
+    async fn unregister_transmitter(
+        &self,
+        _worker_id: &WorkerId,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        Ok(())
+    }
+
+    async fn send_to_worker(
+        &self,
+        _worker_id: &WorkerId,
+        _message: hwp_proto::pb::ServerMessage,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        Ok(())
+    }
 }
 
 type ConcreteWorkerManagementService = WorkerManagementService<DockerProvider, MockSchedulerPort>;

@@ -165,14 +165,14 @@ impl SchedulingStateMachine {
                         hodei_core::JobState::SCHEDULED,
                     )
                     .await
-                    .map_err(SchedulerError::JobRepository)?;
+                    .map_err(|e| SchedulerError::JobRepository(e.to_string()))?;
 
                 // Assign job to worker
                 scheduler
                     .worker_client
                     .assign_job(&worker.id, &job.id, &job.spec)
                     .await
-                    .map_err(SchedulerError::WorkerClient)?;
+                    .map_err(|e| SchedulerError::WorkerClient(e.to_string()))?;
 
                 self.current_state = SchedulingState::Completed;
             } else {

@@ -11,7 +11,7 @@ use hodei_core::{Job, JobId, Worker};
 use hodei_core::{WorkerCapabilities, WorkerId};
 use hodei_ports::{
     EventPublisher, JobRepository, JobRepositoryError, SchedulerPort, WorkerClient,
-    WorkerRepository,
+    WorkerRepository, scheduler_port::SchedulerError,
 };
 use hwp_proto::ServerMessage;
 use std::sync::Arc;
@@ -437,7 +437,7 @@ where
             .worker_repo
             .get_all_workers()
             .await
-            .map_err(SchedulerError::WorkerRepository)?;
+            .map_err(|e| SchedulerError::WorkerRepository(e.to_string()))?;
 
         let eligible_workers: Vec<Worker> = all_workers
             .into_iter()
@@ -666,14 +666,14 @@ where
         self.cluster_state
             .reserve_job(&worker.id, job_id.clone())
             .await
-            .map_err(|e| SchedulerError::ClusterState(e))
+            .map_err(|e| SchedulerError::ClusterState(e.to_string()))
     }
 
     pub async fn register_worker(&self, worker: Worker) -> Result<(), SchedulerError> {
         self.worker_repo
             .save_worker(&worker)
             .await
-            .map_err(SchedulerError::WorkerRepository)?;
+            .map_err(|e| SchedulerError::WorkerRepository(e.to_string()))?;
 
         // Also register in cluster state
         self.cluster_state
@@ -704,12 +704,12 @@ where
     pub async fn register_transmitter(
         &self,
         worker_id: &WorkerId,
-        transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+        transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
     ) -> Result<(), SchedulerError> {
         self.cluster_state
             .register_transmitter(worker_id, transmitter)
             .await
-            .map_err(|e| SchedulerError::ClusterState(e))
+            .map_err(|e| SchedulerError::ClusterState(e.to_string()))
     }
 
     /// Unregister a transmitter for a worker
@@ -717,7 +717,7 @@ where
         self.cluster_state
             .unregister_transmitter(worker_id)
             .await
-            .map_err(|e| SchedulerError::ClusterState(e))
+            .map_err(|e| SchedulerError::ClusterState(e.to_string()))
     }
 
     /// Send a message to a worker through their registered transmitter
@@ -729,7 +729,7 @@ where
         self.cluster_state
             .send_to_worker(worker_id, message)
             .await
-            .map_err(|e| SchedulerError::ClusterState(e))
+            .map_err(|e| SchedulerError::ClusterState(e.to_string()))
     }
 
     pub async fn start(&self) -> Result<(), SchedulerError> {
@@ -823,7 +823,8 @@ pub struct ClusterStats {
 pub struct ClusterState {
     workers: Arc<DashMap<WorkerId, WorkerNode>>,
     job_assignments: Arc<DashMap<JobId, WorkerId>>,
-    transmitters: Arc<DashMap<WorkerId, mpsc::UnboundedSender<Result<ServerMessage, String>>>>,
+    transmitters:
+        Arc<DashMap<WorkerId, mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>>>,
 }
 
 impl ClusterState {
@@ -927,8 +928,8 @@ impl ClusterState {
     pub async fn register_transmitter(
         &self,
         worker_id: &WorkerId,
-        transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
-    ) -> Result<(), String> {
+        transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
+    ) -> Result<(), SchedulerError> {
         self.transmitters.insert(worker_id.clone(), transmitter);
         info!("Transmitter registered for worker: {}", worker_id);
         Ok(())
@@ -994,33 +995,6 @@ impl Default for ClusterState {
     fn default() -> Self {
         Self::new()
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum SchedulerError {
-    #[error("Validation error: {0}")]
-    Validation(String),
-
-    #[error("Configuration error: {0}")]
-    Config(String),
-
-    #[error("No eligible workers found")]
-    NoEligibleWorkers,
-
-    #[error("Job repository error: {0}")]
-    JobRepository(JobRepositoryError),
-
-    #[error("Worker repository error: {0}")]
-    WorkerRepository(hodei_ports::WorkerRepositoryError),
-
-    #[error("Worker client error: {0}")]
-    WorkerClient(hodei_ports::WorkerClientError),
-
-    #[error("Event bus error: {0}")]
-    EventBus(hodei_ports::EventBusError),
-
-    #[error("Cluster state error: {0}")]
-    ClusterState(String),
 }
 
 #[cfg(test)]
@@ -1338,7 +1312,7 @@ where
     async fn register_transmitter(
         &self,
         worker_id: &WorkerId,
-        transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+        transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
     ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
         self.cluster_state
             .register_transmitter(worker_id, transmitter)
