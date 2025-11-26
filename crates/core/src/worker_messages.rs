@@ -51,7 +51,7 @@ pub enum WorkerState {
 pub struct WorkerStatus {
     pub worker_id: WorkerId,
     pub status: String,
-    pub current_jobs: Vec<super::JobId>,
+    pub current_jobs: Vec<Uuid>,
     pub last_heartbeat: std::time::SystemTime,
 }
 

@@ -76,11 +76,7 @@ impl WorkerMapper for SqlxWorkerMapper {
         let worker_status = WorkerStatus {
             worker_id: row.id.clone(),
             status: row.status,
-            current_jobs: current_job_ids
-                .clone()
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            current_jobs: current_job_ids.clone(),
             last_heartbeat: chrono::Utc::now().into(),
         };
 
@@ -97,7 +93,7 @@ impl WorkerMapper for SqlxWorkerMapper {
                 .and_then(|v| serde_json::from_value::<Option<HashMap<String, String>>>(v).ok())
                 .flatten()
                 .unwrap_or_default(),
-            current_jobs: current_job_ids, // ✅ Preserved from row
+            current_jobs: current_job_ids, // ✅ Preserved from row - same type
             last_heartbeat: chrono::Utc::now(),
         })
     }
