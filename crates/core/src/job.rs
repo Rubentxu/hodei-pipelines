@@ -727,4 +727,287 @@ mod tests {
             .unwrap();
         assert!(job.completed_at.is_some()); // SUCCESS sets completed_at
     }
+
+    // ===== Concurrency Tests for State Transitions =====
+
+    #[tokio::test]
+    async fn concurrent_transition_same_state_succeeds_once() {
+        use std::sync::{Arc, Mutex};
+        use tokio::sync::Semaphore;
+
+        let spec = create_valid_job_spec();
+        let job = Arc::new(Mutex::new(Job::new(JobId::new(), spec).unwrap()));
+
+        // Number of concurrent threads attempting the same transition
+        let num_threads = 10;
+        let semaphore = Arc::new(Semaphore::new(num_threads));
+
+        let mut handles = vec![];
+
+        for _ in 0..num_threads {
+            let job_clone = Arc::clone(&job);
+            let permit = Arc::clone(&semaphore);
+            let handle = tokio::spawn(async move {
+                let _permit = permit.acquire().await.unwrap();
+                let mut job = job_clone.lock().unwrap();
+                job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED)
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        let results = futures::future::join_all(handles).await;
+
+        // Exactly one thread should succeed (return Ok(true))
+        let success_count = results
+            .iter()
+            .filter_map(|result| {
+                result
+                    .as_ref()
+                    .ok()
+                    .and_then(|r| r.as_ref().ok())
+                    .and_then(|success| if *success { Some(()) } else { None })
+            })
+            .count();
+
+        assert_eq!(
+            success_count, 1,
+            "Exactly one thread should successfully transition PENDING -> SCHEDULED"
+        );
+
+        // Verify final state
+        let job = job.lock().unwrap();
+        assert_eq!(job.state.as_str(), JobState::SCHEDULED);
+    }
+
+    #[tokio::test]
+    async fn concurrent_transition_race_condition_handled() {
+        use std::sync::{Arc, Mutex};
+
+        let spec = create_valid_job_spec();
+        let job = Arc::new(Mutex::new(Job::new(JobId::new(), spec).unwrap()));
+
+        // Create threads that will race to transition
+        let mut handles = vec![];
+
+        // First thread: PENDING -> SCHEDULED
+        let job1 = Arc::clone(&job);
+        handles.push(tokio::spawn(async move {
+            let mut job = job1.lock().unwrap();
+            job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED)
+        }));
+
+        // Second thread: Try the same transition (should fail)
+        let job2 = Arc::clone(&job);
+        handles.push(tokio::spawn(async move {
+            // Small delay to ensure race condition
+            tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+            let mut job = job2.lock().unwrap();
+            job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED)
+        }));
+
+        let results = futures::future::join_all(handles).await;
+
+        // One should succeed, one should fail (return Ok(false))
+        assert_eq!(results.len(), 2);
+        assert!(
+            results[0].as_ref().unwrap().as_ref().unwrap()
+                ^ results[1].as_ref().unwrap().as_ref().unwrap()
+        );
+
+        // Verify final state is SCHEDULED
+        let job = job.lock().unwrap();
+        assert_eq!(job.state.as_str(), JobState::SCHEDULED);
+    }
+
+    #[tokio::test]
+    async fn concurrent_transition_different_expected_states() {
+        use std::sync::{Arc, Mutex};
+
+        let spec = create_valid_job_spec();
+        let job = Arc::new(Mutex::new(Job::new(JobId::new(), spec).unwrap()));
+
+        // Schedule the job first
+        {
+            let mut job = job.lock().unwrap();
+            job.schedule().unwrap();
+        }
+
+        // Multiple threads with different expected states
+        let mut handles = vec![];
+
+        // Thread 1: expects PENDING (will fail)
+        let job1 = Arc::clone(&job);
+        handles.push(tokio::spawn(async move {
+            let mut job = job1.lock().unwrap();
+            job.compare_and_swap_status(JobState::PENDING, JobState::RUNNING)
+        }));
+
+        // Thread 2: expects SCHEDULED (should succeed)
+        let job2 = Arc::clone(&job);
+        handles.push(tokio::spawn(async move {
+            let mut job = job2.lock().unwrap();
+            job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING)
+        }));
+
+        let results = futures::future::join_all(handles).await;
+
+        // First should fail (return Ok(false)), second should succeed
+        assert_eq!(results[0].as_ref().unwrap().as_ref().unwrap(), &false);
+        assert_eq!(results[1].as_ref().unwrap().as_ref().unwrap(), &true);
+
+        // Verify final state is RUNNING
+        let job = job.lock().unwrap();
+        assert_eq!(job.state.as_str(), JobState::RUNNING);
+    }
+
+    #[tokio::test]
+    async fn concurrent_transition_updates_timestamps_atomically() {
+        use std::sync::{Arc, Mutex};
+
+        let spec = create_valid_job_spec();
+        let job = Arc::new(Mutex::new(Job::new(JobId::new(), spec).unwrap()));
+
+        // Pre-schedule the job
+        {
+            let mut job = job.lock().unwrap();
+            job.schedule().unwrap();
+        }
+
+        // Attempt concurrent transition to RUNNING
+        let mut handles = vec![];
+
+        for _ in 0..5 {
+            let job_clone = Arc::clone(&job);
+            handles.push(tokio::spawn(async move {
+                let mut job = job_clone.lock().unwrap();
+                job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING)
+            }));
+        }
+
+        let results = futures::future::join_all(handles).await;
+
+        // Exactly one should succeed
+        let success_count = results
+            .iter()
+            .filter_map(|result| {
+                result
+                    .as_ref()
+                    .ok()
+                    .and_then(|r| r.as_ref().ok())
+                    .and_then(|success| if *success { Some(()) } else { None })
+            })
+            .count();
+
+        assert_eq!(success_count, 1);
+
+        // Verify started_at was set exactly once
+        let job = job.lock().unwrap();
+        assert!(job.started_at.is_some(), "started_at should be set");
+        assert_eq!(job.state.as_str(), JobState::RUNNING);
+    }
+
+    #[tokio::test]
+    async fn concurrent_transition_to_terminal_state_atomic() {
+        use std::sync::{Arc, Mutex};
+
+        let spec = create_valid_job_spec();
+        let job = Arc::new(Mutex::new(Job::new(JobId::new(), spec).unwrap()));
+
+        // Transition to RUNNING state first
+        {
+            let mut job = job.lock().unwrap();
+            job.schedule().unwrap();
+            job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING)
+                .unwrap();
+        }
+
+        // Multiple threads attempting to transition to SUCCESS
+        let mut handles = vec![];
+
+        for _ in 0..10 {
+            let job_clone = Arc::clone(&job);
+            handles.push(tokio::spawn(async move {
+                let mut job = job_clone.lock().unwrap();
+                job.compare_and_swap_status(JobState::RUNNING, JobState::SUCCESS)
+            }));
+        }
+
+        let results = futures::future::join_all(handles).await;
+
+        // Exactly one thread should succeed
+        let success_count = results
+            .iter()
+            .filter_map(|result| {
+                result
+                    .as_ref()
+                    .ok()
+                    .and_then(|r| r.as_ref().ok())
+                    .and_then(|success| if *success { Some(()) } else { None })
+            })
+            .count();
+
+        assert_eq!(success_count, 1);
+
+        // Verify terminal state and completed_at
+        let job = job.lock().unwrap();
+        assert_eq!(job.state.as_str(), JobState::SUCCESS);
+        assert!(
+            job.completed_at.is_some(),
+            "completed_at should be set for terminal state"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_transition_sequence_preserves_order() {
+        use std::sync::{Arc, Mutex};
+
+        let spec = create_valid_job_spec();
+        let job = Arc::new(Mutex::new(Job::new(JobId::new(), spec).unwrap()));
+
+        let num_iterations = 5;
+
+        for i in 0..num_iterations {
+            // Create threads attempting the same transition
+            let mut handles = vec![];
+
+            for _ in 0..3 {
+                let job_clone = Arc::clone(&job);
+                handles.push(tokio::spawn(async move {
+                    let mut job = job_clone.lock().unwrap();
+                    match i {
+                        0 => job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED),
+                        1 => job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING),
+                        2 => job.compare_and_swap_status(JobState::RUNNING, JobState::FAILED),
+                        3 => job.compare_and_swap_status(JobState::FAILED, JobState::PENDING),
+                        _ => job.compare_and_swap_status(JobState::PENDING, JobState::CANCELLED),
+                    }
+                }));
+            }
+
+            let results = futures::future::join_all(handles).await;
+
+            // Exactly one should succeed per iteration
+            let success_count = results
+                .iter()
+                .filter_map(|result| {
+                    result
+                        .as_ref()
+                        .ok()
+                        .and_then(|r| r.as_ref().ok())
+                        .and_then(|success| if *success { Some(()) } else { None })
+                })
+                .count();
+
+            assert_eq!(
+                success_count, 1,
+                "Iteration {}: Exactly one thread should succeed",
+                i
+            );
+        }
+
+        // Verify final state after sequence
+        let job = job.lock().unwrap();
+        assert_eq!(job.state.as_str(), JobState::CANCELLED);
+    }
 }

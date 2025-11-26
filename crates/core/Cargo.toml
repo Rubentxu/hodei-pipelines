@@ -22,6 +22,7 @@ daggy = { workspace = true }
 dashmap = { workspace = true, optional = true }
 async-trait = { workspace = true }
 sysinfo = { workspace = true, optional = true }
+futures = { workspace = true }
 
 [features]
 sqlx = ["dep:sqlx"]
@@ -34,5 +35,6 @@ event-store-tests = ["sqlx"]
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+proptest = { workspace = true }
 
 # Test dependencies

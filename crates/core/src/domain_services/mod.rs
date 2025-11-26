@@ -4,12 +4,10 @@
 //! within a single entity or value object.
 
 pub mod priority_calculator;
-pub mod queue_manager;
 pub mod worker_matcher;
 
 // Re-export for convenience
 pub use priority_calculator::PriorityCalculator;
-pub use queue_manager::{QueueEntry, QueueManager, QueueSizes};
 pub use worker_matcher::WorkerMatcher;
 
 use crate::{JobId, WorkerCapabilities, WorkerId};

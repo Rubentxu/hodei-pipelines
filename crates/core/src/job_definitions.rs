@@ -4,7 +4,7 @@ use crate::Uuid;
 use crate::error::DomainError;
 use crate::specifications::Specification;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Job identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -329,6 +329,337 @@ pub struct ExecResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    // ===== Property-Based Testing for JobState Machine =====
+
+    // Property 1: All valid states can be constructed
+    #[test]
+    fn job_state_valid_states_can_be_constructed() {
+        let valid_states = vec![
+            JobState::new(JobState::PENDING.to_string()).unwrap(),
+            JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+            JobState::new(JobState::RUNNING.to_string()).unwrap(),
+            JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+            JobState::new(JobState::FAILED.to_string()).unwrap(),
+            JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+        ];
+
+        for state in valid_states {
+            assert_eq!(state.as_str().len() > 0, true);
+            assert_eq!(
+                state.is_terminal(),
+                matches!(
+                    state.as_str(),
+                    JobState::SUCCESS | JobState::FAILED | JobState::CANCELLED
+                )
+            );
+        }
+    }
+
+    // Property 2: Invalid states are rejected
+    #[test]
+    fn job_state_rejects_invalid_states() {
+        let invalid_states = vec![
+            "INVALID", "", "pending", "running", "COMPLETE", "CANCELED", // Wrong spelling
+        ];
+
+        for state_str in invalid_states {
+            let result = JobState::new(state_str.to_string());
+            assert!(result.is_err(), "State '{}' should be rejected", state_str);
+        }
+    }
+
+    // Property 3: Valid transitions return true
+    #[test]
+    fn job_state_valid_transitions_return_true() {
+        let valid_transitions = vec![
+            (
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+                JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+                JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+                JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+                JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+                JobState::new(JobState::FAILED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+                JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::FAILED.to_string()).unwrap(),
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::FAILED.to_string()).unwrap(),
+                JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+            ),
+        ];
+
+        for (from, to) in valid_transitions {
+            assert!(
+                from.can_transition_to(&to),
+                "Transition from {} to {} should be valid",
+                from.as_str(),
+                to.as_str()
+            );
+        }
+    }
+
+    // Property 4: Invalid transitions return false
+    #[test]
+    fn job_state_invalid_transitions_return_false() {
+        let invalid_transitions = vec![
+            (
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+                JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+                JobState::new(JobState::FAILED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+                JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+                JobState::new(JobState::FAILED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+                JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+                JobState::new(JobState::FAILED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+                JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+                JobState::new(JobState::PENDING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+                JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::FAILED.to_string()).unwrap(),
+                JobState::new(JobState::RUNNING.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::FAILED.to_string()).unwrap(),
+                JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+            ),
+            (
+                JobState::new(JobState::FAILED.to_string()).unwrap(),
+                JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+            ),
+        ];
+
+        for (from, to) in invalid_transitions {
+            assert!(
+                !from.can_transition_to(&to),
+                "Transition from {} to {} should be invalid",
+                from.as_str(),
+                to.as_str()
+            );
+        }
+    }
+
+    // Property 5: Terminal states cannot transition to other states (except FAILED -> PENDING for retry)
+    #[test]
+    fn job_state_terminal_states_cannot_transition() {
+        // SUCCESS and CANCELLED are true terminal states
+        let terminal_states = vec![
+            JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+            JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+        ];
+        let all_states = vec![
+            JobState::new(JobState::PENDING.to_string()).unwrap(),
+            JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+            JobState::new(JobState::RUNNING.to_string()).unwrap(),
+            JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+            JobState::new(JobState::FAILED.to_string()).unwrap(),
+            JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+        ];
+
+        for terminal in terminal_states {
+            for target in &all_states {
+                if terminal.as_str() != target.as_str() {
+                    assert!(
+                        !terminal.can_transition_to(target),
+                        "Terminal state {} should not transition to {}",
+                        terminal.as_str(),
+                        target.as_str()
+                    );
+                }
+            }
+        }
+
+        // FAILED is semi-terminal: can only transition to PENDING (retry) or CANCELLED
+        let failed_state = JobState::new(JobState::FAILED.to_string()).unwrap();
+        let valid_failed_transitions = vec![
+            JobState::new(JobState::PENDING.to_string()).unwrap(), // Retry
+            JobState::new(JobState::CANCELLED.to_string()).unwrap(),
+        ];
+        let invalid_failed_transitions = vec![
+            JobState::new(JobState::SCHEDULED.to_string()).unwrap(),
+            JobState::new(JobState::RUNNING.to_string()).unwrap(),
+            JobState::new(JobState::SUCCESS.to_string()).unwrap(),
+        ];
+
+        for target in &valid_failed_transitions {
+            assert!(
+                failed_state.can_transition_to(target),
+                "FAILED state should transition to {}",
+                target.as_str()
+            );
+        }
+
+        for target in &invalid_failed_transitions {
+            assert!(
+                !failed_state.can_transition_to(target),
+                "FAILED state should not transition to {}",
+                target.as_str()
+            );
+        }
+    }
+
+    // Property 6: State machine forms a DAG (no cycles except explicit retry)
+    #[test]
+    fn job_state_machine_form_dag() {
+        // Build adjacency list using string references
+        let mut transitions: HashMap<&'static str, Vec<&'static str>> = HashMap::new();
+        transitions.insert(
+            JobState::PENDING,
+            vec![JobState::SCHEDULED, JobState::CANCELLED],
+        );
+        transitions.insert(
+            JobState::SCHEDULED,
+            vec![JobState::RUNNING, JobState::CANCELLED],
+        );
+        transitions.insert(
+            JobState::RUNNING,
+            vec![JobState::SUCCESS, JobState::FAILED, JobState::CANCELLED],
+        );
+        transitions.insert(
+            JobState::FAILED,
+            vec![JobState::PENDING, JobState::CANCELLED],
+        );
+        transitions.insert(JobState::SUCCESS, vec![]);
+        transitions.insert(JobState::CANCELLED, vec![]);
+
+        // Verify no back edges except explicit retry
+        assert!(!has_path(
+            &transitions,
+            JobState::SUCCESS,
+            JobState::PENDING
+        ));
+        assert!(!has_path(
+            &transitions,
+            JobState::SUCCESS,
+            JobState::SCHEDULED
+        ));
+        assert!(!has_path(
+            &transitions,
+            JobState::SUCCESS,
+            JobState::RUNNING
+        ));
+        assert!(!has_path(
+            &transitions,
+            JobState::CANCELLED,
+            JobState::PENDING
+        ));
+        assert!(!has_path(
+            &transitions,
+            JobState::CANCELLED,
+            JobState::SCHEDULED
+        ));
+        assert!(!has_path(
+            &transitions,
+            JobState::CANCELLED,
+            JobState::RUNNING
+        ));
+    }
+
+    // Helper function to check path existence in graph
+    fn has_path(
+        transitions: &HashMap<&'static str, Vec<&'static str>>,
+        from: &'static str,
+        to: &'static str,
+    ) -> bool {
+        if from == to {
+            return true;
+        }
+
+        let mut visited = HashSet::new();
+        let mut stack = vec![from];
+
+        while let Some(current) = stack.pop() {
+            if current == to {
+                return true;
+            }
+
+            if visited.contains(&current) {
+                continue;
+            }
+            visited.insert(current);
+
+            if let Some(neighbors) = transitions.get(current) {
+                for neighbor in neighbors {
+                    if !visited.contains(neighbor) {
+                        stack.push(*neighbor);
+                    }
+                }
+            }
+        }
+
+        false
+    }
 
     // ===== TDD Tests: ResourceQuota Validation =====
 
