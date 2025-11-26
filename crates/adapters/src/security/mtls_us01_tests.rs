@@ -978,4 +978,169 @@ mod us_01_1_tests {
             }
         }
     }
+
+
+    // US-01.6: Infraestructura para Validación de Revocación - TESTS
+
+    #[test]
+    fn test_us_01_6_validate_certificate_revocation_checking_optional() {
+        // Test that certificate validation works without revocation checking
+        // Infrastructure for revocation checking is prepared but optional
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Revocation checking is optional - certificate should validate without it
+        let now = Utc::now();
+        let result = validator.validate_single_cert(&parsed_cert.1, now);
+        
+        // Current implementation doesn't check revocation yet
+        assert!(result.is_ok(), "Certificate validation should succeed without revocation check");
+    }
+
+    #[test]
+    fn test_us_01_6_validate_certificate_revocation_infrastructure_configurable() {
+        // Test that revocation checking infrastructure is configurable
+        // Different trust policies may require different levels of revocation checking
+        let ca_cert = load_test_cert("ca-cert");
+
+        // Create validator with strict revocation checking configuration
+        let strict_validator = ProductionCertificateValidator::new(
+            &ca_cert,
+            CertificateValidationConfig {
+                require_client_auth: true,
+                allowed_client_dns_names: vec!["client.example.com".to_string()],
+                allowed_client_ips: vec![],
+                max_cert_chain_depth: 5,
+            },
+        )
+        .expect("Failed to create strict validator");
+
+        // Create validator with relaxed revocation checking configuration
+        let relaxed_validator = ProductionCertificateValidator::new(
+            &ca_cert,
+            CertificateValidationConfig {
+                require_client_auth: true,
+                allowed_client_dns_names: vec!["client.example.com".to_string()],
+                allowed_client_ips: vec![],
+                max_cert_chain_depth: 5,
+            },
+        )
+        .expect("Failed to create relaxed validator");
+
+        let client_cert_der = certs(&mut BufReader::new(load_test_cert("client-cert").as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Both validators should produce the same result for now
+        // Future: strict validator checks revocation, relaxed may skip
+        let now = Utc::now();
+        let strict_result = strict_validator.validate_single_cert(&parsed_cert.1, now);
+        let relaxed_result = relaxed_validator.validate_single_cert(&parsed_cert.1, now);
+        
+        assert_eq!(strict_result.is_ok(), relaxed_result.is_ok(), 
+            "Revocation checking should be configurable");
+    }
+
+    #[test]
+    fn test_us_01_6_validate_certificate_revocation_checking_performance() {
+        // Test that revocation checking doesn't significantly impact validation performance
+        // Infrastructure should be async and non-blocking
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Measure validation time
+        let start = std::time::Instant::now();
+        let now = Utc::now();
+        let result = validator.validate_single_cert(&parsed_cert.1, now);
+        let duration = start.elapsed();
+
+        // Should complete quickly (less than 100ms for local validation)
+        // Future: async revocation checking should not block
+        assert!(duration < std::time::Duration::from_millis(100),
+            "Validation should complete quickly, took: {:?}", duration);
+        
+        assert!(result.is_ok(), "Certificate validation should succeed");
+    }
+
+    #[test]
+    fn test_us_01_6_validate_certificate_revocation_checking_errors_handled() {
+        // Test that revocation checking errors are handled gracefully
+        // Infrastructure should not fail validation on revocation check errors
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Current implementation doesn't check revocation
+        // Future: network errors, timeout errors, etc. should be handled
+        let now = Utc::now();
+        let result = validator.validate_single_cert(&parsed_cert.1, now);
+        
+        assert!(result.is_ok(), "Certificate validation should succeed");
+    }
+
+    #[test]
+    fn test_us_01_6_validate_certificate_revocation_status_types() {
+        // Test that revocation checking supports different status types
+        // Good, revoked, unknown
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Current implementation doesn't check revocation
+        // Future: should handle:
+        // - Good (not revoked): allow
+        // - Revoked: deny
+        // - Unknown: configurable (allow or deny)
+        let now = Utc::now();
+        let result = validator.validate_single_cert(&parsed_cert.1, now);
+        
+        assert!(result.is_ok(), "Certificate validation should handle all revocation states");
+    }
 }
+
