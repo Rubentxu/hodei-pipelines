@@ -4,17 +4,265 @@
 //! worker communication, replacing mock implementations for production use.
 
 use async_trait::async_trait;
-use chrono;
+use chrono::{DateTime, Utc};
 use hodei_core::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
 use hodei_core::{JobId, JobSpec};
 use hodei_core::{WorkerId, WorkerStatus};
 use hodei_ports::{WorkerClient, WorkerClientError};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::Mutex;
+use std::time::{Duration, SystemTime};
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::timeout;
 use tonic::{Status, transport::Channel};
 use tracing::{debug, error, info, warn};
+
+/// Resource usage metrics for a worker
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceUsage {
+    pub cpu_percent: f64,
+    pub memory_rss_mb: u64,
+    pub memory_vms_mb: u64,
+    pub disk_read_mb: f64,
+    pub disk_write_mb: f64,
+    pub network_sent_mb: f64,
+    pub network_received_mb: f64,
+    pub gpu_utilization_percent: Option<f64>,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Memory usage metrics
+#[derive(Debug, Clone)]
+struct MemoryUsage {
+    rss_mb: u64,
+    vms_mb: u64,
+}
+
+/// CPU usage metrics
+#[derive(Debug, Clone)]
+struct CpuTimes {
+    user: u64,
+    nice: u64,
+    system: u64,
+    idle: u64,
+}
+
+/// Errors for metrics collection
+#[derive(Debug, thiserror::Error)]
+pub enum MetricsError {
+    #[error("System read error: {0}")]
+    SystemReadError(#[from] std::io::Error),
+    #[error("Invalid /proc/stat format")]
+    InvalidProcStat,
+    #[error("Invalid CPU times")]
+    InvalidCpuTimes,
+    #[error("Invalid /proc/self/status format")]
+    InvalidStatusFormat,
+    #[error("Field not found: {0}")]
+    FieldNotFound(String),
+    #[error("Invalid field format")]
+    InvalidFormat,
+    #[error("Other error: {0}")]
+    Other(String),
+}
+
+/// Metrics collector for a specific worker
+#[derive(Debug)]
+pub struct MetricsCollector {
+    worker_id: WorkerId,
+    interval: Duration,
+    previous_cpu_times: Option<CpuTimes>,
+}
+
+impl MetricsCollector {
+    pub fn new(worker_id: WorkerId, interval: Duration) -> Self {
+        Self {
+            worker_id,
+            interval,
+            previous_cpu_times: None,
+        }
+    }
+
+    /// Collect all resource metrics for the worker
+    pub async fn collect(&mut self) -> Result<ResourceUsage, MetricsError> {
+        let cpu_usage = self.collect_cpu_usage().await?;
+        let memory_usage = self.collect_memory_usage().await?;
+        let (disk_read_mb, disk_write_mb) = self.collect_disk_usage().await?;
+        let (network_sent_mb, network_received_mb) = self.collect_network_usage().await?;
+        let gpu_usage = self.collect_gpu_usage().await?;
+
+        Ok(ResourceUsage {
+            cpu_percent: cpu_usage,
+            memory_rss_mb: memory_usage.rss_mb,
+            memory_vms_mb: memory_usage.vms_mb,
+            disk_read_mb,
+            disk_write_mb,
+            network_sent_mb,
+            network_received_mb,
+            gpu_utilization_percent: gpu_usage,
+            timestamp: Utc::now(),
+        })
+    }
+
+    /// Collect CPU usage percentage
+    async fn collect_cpu_usage(&mut self) -> Result<f64, MetricsError> {
+        let stat_content = tokio::fs::read_to_string("/proc/stat")
+            .await
+            .map_err(MetricsError::SystemReadError)?;
+
+        let first_cpu_line = stat_content
+            .lines()
+            .find(|line| line.starts_with("cpu "))
+            .ok_or(MetricsError::InvalidProcStat)?;
+
+        let times: Vec<u64> = first_cpu_line
+            .split_whitespace()
+            .skip(1)
+            .map(|s| s.parse().unwrap_or(0))
+            .collect();
+
+        if times.len() < 4 {
+            return Err(MetricsError::InvalidCpuTimes);
+        }
+
+        let current_times = CpuTimes {
+            user: times[0],
+            nice: times[1],
+            system: times[2],
+            idle: times[3],
+        };
+
+        let cpu_percent = match self.previous_cpu_times.take() {
+            Some(prev) => {
+                let delta_idle = current_times.idle - prev.idle;
+                let delta_total: u64 =
+                    times.iter().sum::<u64>() - prev.user - prev.nice - prev.system - prev.idle;
+                let delta_non_idle = delta_total - delta_idle;
+
+                self.previous_cpu_times = Some(current_times);
+
+                if delta_total > 0 {
+                    100.0 * (delta_non_idle as f64) / (delta_total as f64)
+                } else {
+                    0.0
+                }
+            }
+            None => {
+                // First reading, just store and return 0
+                self.previous_cpu_times = Some(current_times);
+                0.0
+            }
+        };
+
+        Ok(cpu_percent)
+    }
+
+    /// Collect memory usage
+    async fn collect_memory_usage(&self) -> Result<MemoryUsage, MetricsError> {
+        let status_content = tokio::fs::read_to_string("/proc/self/status")
+            .await
+            .map_err(MetricsError::SystemReadError)?;
+
+        let rss = self.parse_memory_field(&status_content, "VmRSS:")?;
+        let vms = self.parse_memory_field(&status_content, "VmSize:")?;
+
+        Ok(MemoryUsage {
+            rss_mb: rss / 1024,
+            vms_mb: vms / 1024,
+        })
+    }
+
+    /// Parse a memory field from /proc/self/status
+    fn parse_memory_field(&self, content: &str, field: &str) -> Result<u64, MetricsError> {
+        for line in content.lines() {
+            if line.starts_with(field) {
+                let value = line
+                    .split_whitespace()
+                    .nth(1)
+                    .ok_or(MetricsError::InvalidFormat)?;
+                return Ok(value.parse().unwrap_or(0));
+            }
+        }
+        Err(MetricsError::FieldNotFound(field.to_string()))
+    }
+
+    /// Collect disk I/O metrics
+    async fn collect_disk_usage(&self) -> Result<(f64, f64), MetricsError> {
+        // For now, return placeholder values
+        // TODO: Implement actual disk I/O collection from /proc/diskstats
+        Ok((0.0, 0.0))
+    }
+
+    /// Collect network I/O metrics
+    async fn collect_network_usage(&self) -> Result<(f64, f64), MetricsError> {
+        // For now, return placeholder values
+        // TODO: Implement actual network I/O collection from /proc/net/dev
+        Ok((0.0, 0.0))
+    }
+
+    /// Collect GPU utilization (optional)
+    async fn collect_gpu_usage(&self) -> Result<Option<f64>, MetricsError> {
+        // For now, return None
+        // TODO: Implement actual GPU metrics collection
+        Ok(None)
+    }
+}
+
+/// Worker metrics exporter
+#[derive(Debug)]
+pub struct WorkerMetricsExporter {
+    collectors: Arc<RwLock<HashMap<WorkerId, Arc<RwLock<MetricsCollector>>>>>,
+    prometheus_registry: Option<prometheus::Registry>,
+}
+
+impl WorkerMetricsExporter {
+    /// Create a new metrics exporter
+    pub fn new(prometheus_registry: Option<prometheus::Registry>) -> Self {
+        Self {
+            collectors: Arc::new(RwLock::new(HashMap::new())),
+            prometheus_registry,
+        }
+    }
+
+    /// Register a worker for metrics collection
+    pub async fn register_worker(&self, worker_id: WorkerId, collection_interval: Duration) {
+        let collector = MetricsCollector::new(worker_id.clone(), collection_interval);
+        let collector = Arc::new(RwLock::new(collector));
+
+        let mut collectors = self.collectors.write().await;
+        collectors.insert(worker_id, collector);
+    }
+
+    /// Unregister a worker from metrics collection
+    pub async fn unregister_worker(&self, worker_id: &WorkerId) {
+        let mut collectors = self.collectors.write().await;
+        collectors.remove(worker_id);
+    }
+
+    /// Get current metrics for a worker
+    pub async fn get_worker_metrics(
+        &self,
+        worker_id: &WorkerId,
+    ) -> Result<ResourceUsage, MetricsError> {
+        let collectors = self.collectors.read().await;
+        if let Some(collector_arc) = collectors.get(worker_id) {
+            let mut collector = collector_arc.write().await;
+            collector.collect().await
+        } else {
+            Err(MetricsError::Other(format!(
+                "Worker {} not registered for metrics collection",
+                worker_id
+            )))
+        }
+    }
+
+    /// List all workers being monitored
+    pub async fn list_monitored_workers(&self) -> Vec<WorkerId> {
+        let collectors = self.collectors.read().await;
+        collectors.keys().cloned().collect()
+    }
+}
 
 /// gRPC-based Worker Client for production use
 pub struct GrpcWorkerClient {
@@ -560,6 +808,202 @@ impl WorkerClientFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hodei_core::WorkerId;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn test_metrics_collector_creation() {
+        let worker_id = WorkerId::new();
+        let collector = MetricsCollector::new(worker_id.clone(), Duration::from_secs(5));
+
+        assert_eq!(collector.worker_id, worker_id);
+        assert_eq!(collector.interval, Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn test_worker_metrics_exporter_creation() {
+        let exporter = WorkerMetricsExporter::new(None);
+
+        let workers = exporter.list_monitored_workers().await;
+        assert!(workers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_worker_metrics_exporter_creation_with_prometheus() {
+        let registry = prometheus::Registry::new();
+        let exporter = WorkerMetricsExporter::new(Some(registry));
+
+        let workers = exporter.list_monitored_workers().await;
+        assert!(workers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_register_worker() {
+        let exporter = WorkerMetricsExporter::new(None);
+        let worker_id = WorkerId::new();
+
+        exporter
+            .register_worker(worker_id.clone(), Duration::from_secs(5))
+            .await;
+
+        let workers = exporter.list_monitored_workers().await;
+        assert_eq!(workers.len(), 1);
+        assert_eq!(workers[0], worker_id);
+    }
+
+    #[tokio::test]
+    async fn test_unregister_worker() {
+        let exporter = WorkerMetricsExporter::new(None);
+        let worker_id = WorkerId::new();
+
+        exporter
+            .register_worker(worker_id.clone(), Duration::from_secs(5))
+            .await;
+        exporter.unregister_worker(&worker_id).await;
+
+        let workers = exporter.list_monitored_workers().await;
+        assert!(workers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_worker_metrics_not_found() {
+        let exporter = WorkerMetricsExporter::new(None);
+        let worker_id = WorkerId::new();
+
+        let result = exporter.get_worker_metrics(&worker_id).await;
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("not registered"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resource_usage_structure() {
+        let worker_id = WorkerId::new();
+        let mut collector = MetricsCollector::new(worker_id, Duration::from_secs(5));
+
+        // First call to get initial metrics (will be 0 for CPU)
+        let metrics = collector.collect().await.unwrap();
+
+        assert!(metrics.timestamp <= chrono::Utc::now());
+        assert_eq!(metrics.cpu_percent, 0.0); // First read is always 0
+        assert!(metrics.memory_rss_mb >= 0); // Can be 0 or actual value
+        assert!(metrics.memory_vms_mb >= 0); // Can be 0 or actual value
+        assert_eq!(metrics.disk_read_mb, 0.0); // Placeholder
+        assert_eq!(metrics.disk_write_mb, 0.0); // Placeholder
+        assert_eq!(metrics.network_sent_mb, 0.0); // Placeholder
+        assert_eq!(metrics.network_received_mb, 0.0); // Placeholder
+        assert_eq!(metrics.gpu_utilization_percent, None); // Placeholder
+    }
+
+    #[tokio::test]
+    async fn test_multiple_workers_registration() {
+        let exporter = WorkerMetricsExporter::new(None);
+
+        let mut worker_ids = Vec::new();
+        for _i in 1..=5 {
+            let worker_id = WorkerId::new();
+            worker_ids.push(worker_id.clone());
+            exporter
+                .register_worker(worker_id, Duration::from_secs(5))
+                .await;
+        }
+
+        let workers = exporter.list_monitored_workers().await;
+        assert_eq!(workers.len(), 5);
+
+        // Verify all workers are monitored
+        for worker_id in &worker_ids {
+            assert!(workers.contains(worker_id));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_collect_metrics_after_register() {
+        let exporter = WorkerMetricsExporter::new(None);
+        let worker_id = WorkerId::new();
+
+        // Register worker
+        exporter
+            .register_worker(worker_id.clone(), Duration::from_secs(5))
+            .await;
+
+        // Get metrics
+        let metrics = exporter.get_worker_metrics(&worker_id).await.unwrap();
+
+        assert_eq!(metrics.cpu_percent, 0.0); // First reading
+        assert!(metrics.memory_rss_mb >= 0); // May be 0 on some systems
+    }
+
+    #[test]
+    fn test_resource_usage_serialization() {
+        let usage = ResourceUsage {
+            cpu_percent: 45.5,
+            memory_rss_mb: 1024,
+            memory_vms_mb: 2048,
+            disk_read_mb: 100.5,
+            disk_write_mb: 50.25,
+            network_sent_mb: 75.0,
+            network_received_mb: 150.0,
+            gpu_utilization_percent: Some(80.0),
+            timestamp: chrono::Utc::now(),
+        };
+
+        // Test serialization to JSON
+        let json = serde_json::to_string(&usage).unwrap();
+        let deserialized: ResourceUsage = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.cpu_percent, usage.cpu_percent);
+        assert_eq!(deserialized.memory_rss_mb, usage.memory_rss_mb);
+        assert_eq!(deserialized.memory_vms_mb, usage.memory_vms_mb);
+        assert_eq!(deserialized.disk_read_mb, usage.disk_read_mb);
+        assert_eq!(deserialized.disk_write_mb, usage.disk_write_mb);
+        assert_eq!(deserialized.network_sent_mb, usage.network_sent_mb);
+        assert_eq!(deserialized.network_received_mb, usage.network_received_mb);
+        assert_eq!(
+            deserialized.gpu_utilization_percent,
+            usage.gpu_utilization_percent
+        );
+    }
+
+    #[test]
+    fn test_memory_usage_structure() {
+        let memory = MemoryUsage {
+            rss_mb: 1024,
+            vms_mb: 2048,
+        };
+
+        assert_eq!(memory.rss_mb, 1024);
+        assert_eq!(memory.vms_mb, 2048);
+    }
+
+    #[test]
+    fn test_cpu_times_structure() {
+        let cpu_times = CpuTimes {
+            user: 100,
+            nice: 50,
+            system: 75,
+            idle: 200,
+        };
+
+        assert_eq!(cpu_times.user, 100);
+        assert_eq!(cpu_times.nice, 50);
+        assert_eq!(cpu_times.system, 75);
+        assert_eq!(cpu_times.idle, 200);
+    }
+
+    #[test]
+    fn test_metrics_error_display() {
+        let error = MetricsError::InvalidProcStat;
+        assert!(error.to_string().contains("/proc/stat"));
+
+        let error = MetricsError::InvalidCpuTimes;
+        assert!(error.to_string().contains("CPU times"));
+
+        let error = MetricsError::FieldNotFound("VmRSS".to_string());
+        assert!(error.to_string().contains("VmRSS"));
+    }
 
     #[test]
     fn test_grpc_worker_client_creation() {

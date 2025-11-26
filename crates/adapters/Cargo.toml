@@ -62,6 +62,9 @@ bollard = { version = "0.16", features = ["buildkit"] }
 # Kubernetes provider - using REST API via reqwest (no heavy dependencies)
 shellexpand = "3.1"
 
+# Metrics and monitoring
+prometheus = { workspace = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 tracing-test = "0.2.5"
