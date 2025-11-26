@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod us_01_1_tests {
     use crate::security::mtls::{CertificateValidationConfig, ProductionCertificateValidator};
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
     use rustls_pemfile::certs;
     use std::io::BufReader;
     use std::net::IpAddr;
@@ -27,6 +27,8 @@ mod us_01_1_tests {
             max_cert_chain_depth: 5,
         }
     }
+
+    // US-01.1: Validación de Firma de Certificado - TESTS
 
     #[test]
     fn test_us_01_1_validate_certificate_signature_valid() {
@@ -114,6 +116,198 @@ mod us_01_1_tests {
         assert!(
             result.is_ok(),
             "Valid certificate chain should pass validation"
+        );
+    }
+
+    // US-01.2: Validación de Períodos de Validez - TESTS
+
+    #[test]
+    fn test_us_01_2_validate_certificate_not_yet_valid() {
+        // Test certificate that is not yet valid (future not_before)
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Get certificate validity and test with future time
+        let validity = parsed_cert.1.validity();
+        let not_before = validity.not_before;
+        let not_before_timestamp = not_before.timestamp();
+
+        // Test with a time before not_before (should fail)
+        let future_time = Utc
+            .timestamp_opt(not_before_timestamp - 86400, 0)
+            .single()
+            .unwrap();
+        let result = validator.validate_single_cert(&parsed_cert.1, future_time);
+
+        assert!(
+            matches!(
+                result,
+                Err(crate::security::mtls::CertificateValidationError::NotYetValid)
+            ),
+            "Certificate that is not yet valid should return NotYetValid error"
+        );
+    }
+
+    #[test]
+    fn test_us_01_2_validate_certificate_expired() {
+        // Test certificate that is expired (past not_after)
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Get certificate validity and test with past time
+        let validity = parsed_cert.1.validity();
+        let not_after = validity.not_after;
+        let not_after_timestamp = not_after.timestamp();
+
+        // Test with a time after not_after (should fail)
+        let past_time = Utc
+            .timestamp_opt(not_after_timestamp + 86400, 0)
+            .single()
+            .unwrap();
+        let result = validator.validate_single_cert(&parsed_cert.1, past_time);
+
+        assert!(
+            matches!(
+                result,
+                Err(crate::security::mtls::CertificateValidationError::Expired)
+            ),
+            "Expired certificate should return Expired error"
+        );
+    }
+
+    #[test]
+    fn test_us_01_2_validate_certificate_current_time() {
+        // Test certificate with current time (should be valid)
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Current time should be within validity period
+        let now = Utc::now();
+        let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+        assert!(
+            result.is_ok(),
+            "Valid certificate with current time should pass validation"
+        );
+    }
+
+    #[test]
+    fn test_us_01_2_validate_certificate_grace_period() {
+        // Test certificate with time exactly at not_before boundary
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Test with time exactly at not_before (should be valid - inclusive boundary)
+        let validity = parsed_cert.1.validity();
+        let not_before = validity.not_before;
+        let not_before_timestamp = not_before.timestamp();
+
+        // Time exactly at not_before should be valid
+        let not_before_time = Utc.timestamp_opt(not_before_timestamp, 0).single().unwrap();
+        let result = validator.validate_single_cert(&parsed_cert.1, not_before_time);
+
+        assert!(
+            result.is_ok(),
+            "Certificate at exact not_before boundary should be valid"
+        );
+    }
+
+    #[test]
+    fn test_us_01_2_validate_certificate_edge_cases() {
+        // Test edge cases: not_before < not_after invariant
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Get certificate validity
+        let validity = parsed_cert.1.validity();
+        let not_before = validity.not_before;
+        let not_after = validity.not_after;
+
+        // Convert to timestamps for comparison
+        let not_before_timestamp = not_before.timestamp();
+        let not_after_timestamp = not_after.timestamp();
+
+        // Validate that not_before < not_after (fundamental invariant)
+        assert!(
+            not_before_timestamp < not_after_timestamp,
+            "Certificate not_before should be before not_after, invariant violated!"
+        );
+
+        // Test with time exactly at not_after (should fail - exclusive boundary)
+        let not_after_time = Utc.timestamp_opt(not_after_timestamp, 0).single().unwrap();
+        let result = validator.validate_single_cert(&parsed_cert.1, not_after_time);
+
+        assert!(
+            matches!(
+                result,
+                Err(crate::security::mtls::CertificateValidationError::Expired)
+            ),
+            "Certificate at exact not_after boundary should be expired"
+        );
+
+        // Test with time between not_before and not_after (should pass)
+        let mid_timestamp = not_before_timestamp + (not_after_timestamp - not_before_timestamp) / 2;
+        let mid_time = Utc.timestamp_opt(mid_timestamp, 0).single().unwrap();
+        let result = validator.validate_single_cert(&parsed_cert.1, mid_time);
+
+        assert!(
+            result.is_ok(),
+            "Certificate with time between not_before and not_after should be valid"
         );
     }
 }

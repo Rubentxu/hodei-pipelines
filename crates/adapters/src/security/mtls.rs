@@ -9,6 +9,7 @@ use std::fs;
 use std::io::{BufReader, Write};
 use std::net::IpAddr;
 use x509_parser::prelude::*;
+use x509_parser::time::ASN1Time;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MtlsConfig {
@@ -153,20 +154,38 @@ impl ProductionCertificateValidator {
     pub fn validate_single_cert(
         &self,
         cert: &x509_parser::certificate::X509Certificate,
-        _now: DateTime<Utc>,
+        now: DateTime<Utc>,
     ) -> std::result::Result<(), CertificateValidationError> {
-        // Basic structural validation
-        // Note: Full certificate validation requires proper PKI infrastructure
-        // This implementation provides a foundation for production-grade validation
-
         // Validate certificate has required fields
         let _ = cert.subject();
         let _ = cert.issuer();
-        let _ = cert.validity();
+        let validity = cert.validity();
+
+        // US-01.2: Validate certificate time validity periods
+        // Check if certificate is currently valid based on not_before and not_after
+        let not_before = validity.not_before;
+        let not_after = validity.not_after;
+
+        // Convert current time to Unix timestamp for comparison
+        let current_timestamp = now.timestamp();
+
+        // Get timestamps from certificate validity periods using ASN1Time::timestamp()
+        let not_before_timestamp = not_before.timestamp();
+        let not_after_timestamp = not_after.timestamp();
+
+        // Check if certificate is not yet valid
+        if current_timestamp < not_before_timestamp {
+            return Err(CertificateValidationError::NotYetValid);
+        }
+
+        // Check if certificate is expired
+        // not_after is an exclusive upper bound, so current_time >= not_after means expired
+        if current_timestamp >= not_after_timestamp {
+            return Err(CertificateValidationError::Expired);
+        }
 
         // TODO: Add comprehensive validation:
         // - Verify certificate signature (requires CA certificate)
-        // - Check validity periods against current time
         // - Validate key usage extensions for client authentication
         // - Check extended key usage (EKU) for TLS Client Auth
         // - Verify certificate policies
