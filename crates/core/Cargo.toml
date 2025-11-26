@@ -24,6 +24,8 @@ async-trait = { workspace = true }
 sysinfo = { workspace = true, optional = true }
 futures = { workspace = true }
 
+# Internal dependencies - removed to avoid circular dependency
+
 [features]
 sqlx = ["dep:sqlx"]
 dashmap = ["dep:dashmap"]

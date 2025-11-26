@@ -447,8 +447,8 @@ mod tests {
                 env: std::collections::HashMap::new(),
                 secret_refs: Vec::new(),
             },
-            Some("Test job"),
-            Some("test"),
+            Some("Test job".to_string()),
+            Some("test".to_string()),
         )
         .unwrap()
     }

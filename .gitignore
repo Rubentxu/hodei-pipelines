@@ -88,3 +88,11 @@ code-manifest/
 CODE_MANIFEST.txt
 data/
 docs/analysis
+docs/alineamiento
+*.md
+!README.md
+!README.es.md
+!LICENSE.md
+!CONTRIBUTING.md
+!SECURITY.md
+

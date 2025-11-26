@@ -4,11 +4,11 @@
 //! using the Kubernetes REST API via reqwest for professional Kubernetes operations.
 
 use async_trait::async_trait;
+use hodei_core::WorkerStatus;
 use hodei_core::{Worker, WorkerId};
 use hodei_ports::worker_provider::{
     ProviderCapabilities, ProviderConfig, ProviderError, ProviderType, WorkerProvider,
 };
-use hodei_core::WorkerStatus;
 use reqwest::{Client as HttpClient, Response};
 use serde_json::{Value, json};
 use std::fs;

@@ -117,8 +117,8 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            Some("Test job"),
-            Some("test-tenant"),
+            Some("Test job".to_string()),
+            Some("test-tenant".to_string()),
         )
         .unwrap();
 
@@ -163,8 +163,8 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            Some("pending-job"),
-            None::<&str>,
+            Some("pending-job".to_string()),
+            None::<String>,
         )
         .unwrap();
 
@@ -180,8 +180,8 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            Some("running-job"),
-            None::<&str>,
+            Some("running-job".to_string()),
+            None::<String>,
         )
         .unwrap();
         running_job.schedule().unwrap();
@@ -215,8 +215,8 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            Some("pending-job"),
-            None::<&str>,
+            Some("pending-job".to_string()),
+            None::<String>,
         )
         .unwrap();
 
@@ -232,8 +232,8 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            Some("running-job"),
-            None::<&str>,
+            Some("running-job".to_string()),
+            None::<String>,
         )
         .unwrap();
         running_job.schedule().unwrap();
@@ -267,8 +267,8 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            Some("test-job"),
-            None::<&str>,
+            Some("test-job".to_string()),
+            None::<String>,
         )
         .unwrap();
 
@@ -299,8 +299,8 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            Some("test-job"),
-            None::<&str>,
+            Some("test-job".to_string()),
+            None::<String>,
         )
         .unwrap();
 
@@ -344,8 +344,8 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
-            Some("test-job"),
-            None::<&str>,
+            Some("test-job".to_string()),
+            None::<String>,
         )
         .unwrap();
 

@@ -2,6 +2,7 @@
 //!
 //! This module contains the Pipeline aggregate root and related value objects.
 
+use crate::specifications::Specification;
 use crate::{DomainError, Result};
 // use daggy::{Dag, NodeIndex};
 use serde::{Deserialize, Serialize};
@@ -90,13 +91,13 @@ pub struct PipelineStep {
 }
 
 impl PipelineStep {
-    pub fn new(name: String, job_spec: crate::job::JobSpec) -> Self {
+    pub fn new(name: String, job_spec: crate::job::JobSpec, timeout_ms: u64) -> Self {
         Self {
             id: PipelineStepId::new(),
             name,
             job_spec,
             depends_on: vec![],
-            timeout_ms: 300000, // 5 minutes default
+            timeout_ms,
         }
     }
 
@@ -105,29 +106,125 @@ impl PipelineStep {
         self
     }
 
-    /// Validate step has no self-dependencies
+    /// Validate step using individual validation rules
+    /// (Pipeline-level validation happens when creating a Pipeline)
     pub fn validate(&self) -> std::result::Result<(), DomainError> {
-        if self.name.trim().is_empty() {
+        use crate::pipeline_step_specifications::{
+            NoSelfDependencySpec, StepNameNotEmptySpec, ValidTimeoutSpec,
+        };
+
+        // Individual step validation (name, timeout, no self-dependency)
+        let name_spec = StepNameNotEmptySpec::new();
+        let timeout_spec = ValidTimeoutSpec::new();
+        let no_self_spec = NoSelfDependencySpec::new();
+
+        if !name_spec.is_satisfied_by(self) {
             return Err(DomainError::Validation(
                 "Step name cannot be empty".to_string(),
             ));
         }
 
-        if self.depends_on.contains(&self.id) {
-            return Err(DomainError::Validation(format!(
-                "Step '{}' cannot depend on itself",
-                self.name
-            )));
-        }
-
-        if self.timeout_ms == 0 {
+        if !timeout_spec.is_satisfied_by(self) {
             return Err(DomainError::Validation(format!(
                 "Step '{}' timeout must be greater than 0",
                 self.name
             )));
         }
 
+        if !no_self_spec.is_satisfied_by(self) {
+            return Err(DomainError::Validation(format!(
+                "Step '{}' cannot depend on itself",
+                self.name
+            )));
+        }
+
         Ok(())
+    }
+}
+
+/// Builder for PipelineStep using Builder Pattern
+/// Provides fluent interface for step construction with validation
+pub struct PipelineStepBuilder {
+    name: Option<String>,
+    job_spec: Option<crate::job::JobSpec>,
+    timeout_ms: Option<u64>,
+    depends_on: Vec<PipelineStepId>,
+}
+
+impl PipelineStepBuilder {
+    /// Create a new builder
+    pub fn new() -> Self {
+        Self {
+            name: None,
+            job_spec: None,
+            timeout_ms: Some(300000), // Default 5 minutes
+            depends_on: vec![],
+        }
+    }
+
+    /// Set step name (required)
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Set job spec (required)
+    pub fn job_spec(mut self, job_spec: crate::job::JobSpec) -> Self {
+        self.job_spec = Some(job_spec);
+        self
+    }
+
+    /// Set timeout in milliseconds (optional, default: 300000)
+    pub fn timeout(mut self, timeout_ms: u64) -> Self {
+        self.timeout_ms = Some(timeout_ms);
+        self
+    }
+
+    /// Add a dependency (can be called multiple times)
+    pub fn depends_on(mut self, step_id: PipelineStepId) -> Self {
+        self.depends_on.push(step_id);
+        self
+    }
+
+    /// Add multiple dependencies
+    pub fn depends_on_many(mut self, step_ids: Vec<PipelineStepId>) -> Self {
+        self.depends_on.extend(step_ids);
+        self
+    }
+
+    /// Build the PipelineStep with validation
+    /// Returns error if required fields are missing or validation fails
+    pub fn build(self) -> Result<PipelineStep> {
+        let name = self
+            .name
+            .ok_or_else(|| DomainError::Validation("Step name is required".to_string()))?;
+
+        let job_spec = self
+            .job_spec
+            .ok_or_else(|| DomainError::Validation("Job spec is required".to_string()))?;
+
+        let timeout_ms = self
+            .timeout_ms
+            .ok_or_else(|| DomainError::Validation("Timeout is required".to_string()))?;
+
+        let step = PipelineStep {
+            id: PipelineStepId::new(),
+            name,
+            job_spec,
+            depends_on: self.depends_on,
+            timeout_ms,
+        };
+
+        // Validate using specifications
+        step.validate()?;
+
+        Ok(step)
+    }
+}
+
+impl Default for PipelineStepBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -434,7 +531,7 @@ mod tests {
             secret_refs: vec![],
         };
 
-        let step = PipelineStep::new("step1".to_string(), job_spec);
+        let step = PipelineStep::new("step1".to_string(), job_spec, 300000);
         let pipeline =
             Pipeline::new(PipelineId::new(), "test-pipeline".to_string(), vec![step]).unwrap();
 
@@ -456,8 +553,8 @@ mod tests {
             secret_refs: vec![],
         };
 
-        let step1 = PipelineStep::new("step1".to_string(), job_spec.clone());
-        let step2 = PipelineStep::new("step2".to_string(), job_spec);
+        let step1 = PipelineStep::new("step1".to_string(), job_spec.clone(), 300000);
+        let step2 = PipelineStep::new("step2".to_string(), job_spec, 300000);
 
         // This should work - simple dependency
         let pipeline = Pipeline::new(
@@ -484,9 +581,9 @@ mod tests {
             secret_refs: vec![],
         };
 
-        let mut step1 = PipelineStep::new("step1".to_string(), job_spec.clone());
-        let mut step2 = PipelineStep::new("step2".to_string(), job_spec.clone());
-        let mut step3 = PipelineStep::new("step3".to_string(), job_spec);
+        let mut step1 = PipelineStep::new("step1".to_string(), job_spec.clone(), 300000);
+        let mut step2 = PipelineStep::new("step2".to_string(), job_spec.clone(), 300000);
+        let mut step3 = PipelineStep::new("step3".to_string(), job_spec, 300000);
 
         // Create circular dependency: step1 -> step2 -> step3 -> step1
         step1.depends_on.push(step2.id.clone());
@@ -518,7 +615,7 @@ mod tests {
             secret_refs: vec![],
         };
 
-        let mut step = PipelineStep::new("step1".to_string(), job_spec);
+        let mut step = PipelineStep::new("step1".to_string(), job_spec, 300000);
         step.depends_on.push(step.id.clone());
 
         let result = step.validate();
@@ -541,7 +638,7 @@ mod tests {
             secret_refs: vec![],
         };
 
-        let mut step = PipelineStep::new("step1".to_string(), job_spec);
+        let mut step = PipelineStep::new("step1".to_string(), job_spec, 300000);
         step.timeout_ms = 0; // Set invalid timeout directly
 
         let result = step.validate();
@@ -564,8 +661,8 @@ mod tests {
             secret_refs: vec![],
         };
 
-        let step1 = PipelineStep::new("step1".to_string(), job_spec.clone());
-        let step2 = PipelineStep::new("step2".to_string(), job_spec.clone());
+        let step1 = PipelineStep::new("step1".to_string(), job_spec.clone(), 300000);
+        let step2 = PipelineStep::new("step2".to_string(), job_spec.clone(), 300000);
 
         // Make step2 depend on step1
         let mut step2_with_dep = step2.clone();
@@ -599,7 +696,7 @@ mod tests {
             secret_refs: vec![],
         };
 
-        let step = PipelineStep::new("step1".to_string(), job_spec);
+        let step = PipelineStep::new("step1".to_string(), job_spec, 300000);
         let mut pipeline =
             Pipeline::new(PipelineId::new(), "test-pipeline".to_string(), vec![step]).unwrap();
 
@@ -610,5 +707,173 @@ mod tests {
 
         pipeline.complete().unwrap();
         assert!(pipeline.is_terminal());
+    }
+
+    #[test]
+    fn test_pipeline_step_builder_basic() {
+        let job_spec = crate::job::JobSpec {
+            name: "test-job".to_string(),
+            image: "ubuntu".to_string(),
+            command: vec!["echo".to_string()],
+            resources: crate::job::ResourceQuota::default(),
+            timeout_ms: 30000,
+            retries: 3,
+            env: HashMap::new(),
+            secret_refs: vec![],
+        };
+
+        let step = PipelineStepBuilder::new()
+            .name("test-step")
+            .job_spec(job_spec.clone())
+            .build()
+            .unwrap();
+
+        assert_eq!(step.name, "test-step");
+        assert_eq!(step.job_spec.name, "test-job");
+        assert_eq!(step.timeout_ms, 300000); // default
+        assert!(step.depends_on.is_empty());
+    }
+
+    #[test]
+    fn test_pipeline_step_builder_with_custom_timeout() {
+        let job_spec = crate::job::JobSpec {
+            name: "test-job".to_string(),
+            image: "ubuntu".to_string(),
+            command: vec!["echo".to_string()],
+            resources: crate::job::ResourceQuota::default(),
+            timeout_ms: 30000,
+            retries: 3,
+            env: HashMap::new(),
+            secret_refs: vec![],
+        };
+
+        let step = PipelineStepBuilder::new()
+            .name("test-step")
+            .job_spec(job_spec.clone())
+            .timeout(600000)
+            .build()
+            .unwrap();
+
+        assert_eq!(step.timeout_ms, 600000);
+    }
+
+    #[test]
+    fn test_pipeline_step_builder_with_dependencies() {
+        let job_spec = crate::job::JobSpec {
+            name: "test-job".to_string(),
+            image: "ubuntu".to_string(),
+            command: vec!["echo".to_string()],
+            resources: crate::job::ResourceQuota::default(),
+            timeout_ms: 30000,
+            retries: 3,
+            env: HashMap::new(),
+            secret_refs: vec![],
+        };
+
+        let step1_id = PipelineStepId::new();
+
+        // Create a pipeline with both steps
+        let step1 = PipelineStepBuilder::new()
+            .name("dependency-step")
+            .job_spec(job_spec.clone())
+            .build()
+            .unwrap();
+
+        let step2 = PipelineStepBuilder::new()
+            .name("dependent-step")
+            .job_spec(job_spec.clone())
+            .depends_on(step1.id.clone())
+            .build()
+            .unwrap();
+
+        assert_eq!(step2.depends_on.len(), 1);
+        assert_eq!(step2.depends_on[0], step1.id);
+    }
+
+    #[test]
+    fn test_pipeline_step_builder_with_multiple_dependencies() {
+        let job_spec = crate::job::JobSpec {
+            name: "test-job".to_string(),
+            image: "ubuntu".to_string(),
+            command: vec!["echo".to_string()],
+            resources: crate::job::ResourceQuota::default(),
+            timeout_ms: 30000,
+            retries: 3,
+            env: HashMap::new(),
+            secret_refs: vec![],
+        };
+
+        let step1 = PipelineStepBuilder::new()
+            .name("dep1")
+            .job_spec(job_spec.clone())
+            .build()
+            .unwrap();
+
+        let step2 = PipelineStepBuilder::new()
+            .name("dep2")
+            .job_spec(job_spec.clone())
+            .build()
+            .unwrap();
+
+        let step3 = PipelineStepBuilder::new()
+            .name("main-step")
+            .job_spec(job_spec.clone())
+            .depends_on(step1.id.clone())
+            .depends_on(step2.id.clone())
+            .build()
+            .unwrap();
+
+        assert_eq!(step3.depends_on.len(), 2);
+    }
+
+    #[test]
+    fn test_pipeline_step_builder_fails_without_name() {
+        let job_spec = crate::job::JobSpec {
+            name: "test-job".to_string(),
+            image: "ubuntu".to_string(),
+            command: vec!["echo".to_string()],
+            resources: crate::job::ResourceQuota::default(),
+            timeout_ms: 30000,
+            retries: 3,
+            env: HashMap::new(),
+            secret_refs: vec![],
+        };
+
+        let result = PipelineStepBuilder::new()
+            .job_spec(job_spec.clone())
+            .build();
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pipeline_step_builder_fails_without_job_spec() {
+        let result = PipelineStepBuilder::new().name("test-step").build();
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pipeline_step_builder_fluent_interface() {
+        let job_spec = crate::job::JobSpec {
+            name: "test-job".to_string(),
+            image: "ubuntu".to_string(),
+            command: vec!["echo".to_string()],
+            resources: crate::job::ResourceQuota::default(),
+            timeout_ms: 30000,
+            retries: 3,
+            env: HashMap::new(),
+            secret_refs: vec![],
+        };
+
+        // Test that builder methods return self for chaining
+        let mut builder = PipelineStepBuilder::new();
+        builder = builder.name("test-step");
+        builder = builder.job_spec(job_spec.clone());
+        builder = builder.timeout(600000);
+
+        let step = builder.build().unwrap();
+        assert_eq!(step.name, "test-step");
+        assert_eq!(step.timeout_ms, 600000);
     }
 }

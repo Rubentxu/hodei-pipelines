@@ -150,7 +150,7 @@ impl ProductionCertificateValidator {
         Ok(())
     }
 
-    fn validate_single_cert(
+    pub fn validate_single_cert(
         &self,
         cert: &x509_parser::certificate::X509Certificate,
         _now: DateTime<Utc>,
