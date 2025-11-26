@@ -23,11 +23,11 @@ pub enum StreamType {
     Stderr,
 }
 
-/// Zero-copy system events (Arc for efficient cloning)
+/// System events for inter-component communication
 #[derive(Debug, Clone)]
 pub enum SystemEvent {
-    /// Job created event (zero-copy via Arc)
-    JobCreated(Arc<JobSpec>),
+    /// Job created event
+    JobCreated(JobSpec),
 
     /// Job scheduled event
     JobScheduled { job_id: JobId, worker_id: WorkerId },

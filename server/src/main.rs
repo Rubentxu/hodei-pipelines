@@ -605,7 +605,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(job) => Ok(Json(JobResponse {
                     id: job.id.to_string(),
                     name: job.name().to_string(),
-                    spec: job.spec.as_ref().clone(),
+                    spec: job.spec.clone(),
                     state: job.state.as_str().to_string(),
                     created_at: job.created_at,
                     updated_at: job.updated_at,
@@ -628,7 +628,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(Some(job)) => Ok(Json(JobResponse {
                     id: job.id.to_string(),
                     name: job.name().to_string(),
-                    spec: job.spec.as_ref().clone(),
+                    spec: job.spec.clone(),
                     state: job.state.as_str().to_string(),
                     created_at: job.created_at,
                     updated_at: job.updated_at,

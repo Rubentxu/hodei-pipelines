@@ -168,7 +168,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_zero_copy_arc() {
+    async fn test_job_created_event() {
         use hodei_core::JobSpec;
 
         let bus = InMemoryBus::new(100);
@@ -179,7 +179,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let event = SystemEvent::JobCreated(Arc::new(job_spec.clone()));
+        let event = SystemEvent::JobCreated(job_spec.clone());
 
         // Publish and receive
         let mut receiver = bus.subscribe().await.unwrap();
@@ -188,7 +188,7 @@ mod tests {
         let received = receiver.recv().await.unwrap();
 
         if let SystemEvent::JobCreated(received_job) = received {
-            // Should be the same data (zero-copy)
+            // Should be the same data
             assert_eq!(received_job.name, job_spec.name);
         } else {
             panic!("Expected JobCreated event");
