@@ -398,6 +398,20 @@ mod tests {
         ) -> Result<(), hodei_ports::WorkerRepositoryError> {
             Ok(())
         }
+
+        async fn update_last_seen(
+            &self,
+            _id: &WorkerId,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn find_stale_workers(
+            &self,
+            _threshold_duration: std::time::Duration,
+        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(vec![])
+        }
     }
 
     #[tokio::test]

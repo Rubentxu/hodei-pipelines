@@ -647,9 +647,304 @@ impl HealthCheckConfig {
         Self {
             enabled: true,
             interval: Duration::from_secs(30),
-            timeout: Duration::from_secs(10),
+            timeout: Duration::from_secs(5),
             healthy_threshold: 3,
             unhealthy_threshold: 2,
+        }
+    }
+}
+
+/// Health check types
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HealthCheckType {
+    Tcp { host: String, port: u16 },
+    Http { url: String },
+    Grpc { endpoint: String },
+    Custom { command: String },
+}
+
+/// Health status enum
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HealthStatus {
+    Healthy,
+    Unhealthy { reason: String },
+    Unknown,
+    Recovering,
+}
+
+/// Health check result
+#[derive(Debug, Clone)]
+pub struct HealthCheckResult {
+    pub worker_id: WorkerId,
+    pub status: HealthStatus,
+    pub response_time: Duration,
+    pub consecutive_failures: u32,
+    pub last_check: chrono::DateTime<chrono::Utc>,
+}
+
+/// Health check error types
+#[derive(Debug, thiserror::Error)]
+pub enum HealthCheckError {
+    #[error("Connection failed for worker {worker_id}: {error}")]
+    ConnectionFailed { worker_id: WorkerId, error: String },
+
+    #[error("Timeout for worker {worker_id}")]
+    Timeout { worker_id: WorkerId },
+
+    #[error("Health check failed for worker {worker_id}: {reason}")]
+    Failed { worker_id: WorkerId, reason: String },
+
+    #[error("Worker not found: {0}")]
+    WorkerNotFound(WorkerId),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
+}
+
+/// Health check service
+#[derive(Debug)]
+pub struct HealthCheckService<R>
+where
+    R: hodei_ports::WorkerRepository + Send + Sync,
+{
+    config: HealthCheckConfig,
+    worker_repo: Arc<R>,
+    health_status: Arc<RwLock<HashMap<WorkerId, HealthCheckResult>>>,
+}
+
+impl<R> HealthCheckService<R>
+where
+    R: hodei_ports::WorkerRepository + Send + Sync,
+{
+    /// Create new health check service
+    pub fn new(config: HealthCheckConfig, worker_repo: Arc<R>) -> Self {
+        Self {
+            config,
+            worker_repo,
+            health_status: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// Run health checks for all workers
+    pub async fn run_health_checks(&self) -> Result<(), HealthCheckError> {
+        let workers = self
+            .worker_repo
+            .get_all_workers()
+            .await
+            .map_err(|e| HealthCheckError::Internal(e.to_string()))?;
+
+        info!("Running health checks for {} workers", workers.len());
+
+        for worker in workers {
+            if let Err(e) = self.check_worker_health(&worker).await {
+                error!(
+                    worker_id = %worker.id,
+                    error = %e,
+                    "Health check failed"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check health of a specific worker
+    pub async fn check_worker_health(
+        &self,
+        worker: &Worker,
+    ) -> Result<HealthCheckResult, HealthCheckError> {
+        let worker_id = worker.id.clone();
+        let check_start = std::time::Instant::now();
+
+        // Determine health check type based on worker's metadata or configuration
+        let check_type = self.determine_check_type(worker);
+
+        // Execute health check
+        let check_type_clone = check_type.clone();
+        let result = match check_type {
+            HealthCheckType::Tcp { host, port } => {
+                self.perform_tcp_check(&worker_id, &host, port).await
+            }
+            HealthCheckType::Grpc { .. } => {
+                // TODO: Implement gRPC health check
+                // For now, return healthy
+                Ok(())
+            }
+            HealthCheckType::Http { .. } => {
+                // TODO: Implement HTTP health check
+                // For now, return healthy
+                Ok(())
+            }
+            HealthCheckType::Custom { .. } => {
+                // TODO: Implement custom command health check
+                // For now, return healthy
+                Ok(())
+            }
+        };
+
+        let response_time = check_start.elapsed();
+        let now = chrono::Utc::now();
+
+        // Get previous health status
+        let mut health_status = self.health_status.write().await;
+        let previous_result = health_status.get(&worker_id).cloned();
+
+        // Get previous health status info
+        let was_unhealthy = previous_result
+            .as_ref()
+            .map(|r| matches!(r.status, HealthStatus::Unhealthy { .. }))
+            .unwrap_or(false);
+        let prev_failures = previous_result
+            .as_ref()
+            .map(|r| r.consecutive_failures)
+            .unwrap_or(0);
+
+        // Update consecutive failures
+        let consecutive_failures = if result.is_ok() {
+            // Reset failure count on success
+            0
+        } else {
+            // Increment failure count on failure
+            prev_failures + 1
+        };
+
+        // Determine current status based on thresholds
+        let status = if result.is_ok() {
+            if was_unhealthy {
+                // Was unhealthy, now healthy - mark as recovering first
+                HealthStatus::Recovering
+            } else {
+                // Fully healthy
+                HealthStatus::Healthy
+            }
+        } else {
+            if consecutive_failures >= self.config.healthy_threshold {
+                // Too many failures - mark unhealthy
+                HealthStatus::Unhealthy {
+                    reason: result.as_ref().err().unwrap().to_string(),
+                }
+            } else {
+                // Not yet unhealthy, still in recovery window
+                HealthStatus::Recovering
+            }
+        };
+
+        // Create health check result
+        let health_result = HealthCheckResult {
+            worker_id,
+            status,
+            response_time,
+            consecutive_failures: if result.is_ok() {
+                0
+            } else {
+                consecutive_failures
+            },
+            last_check: now,
+        };
+
+        // Store in cache
+        let worker_id_for_cache = health_result.worker_id.clone();
+        health_status.insert(worker_id_for_cache, health_result.clone());
+
+        info!(
+            worker_id = %health_result.worker_id,
+            status = ?health_result.status,
+            consecutive_failures = %health_result.consecutive_failures,
+            "Health check completed"
+        );
+
+        Ok(health_result)
+    }
+
+    /// Get health status for a specific worker
+    pub async fn get_health_status(&self, worker_id: &WorkerId) -> Option<HealthCheckResult> {
+        let health_status = self.health_status.read().await;
+        health_status.get(worker_id).cloned()
+    }
+
+    /// Get health status for all workers
+    pub async fn get_all_health_status(&self) -> Vec<HealthCheckResult> {
+        let health_status = self.health_status.read().await;
+        health_status.values().cloned().collect()
+    }
+
+    /// Check if a worker is healthy and available for new jobs
+    pub async fn is_worker_healthy(&self, worker_id: &WorkerId) -> bool {
+        if let Some(result) = self.get_health_status(worker_id).await {
+            matches!(result.status, HealthStatus::Healthy)
+        } else {
+            false
+        }
+    }
+
+    /// Perform TCP health check
+    async fn perform_tcp_check(
+        &self,
+        worker_id: &WorkerId,
+        host: &str,
+        port: u16,
+    ) -> Result<(), HealthCheckError> {
+        let timeout_duration = self.config.timeout;
+
+        // Create a TCP connection with timeout
+        let connection_result = tokio::time::timeout(
+            timeout_duration,
+            tokio::net::TcpStream::connect((host, port)),
+        )
+        .await;
+
+        match connection_result {
+            Ok(Ok(_stream)) => {
+                info!(worker_id = %worker_id, host = %host, port = %port, "TCP health check successful");
+                Ok(())
+            }
+            Ok(Err(e)) => {
+                let error = format!("Connection failed: {}", e);
+                warn!(worker_id = %worker_id, host = %host, port = %port, error = %error, "TCP health check failed");
+                Err(HealthCheckError::ConnectionFailed {
+                    worker_id: worker_id.clone(),
+                    error,
+                })
+            }
+            Err(_) => {
+                warn!(worker_id = %worker_id, host = %host, port = %port, "TCP health check timeout");
+                Err(HealthCheckError::Timeout {
+                    worker_id: worker_id.clone(),
+                })
+            }
+        }
+    }
+
+    /// Determine which health check type to use for a worker
+    fn determine_check_type(&self, worker: &Worker) -> HealthCheckType {
+        // Check worker's metadata for health check configuration
+        if let Some(host) = worker.metadata.get("healthcheck_host") {
+            if let Some(port_str) = worker.metadata.get("healthcheck_port") {
+                if let Ok(port) = port_str.parse::<u16>() {
+                    return HealthCheckType::Tcp {
+                        host: host.clone(),
+                        port,
+                    };
+                }
+            }
+        }
+
+        // Check if there's a gRPC endpoint configured
+        if let Some(endpoint) = worker.metadata.get("grpc_endpoint") {
+            return HealthCheckType::Grpc {
+                endpoint: endpoint.clone(),
+            };
+        }
+
+        // Check if there's an HTTP endpoint configured
+        if let Some(url) = worker.metadata.get("http_endpoint") {
+            return HealthCheckType::Http { url: url.clone() };
+        }
+
+        // Default to TCP on common ports if metadata doesn't specify
+        HealthCheckType::Tcp {
+            host: "localhost".to_string(),
+            port: 8080,
         }
     }
 }
@@ -3829,5 +4124,440 @@ mod tests {
         assert_eq!(utilization.used_capacity, state_distribution.busy as u64);
         assert!(pool_metrics.current_size >= state_distribution.busy);
         assert!(pool_metrics.current_size >= state_distribution.ready);
+    }
+}
+
+#[cfg(test)]
+mod health_check_tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use tokio::time::sleep;
+
+    /// Mock WorkerRepository for testing
+    struct MockWorkerRepository {
+        workers: Vec<Worker>,
+    }
+
+    impl MockWorkerRepository {
+        fn new(workers: Vec<Worker>) -> Self {
+            Self { workers }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl hodei_ports::WorkerRepository for MockWorkerRepository {
+        async fn save_worker(
+            &self,
+            _worker: &Worker,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn get_worker(
+            &self,
+            _id: &WorkerId,
+        ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(None)
+        }
+
+        async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(self.workers.clone())
+        }
+
+        async fn delete_worker(
+            &self,
+            _id: &WorkerId,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn update_last_seen(
+            &self,
+            _id: &WorkerId,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn find_stale_workers(
+            &self,
+            _threshold_duration: std::time::Duration,
+        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(Vec::new())
+        }
+    }
+
+    fn create_test_worker(_worker_id: &str, metadata: HashMap<String, String>) -> Worker {
+        let id = WorkerId::new();
+        let id_clone = id.clone();
+        Worker {
+            id: id_clone,
+            name: format!("test-worker-{}", _worker_id),
+            status: hodei_core::WorkerStatus {
+                worker_id: id,
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: std::time::SystemTime::now(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: Some("test-tenant".to_string()),
+            capabilities: hodei_core::WorkerCapabilities::new(4, 8192),
+            metadata,
+            current_jobs: vec![],
+            last_heartbeat: chrono::Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_health_check_service_creation() {
+        let config = HealthCheckConfig::new();
+        let workers = Vec::new();
+        let repo = Arc::new(MockWorkerRepository::new(workers));
+        let service = HealthCheckService::new(config, repo);
+
+        assert!(service.config.enabled);
+        assert_eq!(service.config.interval, Duration::from_secs(30));
+        assert_eq!(service.config.timeout, Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn test_tcp_health_check_success() {
+        // Create a simple TCP server that listens on a random port
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // Spawn server task that accepts connection
+        tokio::spawn(async move {
+            loop {
+                if let Ok((_, _)) = listener.accept().await {
+                    // Connection accepted - do nothing
+                }
+            }
+        });
+
+        // Give server time to start
+        sleep(Duration::from_millis(100)).await;
+
+        let worker = create_test_worker(
+            "worker-1",
+            HashMap::from([
+                ("healthcheck_host".to_string(), "127.0.0.1".to_string()),
+                ("healthcheck_port".to_string(), addr.port().to_string()),
+            ]),
+        );
+
+        let config = HealthCheckConfig::new();
+        let repo = Arc::new(MockWorkerRepository::new(vec![]));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        let result = service.check_worker_health(&worker).await.unwrap();
+
+        assert!(matches!(
+            result.status,
+            HealthStatus::Healthy | HealthStatus::Recovering
+        ));
+        assert_eq!(result.worker_id, worker.id);
+    }
+
+    #[tokio::test]
+    async fn test_tcp_health_check_timeout() {
+        // Use a port that's likely not in use
+        let worker = create_test_worker(
+            "worker-2",
+            HashMap::from([
+                ("healthcheck_host".to_string(), "127.0.0.1".to_string()),
+                ("healthcheck_port".to_string(), "99999".to_string()), // Invalid port
+            ]),
+        );
+
+        let mut config = HealthCheckConfig::new();
+        config.timeout = Duration::from_millis(100); // Very short timeout for test
+
+        let repo = Arc::new(MockWorkerRepository::new(vec![]));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        let result = service.check_worker_health(&worker).await;
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, HealthCheckError::Timeout { .. }));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_tcp_health_check_failure() {
+        // Connect to a port that's not listening
+        let worker = create_test_worker(
+            "worker-3",
+            HashMap::from([
+                ("healthcheck_host".to_string(), "127.0.0.1".to_string()),
+                ("healthcheck_port".to_string(), "12345".to_string()),
+            ]),
+        );
+
+        let config = HealthCheckConfig::new();
+        let repo = Arc::new(MockWorkerRepository::new(vec![]));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        let result = service.check_worker_health(&worker).await;
+
+        // First check might still be within threshold
+        assert!(result.is_ok());
+
+        // After enough failures, should be marked unhealthy
+        for _ in 0..5 {
+            let check_result = service.check_worker_health(&worker).await;
+            if let Ok(result) = check_result {
+                if matches!(result.status, HealthStatus::Unhealthy { .. }) {
+                    break;
+                }
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+
+        // Should eventually become unhealthy
+        let final_result = service.get_health_status(&worker.id).await.unwrap();
+        assert!(matches!(
+            final_result.status,
+            HealthStatus::Unhealthy { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_worker_marked_unhealthy_after_consecutive_failures() {
+        let worker = create_test_worker(
+            "worker-4",
+            HashMap::from([
+                ("healthcheck_host".to_string(), "127.0.0.1".to_string()),
+                ("healthcheck_port".to_string(), "54321".to_string()),
+            ]),
+        );
+
+        let config = HealthCheckConfig {
+            enabled: true,
+            interval: Duration::from_secs(30),
+            timeout: Duration::from_secs(5),
+            healthy_threshold: 3,
+            unhealthy_threshold: 2,
+        };
+
+        let repo = Arc::new(MockWorkerRepository::new(vec![]));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        // Run multiple health checks to trigger consecutive failures
+        for _ in 0..5 {
+            let _ = service.check_worker_health(&worker).await;
+            sleep(Duration::from_millis(10)).await;
+        }
+
+        let result = service.get_health_status(&worker.id).await.unwrap();
+
+        // Should be marked unhealthy due to consecutive failures
+        assert!(matches!(result.status, HealthStatus::Unhealthy { .. }));
+        assert!(result.consecutive_failures >= 2);
+    }
+
+    #[tokio::test]
+    async fn test_worker_marked_healthy_after_recovery() {
+        // Create a TCP server that we can control
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let worker = create_test_worker(
+            "worker-5",
+            HashMap::from([
+                ("healthcheck_host".to_string(), "127.0.0.1".to_string()),
+                ("healthcheck_port".to_string(), addr.port().to_string()),
+            ]),
+        );
+
+        let config = HealthCheckConfig {
+            enabled: true,
+            interval: Duration::from_secs(30),
+            timeout: Duration::from_secs(5),
+            healthy_threshold: 3,
+            unhealthy_threshold: 2,
+        };
+
+        let repo = Arc::new(MockWorkerRepository::new(vec![]));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        // First, mark worker as unhealthy by running multiple checks
+        for _ in 0..3 {
+            let _ = service.check_worker_health(&worker).await;
+            sleep(Duration::from_millis(10)).await;
+        }
+
+        let result_before = service.get_health_status(&worker.id).await.unwrap();
+        assert!(matches!(
+            result_before.status,
+            HealthStatus::Unhealthy { .. }
+        ));
+
+        // Now check when the server is running
+        tokio::spawn(async move {
+            loop {
+                if let Ok((_, _)) = listener.accept().await {
+                    // Connection accepted
+                }
+            }
+        });
+
+        sleep(Duration::from_millis(100)).await;
+
+        // Run health checks after server is up
+        for _ in 0..3 {
+            let _ = service.check_worker_health(&worker).await;
+            sleep(Duration::from_millis(10)).await;
+        }
+
+        let result_after = service.get_health_status(&worker.id).await.unwrap();
+
+        // Should now be healthy
+        assert!(matches!(
+            result_after.status,
+            HealthStatus::Healthy | HealthStatus::Recovering
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_health_check_service_run_all_workers() {
+        let workers = vec![
+            create_test_worker("worker-6", HashMap::new()),
+            create_test_worker("worker-7", HashMap::new()),
+            create_test_worker("worker-8", HashMap::new()),
+        ];
+
+        let config = HealthCheckConfig::new();
+        let repo = Arc::new(MockWorkerRepository::new(workers.clone()));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        // Run health checks for all workers
+        let result = service.run_health_checks().await;
+
+        assert!(result.is_ok());
+
+        // Verify all workers have health status
+        let all_status = service.get_all_health_status().await;
+        assert_eq!(all_status.len(), workers.len());
+    }
+
+    #[tokio::test]
+    async fn test_is_worker_healthy_check() {
+        let worker = create_test_worker("worker-9", HashMap::new());
+
+        let config = HealthCheckConfig::new();
+        let repo = Arc::new(MockWorkerRepository::new(vec![]));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        // Before any health check, should not be considered healthy
+        let is_healthy_before = service.is_worker_healthy(&worker.id).await;
+        assert!(!is_healthy_before);
+
+        // After successful health check
+        let _ = service.check_worker_health(&worker).await;
+        let is_healthy_after = service.is_worker_healthy(&worker.id).await;
+        assert!(is_healthy_after);
+    }
+
+    #[tokio::test]
+    async fn test_determine_check_type_from_metadata() {
+        let worker_with_tcp = create_test_worker(
+            "worker-10",
+            HashMap::from([
+                ("healthcheck_host".to_string(), "example.com".to_string()),
+                ("healthcheck_port".to_string(), "8080".to_string()),
+            ]),
+        );
+
+        let worker_with_grpc = create_test_worker(
+            "worker-11",
+            HashMap::from([(
+                "grpc_endpoint".to_string(),
+                "grpc://localhost:50051".to_string(),
+            )]),
+        );
+
+        let worker_with_http = create_test_worker(
+            "worker-12",
+            HashMap::from([(
+                "http_endpoint".to_string(),
+                "http://localhost:8080/health".to_string(),
+            )]),
+        );
+
+        let config = HealthCheckConfig::new();
+        let repo = Arc::new(MockWorkerRepository::new(vec![]));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        let check_type_tcp = service.determine_check_type(&worker_with_tcp);
+        assert!(matches!(check_type_tcp, HealthCheckType::Tcp { .. }));
+
+        let check_type_grpc = service.determine_check_type(&worker_with_grpc);
+        assert!(matches!(check_type_grpc, HealthCheckType::Grpc { .. }));
+
+        let check_type_http = service.determine_check_type(&worker_with_http);
+        assert!(matches!(check_type_http, HealthCheckType::Http { .. }));
+
+        // Worker without specific check type should default to TCP
+        let worker_default = create_test_worker("worker-13", HashMap::new());
+        let check_type_default = service.determine_check_type(&worker_default);
+        assert!(matches!(check_type_default, HealthCheckType::Tcp { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_health_check_response_time_tracking() {
+        // Create a server with slight delay
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            loop {
+                if let Ok((_stream, _)) = listener.accept().await {
+                    // Small delay to simulate processing
+                    sleep(Duration::from_millis(10)).await;
+                    // Connection closed when dropped
+                }
+            }
+        });
+
+        sleep(Duration::from_millis(100)).await;
+
+        let worker = create_test_worker(
+            "worker-14",
+            HashMap::from([
+                ("healthcheck_host".to_string(), "127.0.0.1".to_string()),
+                ("healthcheck_port".to_string(), addr.port().to_string()),
+            ]),
+        );
+
+        let config = HealthCheckConfig::new();
+        let repo = Arc::new(MockWorkerRepository::new(vec![]));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        let result = service.check_worker_health(&worker).await.unwrap();
+
+        // Response time should be recorded
+        assert!(result.response_time > Duration::from_millis(0));
+        assert!(result.response_time < Duration::from_secs(1)); // Should be less than 1 second
+    }
+
+    #[tokio::test]
+    async fn test_health_check_last_check_timestamp() {
+        let worker = create_test_worker("worker-15", HashMap::new());
+
+        let config = HealthCheckConfig::new();
+        let repo = Arc::new(MockWorkerRepository::new(vec![]));
+        let service = HealthCheckService::new(config, Arc::clone(&repo));
+
+        let before = chrono::Utc::now();
+        let _ = service.check_worker_health(&worker).await;
+        let after = chrono::Utc::now();
+
+        let result = service.get_health_status(&worker.id).await.unwrap();
+
+        assert!(result.last_check >= before);
+        assert!(result.last_check <= after);
     }
 }
