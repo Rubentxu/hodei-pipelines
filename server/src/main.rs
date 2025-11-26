@@ -223,7 +223,7 @@ struct AppState {
     // US-09.2.1: Job Prioritization
     job_prioritization_app_state: JobPrioritizationAppState,
     // US-09.2.2: WFQ Integration
-    // wfq_integration_app_state: WFQIntegrationAppState,
+    wfq_integration_app_state: WFQIntegrationAppState,
     // US-09.2.3: SLA Tracking
     sla_tracking_app_state: SLATrackingAppState,
     // US-09.2.4: Queue Status
@@ -508,25 +508,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Create WFQ integration service
-    // NOTE: Handlers implemented but commented out pending axum version compatibility
-    // let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
-    //     enable_virtual_time: true,
-    //     min_weight: 0.1,
-    //     max_weight: 10.0,
-    //     default_strategy: hodei_modules::weighted_fair_queuing::WeightStrategy::BillingTier,
-    //     starvation_threshold: 0.5,
-    //     weight_update_interval: std::time::Duration::from_secs(60),
-    //     default_packet_size: 1000,
-    //     enable_dynamic_weights: true,
-    //     starvation_window: std::time::Duration::from_secs(300),
-    //     fair_share_window: std::time::Duration::from_secs(3600),
-    // };
-    // let wfq_engine =
-    //     hodei_modules::weighted_fair_queuing::WeightedFairQueueingEngine::new(wfq_config);
-    // let wfq_integration_service = WFQIntegrationService::new(wfq_engine);
-    // let wfq_integration_app_state = WFQIntegrationAppState {
-    //     service: wfq_integration_service,
-    // };
+    let wfq_config = hodei_modules::weighted_fair_queuing::WFQConfig {
+        enable_virtual_time: true,
+        min_weight: 0.1,
+        max_weight: 10.0,
+        default_strategy: hodei_modules::weighted_fair_queuing::WeightStrategy::BillingTier,
+        starvation_threshold: 0.5,
+        weight_update_interval: std::time::Duration::from_secs(60),
+        default_packet_size: 1000,
+        enable_dynamic_weights: true,
+        starvation_window: std::time::Duration::from_secs(300),
+        fair_share_window: std::time::Duration::from_secs(3600),
+    };
+    let wfq_engine =
+        hodei_modules::weighted_fair_queuing::WeightedFairQueueingEngine::new(wfq_config);
+    let wfq_integration_service = WFQIntegrationService::new(wfq_engine);
+    let wfq_integration_app_state = WFQIntegrationAppState {
+        service: wfq_integration_service,
+    };
 
     // Create routes that will be nested
     let resource_quotas_router =
@@ -569,9 +568,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         alerting_rules_routes().with_state(alerting_rules_app_state.clone());
     let observability_api_router =
         observability_api_routes().with_state(observability_api_app_state.clone());
-    // WFQ Integration handlers are implemented but commented out due to axum version compatibility
-    // let wfq_integration_router =
-    //     wfq_integration_routes().with_state(wfq_integration_app_state.clone());
+    let wfq_integration_router =
+        wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
     let app_state = AppState {
         scheduler: scheduler.clone(),
@@ -582,7 +580,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         quota_enforcement_app_state,
         burst_capacity_app_state,
         job_prioritization_app_state,
-        // wfq_integration_app_state, // Implemented but commented out pending axum compatibility
+        wfq_integration_app_state,
         sla_tracking_app_state,
         queue_status_app_state,
         resource_pool_crud_app_state,
@@ -1031,8 +1029,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", burst_capacity_router)
         // US-09.2.1: Job Prioritization Routes
         .nest("/api/v1", job_prioritization_router)
-        // US-09.2.2: WFQ Integration Routes - Handlers implemented, awaiting axum compatibility
-        // .nest("/api/v1", wfq_integration_router)
+        // US-09.2.2: WFQ Integration Routes
+        .nest("/api/v1", wfq_integration_router)
         // US-09.2.3: SLA Tracking Routes
         .nest("/api/v1", sla_tracking_router)
         // US-09.2.4: Queue Status Routes

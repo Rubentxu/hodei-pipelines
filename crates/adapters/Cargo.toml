@@ -56,9 +56,7 @@ reqwest = { workspace = true, features = ["json"] }
 # Testcontainers for integration tests (used when integration feature is enabled)
 testcontainers = { workspace = true, optional = true }
 
-# Docker provider
-bollard = { version = "0.16", features = ["buildkit"] }
-
+# Docker provider - using Docker CLI directly (no axum dependency)
 # Kubernetes provider - using REST API via reqwest (no heavy dependencies)
 shellexpand = "3.1"
 

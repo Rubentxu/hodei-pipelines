@@ -5,6 +5,7 @@
 //! resource starvation.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -17,7 +18,7 @@ use crate::multi_tenancy_quota_manager::{
 };
 
 /// Tenant weight configuration
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WeightStrategy {
     /// Weight based on billing tier
     BillingTier,
@@ -73,8 +74,7 @@ pub struct WeightContext {
     pub current_time: f64,
 }
 
-/// WFQ configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WFQConfig {
     /// Global virtual time for fair queuing
     pub enable_virtual_time: bool,
