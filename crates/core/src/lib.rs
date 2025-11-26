@@ -5,6 +5,7 @@
 
 pub mod circuit_breaker;
 pub mod correlation;
+pub mod domain_services;
 pub mod error;
 pub mod events;
 pub mod health_checks;
