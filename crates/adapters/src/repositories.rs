@@ -200,7 +200,7 @@ mod tests {
     #[test]
     async fn test_in_memory_job_save_and_retrieve() {
         let repo = InMemoryJobRepository::new();
-        let job = Job::new(
+        let job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -212,10 +212,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("Test job"),
+            Some("test-tenant"),
         )
-        .unwrap()
-        .with_description("Test job")
-        .with_tenant("test-tenant");
+        .unwrap();
 
         repo.save_job(&job).await.unwrap();
 
@@ -237,7 +237,7 @@ mod tests {
     async fn test_in_memory_job_get_pending_jobs() {
         let repo = InMemoryJobRepository::new();
 
-        let pending_job = Job::new(
+        let pending_job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -249,11 +249,12 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("pending-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("pending-job");
+        .unwrap();
 
-        let mut running_job = Job::new(
+        let mut running_job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -265,10 +266,12 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("running-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("running-job");
-        running_job.schedule().unwrap(); running_job.start().unwrap();
+        .unwrap();
+        running_job.schedule().unwrap();
+        running_job.start().unwrap();
 
         repo.save_job(&pending_job).await.unwrap();
         repo.save_job(&running_job).await.unwrap();
@@ -282,7 +285,7 @@ mod tests {
     async fn test_in_memory_job_get_running_jobs() {
         let repo = InMemoryJobRepository::new();
 
-        let pending_job = Job::new(
+        let pending_job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -294,11 +297,12 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("pending-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("pending-job");
+        .unwrap();
 
-        let mut running_job = Job::new(
+        let mut running_job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -310,10 +314,12 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("running-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("running-job");
-        running_job.schedule().unwrap(); running_job.start().unwrap();
+        .unwrap();
+        running_job.schedule().unwrap();
+        running_job.start().unwrap();
 
         repo.save_job(&pending_job).await.unwrap();
         repo.save_job(&running_job).await.unwrap();
@@ -326,7 +332,7 @@ mod tests {
     #[test]
     async fn test_in_memory_job_delete() {
         let repo = InMemoryJobRepository::new();
-        let job = Job::new(
+        let job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -338,9 +344,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("test-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("test-job");
+        .unwrap();
 
         repo.save_job(&job).await.unwrap();
         assert!(repo.get_job(&job.id).await.unwrap().is_some());
@@ -352,7 +359,7 @@ mod tests {
     #[test]
     async fn test_in_memory_job_compare_and_swap_success() {
         let repo = InMemoryJobRepository::new();
-        let job = Job::new(
+        let job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -364,9 +371,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("test-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("test-job");
+        .unwrap();
 
         repo.save_job(&job).await.unwrap();
 
@@ -383,7 +391,7 @@ mod tests {
     #[test]
     async fn test_in_memory_job_compare_and_swap_failed() {
         let repo = InMemoryJobRepository::new();
-        let job = Job::new(
+        let job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -395,9 +403,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("test-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("test-job");
+        .unwrap();
 
         repo.save_job(&job).await.unwrap();
 

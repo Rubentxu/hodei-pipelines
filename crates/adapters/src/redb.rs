@@ -105,7 +105,7 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let job = Job::new(
+        let job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -117,10 +117,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("Test job"),
+            Some("test-tenant"),
         )
-        .unwrap()
-        .with_description("Test job")
-        .with_tenant("test-tenant");
+        .unwrap();
 
         repo.save_job(&job).await.unwrap();
 
@@ -151,7 +151,7 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let pending_job = Job::new(
+        let pending_job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -163,11 +163,12 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("pending-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("pending-job");
+        .unwrap();
 
-        let mut running_job = Job::new(
+        let mut running_job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -179,9 +180,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("running-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("running-job");
+        .unwrap();
         running_job.schedule().unwrap();
         running_job.start().unwrap();
 
@@ -201,7 +203,7 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let pending_job = Job::new(
+        let pending_job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -213,11 +215,12 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("pending-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("pending-job");
+        .unwrap();
 
-        let mut running_job = Job::new(
+        let mut running_job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -229,9 +232,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("running-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("running-job");
+        .unwrap();
         running_job.schedule().unwrap();
         running_job.start().unwrap();
 
@@ -251,7 +255,7 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let job = Job::new(
+        let job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -263,9 +267,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("test-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("test-job");
+        .unwrap();
 
         repo.save_job(&job).await.unwrap();
         assert!(repo.get_job(&job.id).await.unwrap().is_some());
@@ -282,7 +287,7 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let job = Job::new(
+        let job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -294,9 +299,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("test-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("test-job");
+        .unwrap();
 
         repo.save_job(&job).await.unwrap();
 
@@ -318,7 +324,7 @@ mod tests {
         let repo = RedbJobRepository::new_with_path(db_path.clone()).unwrap();
         repo.init().await.unwrap();
 
-        let job = Job::new(
+        let job = Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -330,9 +336,10 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: vec![],
             },
+            Some("test-job"),
+            None::<&str>,
         )
-        .unwrap()
-        .with_description("test-job");
+        .unwrap();
 
         repo.save_job(&job).await.unwrap();
 

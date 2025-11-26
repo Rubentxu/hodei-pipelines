@@ -52,6 +52,7 @@ pub struct ResourceQuota {
 }
 
 impl ResourceQuota {
+    /// Create a new ResourceQuota (legacy method without validation)
     pub fn new(cpu_m: u64, memory_mb: u64) -> Self {
         Self {
             cpu_m,
@@ -60,9 +61,63 @@ impl ResourceQuota {
         }
     }
 
-    pub fn with_gpu(mut self, gpu: u8) -> Self {
-        self.gpu = Some(gpu);
-        self
+    /// Create a new ResourceQuota with validation
+    ///
+    /// # Errors
+    /// Returns `crate::error::DomainError::Validation` if:
+    /// - `cpu_m` is 0
+    /// - `memory_mb` is 0
+    pub fn create(cpu_m: u64, memory_mb: u64) -> crate::Result<Self> {
+        if cpu_m == 0 {
+            return Err(crate::error::DomainError::Validation(
+                "CPU must be greater than 0 millicores".to_string(),
+            ));
+        }
+
+        if memory_mb == 0 {
+            return Err(crate::error::DomainError::Validation(
+                "Memory must be greater than 0 MB".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            cpu_m,
+            memory_mb,
+            gpu: None,
+        })
+    }
+
+    /// Create ResourceQuota with GPU requirement
+    ///
+    /// # Errors
+    /// Returns `crate::error::DomainError::Validation` if:
+    /// - `cpu_m` is 0
+    /// - `memory_mb` is 0
+    /// - `gpu` is 0
+    pub fn create_with_gpu(cpu_m: u64, memory_mb: u64, gpu: u8) -> crate::Result<Self> {
+        if cpu_m == 0 {
+            return Err(crate::error::DomainError::Validation(
+                "CPU must be greater than 0 millicores".to_string(),
+            ));
+        }
+
+        if memory_mb == 0 {
+            return Err(crate::error::DomainError::Validation(
+                "Memory must be greater than 0 MB".to_string(),
+            ));
+        }
+
+        if gpu == 0 {
+            return Err(crate::error::DomainError::Validation(
+                "GPU must be greater than 0".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            cpu_m,
+            memory_mb,
+            gpu: Some(gpu),
+        })
     }
 }
 
@@ -269,4 +324,54 @@ pub struct ExecResult {
     pub exit_code: i32,
     pub stdout: Option<String>,
     pub stderr: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ===== TDD Tests: ResourceQuota Validation =====
+
+    #[test]
+    fn resource_quota_rejects_zero_cpu() {
+        let result = ResourceQuota::create(0, 1024);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("CPU must be greater than 0"));
+        }
+    }
+
+    #[test]
+    fn resource_quota_rejects_zero_memory() {
+        let result = ResourceQuota::create(1000, 0);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("Memory must be greater than 0"));
+        }
+    }
+
+    #[test]
+    fn resource_quota_rejects_zero_gpu() {
+        let result = ResourceQuota::create_with_gpu(1000, 1024, 0);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("GPU must be greater than 0"));
+        }
+    }
+
+    #[test]
+    fn resource_quota_accepts_valid_values() {
+        let quota = ResourceQuota::create(1000, 2048).unwrap();
+        assert_eq!(quota.cpu_m, 1000);
+        assert_eq!(quota.memory_mb, 2048);
+        assert_eq!(quota.gpu, None);
+    }
+
+    #[test]
+    fn resource_quota_with_gpu_accepts_valid_values() {
+        let quota = ResourceQuota::create_with_gpu(2000, 4096, 1).unwrap();
+        assert_eq!(quota.cpu_m, 2000);
+        assert_eq!(quota.memory_mb, 4096);
+        assert_eq!(quota.gpu, Some(1));
+    }
 }

@@ -275,10 +275,10 @@ mod tests {
     use crate::scheduler::{SchedulerBuilder, SchedulerConfig};
     use hodei_core::Worker;
     use hodei_core::{Job, JobId, JobSpec, ResourceQuota};
+    use hodei_core::{WorkerCapabilities, WorkerId, WorkerStatus};
     use hodei_ports::{
         EventPublisher, JobRepository, JobRepositoryError, WorkerClient, WorkerRepository,
     };
-    use hodei_core::{WorkerCapabilities, WorkerId, WorkerStatus};
     use std::sync::Arc;
 
     // Mock implementations
@@ -435,7 +435,7 @@ mod tests {
     }
 
     fn create_test_job() -> Job {
-        Job::new(
+        Job::create(
             JobId::new(),
             JobSpec {
                 name: "test-job".to_string(),
@@ -447,9 +447,9 @@ mod tests {
                 env: std::collections::HashMap::new(),
                 secret_refs: Vec::new(),
             },
+            Some("Test job"),
+            Some("test"),
         )
         .unwrap()
-        .with_description("Test job")
-        .with_tenant("test")
     }
 }

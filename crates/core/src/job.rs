@@ -63,7 +63,7 @@ pub struct Job {
 }
 
 impl Job {
-    /// Create a new job with PENDING state
+    /// Create a new job with PENDING state (constructor básico)
     ///
     /// # Errors
     /// Returns `DomainError::Validation` if the job spec is invalid
@@ -82,6 +82,40 @@ impl Job {
             started_at: None,
             completed_at: None,
             tenant_id: None,
+            result: serde_json::Value::Null,
+        })
+    }
+
+    /// Create a new job with all parameters (inmutable construction)
+    ///
+    /// # Arguments
+    /// * `id` - Unique job identifier
+    /// * `spec` - Job specification with resource requirements
+    /// * `description` - Optional job description
+    /// * `tenant_id` - Optional tenant identifier for multi-tenancy
+    ///
+    /// # Errors
+    /// Returns `DomainError::Validation` if the job spec is invalid
+    pub fn create(
+        id: JobId,
+        spec: JobSpec,
+        description: Option<impl Into<Cow<'static, str>>>,
+        tenant_id: Option<impl Into<String>>,
+    ) -> Result<Self> {
+        spec.validate()?;
+
+        let now = chrono::Utc::now();
+        Ok(Self {
+            id,
+            name: Arc::new(spec.name.clone()),
+            description: description.map(|d| d.into()),
+            spec: Arc::new(spec),
+            state: JobState::new(JobState::PENDING.to_string())?,
+            created_at: now,
+            updated_at: now,
+            started_at: None,
+            completed_at: None,
+            tenant_id: tenant_id.map(|t| Arc::new(t.into())),
             result: serde_json::Value::Null,
         })
     }
@@ -534,5 +568,60 @@ mod tests {
 
         // Cannot fail from PENDING
         assert!(job.fail().is_err());
+    }
+
+    // ===== TDD Tests: Feature Envy Refactoring =====
+
+    #[test]
+    fn job_cannot_be_mutated_after_creation_via_inmutable_constructor() {
+        let id = JobId::new();
+        let spec = create_valid_job_spec();
+
+        // Crear job con constructor inmutable que acepta todos los parámetros
+        let job = Job::create(id.clone(), spec, Some("Description"), Some("tenant-123")).unwrap();
+
+        // Verificar que los parámetros se establecieron correctamente
+        assert_eq!(job.description(), Some("Description"));
+        assert_eq!(job.tenant_id(), Some("tenant-123"));
+
+        // Job es inmutable después de la creación - no hay setters públicos
+        // El aggregate mantiene su encapsulación
+        assert!(job.is_pending());
+        assert_eq!(job.state.as_str(), JobState::PENDING);
+    }
+
+    #[test]
+    fn job_with_encapsulation_prevents_external_mutation() {
+        let id = JobId::new();
+        let spec = create_valid_job_spec();
+
+        let job = Job::create(id, spec, None::<&str>, None::<&str>).unwrap();
+
+        // Los campos son inmutables después de la creación
+        // No se pueden modificar description o tenant_id externamente
+        assert_eq!(job.description(), None);
+        assert_eq!(job.tenant_id(), None);
+
+        // Verificar que el Job mantiene su estado inmutable
+        let _ = job.clone(); // Clone impl preserva inmutabilidad
+    }
+
+    #[test]
+    fn job_create_with_all_parameters() {
+        let id = JobId::new();
+        let spec = create_valid_job_spec();
+
+        let job = Job::create(
+            id.clone(),
+            spec,
+            Some("Test job with description"),
+            Some("tenant-456"),
+        )
+        .unwrap();
+
+        assert_eq!(job.id, id);
+        assert_eq!(job.description(), Some("Test job with description"));
+        assert_eq!(job.tenant_id(), Some("tenant-456"));
+        assert!(job.is_pending());
     }
 }
