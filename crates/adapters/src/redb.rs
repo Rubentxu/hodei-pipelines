@@ -306,8 +306,16 @@ mod tests {
 
         repo.save_job(&job).await.unwrap();
 
+        // First transition: PENDING -> SCHEDULED
         let swapped = repo
-            .compare_and_swap_status(&job.id, "PENDING", "RUNNING")
+            .compare_and_swap_status(&job.id, "PENDING", "SCHEDULED")
+            .await
+            .unwrap();
+        assert!(swapped);
+
+        // Second transition: SCHEDULED -> RUNNING
+        let swapped = repo
+            .compare_and_swap_status(&job.id, "SCHEDULED", "RUNNING")
             .await
             .unwrap();
         assert!(swapped);
@@ -343,14 +351,23 @@ mod tests {
 
         repo.save_job(&job).await.unwrap();
 
+        // First set job to RUNNING state
+        repo.compare_and_swap_status(&job.id, "PENDING", "SCHEDULED")
+            .await
+            .unwrap();
+        repo.compare_and_swap_status(&job.id, "SCHEDULED", "RUNNING")
+            .await
+            .unwrap();
+
+        // Now try to swap expecting PENDING (but actual state is RUNNING)
         let swapped = repo
-            .compare_and_swap_status(&job.id, "RUNNING", "COMPLETED")
+            .compare_and_swap_status(&job.id, "PENDING", "FAILED")
             .await
             .unwrap();
         assert!(!swapped);
 
         let retrieved = repo.get_job(&job.id).await.unwrap().unwrap();
-        assert_eq!(retrieved.state.as_str(), "PENDING");
+        assert_eq!(retrieved.state.as_str(), "RUNNING");
     }
 
     #[test]
