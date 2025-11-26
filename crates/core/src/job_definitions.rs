@@ -148,7 +148,7 @@ impl JobSpec {
     pub fn validate(&self) -> Result<(), DomainError> {
         use crate::job_specifications::ValidJobSpec;
 
-        let spec = ValidJobSpec;
+        let spec = ValidJobSpec::new();
         if spec.is_satisfied_by(self) {
             Ok(())
         } else {
