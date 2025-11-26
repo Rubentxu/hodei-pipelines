@@ -349,7 +349,7 @@ pub async fn get_config_handler(
             error!("Failed to get WFQ config: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })
-        .map(Json::new)
+        .map(Json)
 }
 
 /// Register a tenant with WFQ
@@ -471,12 +471,12 @@ pub async fn clear_queue_handler(
 /// Create router for WFQ integration routes
 pub fn wfq_integration_routes() -> Router<WFQIntegrationAppState> {
     Router::new()
-        .route("/api/v1/wfq/config", get(get_config_handler))
-        .route("/api/v1/wfq/tenants", post(register_tenant_handler))
-        .route("/api/v1/wfq/requests", post(enqueue_request_handler))
-        .route("/api/v1/wfq/stats", get(get_stats_handler))
-        .route("/api/v1/wfq/queue-depth", get(get_queue_depth_handler))
-        .route("/api/v1/wfq/clear-queue", post(clear_queue_handler))
+        .route("/wfq/config", get(get_config_handler))
+        .route("/wfq/tenants", post(register_tenant_handler))
+        .route("/wfq/requests", post(enqueue_request_handler))
+        .route("/wfq/stats", get(get_stats_handler))
+        .route("/wfq/queue-depth", get(get_queue_depth_handler))
+        .route("/wfq/clear-queue", post(clear_queue_handler))
 }
 
 #[cfg(test)]
@@ -558,7 +558,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/api/v1/wfq/config")
+                    .uri("/wfq/config")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -572,7 +572,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/api/v1/wfq/stats")
+                    .uri("/wfq/stats")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -581,12 +581,12 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        // Test queue state endpoint
+        // Test queue depth endpoint
         let response = app
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/api/v1/wfq/queue-state")
+                    .uri("/wfq/queue-depth")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -595,12 +595,12 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        // Test reset endpoint
+        // Test clear queue endpoint
         let response = app
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/v1/wfq/reset")
+                    .uri("/wfq/clear-queue")
                     .body(Body::empty())
                     .unwrap(),
             )
