@@ -184,12 +184,48 @@ impl ProductionCertificateValidator {
             return Err(CertificateValidationError::Expired);
         }
 
+        // US-01.3: Validate Key Usage Extensions for client authentication
+        self.validate_key_usage(cert)?;
+
         // TODO: Add comprehensive validation:
         // - Verify certificate signature (requires CA certificate)
-        // - Validate key usage extensions for client authentication
         // - Check extended key usage (EKU) for TLS Client Auth
         // - Verify certificate policies
         // - Check revocation status via CRL/OCSP
+
+        Ok(())
+    }
+
+    fn validate_key_usage(
+        &self,
+        cert: &x509_parser::certificate::X509Certificate,
+    ) -> std::result::Result<(), CertificateValidationError> {
+        // Extract Key Usage extension from certificate
+        let key_usage = cert.key_usage().map_err(|e| {
+            CertificateValidationError::Internal(format!("Failed to parse Key Usage: {}", e))
+        })?;
+
+        // If no Key Usage extension is present, fail validation
+        // Client certificates MUST have Key Usage for security
+        let key_usage_ext = key_usage.ok_or_else(|| CertificateValidationError::KeyUsageInvalid)?;
+
+        let usage = key_usage_ext.value;
+
+        // Validate that client certificate has required Key Usage bits for TLS Client Authentication
+        // According to RFC 5280, client certificates should have:
+        // - digitalSignature: to sign TLS handshake messages
+        // - keyEncipherment: to encrypt keys (for RSA keys)
+
+        if !usage.digital_signature() {
+            return Err(CertificateValidationError::KeyUsageInvalid);
+        }
+
+        // Note: keyEncipherment is required for RSA keys, but may not be present for ECDSA keys
+        // For now, we require it but this could be made configurable based on the key algorithm
+        // TODO: Check public key algorithm and adjust requirements accordingly
+        if !usage.key_encipherment() {
+            return Err(CertificateValidationError::KeyUsageInvalid);
+        }
 
         Ok(())
     }

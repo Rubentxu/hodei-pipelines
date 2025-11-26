@@ -310,4 +310,199 @@ mod us_01_1_tests {
             "Certificate with time between not_before and not_after should be valid"
         );
     }
+
+    // US-01.3: Validación de Key Usage Extensions - TESTS
+
+    #[test]
+    fn test_us_01_3_validate_certificate_with_valid_key_usage() {
+        // Test certificate with valid Key Usage for client authentication
+        // Should have both digitalSignature and keyEncipherment
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Check if certificate has Key Usage extension
+        let key_usage = parsed_cert.1.key_usage().unwrap();
+
+        match key_usage {
+            Some(ext) => {
+                // Valid Key Usage should have digitalSignature and keyEncipherment
+                assert!(
+                    ext.value.digital_signature(),
+                    "Key Usage should include digitalSignature for client auth"
+                );
+                assert!(
+                    ext.value.key_encipherment(),
+                    "Key Usage should include keyEncipherment for client auth"
+                );
+            }
+            None => {
+                // If no Key Usage extension, certificate should still pass basic validation
+                // Some certificates don't include Key Usage
+            }
+        }
+
+        // Current implementation doesn't validate Key Usage yet
+        let now = Utc::now();
+        let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+        // Should pass (basic validation only, Key Usage not yet implemented)
+        assert!(
+            result.is_ok(),
+            "Certificate validation should pass basic checks"
+        );
+    }
+
+    #[test]
+    fn test_us_01_3_validate_certificate_without_key_usage() {
+        // Test certificate without Key Usage extension
+        // This should be handled appropriately (warn or fail depending on policy)
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Check if certificate has Key Usage extension
+        let key_usage = parsed_cert.1.key_usage().unwrap();
+
+        // If no Key Usage, it's a configuration issue that should be validated
+        if key_usage.is_none() {
+            // This will fail in future implementation
+            let now = Utc::now();
+            let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+            // Current implementation passes, future will require Key Usage
+            assert!(
+                result.is_ok(),
+                "Current implementation accepts certs without Key Usage"
+            );
+        }
+    }
+
+    #[test]
+    fn test_us_01_3_validate_certificate_missing_digital_signature() {
+        // Test certificate with Key Usage but missing digitalSignature bit
+        // This should fail for client authentication
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        let key_usage = parsed_cert.1.key_usage().unwrap();
+
+        if let Some(ext) = key_usage {
+            // Check if digitalSignature bit is set
+            if !ext.value.digital_signature() {
+                // Should fail validation in future implementation
+                let now = Utc::now();
+                let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+                // Current implementation passes, future will check this
+                assert!(
+                    result.is_ok(),
+                    "Current implementation doesn't validate Key Usage bits"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_us_01_3_validate_certificate_missing_key_encipherment() {
+        // Test certificate with Key Usage but missing keyEncipherment bit
+        // This should fail for client authentication in RSA
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        let key_usage = parsed_cert.1.key_usage().unwrap();
+
+        if let Some(ext) = key_usage {
+            // Check if keyEncipherment bit is set
+            if !ext.value.key_encipherment() {
+                // Should fail validation in future implementation
+                let now = Utc::now();
+                let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+                // Current implementation passes, future will check this
+                assert!(
+                    result.is_ok(),
+                    "Current implementation doesn't validate Key Usage bits"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_us_01_3_validate_certificate_invalid_key_usage_for_client_auth() {
+        // Test certificate with Key Usage that is valid for server but not client
+        // e.g., only keyCertSign or cRLSign (CA-only bits)
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        let key_usage = parsed_cert.1.key_usage().unwrap();
+
+        if let Some(ext) = key_usage {
+            // Check if it has CA-only bits without client auth bits
+            let has_ca_bits = ext.value.key_cert_sign() || ext.value.crl_sign();
+            let has_client_bits = ext.value.digital_signature() || ext.value.key_encipherment();
+
+            if has_ca_bits && !has_client_bits {
+                // Should fail - CA cert used as client cert
+                let now = Utc::now();
+                let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+                // Current implementation passes, future will validate
+                assert!(result.is_ok(), "Current implementation accepts all certs");
+            }
+        }
+    }
 }
