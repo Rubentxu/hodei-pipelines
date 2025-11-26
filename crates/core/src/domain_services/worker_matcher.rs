@@ -246,7 +246,7 @@ mod tests {
             secret_refs: Vec::new(),
         };
 
-        Job::create(JobId::new(), spec, None::<&str>, None::<&str>).unwrap()
+        Job::create(JobId::new(), spec, None::<String>, None::<String>).unwrap()
     }
 
     // ===== TDD Tests: Worker Matching =====
@@ -331,7 +331,7 @@ mod tests {
                 secret_refs: Vec::new(),
             };
             spec.env.insert("env".to_string(), "production".to_string());
-            Job::create(JobId::new(), spec, None::<&str>, None::<&str>).unwrap()
+            Job::create(JobId::new(), spec, None::<String>, None::<String>).unwrap()
         };
 
         let eligible = matcher.find_eligible_workers(&workers, &job);
@@ -351,7 +351,7 @@ mod tests {
                 secret_refs: Vec::new(),
             };
             spec.env.insert("missing".to_string(), "label".to_string());
-            Job::create(JobId::new(), spec, None::<&str>, None::<&str>).unwrap()
+            Job::create(JobId::new(), spec, None::<String>, None::<String>).unwrap()
         };
 
         let eligible_no_match = matcher.find_eligible_workers(&workers, &job_no_match);
@@ -384,7 +384,7 @@ mod tests {
             };
             spec.env
                 .insert("different".to_string(), "label".to_string());
-            Job::create(JobId::new(), spec, None::<&str>, None::<&str>).unwrap()
+            Job::create(JobId::new(), spec, None::<String>, None::<String>).unwrap()
         };
 
         let eligible = matcher.find_eligible_workers(&workers, &job);

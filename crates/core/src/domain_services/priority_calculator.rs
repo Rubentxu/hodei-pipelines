@@ -292,7 +292,7 @@ mod tests {
             secret_refs: Vec::new(),
         };
 
-        Job::create(JobId::new(), spec, None::<&str>, None::<&str>).unwrap()
+        Job::create(JobId::new(), spec, None::<String>, None::<String>).unwrap()
     }
 
     fn create_cluster_worker(id: u8, cpu_percent: f64, memory_mb: f64) -> WorkerNode {

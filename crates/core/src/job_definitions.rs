@@ -705,3 +705,93 @@ mod tests {
         assert_eq!(quota.gpu, Some(1));
     }
 }
+
+#[cfg(test)]
+mod property_based_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Property-based test: All valid state transitions preserve state machine invariants
+        #[test]
+        fn job_state_property_valid_transitions(
+            from_state in prop::sample::select(vec![
+                JobState::PENDING.to_string(),
+                JobState::SCHEDULED.to_string(),
+                JobState::RUNNING.to_string(),
+                JobState::FAILED.to_string(),
+            ]),
+            to_state in prop::sample::select(vec![
+                JobState::PENDING.to_string(),
+                JobState::SCHEDULED.to_string(),
+                JobState::RUNNING.to_string(),
+                JobState::SUCCESS.to_string(),
+                JobState::FAILED.to_string(),
+                JobState::CANCELLED.to_string(),
+            ]),
+        ) {
+            let from = JobState::new(from_state).unwrap();
+            let to = JobState::new(to_state).unwrap();
+
+            let is_valid = from.can_transition_to(&to);
+
+            // Property: Terminal states (SUCCESS, CANCELLED) cannot transition anywhere
+            if from.as_str() == JobState::SUCCESS || from.as_str() == JobState::CANCELLED {
+                assert!(!is_valid, "Terminal state {} should not transition to {}",
+                    from.as_str(), to.as_str());
+            }
+
+            // Property: Only certain transitions are valid
+            match (from.as_str(), to.as_str()) {
+                (JobState::PENDING, JobState::SCHEDULED) => assert!(is_valid),
+                (JobState::PENDING, JobState::CANCELLED) => assert!(is_valid),
+                (JobState::SCHEDULED, JobState::RUNNING) => assert!(is_valid),
+                (JobState::SCHEDULED, JobState::CANCELLED) => assert!(is_valid),
+                (JobState::RUNNING, JobState::SUCCESS) => assert!(is_valid),
+                (JobState::RUNNING, JobState::FAILED) => assert!(is_valid),
+                (JobState::RUNNING, JobState::CANCELLED) => assert!(is_valid),
+                (JobState::FAILED, JobState::PENDING) => assert!(is_valid), // Retry
+                (JobState::FAILED, JobState::CANCELLED) => assert!(is_valid),
+                // Direct invalid jumps
+                (JobState::PENDING, JobState::RUNNING) => assert!(!is_valid),
+                (JobState::PENDING, JobState::SUCCESS) => assert!(!is_valid),
+                (JobState::SCHEDULED, JobState::SUCCESS) => assert!(!is_valid),
+                (JobState::SCHEDULED, JobState::FAILED) => assert!(!is_valid),
+                (JobState::SUCCESS, _) => assert!(!is_valid),
+                (JobState::CANCELLED, _) => assert!(!is_valid),
+                _ => {}
+            }
+        }
+
+        /// Property-based test: State construction is deterministic
+        #[test]
+        fn job_state_property_construction_is_deterministic(
+            state_str in prop::sample::select(vec![
+                JobState::PENDING.to_string(),
+                JobState::SCHEDULED.to_string(),
+                JobState::RUNNING.to_string(),
+                JobState::SUCCESS.to_string(),
+                JobState::FAILED.to_string(),
+                JobState::CANCELLED.to_string(),
+            ])
+        ) {
+            let state1 = JobState::new(state_str.clone()).unwrap();
+            let state2 = JobState::new(state_str.clone()).unwrap();
+
+            // Property: Construction of same state should produce equal states
+            assert_eq!(state1, state2);
+            assert_eq!(state1.as_str(), state2.as_str());
+            assert_eq!(state1.as_str(), state_str);
+        }
+
+        /// Property-based test: Invalid states are rejected
+        #[test]
+        fn job_state_property_rejects_invalid_states(
+            invalid_state in "[A-Z]{10,20}" // Invalid: uppercase random strings
+        ) {
+            // Property: Invalid states should fail validation
+            let result = JobState::new(invalid_state);
+            assert!(result.is_err(), "Invalid state should be rejected");
+        }
+    }
+}

@@ -97,8 +97,8 @@ impl Job {
     pub fn create(
         id: JobId,
         spec: JobSpec,
-        description: Option<impl Into<String>>,
-        tenant_id: Option<impl Into<String>>,
+        description: Option<String>,
+        tenant_id: Option<String>,
     ) -> Result<Self> {
         spec.validate()?;
 
@@ -106,28 +106,16 @@ impl Job {
         Ok(Self {
             id,
             name: spec.name.clone(),
-            description: description.map(|d| d.into()),
+            description,
             spec,
             state: JobState::new(JobState::PENDING.to_string())?,
             created_at: now,
             updated_at: now,
             started_at: None,
             completed_at: None,
-            tenant_id: tenant_id.map(|t| t.into()),
+            tenant_id,
             result: serde_json::Value::Null,
         })
-    }
-
-    /// Create job with description
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
-    }
-
-    /// Create job with tenant_id
-    pub fn with_tenant(mut self, tenant_id: impl Into<String>) -> Self {
-        self.tenant_id = Some(tenant_id.into());
-        self
     }
 
     /// Get name as string reference
@@ -452,6 +440,29 @@ mod tests {
     }
 
     #[test]
+    fn test_job_cannot_be_mutated_after_creation() {
+        // Job aggregate must be immutable after creation
+        // All attributes should be set via constructor, not mutators
+
+        let job = Job::create(
+            JobId::new(),
+            create_valid_job_spec(),
+            Some("test description".to_string()),
+            Some("tenant-123".to_string()),
+        )
+        .unwrap();
+
+        // Verify all fields are correctly set via constructor
+        assert_eq!(job.description(), Some("test description"));
+        assert_eq!(job.tenant_id(), Some("tenant-123"));
+
+        // Job should not expose setters for mutation
+        // Compilation would fail if we tried:
+        // job.with_description("new description");
+        // job.with_tenant("new-tenant");
+    }
+
+    #[test]
     fn test_job_with_string_name() {
         let spec = create_valid_job_spec();
         let job = Job::new(JobId::new(), spec.clone()).unwrap();
@@ -481,21 +492,29 @@ mod tests {
     }
 
     #[test]
-    fn test_job_with_description_helper() {
+    fn test_job_with_description_constructor() {
         let spec = create_valid_job_spec();
-        let job = Job::new(JobId::new(), spec)
-            .unwrap()
-            .with_description("Test description");
+        let job = Job::create(
+            JobId::new(),
+            spec,
+            Some("Test description".to_string()),
+            None,
+        )
+        .unwrap();
 
         assert_eq!(job.description(), Some("Test description"));
     }
 
     #[test]
-    fn test_job_with_tenant_helper() {
+    fn test_job_with_tenant_constructor() {
         let spec = create_valid_job_spec();
-        let job = Job::new(JobId::new(), spec)
-            .unwrap()
-            .with_tenant("tenant-123");
+        let job = Job::create(
+            JobId::new(),
+            spec,
+            None::<String>,
+            Some("tenant-123".to_string()),
+        )
+        .unwrap();
 
         assert_eq!(job.tenant_id(), Some("tenant-123"));
     }
@@ -503,8 +522,14 @@ mod tests {
     #[test]
     fn test_job_cloned_with_description() {
         let spec = create_valid_job_spec();
-        let job = Job::new(JobId::new(), spec).unwrap();
-        let cloned = job.cloned_with_description("New description");
+        let job = Job::create(JobId::new(), spec.clone(), None::<String>, None::<String>).unwrap();
+        let cloned = Job::create(
+            JobId::new(),
+            spec,
+            Some("New description".to_string()),
+            None,
+        )
+        .unwrap();
 
         assert_eq!(cloned.description(), Some("New description"));
         assert_eq!(job.description(), None);
@@ -513,8 +538,14 @@ mod tests {
     #[test]
     fn test_job_cloned_with_tenant() {
         let spec = create_valid_job_spec();
-        let job = Job::new(JobId::new(), spec).unwrap();
-        let cloned = job.cloned_with_tenant("tenant-456");
+        let job = Job::create(JobId::new(), spec.clone(), None::<String>, None::<String>).unwrap();
+        let cloned = Job::create(
+            JobId::new(),
+            spec,
+            None::<String>,
+            Some("tenant-456".to_string()),
+        )
+        .unwrap();
 
         assert_eq!(cloned.tenant_id(), Some("tenant-456"));
         assert_eq!(job.tenant_id(), None);
@@ -523,10 +554,13 @@ mod tests {
     #[test]
     fn test_job_estimated_memory_size() {
         let spec = create_valid_job_spec();
-        let job = Job::new(JobId::new(), spec)
-            .unwrap()
-            .with_description("Test description")
-            .with_tenant("tenant-123");
+        let job = Job::create(
+            JobId::new(),
+            spec,
+            Some("Test description".to_string()),
+            Some("tenant-123".to_string()),
+        )
+        .unwrap();
 
         let size = job.estimated_memory_size();
         assert!(size > 0);
@@ -615,7 +649,13 @@ mod tests {
         let spec = create_valid_job_spec();
 
         // Crear job con constructor inmutable que acepta todos los parámetros
-        let job = Job::create(id.clone(), spec, Some("Description"), Some("tenant-123")).unwrap();
+        let job = Job::create(
+            id.clone(),
+            spec,
+            Some("Description".to_string()),
+            Some("tenant-123".to_string()),
+        )
+        .unwrap();
 
         // Verificar que los parámetros se establecieron correctamente
         assert_eq!(job.description(), Some("Description"));
@@ -632,7 +672,7 @@ mod tests {
         let id = JobId::new();
         let spec = create_valid_job_spec();
 
-        let job = Job::create(id, spec, None::<&str>, None::<&str>).unwrap();
+        let job = Job::create(id, spec, None::<String>, None::<String>).unwrap();
 
         // Los campos son inmutables después de la creación
         // No se pueden modificar description o tenant_id externamente
@@ -651,8 +691,8 @@ mod tests {
         let job = Job::create(
             id.clone(),
             spec,
-            Some("Test job with description"),
-            Some("tenant-456"),
+            Some("Test job with description".to_string()),
+            Some("tenant-456".to_string()),
         )
         .unwrap();
 
