@@ -49,6 +49,7 @@ mod metrics;
 use metrics::MetricsRegistry;
 
 mod auth;
+mod error;
 mod grpc;
 
 // Tenant Management module (EPIC-09)

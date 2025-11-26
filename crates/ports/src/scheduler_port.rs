@@ -60,6 +60,10 @@ impl SchedulerError {
         SchedulerError::WorkerNotFound(worker_id.into())
     }
 
+    pub fn validation_failed<T: Into<String>>(msg: T) -> Self {
+        SchedulerError::Validation(msg.into())
+    }
+
     pub fn internal<T: Into<String>>(msg: T) -> Self {
         SchedulerError::Internal(msg.into())
     }

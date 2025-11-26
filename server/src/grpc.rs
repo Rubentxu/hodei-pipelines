@@ -23,6 +23,9 @@ use hodei_ports::worker_repository::WorkerRepository;
 use hodei_ports::{event_bus::EventPublisher, scheduler_port::SchedulerError};
 use hwp_proto::pb::server_message;
 
+use crate::error::{GrpcError, GrpcResult};
+use hodei_core::JobId;
+
 pub struct HwpService {
     scheduler: Arc<dyn hodei_ports::scheduler_port::SchedulerPort + Send + Sync>,
 }
@@ -44,24 +47,40 @@ impl WorkerService for HwpService {
         request: Request<WorkerRegistration>,
     ) -> Result<Response<WorkerStatus>, Status> {
         let req = request.into_inner();
-        info!("Registering worker: {}", req.worker_id);
+        let worker_id = req.worker_id.clone();
+        info!("Registering worker: {}", worker_id);
 
-        // Map capabilities
-        // TODO: Parse capabilities from string list
+        // Validate input
+        if worker_id.trim().is_empty() {
+            return Err(Status::invalid_argument("Worker ID cannot be empty"));
+        }
+
+        // Map capabilities (for US-02.5, we can validate them better)
+        // TODO: Parse capabilities from string list using US-02.1 implementation
         let capabilities = WorkerCapabilities::new(4, 8192); // Default for now
 
-        let worker = Worker::new(WorkerId::new(), req.worker_id.clone(), capabilities);
+        let worker = Worker::new(WorkerId::new(), worker_id.clone(), capabilities);
 
         match self.scheduler.register_worker(&worker).await {
-            Ok(_) => Ok(Response::new(WorkerStatus {
-                worker_id: req.worker_id,
-                state: "IDLE".to_string(),
-                current_jobs: vec![],
-                last_heartbeat: chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0),
-            })),
+            Ok(_) => {
+                info!(worker_id, "Worker registered successfully");
+                Ok(Response::new(WorkerStatus {
+                    worker_id,
+                    state: "IDLE".to_string(),
+                    current_jobs: vec![],
+                    last_heartbeat: chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0),
+                }))
+            }
             Err(e) => {
-                error!("Failed to register worker: {}", e);
-                Err(Status::internal("Failed to register worker"))
+                let grpc_error: GrpcError = e.into();
+                warn!(
+                    worker_id,
+                    error_type = grpc_error.error_type(),
+                    error = %grpc_error,
+                    "Failed to register worker"
+                );
+                // Convert to Status and return
+                Err(grpc_error.to_status())
             }
         }
     }
