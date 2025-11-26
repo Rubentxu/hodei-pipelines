@@ -5,11 +5,11 @@
 use async_trait::async_trait;
 use futures::future::join_all;
 use hodei_core::{Job, JobId, Pipeline, PipelineId, Worker, pipeline::PipelineStepId};
+use hodei_core::{WorkerCapabilities, WorkerId};
 use hodei_ports::{
     JobRepository, JobRepositoryError, PipelineRepository, PipelineRepositoryError,
     WorkerRepository, WorkerRepositoryError,
 };
-use hodei_core::{WorkerCapabilities, WorkerId};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres, Row};
@@ -114,13 +114,13 @@ impl JobRepository for PostgreSqlJobRepository {
         "#;
 
         let description: Option<String> = job.description.as_deref().map(|s| s.to_string());
-        let tenant_id: Option<&str> = job.tenant_id.as_deref().map(|s| s.as_ref());
+        let tenant_id: Option<&str> = job.tenant_id.as_deref();
 
         sqlx::query(query)
             .bind(&job.id)
-            .bind(job.name.as_ref())
+            .bind(&job.name)
             .bind(description)
-            .bind(serde_json::to_value(job.spec.as_ref()).ok())
+            .bind(serde_json::to_value(&job.spec).ok())
             .bind(&job.state)
             .bind(job.created_at)
             .bind(job.updated_at)
@@ -152,29 +152,27 @@ impl JobRepository for PostgreSqlJobRepository {
 
                 let job = Job {
                     id: row.get("id"),
-                    name: Arc::new(name),
-                    description: description.map(|s| std::borrow::Cow::Owned(s)),
-                    spec: Arc::new(
-                        spec_json
-                            .and_then(|v| serde_json::from_value::<hodei_core::JobSpec>(v).ok())
-                            .unwrap_or_else(|| hodei_core::JobSpec {
-                                name: "unknown".to_string(),
-                                image: "unknown".to_string(),
-                                command: vec![],
-                                resources: hodei_core::ResourceQuota::default(),
-                                timeout_ms: 30000,
-                                retries: 3,
-                                env: std::collections::HashMap::new(),
-                                secret_refs: vec![],
-                            }),
-                    ),
+                    name,
+                    description,
+                    spec: spec_json
+                        .and_then(|v| serde_json::from_value::<hodei_core::JobSpec>(v).ok())
+                        .unwrap_or_else(|| hodei_core::JobSpec {
+                            name: "unknown".to_string(),
+                            image: "unknown".to_string(),
+                            command: vec![],
+                            resources: hodei_core::ResourceQuota::default(),
+                            timeout_ms: 30000,
+                            retries: 3,
+                            env: std::collections::HashMap::new(),
+                            secret_refs: vec![],
+                        }),
                     state: hodei_core::JobState::new(state_str)
                         .map_err(|e| JobRepositoryError::Validation(e.to_string()))?,
                     created_at: row.get("created_at"),
                     updated_at: row.get("updated_at"),
                     started_at: row.get("started_at"),
                     completed_at: row.get("completed_at"),
-                    tenant_id: tenant_id.map(Arc::new),
+                    tenant_id,
                     result: result.unwrap_or_default(),
                 };
                 Ok(Some(job))
@@ -227,22 +225,20 @@ impl JobRepository for PostgreSqlJobRepository {
 
                 Job {
                     id: row.get("id"),
-                    name: Arc::new(name),
-                    description: description.map(|s| std::borrow::Cow::Owned(s)),
-                    spec: Arc::new(
-                        spec_json
-                            .and_then(|v| serde_json::from_value::<hodei_core::JobSpec>(v).ok())
-                            .unwrap_or_else(|| hodei_core::JobSpec {
-                                name: "unknown".to_string(),
-                                image: "unknown".to_string(),
-                                command: vec![],
-                                resources: hodei_core::ResourceQuota::default(),
-                                timeout_ms: 30000,
-                                retries: 3,
-                                env: std::collections::HashMap::new(),
-                                secret_refs: vec![],
-                            }),
-                    ),
+                    name,
+                    description,
+                    spec: spec_json
+                        .and_then(|v| serde_json::from_value::<hodei_core::JobSpec>(v).ok())
+                        .unwrap_or_else(|| hodei_core::JobSpec {
+                            name: "unknown".to_string(),
+                            image: "unknown".to_string(),
+                            command: vec![],
+                            resources: hodei_core::ResourceQuota::default(),
+                            timeout_ms: 30000,
+                            retries: 3,
+                            env: std::collections::HashMap::new(),
+                            secret_refs: vec![],
+                        }),
                     state: hodei_core::JobState::new(state_str).unwrap_or_else(|_| {
                         hodei_core::JobState::new("RUNNING".to_string()).unwrap()
                     }),
@@ -250,7 +246,7 @@ impl JobRepository for PostgreSqlJobRepository {
                     updated_at: row.get("updated_at"),
                     started_at: row.get("started_at"),
                     completed_at: row.get("completed_at"),
-                    tenant_id: tenant_id.map(Arc::new),
+                    tenant_id,
                     result: result.unwrap_or_default(),
                 }
             })
@@ -316,29 +312,27 @@ impl PostgreSqlJobRepository {
 
         Ok(Job {
             id: row.get("id"),
-            name: Arc::new(name),
-            description: description.map(|s| std::borrow::Cow::Owned(s)),
-            spec: Arc::new(
-                spec_json
-                    .and_then(|v| serde_json::from_value::<hodei_core::JobSpec>(v).ok())
-                    .unwrap_or_else(|| hodei_core::JobSpec {
-                        name: "unknown".to_string(),
-                        image: "unknown".to_string(),
-                        command: vec![],
-                        resources: hodei_core::ResourceQuota::default(),
-                        timeout_ms: 30000,
-                        retries: 3,
-                        env: std::collections::HashMap::new(),
-                        secret_refs: vec![],
-                    }),
-            ),
+            name,
+            description,
+            spec: spec_json
+                .and_then(|v| serde_json::from_value::<hodei_core::JobSpec>(v).ok())
+                .unwrap_or_else(|| hodei_core::JobSpec {
+                    name: "unknown".to_string(),
+                    image: "unknown".to_string(),
+                    command: vec![],
+                    resources: hodei_core::ResourceQuota::default(),
+                    timeout_ms: 30000,
+                    retries: 3,
+                    env: std::collections::HashMap::new(),
+                    secret_refs: vec![],
+                }),
             state: hodei_core::JobState::new(state_str)
                 .map_err(|e| JobRepositoryError::Validation(e.to_string()))?,
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
             started_at: row.get("started_at"),
             completed_at: row.get("completed_at"),
-            tenant_id: tenant_id.map(Arc::new),
+            tenant_id,
             result: result.unwrap_or_default(),
         })
     }
@@ -726,9 +720,7 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
                     name: row.get("name"),
                     description: row.get("description"),
                     steps,
-                    status: hodei_core::PipelineStatus::new("PENDING".to_string()).unwrap_or_else(
-                        |_| hodei_core::PipelineStatus::new("PENDING".to_string()).unwrap(),
-                    ),
+                    status: hodei_core::PipelineStatus::PENDING,
                     variables,
                     created_at: row.get("created_at"),
                     updated_at: row.get("updated_at"),

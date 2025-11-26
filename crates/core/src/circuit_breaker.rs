@@ -2,7 +2,6 @@
 //!
 //! Provides resilience against external service failures by preventing cascading failures.
 
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 

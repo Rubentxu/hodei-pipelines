@@ -329,7 +329,6 @@ pub struct ExecResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::prelude::*;
 
     // ===== Property-Based Testing for JobState Machine =====
 

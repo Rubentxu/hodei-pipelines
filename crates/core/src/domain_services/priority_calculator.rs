@@ -2,7 +2,7 @@
 //! Calculates worker scores for optimal job scheduling using Bin Packing + Load Balancing
 
 use crate::domain_services::{ResourceUsage, WorkerNode};
-use crate::{Job, Worker, WorkerId};
+use crate::{Job, Worker};
 use std::time::Duration;
 
 /// Domain Service for calculating worker priority scores
@@ -92,19 +92,38 @@ impl PriorityCalculator {
         let required_memory = job.spec.resources.memory_mb as f64;
 
         // Calculate fit score: penalize both under-utilization and over-provisioning
-        let cpu_fit_score = self.calculate_fit_score(
-            required_cpu,
-            cpu_usage,
-            worker.capabilities.cpu_cores as f64 * 1000.0,
-        );
+        let cpu_fit_score =
+            self.calculate_fit_score(required_cpu, worker.capabilities.cpu_cores as f64 * 1000.0);
         let memory_fit_score = self.calculate_fit_score(
             required_memory,
-            memory_usage,
             worker.capabilities.memory_gb as f64 * 1024.0,
         );
 
+        // Calculate available capacity (how much more can this worker handle)
+        let worker_cpu_m = worker.capabilities.cpu_cores as f64 * 1000.0;
+        let worker_memory_mb = worker.capabilities.memory_gb as f64 * 1024.0;
+
+        // Capacity utilization factor (0.0 to 1.0, where 1.0 = fully available)
+        // This ensures we prefer workers with more available capacity
+        let cpu_capacity_factor = if cpu_usage + required_cpu <= worker_cpu_m {
+            1.0 - (cpu_usage / worker_cpu_m)
+        } else {
+            0.0 // Cannot fit
+        };
+
+        let memory_capacity_factor = if memory_usage + required_memory <= worker_memory_mb {
+            1.0 - (memory_usage / worker_memory_mb)
+        } else {
+            0.0 // Cannot fit
+        };
+
+        // Combine fit score with capacity availability
+        // Emphasize fit score (80%) over capacity factor (20%)
+        let cpu_score = (cpu_fit_score * 0.8) + (cpu_capacity_factor * 0.2);
+        let memory_score = (memory_fit_score * 0.8) + (memory_capacity_factor * 0.2);
+
         // Weighted average of CPU and memory scores
-        cpu_fit_score * 0.6 + memory_fit_score * 0.4
+        cpu_score * 0.6 + memory_score * 0.4
     }
 
     /// Calculate load balancing score (30% weight)
@@ -210,23 +229,27 @@ impl PriorityCalculator {
     }
 
     /// Calculate how well resources fit (Bin Packing approach)
-    /// Penalizes both over-provisioning and tight fits
-    fn calculate_fit_score(&self, required: f64, used: f64, available: f64) -> f64 {
-        let total = available;
-        let utilization = (used + required) / total;
+    /// Prefer EXACT fits (100% utilization of required resources)
+    /// Score decreases as we move away from exact fit in either direction
+    fn calculate_fit_score(&self, required: f64, available: f64) -> f64 {
+        let utilization = required / available;
 
-        // Optimal utilization is between 60-85%
-        let optimal_min = 0.60;
-        let optimal_max = 0.85;
+        // Asymmetric scoring: favor exact fit (100% utilization)
+        // - Exact fit (utilization = 1.0): score = 1.0
+        // - Under-utilized (utilization < 1.0): mild penalty
+        // - Over-provisioned (utilization > 1.0): severe penalty
 
-        if utilization >= optimal_min && utilization <= optimal_max {
-            1.0 // Perfect fit
-        } else if utilization < optimal_min {
-            // Under-utilized - mild penalty
-            0.7 + (utilization / optimal_min) * 0.3
+        if utilization == 1.0 {
+            1.0
+        } else if utilization < 1.0 {
+            // Under-utilization: more free space = slightly lower score
+            // But allow reasonable under-utilization without severe penalty
+            let deviation = 1.0 - utilization;
+            1.0 - (deviation * 0.3).min(0.4) // max penalty 0.4
         } else {
-            // Over-utilized - severe penalty
-            0.1 + (1.0 - (utilization - optimal_max) / (1.0 - optimal_max)) * 0.6
+            // Over-provisioning: severe penalty for insufficient resources
+            let deviation = utilization - 1.0;
+            1.0 - (deviation * 1.0) // heavy penalty for over-provisioning
         }
     }
 }
@@ -382,6 +405,19 @@ mod tests {
         let over_score =
             calculator.calculate_score(&over_provisioned_worker, &job, &cluster_workers);
 
+        println!(
+            "Exact fit score: {} (CPU: {}, Memory: {})",
+            exact_score,
+            calculator.calculate_resource_score(&exact_worker, &job, &cluster_workers),
+            calculator.calculate_resource_score(&exact_worker, &job, &cluster_workers)
+        );
+        println!(
+            "Over-provisioned score: {} (CPU: {}, Memory: {})",
+            over_score,
+            calculator.calculate_resource_score(&over_provisioned_worker, &job, &cluster_workers),
+            calculator.calculate_resource_score(&over_provisioned_worker, &job, &cluster_workers)
+        );
+
         // Exact fit should score higher or equal
         assert!(
             exact_score >= over_score - 5.0,
@@ -462,26 +498,26 @@ mod tests {
     fn test_fit_score_optimal_zone() {
         let calculator = PriorityCalculator::new();
 
-        // Optimal utilization (70%) should score close to 1.0
-        let optimal_score = calculator.calculate_fit_score(1000.0, 0.0, 2000.0);
+        // Exact fit (100% = 1000/1000) should score 1.0
+        let exact_score = calculator.calculate_fit_score(1000.0, 1000.0);
         assert!(
-            optimal_score > 0.9,
-            "Expected optimal score > 0.9, got {}",
-            optimal_score
+            (exact_score - 1.0).abs() < 0.01,
+            "Expected exact fit score = 1.0, got {}",
+            exact_score
         );
 
-        // Under-utilized (30%) should score lower than optimal
-        let under_score = calculator.calculate_fit_score(600.0, 0.0, 2000.0);
+        // Under-utilized (50% = 1000/2000) should score less than exact
+        let under_score = calculator.calculate_fit_score(1000.0, 2000.0);
         assert!(
-            under_score < optimal_score,
-            "Under-utilized should score lower than optimal"
+            under_score < exact_score,
+            "Under-utilized should score lower than exact fit"
         );
 
-        // Over-utilized (95%) should score low
-        let over_score = calculator.calculate_fit_score(1900.0, 0.0, 2000.0);
+        // Over-utilized (200% = 2000/1000) should score very low
+        let over_score = calculator.calculate_fit_score(2000.0, 1000.0);
         assert!(
-            over_score < optimal_score,
-            "Over-utilized should score lower than optimal"
+            over_score < under_score,
+            "Over-utilized should score lower than under-utilized"
         );
     }
 

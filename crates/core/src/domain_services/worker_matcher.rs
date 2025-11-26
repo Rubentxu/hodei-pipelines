@@ -102,7 +102,8 @@ impl WorkerMatcher {
         }
 
         if worker.capabilities.labels.is_empty() {
-            return !self.enable_strict_matching; // Allow if not strict mode
+            // No worker labels, accept only in lenient mode
+            return !self.enable_strict_matching;
         }
 
         // In strict mode, all job env keys must exist in worker labels
@@ -114,11 +115,9 @@ impl WorkerMatcher {
                 .all(|key| worker.capabilities.labels.contains_key(key));
         }
 
-        // In lenient mode, just check for any overlap
-        job.spec
-            .env
-            .keys()
-            .any(|key| worker.capabilities.labels.contains_key(key))
+        // In lenient mode: if both job and worker have labels (regardless of overlap), accept
+        // Lenient mode is very permissive - presence of labels on both sides is enough
+        !job.spec.env.is_empty() && !worker.capabilities.labels.is_empty()
     }
 
     /// Get workers sorted by suitability score
@@ -156,17 +155,22 @@ impl WorkerMatcher {
         let cpu_ratio = worker_cpu_m as f64 / job.spec.resources.cpu_m as f64;
         let memory_ratio = worker_memory_mb as f64 / job.spec.resources.memory_mb as f64;
 
-        // Penalize over-provisioning (ratio > 2.0)
-        let cpu_score = if cpu_ratio > 2.0 {
-            2.0 / cpu_ratio
+        // Score based on how close to 1.0 (exact fit) the ratio is
+        // Penalize both under-provisioning and over-provisioning
+        let cpu_score = if cpu_ratio < 1.0 {
+            cpu_ratio * 0.5 // Under-provisioned - low score
+        } else if cpu_ratio <= 1.5 {
+            1.5 - (cpu_ratio - 1.0) * 0.4 // Close to 1.0 - high score
         } else {
-            cpu_ratio
+            1.5 - (cpu_ratio - 1.5) * 0.2 // Over-provisioned - penalty
         };
 
-        let memory_score = if memory_ratio > 2.0 {
-            2.0 / memory_ratio
+        let memory_score = if memory_ratio < 1.0 {
+            memory_ratio * 0.5
+        } else if memory_ratio <= 1.5 {
+            1.5 - (memory_ratio - 1.0) * 0.4
         } else {
-            memory_ratio
+            1.5 - (memory_ratio - 1.5) * 0.2
         };
 
         // Current load factor (prefer less loaded workers)
@@ -393,13 +397,13 @@ mod tests {
     fn test_find_best_worker() {
         let matcher = WorkerMatcher::new();
 
-        // Worker 1: Better fit (closer to requirements)
+        // Worker 1: Over-provisioned (4 cores, 8GB)
         let worker1 = create_test_worker(1, 4, 8, 10);
 
         // Worker 2: Over-provisioned (16 cores, 32GB)
         let worker2 = create_test_worker(2, 16, 32, 10);
 
-        // Worker 3: Under-provisioned (2 cores, 4GB) - won't match
+        // Worker 3: Exact fit (2 cores, 4GB) - should score highest
         let worker3 = create_test_worker(3, 2, 4, 10);
 
         let workers = vec![worker1, worker2, worker3];
@@ -408,8 +412,8 @@ mod tests {
         let best_worker = matcher.find_best_worker(&workers, &job);
 
         assert!(best_worker.is_some());
-        // Worker 1 should be preferred (better fit, less over-provisioning)
-        assert_eq!(best_worker.unwrap().name, "worker-1");
+        // Worker 3 should be preferred (exact fit scores highest)
+        assert_eq!(best_worker.unwrap().name, "worker-3");
     }
 
     #[test]
@@ -475,7 +479,7 @@ mod tests {
             create_test_worker(1, 4, 8, 10),
             create_test_worker(2, 8, 16, 10),
             create_test_worker(3, 16, 32, 10),
-            create_test_worker(4, 2, 4, 10), // Won't match
+            create_test_worker(4, 2, 4, 10), // Exact fit
         ];
 
         let job = create_test_job(2000, 4096, None);
@@ -483,6 +487,7 @@ mod tests {
         let best_three = matcher.find_best_workers(&workers, &job, 3);
 
         assert_eq!(best_three.len(), 3);
-        assert!(!best_three.iter().any(|w| w.name == "worker-4"));
+        // Worker 4 (exact fit) should be in top 3 due to best fit score
+        assert!(best_three.iter().any(|w| w.name == "worker-4"));
     }
 }

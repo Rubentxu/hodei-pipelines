@@ -12,8 +12,6 @@ pub use crate::error::DomainError;
 pub use crate::job_definitions::{ExecResult, JobId, JobSpec, JobState, ResourceQuota};
 
 use crate::Result;
-use std::borrow::Cow;
-use std::sync::Arc;
 
 /// Extension trait for serde_json::Value to estimate memory size
 trait JsonSize {
@@ -39,16 +37,16 @@ impl JsonSize for serde_json::Value {
 ///
 /// This entity encapsulates the business logic for job lifecycle management
 /// and maintains consistency of job state transitions while optimizing memory usage
-/// through Arc and Copy-on-Write patterns.
+/// through value semantics and efficient cloning patterns.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Job {
     pub id: JobId,
-    /// Arc for shared name (immutable after creation)
-    pub name: Arc<String>,
-    /// Cow for lazy cloning of description
-    pub description: Option<Cow<'static, str>>,
-    /// Arc for shared JobSpec (immutable)
-    pub spec: Arc<JobSpec>,
+    /// Job name (owned, efficient for typical small strings)
+    pub name: String,
+    /// Job description (owned for simplicity and performance)
+    pub description: Option<String>,
+    /// Job specification (owned)
+    pub spec: JobSpec,
     /// Current job state (small value object)
     pub state: JobState,
     /// Timestamps (8 bytes each in practice)
@@ -56,8 +54,8 @@ pub struct Job {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub started_at: Option<chrono::DateTime<chrono::Utc>>,
     pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
-    /// Arc for shared tenant_id
-    pub tenant_id: Option<Arc<String>>,
+    /// Tenant identifier (owned, efficient for typical identifiers)
+    pub tenant_id: Option<String>,
     /// Job result (can be large)
     pub result: serde_json::Value,
 }
@@ -73,9 +71,9 @@ impl Job {
         let now = chrono::Utc::now();
         Ok(Self {
             id,
-            name: Arc::new(spec.name.clone()),
+            name: spec.name.clone(),
             description: None,
-            spec: Arc::new(spec),
+            spec,
             state: JobState::new(JobState::PENDING.to_string())?,
             created_at: now,
             updated_at: now,
@@ -99,7 +97,7 @@ impl Job {
     pub fn create(
         id: JobId,
         spec: JobSpec,
-        description: Option<impl Into<Cow<'static, str>>>,
+        description: Option<impl Into<String>>,
         tenant_id: Option<impl Into<String>>,
     ) -> Result<Self> {
         spec.validate()?;
@@ -107,57 +105,57 @@ impl Job {
         let now = chrono::Utc::now();
         Ok(Self {
             id,
-            name: Arc::new(spec.name.clone()),
+            name: spec.name.clone(),
             description: description.map(|d| d.into()),
-            spec: Arc::new(spec),
+            spec,
             state: JobState::new(JobState::PENDING.to_string())?,
             created_at: now,
             updated_at: now,
             started_at: None,
             completed_at: None,
-            tenant_id: tenant_id.map(|t| Arc::new(t.into())),
+            tenant_id: tenant_id.map(|t| t.into()),
             result: serde_json::Value::Null,
         })
     }
 
-    /// Create job with description (using Cow for lazy allocation)
-    pub fn with_description(mut self, description: impl Into<Cow<'static, str>>) -> Self {
+    /// Create job with description
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
     }
 
-    /// Create job with tenant_id (Arc for shared ownership)
+    /// Create job with tenant_id
     pub fn with_tenant(mut self, tenant_id: impl Into<String>) -> Self {
-        self.tenant_id = Some(Arc::new(tenant_id.into()));
+        self.tenant_id = Some(tenant_id.into());
         self
     }
 
-    /// Get name as string slice (zero-copy)
+    /// Get name as string reference
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Get description as string slice (zero-copy) or return None
+    /// Get description as string reference or return None
     pub fn description(&self) -> Option<&str> {
-        self.description.as_ref().map(|cow| cow.as_ref())
+        self.description.as_deref()
     }
 
-    /// Get tenant_id as string slice (zero-copy) or return None
+    /// Get tenant_id as string reference or return None
     pub fn tenant_id(&self) -> Option<&str> {
-        self.tenant_id.as_ref().map(|arc| arc.as_ref().as_str())
+        self.tenant_id.as_deref()
     }
 
-    /// Clone job with Copy-on-Write for description (only clones if modified)
-    pub fn cloned_with_description(&self, description: impl Into<Cow<'static, str>>) -> Self {
+    /// Clone job with new description
+    pub fn cloned_with_description(&self, description: impl Into<String>) -> Self {
         let mut clone = self.clone();
         clone.description = Some(description.into());
         clone
     }
 
-    /// Clone job with new tenant (Arc sharing)
+    /// Clone job with new tenant
     pub fn cloned_with_tenant(&self, tenant_id: impl Into<String>) -> Self {
         let mut clone = self.clone();
-        clone.tenant_id = Some(Arc::new(tenant_id.into()));
+        clone.tenant_id = Some(tenant_id.into());
         clone
     }
 
@@ -341,17 +339,17 @@ impl Job {
     /// Get estimated memory size of the job (for monitoring)
     pub fn estimated_memory_size(&self) -> usize {
         // Base size estimation (in bytes)
-        let name_size = self.name.as_ref().len() + std::mem::size_of::<String>();
-        let spec_size = self.spec.as_ref().estimated_size() + std::mem::size_of::<Arc<JobSpec>>();
+        let name_size = self.name.len() + std::mem::size_of::<String>();
+        let spec_size = self.spec.estimated_size() + std::mem::size_of::<JobSpec>();
         let description_size = self
             .description
             .as_ref()
-            .map(|cow| cow.as_ref().len() + std::mem::size_of::<Cow<'static, str>>())
+            .map(|s| s.len() + std::mem::size_of::<String>())
             .unwrap_or(0);
         let tenant_size = self
             .tenant_id
             .as_ref()
-            .map(|arc| arc.as_ref().len() + std::mem::size_of::<Arc<String>>())
+            .map(|s| s.len() + std::mem::size_of::<String>())
             .unwrap_or(0);
         let result_size = self.result.estimated_size();
 
@@ -363,8 +361,8 @@ impl Job {
             + std::mem::size_of::<Job>()
             - std::mem::size_of::<String>()
             - std::mem::size_of::<JobSpec>()
-            - std::mem::size_of::<Option<Cow<'static, str>>>()
-            - std::mem::size_of::<Option<Arc<String>>>()
+            - std::mem::size_of::<Option<String>>()
+            - std::mem::size_of::<Option<String>>()
             - std::mem::size_of::<serde_json::Value>()
     }
 }
@@ -379,21 +377,15 @@ impl serde::Serialize for Job {
 
         let mut state = serializer.serialize_struct("Job", 12)?;
         state.serialize_field("id", &self.id)?;
-        state.serialize_field("name", self.name.as_ref())?;
-        state.serialize_field(
-            "description",
-            &self.description.as_ref().map(|cow| cow.as_ref()),
-        )?;
-        state.serialize_field("spec", self.spec.as_ref())?;
+        state.serialize_field("name", &self.name)?;
+        state.serialize_field("description", &self.description)?;
+        state.serialize_field("spec", &self.spec)?;
         state.serialize_field("state", &self.state)?;
         state.serialize_field("created_at", &self.created_at)?;
         state.serialize_field("updated_at", &self.updated_at)?;
         state.serialize_field("started_at", &self.started_at)?;
         state.serialize_field("completed_at", &self.completed_at)?;
-        state.serialize_field(
-            "tenant_id",
-            &self.tenant_id.as_ref().map(|arc| arc.as_ref().as_str()),
-        )?;
+        state.serialize_field("tenant_id", &self.tenant_id)?;
         state.serialize_field("result", &self.result)?;
         state.end()
     }
@@ -426,15 +418,15 @@ impl<'de> serde::Deserialize<'de> for Job {
 
         Ok(Job {
             id: helper.id,
-            name: Arc::new(helper.name),
-            description: helper.description.map(|s| Cow::<'static, str>::from(s)),
-            spec: Arc::new(helper.spec),
+            name: helper.name,
+            description: helper.description,
+            spec: helper.spec,
             state: helper.state,
             created_at: helper.created_at,
             updated_at: helper.updated_at,
             started_at: helper.started_at,
             completed_at: helper.completed_at,
-            tenant_id: helper.tenant_id.map(|s| Arc::new(s)),
+            tenant_id: helper.tenant_id,
             result: helper.result,
         })
     }
@@ -460,30 +452,30 @@ mod tests {
     }
 
     #[test]
-    fn test_job_with_arc_name() {
+    fn test_job_with_string_name() {
         let spec = create_valid_job_spec();
         let job = Job::new(JobId::new(), spec.clone()).unwrap();
 
-        // Verify Arc is being used
-        assert_eq!(job.name.as_ref(), &spec.name);
+        // Verify String is being used
+        assert_eq!(job.name, spec.name);
     }
 
     #[test]
-    fn test_job_with_cow_description() {
+    fn test_job_with_string_description() {
         let spec = create_valid_job_spec();
         let mut job = Job::new(JobId::new(), spec).unwrap();
 
-        job.description = Some(Cow::Borrowed("Test description"));
+        job.description = Some("Test description".to_string());
 
         assert_eq!(job.description(), Some("Test description"));
     }
 
     #[test]
-    fn test_job_with_arc_tenant() {
+    fn test_job_with_string_tenant() {
         let spec = create_valid_job_spec();
         let mut job = Job::new(JobId::new(), spec).unwrap();
 
-        job.tenant_id = Some(Arc::new("tenant-123".to_string()));
+        job.tenant_id = Some("tenant-123".to_string());
 
         assert_eq!(job.tenant_id(), Some("tenant-123"));
     }
