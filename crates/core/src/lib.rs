@@ -14,6 +14,7 @@ pub mod job_definitions;
 pub mod job_specifications;
 pub mod mappers;
 pub mod pipeline;
+pub mod projections;
 pub mod security;
 pub mod specifications;
 pub mod worker;
