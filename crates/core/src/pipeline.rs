@@ -131,44 +131,62 @@ impl PipelineStep {
     }
 }
 
-/// Pipeline status - Value Object
+/// Pipeline status - Value Object (Enum)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PipelineStatus(String);
+pub enum PipelineStatus {
+    PENDING,
+    RUNNING,
+    SUCCESS,
+    FAILED,
+    CANCELLED,
+}
 
 impl PipelineStatus {
-    pub const PENDING: &'static str = "PENDING";
-    pub const RUNNING: &'static str = "RUNNING";
-    pub const SUCCESS: &'static str = "SUCCESS";
-    pub const FAILED: &'static str = "FAILED";
-    pub const CANCELLED: &'static str = "CANCELLED";
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::PENDING => "PENDING",
+            Self::RUNNING => "RUNNING",
+            Self::SUCCESS => "SUCCESS",
+            Self::FAILED => "FAILED",
+            Self::CANCELLED => "CANCELLED",
+        }
+    }
 
-    pub fn new(status: String) -> Result<Self> {
-        match status.as_str() {
-            Self::PENDING | Self::RUNNING | Self::SUCCESS | Self::FAILED | Self::CANCELLED => {
-                Ok(Self(status))
-            }
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::SUCCESS | Self::FAILED | Self::CANCELLED)
+    }
+
+    /// Create from string (for backward compatibility)
+    pub fn from_str(status: &str) -> Result<Self> {
+        match status {
+            "PENDING" => Ok(Self::PENDING),
+            "RUNNING" => Ok(Self::RUNNING),
+            "SUCCESS" => Ok(Self::SUCCESS),
+            "FAILED" => Ok(Self::FAILED),
+            "CANCELLED" => Ok(Self::CANCELLED),
             _ => Err(DomainError::Validation(format!(
                 "invalid pipeline status: {}",
                 status
             ))),
         }
     }
+}
 
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    pub fn is_terminal(&self) -> bool {
-        matches!(
-            self.0.as_str(),
-            Self::SUCCESS | Self::FAILED | Self::CANCELLED
-        )
+impl std::fmt::Display for PipelineStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
 impl From<String> for PipelineStatus {
     fn from(s: String) -> Self {
-        Self::new(s).expect("valid status")
+        Self::from_str(&s).expect("valid status")
+    }
+}
+
+impl From<&str> for PipelineStatus {
+    fn from(s: &str) -> Self {
+        Self::from_str(s).expect("valid status")
     }
 }
 
@@ -213,7 +231,7 @@ impl Pipeline {
             name,
             description: None,
             steps,
-            status: PipelineStatus::new(PipelineStatus::PENDING.to_string())?,
+            status: PipelineStatus::PENDING,
             variables: HashMap::new(),
             created_at: now,
             updated_at: now,
@@ -244,33 +262,30 @@ impl Pipeline {
     }
 
     pub fn start(&mut self) -> std::result::Result<(), DomainError> {
-        let new_status = PipelineStatus::new(PipelineStatus::RUNNING.to_string())?;
-        self.status = new_status;
+        self.status = PipelineStatus::RUNNING;
         self.updated_at = chrono::Utc::now();
         Ok(())
     }
 
     pub fn complete(&mut self) -> std::result::Result<(), DomainError> {
-        let new_status = PipelineStatus::new(PipelineStatus::SUCCESS.to_string())?;
-        self.status = new_status;
+        self.status = PipelineStatus::SUCCESS;
         self.updated_at = chrono::Utc::now();
         Ok(())
     }
 
     pub fn fail(&mut self) -> std::result::Result<(), DomainError> {
-        let new_status = PipelineStatus::new(PipelineStatus::FAILED.to_string())?;
-        self.status = new_status;
+        self.status = PipelineStatus::FAILED;
         self.updated_at = chrono::Utc::now();
         Ok(())
     }
 
     pub fn is_running(&self) -> bool {
-        self.status.as_str() == PipelineStatus::RUNNING
+        matches!(self.status, PipelineStatus::RUNNING)
     }
 
     pub fn is_terminal(&self) -> bool {
         matches!(
-            self.status.as_str(),
+            self.status,
             PipelineStatus::SUCCESS | PipelineStatus::FAILED | PipelineStatus::CANCELLED
         )
     }
@@ -425,7 +440,7 @@ mod tests {
 
         assert_eq!(pipeline.name, "test-pipeline");
         assert_eq!(pipeline.steps.len(), 1);
-        assert_eq!(pipeline.status.as_str(), PipelineStatus::PENDING);
+        assert!(matches!(pipeline.status, PipelineStatus::PENDING));
     }
 
     #[test]
@@ -588,10 +603,10 @@ mod tests {
         let mut pipeline =
             Pipeline::new(PipelineId::new(), "test-pipeline".to_string(), vec![step]).unwrap();
 
-        assert_eq!(pipeline.status.as_str(), PipelineStatus::PENDING);
+        assert!(matches!(pipeline.status, PipelineStatus::PENDING));
 
         pipeline.start().unwrap();
-        assert_eq!(pipeline.status.as_str(), PipelineStatus::RUNNING);
+        assert!(matches!(pipeline.status, PipelineStatus::RUNNING));
 
         pipeline.complete().unwrap();
         assert!(pipeline.is_terminal());
