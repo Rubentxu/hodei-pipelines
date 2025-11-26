@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.0] - 2025-11-26
+
+### Added
+- **US 7.1**: Property-Based Testing for JobState state machine
+  - 3 new proptest-based tests validating state transitions
+  - Tests for transition invariants, deterministic construction, and invalid state rejection
+  - Enhanced test coverage for state machine edge cases
+
+### Changed
+- **US 1.1**: Feature Envy elimination in Job Aggregate
+  - **BREAKING**: Removed mutable builder methods (`with_description`, `with_tenant`)
+  - Enforced immutable construction via `Job::create()` constructor
+  - Job fields now require `Option<String>` instead of `Option<impl Into<String>>`
+  - All tests updated for new immutable API
+
+### Fixed
+- **US 7.2**: Concurrency Testing validation
+  - Verified `concurrent_transition_same_state_succeeds_once` test passes
+  - Validates atomicity in concurrent state transitions
+  - Ensures thread-safe state updates
+
+### Test Results
+- **Total tests**: 304/304 passing (100% success rate)
+  - Core tests: 159/159 ✅ (+4 new tests)
+  - Adapters tests: 145/145 ✅
+- All tests validate real business functionality
+- Property-based tests catch edge cases automatically
+
 ## [v0.5.0] - 2025-11-26
 
 ### Changed
