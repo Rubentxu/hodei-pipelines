@@ -10,12 +10,12 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use chrono::Utc;
 use hodei_adapters::{DefaultProviderFactory, RegistrationConfig, WorkerRegistrationAdapter};
+use hodei_core;
 use hodei_core::{JobId, Worker, WorkerId};
 use hodei_ports::ProviderFactoryTrait;
 use hodei_ports::scheduler_port::SchedulerPort;
 use hodei_ports::worker_provider::{ProviderConfig, ProviderError, WorkerProvider};
 use hodei_ports::{WorkerRegistrationError, WorkerRegistrationPort};
-use hodei_core;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -1711,6 +1711,31 @@ impl SchedulerPort for MockSchedulerPort {
     ) -> Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
         Ok(Vec::new())
     }
+
+    async fn register_transmitter(
+        &self,
+        _worker_id: &WorkerId,
+        _transmitter: tokio::sync::mpsc::UnboundedSender<
+            Result<hwp_proto::pb::ServerMessage, String>,
+        >,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        Ok(())
+    }
+
+    async fn unregister_transmitter(
+        &self,
+        _worker_id: &WorkerId,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        Ok(())
+    }
+
+    async fn send_to_worker(
+        &self,
+        _worker_id: &WorkerId,
+        _message: hwp_proto::pb::ServerMessage,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        Ok(())
+    }
 }
 
 impl<T> DynamicPoolManager<T>
@@ -2288,8 +2313,8 @@ where
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use hodei_ports::worker_provider::ProviderCapabilities;
     use hodei_core::WorkerCapabilities;
+    use hodei_ports::worker_provider::ProviderCapabilities;
 
     // Mock implementation for testing
     #[derive(Debug, Clone)]
@@ -2404,6 +2429,31 @@ mod tests {
             &self,
         ) -> Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
             Ok(Vec::new())
+        }
+
+        async fn register_transmitter(
+            &self,
+            _worker_id: &WorkerId,
+            _transmitter: tokio::sync::mpsc::UnboundedSender<
+                Result<hwp_proto::pb::ServerMessage, String>,
+            >,
+        ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+            Ok(())
+        }
+
+        async fn unregister_transmitter(
+            &self,
+            _worker_id: &WorkerId,
+        ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+            Ok(())
+        }
+
+        async fn send_to_worker(
+            &self,
+            _worker_id: &WorkerId,
+            _message: hwp_proto::pb::ServerMessage,
+        ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+            Ok(())
         }
     }
 

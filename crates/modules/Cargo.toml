@@ -12,6 +12,7 @@ repository.workspace = true
 hodei-core = { workspace = true }
 hodei-ports = { workspace = true }
 hodei-adapters = { workspace = true }
+hwp-proto = { workspace = true }
 
 # Workspace async and serialization
 async-trait = { workspace = true }

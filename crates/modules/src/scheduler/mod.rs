@@ -13,9 +13,11 @@ use hodei_ports::{
     EventPublisher, JobRepository, JobRepositoryError, SchedulerPort, WorkerClient,
     WorkerRepository,
 };
+use hwp_proto::ServerMessage;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
 use tracing::{error, info};
 
 #[derive(Debug, Clone)]
@@ -698,6 +700,38 @@ where
         self.cluster_state.get_stats().await
     }
 
+    /// Register a transmitter for a worker (US-02.2)
+    pub async fn register_transmitter(
+        &self,
+        worker_id: &WorkerId,
+        transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+    ) -> Result<(), SchedulerError> {
+        self.cluster_state
+            .register_transmitter(worker_id, transmitter)
+            .await
+            .map_err(|e| SchedulerError::ClusterState(e))
+    }
+
+    /// Unregister a transmitter for a worker
+    pub async fn unregister_transmitter(&self, worker_id: &WorkerId) -> Result<(), SchedulerError> {
+        self.cluster_state
+            .unregister_transmitter(worker_id)
+            .await
+            .map_err(|e| SchedulerError::ClusterState(e))
+    }
+
+    /// Send a message to a worker through their registered transmitter
+    pub async fn send_to_worker(
+        &self,
+        worker_id: &WorkerId,
+        message: ServerMessage,
+    ) -> Result<(), SchedulerError> {
+        self.cluster_state
+            .send_to_worker(worker_id, message)
+            .await
+            .map_err(|e| SchedulerError::ClusterState(e))
+    }
+
     pub async fn start(&self) -> Result<(), SchedulerError> {
         Ok(())
     }
@@ -754,6 +788,7 @@ pub struct ClusterStats {
 pub struct ClusterState {
     workers: Arc<DashMap<WorkerId, WorkerNode>>,
     job_assignments: Arc<DashMap<JobId, WorkerId>>,
+    transmitters: Arc<DashMap<WorkerId, mpsc::UnboundedSender<Result<ServerMessage, String>>>>,
 }
 
 impl ClusterState {
@@ -761,6 +796,7 @@ impl ClusterState {
         Self {
             workers: Arc::new(DashMap::new()),
             job_assignments: Arc::new(DashMap::new()),
+            transmitters: Arc::new(DashMap::new()),
         }
     }
 
@@ -849,6 +885,50 @@ impl ClusterState {
             Ok(())
         } else {
             Err(format!("Job {} not found in reservations", job_id))
+        }
+    }
+
+    /// Register a transmitter for a worker
+    pub async fn register_transmitter(
+        &self,
+        worker_id: &WorkerId,
+        transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+    ) -> Result<(), String> {
+        self.transmitters.insert(worker_id.clone(), transmitter);
+        info!("Transmitter registered for worker: {}", worker_id);
+        Ok(())
+    }
+
+    /// Unregister a transmitter for a worker
+    pub async fn unregister_transmitter(&self, worker_id: &WorkerId) -> Result<(), String> {
+        if self.transmitters.remove(worker_id).is_some() {
+            info!("Transmitter unregistered for worker: {}", worker_id);
+            Ok(())
+        } else {
+            Err(format!("No transmitter found for worker {}", worker_id))
+        }
+    }
+
+    /// Send a message to a worker through their registered transmitter
+    pub async fn send_to_worker(
+        &self,
+        worker_id: &WorkerId,
+        message: ServerMessage,
+    ) -> Result<(), String> {
+        if let Some(transmitter) = self.transmitters.get(worker_id) {
+            if let Err(e) = transmitter.send(Ok(message)) {
+                error!("Failed to send message to worker {}: {}", worker_id, e);
+                return Err(format!(
+                    "Failed to send message to worker {}: {}",
+                    worker_id, e
+                ));
+            }
+            Ok(())
+        } else {
+            Err(format!(
+                "No transmitter registered for worker {}",
+                worker_id
+            ))
         }
     }
 
@@ -1218,5 +1298,52 @@ where
                 hodei_ports::scheduler_port::SchedulerError::internal(e.to_string())
             })?;
         Ok(workers.into_iter().map(|w| w.id).collect())
+    }
+
+    async fn register_transmitter(
+        &self,
+        worker_id: &WorkerId,
+        transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        self.cluster_state
+            .register_transmitter(worker_id, transmitter)
+            .await
+            .map_err(|e| {
+                hodei_ports::scheduler_port::SchedulerError::internal(format!(
+                    "Failed to register transmitter: {}",
+                    e
+                ))
+            })
+    }
+
+    async fn unregister_transmitter(
+        &self,
+        worker_id: &WorkerId,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        self.cluster_state
+            .unregister_transmitter(worker_id)
+            .await
+            .map_err(|e| {
+                hodei_ports::scheduler_port::SchedulerError::internal(format!(
+                    "Failed to unregister transmitter: {}",
+                    e
+                ))
+            })
+    }
+
+    async fn send_to_worker(
+        &self,
+        worker_id: &WorkerId,
+        message: ServerMessage,
+    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        self.cluster_state
+            .send_to_worker(worker_id, message)
+            .await
+            .map_err(|e| {
+                hodei_ports::scheduler_port::SchedulerError::internal(format!(
+                    "Failed to send message to worker: {}",
+                    e
+                ))
+            })
     }
 }

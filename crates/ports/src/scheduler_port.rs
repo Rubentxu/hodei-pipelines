@@ -8,6 +8,8 @@
 use async_trait::async_trait;
 use hodei_core::Worker;
 use hodei_core::WorkerId;
+use hwp_proto::ServerMessage;
+use tokio::sync::mpsc;
 
 /// Scheduler port error
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
@@ -68,6 +70,52 @@ pub trait SchedulerPort: Send + Sync {
     ///
     /// Returns a list of worker IDs on success, or a `SchedulerError` on failure.
     async fn get_registered_workers(&self) -> Result<Vec<WorkerId>, SchedulerError>;
+
+    /// Register a transmitter (mpsc channel) for a worker
+    ///
+    /// This allows the scheduler to send messages to the worker through the transmitter.
+    /// The transmitter is typically used for gRPC streaming communication.
+    ///
+    /// # Arguments
+    ///
+    /// * `worker_id` - The ID of the worker
+    /// * `transmitter` - The mpsc sender to register
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on success, or a `SchedulerError` on failure.
+    async fn register_transmitter(
+        &self,
+        worker_id: &WorkerId,
+        transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+    ) -> Result<(), SchedulerError>;
+
+    /// Unregister a transmitter for a worker
+    ///
+    /// # Arguments
+    ///
+    /// * `worker_id` - The ID of the worker
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on success, or a `SchedulerError` on failure.
+    async fn unregister_transmitter(&self, worker_id: &WorkerId) -> Result<(), SchedulerError>;
+
+    /// Send a message to a worker through their registered transmitter
+    ///
+    /// # Arguments
+    ///
+    /// * `worker_id` - The ID of the worker
+    /// * `message` - The message to send
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on success, or a `SchedulerError` on failure.
+    async fn send_to_worker(
+        &self,
+        worker_id: &WorkerId,
+        message: ServerMessage,
+    ) -> Result<(), SchedulerError>;
 }
 
 #[cfg(test)]
@@ -185,16 +233,23 @@ mod tests {
     #[derive(Debug, Clone)]
     pub struct MockSchedulerPort {
         pub registered_workers: Vec<WorkerId>,
+        pub registered_transmitters: std::collections::HashMap<
+            WorkerId,
+            mpsc::UnboundedSender<Result<ServerMessage, String>>,
+        >,
         pub should_fail: bool,
         pub fail_with: SchedulerError,
+        pub sent_messages: Vec<(WorkerId, ServerMessage)>,
     }
 
     impl MockSchedulerPort {
         pub fn new() -> Self {
             Self {
                 registered_workers: Vec::new(),
+                registered_transmitters: std::collections::HashMap::new(),
                 should_fail: false,
                 fail_with: SchedulerError::internal("Mock error".to_string()),
+                sent_messages: Vec::new(),
             }
         }
 
@@ -206,6 +261,15 @@ mod tests {
         pub fn with_failure(mut self, error: SchedulerError) -> Self {
             self.should_fail = true;
             self.fail_with = error;
+            self
+        }
+
+        pub fn with_transmitter(
+            mut self,
+            worker_id: WorkerId,
+            transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+        ) -> Self {
+            self.registered_transmitters.insert(worker_id, transmitter);
             self
         }
     }
@@ -231,6 +295,35 @@ mod tests {
                 return Err(self.fail_with.clone());
             }
             Ok(self.registered_workers.clone())
+        }
+
+        async fn register_transmitter(
+            &self,
+            worker_id: &WorkerId,
+            transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+        ) -> Result<(), SchedulerError> {
+            if self.should_fail {
+                return Err(self.fail_with.clone());
+            }
+            Ok(())
+        }
+
+        async fn unregister_transmitter(&self, worker_id: &WorkerId) -> Result<(), SchedulerError> {
+            if self.should_fail {
+                return Err(self.fail_with.clone());
+            }
+            Ok(())
+        }
+
+        async fn send_to_worker(
+            &self,
+            worker_id: &WorkerId,
+            message: ServerMessage,
+        ) -> Result<(), SchedulerError> {
+            if self.should_fail {
+                return Err(self.fail_with.clone());
+            }
+            Ok(())
         }
     }
 
@@ -322,6 +415,103 @@ mod tests {
         assert_eq!(workers.len(), 2);
     }
 
+    // ===== Transmitter Tests =====
+
+    #[tokio::test]
+    async fn test_mock_scheduler_port_register_transmitter_success() {
+        let mock = MockSchedulerPort::new();
+        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, String>>();
+        let worker_id = WorkerId::new();
+
+        let result = mock.register_transmitter(&worker_id, tx).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_mock_scheduler_port_register_transmitter_failure() {
+        let error = SchedulerError::registration_failed("Test error".to_string());
+        let mock = MockSchedulerPort::new().with_failure(error.clone());
+        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, String>>();
+        let worker_id = WorkerId::new();
+
+        let result = mock.register_transmitter(&worker_id, tx).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), error);
+    }
+
+    #[tokio::test]
+    async fn test_mock_scheduler_port_unregister_transmitter_success() {
+        let mock = MockSchedulerPort::new();
+        let worker_id = WorkerId::new();
+
+        let result = mock.unregister_transmitter(&worker_id).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_mock_scheduler_port_unregister_transmitter_failure() {
+        let error = SchedulerError::internal("Test error".to_string());
+        let mock = MockSchedulerPort::new().with_failure(error.clone());
+        let worker_id = WorkerId::new();
+
+        let result = mock.unregister_transmitter(&worker_id).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), error);
+    }
+
+    #[tokio::test]
+    async fn test_mock_scheduler_port_send_to_worker_success() {
+        let mock = MockSchedulerPort::new();
+        let worker_id = WorkerId::new();
+        let message = ServerMessage { payload: None };
+
+        let result = mock.send_to_worker(&worker_id, message.clone()).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_mock_scheduler_port_send_to_worker_failure() {
+        let error = SchedulerError::worker_not_found(WorkerId::new());
+        let mock = MockSchedulerPort::new().with_failure(error.clone());
+        let worker_id = WorkerId::new();
+        let message = ServerMessage { payload: None };
+
+        let result = mock.send_to_worker(&worker_id, message).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), error);
+    }
+
+    #[tokio::test]
+    async fn test_scheduler_port_with_transmitter_builder() {
+        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, String>>();
+        let worker_id = WorkerId::new();
+        let worker_id_clone = worker_id.clone();
+        let mock = MockSchedulerPort::new()
+            .with_worker(worker_id_clone.clone())
+            .with_transmitter(worker_id_clone, tx);
+
+        assert!(mock.registered_transmitters.contains_key(&worker_id));
+    }
+
+    #[tokio::test]
+    async fn test_transmitter_methods_with_trait_object() {
+        let mock = MockSchedulerPort::new();
+        let (tx, _rx) = mpsc::unbounded_channel::<Result<ServerMessage, String>>();
+        let worker_id = WorkerId::new();
+
+        let boxed: Box<dyn SchedulerPort> = Box::new(mock);
+
+        // Test register_transmitter through trait object
+        assert!(boxed.register_transmitter(&worker_id, tx).await.is_ok());
+
+        // Test unregister_transmitter through trait object
+        assert!(boxed.unregister_transmitter(&worker_id).await.is_ok());
+
+        // Test send_to_worker through trait object
+        let message = ServerMessage { payload: None };
+        assert!(boxed.send_to_worker(&worker_id, message).await.is_ok());
+    }
+
     #[test]
     fn test_scheduler_port_is_send() {
         fn assert_send<T: Send>() {}
@@ -373,6 +563,29 @@ mod tests {
 
             async fn get_registered_workers(&self) -> Result<Vec<WorkerId>, SchedulerError> {
                 Ok(vec![])
+            }
+
+            async fn register_transmitter(
+                &self,
+                _worker_id: &WorkerId,
+                _transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn unregister_transmitter(
+                &self,
+                _worker_id: &WorkerId,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn send_to_worker(
+                &self,
+                _worker_id: &WorkerId,
+                _message: ServerMessage,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
             }
         }
 
