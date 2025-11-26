@@ -532,6 +532,259 @@ mod tests {
         assert!(repo.get_worker(&worker.id).await.unwrap().is_none());
     }
 
+    #[test]
+    async fn test_redb_worker_update_last_seen_success() {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test_workers.redb");
+
+        let repo = RedbWorkerRepository::new_with_path(db_path.clone()).unwrap();
+        repo.init().await.unwrap();
+
+        let original_time = chrono::Utc::now() - chrono::Duration::minutes(5);
+
+        let worker = Worker {
+            id: WorkerId::new(),
+            name: "test-worker".to_string(),
+            status: hodei_core::WorkerStatus {
+                worker_id: WorkerId::new(),
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: original_time.into(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: None,
+            capabilities: hodei_core::WorkerCapabilities::new(2, 4096),
+            metadata: HashMap::new(),
+            current_jobs: vec![],
+            last_heartbeat: original_time,
+        };
+
+        repo.save_worker(&worker).await.unwrap();
+
+        // Update the last_seen timestamp
+        repo.update_last_seen(&worker.id).await.unwrap();
+
+        // Verify the timestamp was updated
+        let retrieved = repo.get_worker(&worker.id).await.unwrap().unwrap();
+        let new_timestamp = retrieved.last_heartbeat;
+
+        assert!(new_timestamp > original_time);
+        assert!(new_timestamp > original_time + chrono::Duration::seconds(4));
+    }
+
+    #[test]
+    async fn test_redb_worker_update_last_seen_not_found() {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test_workers.redb");
+
+        let repo = RedbWorkerRepository::new_with_path(db_path.clone()).unwrap();
+        repo.init().await.unwrap();
+
+        let non_existent_id = WorkerId::new();
+
+        let result = repo.update_last_seen(&non_existent_id).await;
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            match e {
+                WorkerRepositoryError::NotFound(_) => {}
+                _ => panic!("Expected NotFound error, got {:?}", e),
+            }
+        }
+    }
+
+    #[test]
+    async fn test_redb_worker_find_stale_workers() {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test_workers.redb");
+
+        let repo = RedbWorkerRepository::new_with_path(db_path.clone()).unwrap();
+        repo.init().await.unwrap();
+
+        let recent_time = chrono::Utc::now() - chrono::Duration::seconds(30);
+        let stale_time = chrono::Utc::now() - chrono::Duration::minutes(10);
+
+        let fresh_worker = Worker {
+            id: WorkerId::new(),
+            name: "fresh-worker".to_string(),
+            status: hodei_core::WorkerStatus {
+                worker_id: WorkerId::new(),
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: recent_time.into(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: None,
+            capabilities: hodei_core::WorkerCapabilities::new(2, 4096),
+            metadata: HashMap::new(),
+            current_jobs: vec![],
+            last_heartbeat: recent_time,
+        };
+
+        let stale_worker = Worker {
+            id: WorkerId::new(),
+            name: "stale-worker".to_string(),
+            status: hodei_core::WorkerStatus {
+                worker_id: WorkerId::new(),
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: stale_time.into(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: None,
+            capabilities: hodei_core::WorkerCapabilities::new(4, 8192),
+            metadata: HashMap::new(),
+            current_jobs: vec![],
+            last_heartbeat: stale_time,
+        };
+
+        repo.save_worker(&fresh_worker).await.unwrap();
+        repo.save_worker(&stale_worker).await.unwrap();
+
+        // Find workers stale for more than 1 minute
+        let threshold = std::time::Duration::from_secs(60);
+        let stale_workers = repo.find_stale_workers(threshold).await.unwrap();
+
+        assert_eq!(stale_workers.len(), 1);
+        assert_eq!(stale_workers[0].name, "stale-worker");
+    }
+
+    #[test]
+    async fn test_redb_worker_find_stale_workers_multiple_stale() {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test_workers.redb");
+
+        let repo = RedbWorkerRepository::new_with_path(db_path.clone()).unwrap();
+        repo.init().await.unwrap();
+
+        let recent_time = chrono::Utc::now() - chrono::Duration::seconds(10);
+        let stale_time1 = chrono::Utc::now() - chrono::Duration::minutes(5);
+        let stale_time2 = chrono::Utc::now() - chrono::Duration::hours(2);
+
+        let fresh_worker = Worker {
+            id: WorkerId::new(),
+            name: "fresh-worker".to_string(),
+            status: hodei_core::WorkerStatus {
+                worker_id: WorkerId::new(),
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: recent_time.into(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: None,
+            capabilities: hodei_core::WorkerCapabilities::new(2, 4096),
+            metadata: HashMap::new(),
+            current_jobs: vec![],
+            last_heartbeat: recent_time,
+        };
+
+        let stale_worker1 = Worker {
+            id: WorkerId::new(),
+            name: "stale-worker-1".to_string(),
+            status: hodei_core::WorkerStatus {
+                worker_id: WorkerId::new(),
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: stale_time1.into(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: None,
+            capabilities: hodei_core::WorkerCapabilities::new(4, 8192),
+            metadata: HashMap::new(),
+            current_jobs: vec![],
+            last_heartbeat: stale_time1,
+        };
+
+        let stale_worker2 = Worker {
+            id: WorkerId::new(),
+            name: "stale-worker-2".to_string(),
+            status: hodei_core::WorkerStatus {
+                worker_id: WorkerId::new(),
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: stale_time2.into(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: None,
+            capabilities: hodei_core::WorkerCapabilities::new(8, 16384),
+            metadata: HashMap::new(),
+            current_jobs: vec![],
+            last_heartbeat: stale_time2,
+        };
+
+        repo.save_worker(&fresh_worker).await.unwrap();
+        repo.save_worker(&stale_worker1).await.unwrap();
+        repo.save_worker(&stale_worker2).await.unwrap();
+
+        // Find workers stale for more than 1 minute
+        let threshold = std::time::Duration::from_secs(60);
+        let stale_workers = repo.find_stale_workers(threshold).await.unwrap();
+
+        assert_eq!(stale_workers.len(), 2);
+
+        let stale_names: Vec<String> = stale_workers.iter().map(|w| w.name.clone()).collect();
+        assert!(stale_names.contains(&"stale-worker-1".to_string()));
+        assert!(stale_names.contains(&"stale-worker-2".to_string()));
+    }
+
+    #[test]
+    async fn test_redb_worker_find_stale_workers_none_stale() {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test_workers.redb");
+
+        let repo = RedbWorkerRepository::new_with_path(db_path.clone()).unwrap();
+        repo.init().await.unwrap();
+
+        let recent_time = chrono::Utc::now() - chrono::Duration::seconds(10);
+
+        let worker = Worker {
+            id: WorkerId::new(),
+            name: "fresh-worker".to_string(),
+            status: hodei_core::WorkerStatus {
+                worker_id: WorkerId::new(),
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: recent_time.into(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: None,
+            capabilities: hodei_core::WorkerCapabilities::new(2, 4096),
+            metadata: HashMap::new(),
+            current_jobs: vec![],
+            last_heartbeat: recent_time,
+        };
+
+        repo.save_worker(&worker).await.unwrap();
+
+        // Set threshold to 5 minutes - no workers should be stale
+        let threshold = std::time::Duration::from_secs(300);
+        let stale_workers = repo.find_stale_workers(threshold).await.unwrap();
+
+        assert_eq!(stale_workers.len(), 0);
+    }
+
+    #[test]
+    async fn test_redb_worker_find_stale_workers_empty_repository() {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test_workers.redb");
+
+        let repo = RedbWorkerRepository::new_with_path(db_path.clone()).unwrap();
+        repo.init().await.unwrap();
+
+        // Set threshold to 1 second - no workers should be stale
+        let threshold = std::time::Duration::from_secs(1);
+        let stale_workers = repo.find_stale_workers(threshold).await.unwrap();
+
+        assert_eq!(stale_workers.len(), 0);
+    }
+
     // ===== RedbPipelineRepository Tests =====
 
     #[test]
@@ -1013,6 +1266,123 @@ impl WorkerRepository for RedbWorkerRepository {
         })?;
 
         Ok(())
+    }
+
+    async fn update_last_seen(&self, id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+        let tx = self.db.begin_write().map_err(|e| {
+            WorkerRepositoryError::Database(format!("Failed to begin write transaction: {}", e))
+        })?;
+
+        let key = id.to_string().into_bytes();
+
+        // First, get the current worker data outside the mutable borrow scope
+        let worker_data = {
+            let table = tx.open_table(WORKERS_TABLE).map_err(|e| {
+                WorkerRepositoryError::Database(format!("Failed to open workers table: {}", e))
+            })?;
+
+            match table.get(key.as_slice()).map_err(|e| {
+                WorkerRepositoryError::Database(format!("Failed to get worker: {}", e))
+            })? {
+                Some(value) => {
+                    let worker: Worker = serde_json::from_slice(value.value()).map_err(|e| {
+                        WorkerRepositoryError::Database(format!(
+                            "Failed to deserialize worker: {}",
+                            e
+                        ))
+                    })?;
+                    serde_json::to_vec(&worker).map_err(|e| {
+                        WorkerRepositoryError::Database(format!(
+                            "Failed to serialize worker: {}",
+                            e
+                        ))
+                    })?
+                }
+                None => {
+                    return Err(WorkerRepositoryError::NotFound(id.clone()));
+                }
+            }
+        };
+
+        // Now update the worker in a new scope with mutable borrow
+        {
+            let mut table = tx.open_table(WORKERS_TABLE).map_err(|e| {
+                WorkerRepositoryError::Database(format!("Failed to open workers table: {}", e))
+            })?;
+
+            // Deserialize, update, serialize
+            let mut worker: Worker = serde_json::from_slice(&worker_data).map_err(|e| {
+                WorkerRepositoryError::Database(format!("Failed to deserialize worker: {}", e))
+            })?;
+
+            // Update the last_heartbeat timestamp
+            worker.last_heartbeat = chrono::Utc::now();
+
+            // Serialize and save the updated worker
+            let updated_value = serde_json::to_vec(&worker).map_err(|e| {
+                WorkerRepositoryError::Database(format!("Failed to serialize worker: {}", e))
+            })?;
+
+            table
+                .insert(key.as_slice(), updated_value.as_slice())
+                .map_err(|e| {
+                    WorkerRepositoryError::Database(format!(
+                        "Failed to insert updated worker: {}",
+                        e
+                    ))
+                })?;
+
+            info!("Updated last_seen for worker: {}", id);
+        }
+
+        tx.commit().map_err(|e| {
+            WorkerRepositoryError::Database(format!("Failed to commit last_seen update: {}", e))
+        })?;
+
+        Ok(())
+    }
+
+    async fn find_stale_workers(
+        &self,
+        threshold_duration: std::time::Duration,
+    ) -> Result<Vec<Worker>, WorkerRepositoryError> {
+        let tx = self.db.begin_read().map_err(|e| {
+            WorkerRepositoryError::Database(format!("Failed to begin read transaction: {}", e))
+        })?;
+
+        let table = tx.open_table(WORKERS_TABLE).map_err(|e| {
+            WorkerRepositoryError::Database(format!("Failed to open workers table: {}", e))
+        })?;
+
+        let threshold_time =
+            chrono::Utc::now() - chrono::Duration::from_std(threshold_duration).unwrap_or_default();
+
+        let mut stale_workers = Vec::new();
+
+        // Iterate through all workers and check heartbeat timestamps
+        let iter = table.iter().map_err(|e| {
+            WorkerRepositoryError::Database(format!("Failed to iterate workers: {}", e))
+        })?;
+
+        for item in iter {
+            let (_, value) = item.map_err(|e| {
+                WorkerRepositoryError::Database(format!("Failed to read worker: {}", e))
+            })?;
+
+            if let Ok(worker) = serde_json::from_slice::<Worker>(value.value()) {
+                if worker.last_heartbeat < threshold_time {
+                    stale_workers.push(worker);
+                }
+            }
+        }
+
+        info!(
+            "Found {} stale workers (threshold: {} seconds)",
+            stale_workers.len(),
+            threshold_duration.as_secs()
+        );
+
+        Ok(stale_workers)
     }
 }
 

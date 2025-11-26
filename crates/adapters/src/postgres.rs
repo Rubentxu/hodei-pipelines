@@ -360,8 +360,10 @@ impl PostgreSqlWorkerRepository {
                 status TEXT NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL,
                 updated_at TIMESTAMPTZ NOT NULL,
+                last_heartbeat TIMESTAMPTZ,
                 tenant_id TEXT,
-                metadata JSONB
+                metadata JSONB,
+                capabilities JSONB
             )
             "#,
         )
@@ -370,6 +372,25 @@ impl PostgreSqlWorkerRepository {
         .map_err(|e| {
             WorkerRepositoryError::Database(format!("Failed to create workers table: {}", e))
         })?;
+
+        // Add last_heartbeat column if it doesn't exist (for existing databases)
+        sqlx::query("ALTER TABLE workers ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMPTZ")
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| {
+                WorkerRepositoryError::Database(format!(
+                    "Failed to add last_heartbeat column: {}",
+                    e
+                ))
+            })?;
+
+        // Add capabilities column if it doesn't exist (for existing databases)
+        sqlx::query("ALTER TABLE workers ADD COLUMN IF NOT EXISTS capabilities JSONB")
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| {
+                WorkerRepositoryError::Database(format!("Failed to add capabilities column: {}", e))
+            })?;
 
         sqlx::query(
             r#"
@@ -517,6 +538,57 @@ impl WorkerRepository for PostgreSqlWorkerRepository {
 
         Ok(())
     }
+
+    async fn update_last_seen(&self, id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+        let now = chrono::Utc::now();
+        let query = "UPDATE workers SET last_heartbeat = $1, updated_at = $2 WHERE id = $3";
+
+        sqlx::query(query)
+            .bind(now)
+            .bind(now)
+            .bind(id)
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| {
+                WorkerRepositoryError::Database(format!("Failed to update last_seen: {}", e))
+            })?;
+
+        info!("Updated last_seen for worker: {}", id);
+        Ok(())
+    }
+
+    async fn find_stale_workers(
+        &self,
+        threshold_duration: std::time::Duration,
+    ) -> Result<Vec<Worker>, WorkerRepositoryError> {
+        let threshold_time =
+            chrono::Utc::now() - chrono::Duration::from_std(threshold_duration).unwrap_or_default();
+
+        let query =
+            "SELECT * FROM workers WHERE last_heartbeat IS NOT NULL AND last_heartbeat < $1";
+
+        let rows = sqlx::query(query)
+            .bind(threshold_time)
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| {
+                WorkerRepositoryError::Database(format!("Failed to find stale workers: {}", e))
+            })?;
+
+        let workers: Vec<Worker> =
+            futures::future::join_all(rows.into_iter().map(|row| self.row_to_worker(row)))
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()?;
+
+        info!(
+            "Found {} stale workers (threshold: {} seconds)",
+            workers.len(),
+            threshold_duration.as_secs()
+        );
+
+        Ok(workers)
+    }
 }
 
 impl PostgreSqlWorkerRepository {
@@ -540,6 +612,9 @@ impl PostgreSqlWorkerRepository {
             None => WorkerCapabilities::new(1, 1024), // Default capabilities
         };
 
+        // Fetch last_heartbeat from database (can be NULL for old records)
+        let last_heartbeat: Option<chrono::DateTime<chrono::Utc>> = row.get("last_heartbeat");
+
         let metadata: Option<serde_json::Value> = row.get("metadata");
         let status_string: String = row.get("status");
         let current_jobs_uuids: Vec<Uuid> = row.get("current_jobs");
@@ -548,7 +623,7 @@ impl PostgreSqlWorkerRepository {
             worker_id: id.clone(),
             status: status_string,
             current_jobs: current_jobs_uuids.into_iter().map(Into::into).collect(),
-            last_heartbeat: chrono::Utc::now().into(),
+            last_heartbeat: last_heartbeat.unwrap_or_else(|| chrono::Utc::now()).into(),
         };
 
         Ok(Worker {
@@ -567,7 +642,7 @@ impl PostgreSqlWorkerRepository {
                 .flatten()
                 .unwrap_or_default(),
             current_jobs: Vec::new(),
-            last_heartbeat: chrono::Utc::now(),
+            last_heartbeat: last_heartbeat.unwrap_or_else(|| chrono::Utc::now()),
         })
     }
 }

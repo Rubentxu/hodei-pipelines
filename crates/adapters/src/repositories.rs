@@ -144,6 +144,43 @@ impl WorkerRepository for InMemoryWorkerRepository {
         workers.remove(id);
         Ok(())
     }
+
+    async fn update_last_seen(
+        &self,
+        id: &WorkerId,
+    ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        let mut workers = self.workers.write().await;
+        if let Some(worker) = workers.get_mut(id) {
+            worker.last_heartbeat = chrono::Utc::now();
+            info!("Updated last_seen for worker: {}", id);
+            Ok(())
+        } else {
+            Err(hodei_ports::WorkerRepositoryError::NotFound(id.clone()))
+        }
+    }
+
+    async fn find_stale_workers(
+        &self,
+        threshold_duration: std::time::Duration,
+    ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        let workers = self.workers.read().await;
+        let threshold_time =
+            chrono::Utc::now() - chrono::Duration::from_std(threshold_duration).unwrap_or_default();
+
+        let stale_workers: Vec<Worker> = workers
+            .values()
+            .filter(|worker| worker.last_heartbeat < threshold_time)
+            .cloned()
+            .collect();
+
+        info!(
+            "Found {} stale workers (threshold: {} seconds)",
+            stale_workers.len(),
+            threshold_duration.as_secs()
+        );
+
+        Ok(stale_workers)
+    }
 }
 
 /// In-memory pipeline repository

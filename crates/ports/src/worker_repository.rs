@@ -9,6 +9,15 @@ pub trait WorkerRepository: Send + Sync {
     async fn get_worker(&self, id: &WorkerId) -> Result<Option<Worker>, WorkerRepositoryError>;
     async fn get_all_workers(&self) -> Result<Vec<Worker>, WorkerRepositoryError>;
     async fn delete_worker(&self, id: &WorkerId) -> Result<(), WorkerRepositoryError>;
+
+    /// Update the last_seen timestamp for a worker (US-03.1: Heartbeat Processing)
+    async fn update_last_seen(&self, id: &WorkerId) -> Result<(), WorkerRepositoryError>;
+
+    /// Find workers that haven't sent a heartbeat within the threshold duration
+    async fn find_stale_workers(
+        &self,
+        threshold_duration: std::time::Duration,
+    ) -> Result<Vec<Worker>, WorkerRepositoryError>;
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -48,9 +57,89 @@ mod tests {
         let database = WorkerRepositoryError::Database("Connection error".to_string());
         let serialization = WorkerRepositoryError::Serialization("Serialize failed".to_string());
         let validation = WorkerRepositoryError::Validation("Invalid data".to_string());
-        
+
         assert!(database.to_string().contains("Database error"));
         assert!(serialization.to_string().contains("Serialization error"));
         assert!(validation.to_string().contains("Validation error"));
+    }
+
+    #[tokio::test]
+    async fn test_repository_traits_are_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Box<dyn WorkerRepository + Send + Sync>>();
+    }
+
+    #[tokio::test]
+    async fn test_update_last_seen_method_exists() {
+        // Test that the trait has the update_last_seen method
+        struct DummyRepo;
+        #[async_trait::async_trait]
+        impl WorkerRepository for DummyRepo {
+            async fn save_worker(&self, _worker: &Worker) -> Result<(), WorkerRepositoryError> {
+                Ok(())
+            }
+            async fn get_worker(
+                &self,
+                _id: &WorkerId,
+            ) -> Result<Option<Worker>, WorkerRepositoryError> {
+                Ok(None)
+            }
+            async fn get_all_workers(&self) -> Result<Vec<Worker>, WorkerRepositoryError> {
+                Ok(Vec::new())
+            }
+            async fn delete_worker(&self, _id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+                Ok(())
+            }
+            async fn update_last_seen(&self, _id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+                Ok(())
+            }
+            async fn find_stale_workers(
+                &self,
+                _threshold_duration: std::time::Duration,
+            ) -> Result<Vec<Worker>, WorkerRepositoryError> {
+                Ok(Vec::new())
+            }
+        }
+
+        let repo = DummyRepo;
+        let worker_id = WorkerId::new();
+        assert!(repo.update_last_seen(&worker_id).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_find_stale_workers_method_exists() {
+        // Test that the trait has the find_stale_workers method
+        struct DummyRepo;
+        #[async_trait::async_trait]
+        impl WorkerRepository for DummyRepo {
+            async fn save_worker(&self, _worker: &Worker) -> Result<(), WorkerRepositoryError> {
+                Ok(())
+            }
+            async fn get_worker(
+                &self,
+                _id: &WorkerId,
+            ) -> Result<Option<Worker>, WorkerRepositoryError> {
+                Ok(None)
+            }
+            async fn get_all_workers(&self) -> Result<Vec<Worker>, WorkerRepositoryError> {
+                Ok(Vec::new())
+            }
+            async fn delete_worker(&self, _id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+                Ok(())
+            }
+            async fn update_last_seen(&self, _id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+                Ok(())
+            }
+            async fn find_stale_workers(
+                &self,
+                _threshold_duration: std::time::Duration,
+            ) -> Result<Vec<Worker>, WorkerRepositoryError> {
+                Ok(Vec::new())
+            }
+        }
+
+        let repo = DummyRepo;
+        let threshold = std::time::Duration::from_secs(30);
+        assert!(repo.find_stale_workers(threshold).await.is_ok());
     }
 }
