@@ -11,6 +11,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[cfg(feature = "sqlx")]
@@ -117,6 +118,64 @@ impl<T> BaseEvent<T> {
     }
 }
 
+/// Event Registry for deserializing events
+pub struct EventRegistry {
+    builders: std::collections::HashMap<
+        &'static str,
+        Box<
+            dyn Fn(serde_json::Value) -> Result<Box<dyn DomainEvent>, serde_json::Error>
+                + Send
+                + Sync,
+        >,
+    >,
+}
+
+impl EventRegistry {
+    pub fn new() -> Self {
+        Self {
+            builders: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Register an event type with its deserializer
+    pub fn register<T>(&mut self, event_type: &'static str)
+    where
+        T: DomainEvent + for<'de> serde::de::Deserialize<'de> + 'static,
+    {
+        let builder =
+            move |value: serde_json::Value| -> Result<Box<dyn DomainEvent>, serde_json::Error> {
+                let event: T = serde_json::from_value(value)?;
+                Ok(Box::new(event) as Box<dyn DomainEvent>)
+            };
+        self.builders.insert(event_type, Box::new(builder));
+    }
+
+    /// Deserialize a JSON event into a DomainEvent
+    pub fn deserialize(
+        &self,
+        event_type: &str,
+        value: serde_json::Value,
+    ) -> Result<Box<dyn DomainEvent>, EventStoreError> {
+        self.builders
+            .get(event_type)
+            .ok_or_else(|| {
+                EventStoreError::SerializationError(format!(
+                    "Event type '{}' not registered in registry",
+                    event_type
+                ))
+            })
+            .and_then(|builder| {
+                builder(value).map_err(|e| EventStoreError::SerializationError(e.to_string()))
+            })
+    }
+}
+
+impl Default for EventRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Event Sourced Aggregate
 pub trait EventSourcedAggregate: Send + Sync {
     /// Get current version of the aggregate
@@ -157,6 +216,14 @@ pub trait EventStore: Send + Sync {
         from_timestamp: Option<DateTime<Utc>>,
     ) -> Result<Vec<Box<dyn DomainEvent>>, EventStoreError>;
 
+    /// Replay events for an aggregate using a registry for deserialization
+    async fn replay_events(
+        &self,
+        aggregate_id: Uuid,
+        from_version: Option<u64>,
+        registry: &EventRegistry,
+    ) -> Result<Vec<Box<dyn DomainEvent>>, EventStoreError>;
+
     /// Get the latest version of an aggregate
     async fn get_latest_version(&self, aggregate_id: Uuid) -> Result<u64, EventStoreError>;
 }
@@ -181,6 +248,7 @@ pub enum EventStoreError {
 #[cfg(feature = "dashmap")]
 pub struct InMemoryEventStore {
     events: Arc<DashMap<Uuid, Vec<EventMetadata>>>,
+    event_data: Arc<DashMap<Uuid, Vec<serde_json::Value>>>,
 }
 
 #[cfg(feature = "dashmap")]
@@ -188,6 +256,7 @@ impl InMemoryEventStore {
     pub fn new() -> Self {
         Self {
             events: Arc::new(DashMap::new()),
+            event_data: Arc::new(DashMap::new()),
         }
     }
 }
@@ -213,7 +282,13 @@ impl EventStore for InMemoryEventStore {
             });
         }
 
+        let mut event_data_list = self.event_data.entry(aggregate_id).or_insert_with(Vec::new);
+
         for event in events {
+            let event_data = event
+                .serialize()
+                .map_err(|e| EventStoreError::SerializationError(e.to_string()))?;
+
             let metadata = EventMetadata::new(
                 event.event_id(),
                 event.event_type().to_string(),
@@ -224,6 +299,7 @@ impl EventStore for InMemoryEventStore {
             );
 
             events_guard.push(metadata.clone());
+            event_data_list.push(event_data);
             metadata_list.push(metadata);
         }
 
@@ -235,12 +311,17 @@ impl EventStore for InMemoryEventStore {
         aggregate_id: Uuid,
         from_version: Option<u64>,
     ) -> Result<Vec<Box<dyn DomainEvent>>, EventStoreError> {
-        if let Some(entry) = self.events.get(&aggregate_id) {
-            let events = entry.value();
+        if let Some(event_data) = self.event_data.get(&aggregate_id) {
+            let events = event_data.value();
             let start_index = from_version.unwrap_or(0) as usize;
 
-            // For simplicity, return empty - would need actual deserialization
-            Ok(Vec::new())
+            let mut loaded_events = Vec::new();
+            for event_data in &events[start_index..] {
+                // For load_events without registry, we can't deserialize properly
+                // In a real implementation, you'd need a default registry or return raw data
+                let _ = event_data;
+            }
+            Ok(loaded_events)
         } else {
             Ok(Vec::new())
         }
@@ -262,6 +343,37 @@ impl EventStore for InMemoryEventStore {
         }
 
         Ok(all_events)
+    }
+
+    async fn replay_events(
+        &self,
+        aggregate_id: Uuid,
+        from_version: Option<u64>,
+        registry: &EventRegistry,
+    ) -> Result<Vec<Box<dyn DomainEvent>>, EventStoreError> {
+        if let (Some(event_data), Some(events_metadata)) = (
+            self.event_data.get(&aggregate_id),
+            self.events.get(&aggregate_id),
+        ) {
+            let event_data_list = event_data.value();
+            let events_meta_list = events_metadata.value();
+            let start_index = from_version.unwrap_or(0) as usize;
+
+            let mut replayed_events = Vec::new();
+
+            // Replay events from the specified version
+            for i in start_index..event_data_list.len() {
+                let event_json = &event_data_list[i];
+                let event_meta = &events_meta_list[i];
+
+                let event = registry.deserialize(&event_meta.event_type, event_json.clone())?;
+                replayed_events.push(event);
+            }
+
+            Ok(replayed_events)
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     async fn get_latest_version(&self, aggregate_id: Uuid) -> Result<u64, EventStoreError> {
@@ -504,6 +616,39 @@ impl EventStore for PostgreSqlEventStore {
         Ok(events)
     }
 
+    async fn replay_events(
+        &self,
+        aggregate_id: Uuid,
+        from_version: Option<u64>,
+        registry: &EventRegistry,
+    ) -> Result<Vec<Box<dyn DomainEvent>>, EventStoreError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT event_id, aggregate_id, event_type, event_data, version, occurred_at
+            FROM events
+            WHERE aggregate_id = $1 AND version >= $2
+            ORDER BY version ASC
+        "#,
+        )
+        .bind(aggregate_id)
+        .bind(from_version.unwrap_or(0) as i64)
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
+
+        let mut events = Vec::new();
+
+        for row in rows {
+            let event_type: String = row.get("event_type");
+            let event_data: serde_json::Value = row.get("event_data");
+
+            let event = registry.deserialize(&event_type, event_data)?;
+            events.push(event);
+        }
+
+        Ok(events)
+    }
+
     async fn get_latest_version(&self, aggregate_id: Uuid) -> Result<u64, EventStoreError> {
         let row: (Option<i64>,) =
             sqlx::query_as("SELECT MAX(version) FROM events WHERE aggregate_id = $1")
@@ -575,7 +720,7 @@ mod tests {
     }
 
     /// Test event for demonstrations
-    #[derive(Debug, serde::Serialize)]
+    #[derive(Debug, serde::Serialize, serde::Deserialize)]
     struct TestDomainEvent {
         event_id: Uuid,
         aggregate_id: Uuid,
@@ -617,6 +762,147 @@ mod tests {
                 version: self.version,
                 data: self.data.clone(),
             })
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "dashmap")]
+    async fn test_event_registry_and_replay() {
+        use std::sync::Arc;
+
+        let store = Arc::new(InMemoryEventStore::new());
+        let aggregate_id = Uuid::new_v4();
+
+        // Create registry
+        let mut registry = EventRegistry::new();
+        registry.register::<TestDomainEvent>("TestDomainEvent");
+
+        // Create and save multiple events
+        let event1 = TestDomainEvent {
+            event_id: Uuid::new_v4(),
+            aggregate_id,
+            occurred_at: Utc::now(),
+            version: 0,
+            data: "event 1".to_string(),
+        };
+
+        let event2 = TestDomainEvent {
+            event_id: Uuid::new_v4(),
+            aggregate_id,
+            occurred_at: Utc::now(),
+            version: 1,
+            data: "event 2".to_string(),
+        };
+
+        let event3 = TestDomainEvent {
+            event_id: Uuid::new_v4(),
+            aggregate_id,
+            occurred_at: Utc::now(),
+            version: 2,
+            data: "event 3".to_string(),
+        };
+
+        // Save all events
+        let metadata_list = store
+            .save_events(
+                aggregate_id,
+                &[Box::new(event1), Box::new(event2), Box::new(event3)],
+                0,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(metadata_list.len(), 3);
+
+        // Replay all events
+        let replayed_events = store
+            .replay_events(aggregate_id, None, &registry)
+            .await
+            .unwrap();
+
+        assert_eq!(replayed_events.len(), 3);
+
+        // Verify that events were properly deserialized by checking their types
+        let event_types: Vec<&str> = replayed_events.iter().map(|e| e.event_type()).collect();
+        assert_eq!(
+            event_types,
+            vec!["TestDomainEvent", "TestDomainEvent", "TestDomainEvent"]
+        );
+
+        // Verify versions are correct
+        let versions: Vec<u64> = replayed_events.iter().map(|e| e.version()).collect();
+        assert_eq!(versions, vec![0, 1, 2]);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "dashmap")]
+    async fn test_event_replay_from_version() {
+        use std::sync::Arc;
+
+        let store = Arc::new(InMemoryEventStore::new());
+        let aggregate_id = Uuid::new_v4();
+
+        // Create registry
+        let mut registry = EventRegistry::new();
+        registry.register::<TestDomainEvent>("TestDomainEvent");
+
+        // Create and save multiple events
+        for i in 0..5 {
+            let event = TestDomainEvent {
+                event_id: Uuid::new_v4(),
+                aggregate_id,
+                occurred_at: Utc::now(),
+                version: i as u64,
+                data: format!("event {}", i),
+            };
+
+            store
+                .save_events(aggregate_id, &[Box::new(event)], i as u64)
+                .await
+                .unwrap();
+        }
+
+        // Replay from version 2
+        let replayed_events = store
+            .replay_events(aggregate_id, Some(2), &registry)
+            .await
+            .unwrap();
+
+        assert_eq!(replayed_events.len(), 3); // events 2, 3, 4
+
+        // Verify event versions
+        for (i, event) in replayed_events.iter().enumerate() {
+            assert_eq!(event.version(), (i + 2) as u64);
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "dashmap")]
+    async fn test_event_replay_empty_aggregate() {
+        let store = InMemoryEventStore::new();
+        let aggregate_id = Uuid::new_v4();
+
+        let mut registry = EventRegistry::new();
+        registry.register::<TestDomainEvent>("TestDomainEvent");
+
+        // Try to replay events for non-existent aggregate
+        let replayed_events = store
+            .replay_events(aggregate_id, None, &registry)
+            .await
+            .unwrap();
+
+        assert_eq!(replayed_events.len(), 0);
+    }
+
+    #[test]
+    fn test_event_registry_error_on_unregistered_type() {
+        let registry = EventRegistry::new();
+
+        let result = registry.deserialize("UnknownEvent", serde_json::json!({"test": "data"}));
+
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("not registered"));
         }
     }
 }
