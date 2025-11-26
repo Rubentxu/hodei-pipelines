@@ -4,9 +4,11 @@
 //! within a single entity or value object.
 
 pub mod priority_calculator;
+pub mod worker_matcher;
 
 // Re-export for convenience
 pub use priority_calculator::PriorityCalculator;
+pub use worker_matcher::WorkerMatcher;
 
 use crate::{JobId, WorkerCapabilities, WorkerId};
 
