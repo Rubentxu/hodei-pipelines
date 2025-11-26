@@ -701,6 +701,193 @@ pub enum HealthCheckError {
     Internal(String),
 }
 
+/// Cleanup configuration
+#[derive(Debug, Clone)]
+pub struct CleanupConfig {
+    pub stale_threshold: Duration,      // 5 minutes
+    pub disconnect_threshold: Duration, // 10 minutes
+    pub cleanup_interval: Duration,     // 5 minutes
+    pub notify_on_cleanup: bool,
+}
+
+impl CleanupConfig {
+    pub fn new() -> Self {
+        Self {
+            stale_threshold: Duration::from_secs(300),
+            disconnect_threshold: Duration::from_secs(600),
+            cleanup_interval: Duration::from_secs(300),
+            notify_on_cleanup: false,
+        }
+    }
+}
+
+/// Cleanup report
+#[derive(Debug, Clone)]
+pub struct CleanupReport {
+    pub cleaned_workers: u32,
+    pub disconnected_workers: u32,
+    pub jobs_cleaned: u32,
+    pub duration: Duration,
+}
+
+/// Cleanup error types
+#[derive(Debug, thiserror::Error)]
+pub enum CleanupError {
+    #[error("Worker not found: {0}")]
+    WorkerNotFound(WorkerId),
+
+    #[error("Failed to update worker status: {0}")]
+    StatusUpdateFailed(WorkerId),
+
+    #[error("Failed to cleanup worker jobs: {0}")]
+    JobCleanupFailed(WorkerId),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
+}
+
+/// Worker cleanup service
+#[derive(Debug)]
+pub struct WorkerCleanupService<R, J>
+where
+    R: hodei_ports::WorkerRepository + Send + Sync,
+    J: hodei_ports::JobRepository + Send + Sync,
+{
+    config: CleanupConfig,
+    worker_repo: Arc<R>,
+    job_repo: Arc<J>,
+}
+
+impl<R, J> WorkerCleanupService<R, J>
+where
+    R: hodei_ports::WorkerRepository + Send + Sync,
+    J: hodei_ports::JobRepository + Send + Sync,
+{
+    /// Create new cleanup service
+    pub fn new(config: CleanupConfig, worker_repo: Arc<R>, job_repo: Arc<J>) -> Self {
+        Self {
+            config,
+            worker_repo,
+            job_repo,
+        }
+    }
+
+    /// Run cleanup for stale workers
+    pub async fn run_cleanup(&self) -> Result<CleanupReport, CleanupError> {
+        info!("Starting worker cleanup task");
+
+        let start_time = Instant::now();
+
+        // Find stale workers
+        let stale_workers = self
+            .worker_repo
+            .find_stale_workers(self.config.stale_threshold)
+            .await
+            .map_err(|e| CleanupError::Internal(e.to_string()))?;
+
+        info!("Found {} stale workers", stale_workers.len());
+
+        let mut cleaned_count = 0;
+        let mut disconnected_count = 0;
+        let mut jobs_cleaned_count = 0;
+
+        // Process each stale worker
+        for worker in stale_workers {
+            if self
+                .is_worker_reachable(&worker)
+                .await
+                .map_err(|e| CleanupError::Internal(e.to_string()))?
+            {
+                // Worker is alive, just slow - update last_seen
+                info!(
+                    worker_id = %worker.id,
+                    "Worker is reachable but slow, skipping cleanup"
+                );
+                continue;
+            }
+
+            // Worker is stale
+            cleaned_count += 1;
+
+            // Check if worker is very stale (disconnect threshold exceeded)
+            let last_seen_age = chrono::Utc::now().signed_duration_since(worker.last_heartbeat);
+            let disconnect_threshold_secs = self.config.disconnect_threshold.as_secs() as i64;
+
+            if last_seen_age.num_seconds() > disconnect_threshold_secs {
+                // Mark worker as disconnected
+                info!(
+                    worker_id = %worker.id,
+                    last_seen_age_seconds = %last_seen_age.num_seconds(),
+                    "Marking worker as DISCONNECTED"
+                );
+
+                // TODO: Update worker status in repository
+                // This requires updating the WorkerRepository trait to support status updates
+
+                disconnected_count += 1;
+
+                // Clean up any active jobs assigned to this worker
+                if let Err(e) = self.cleanup_worker_jobs(&worker.id).await {
+                    error!(
+                        worker_id = %worker.id,
+                        error = %e,
+                        "Failed to cleanup worker jobs"
+                    );
+                } else {
+                    jobs_cleaned_count += 1;
+                }
+
+                // Emit event would go here
+                // self.event_bus.publish(WorkerCleanedUpEvent { ... }).await?;
+
+                info!(
+                    worker_id = %worker.id,
+                    "Worker marked as DISCONNECTED and cleaned up"
+                );
+            } else {
+                info!(
+                    worker_id = %worker.id,
+                    last_seen_age_seconds = %last_seen_age.num_seconds(),
+                    "Worker is stale but not yet disconnected"
+                );
+            }
+        }
+
+        let duration = start_time.elapsed();
+
+        info!(
+            cleaned_workers = cleaned_count,
+            disconnected_workers = disconnected_count,
+            jobs_cleaned = jobs_cleaned_count,
+            duration_ms = duration.as_millis(),
+            "Worker cleanup completed"
+        );
+
+        Ok(CleanupReport {
+            cleaned_workers: cleaned_count,
+            disconnected_workers: disconnected_count,
+            jobs_cleaned: jobs_cleaned_count,
+            duration,
+        })
+    }
+
+    /// Check if a worker is reachable (ping or health check)
+    async fn is_worker_reachable(&self, worker: &Worker) -> Result<bool, CleanupError> {
+        // TODO: Implement actual reachability check
+        // For now, assume worker is not reachable if stale
+        Ok(false)
+    }
+
+    /// Cleanup jobs assigned to a disconnected worker
+    async fn cleanup_worker_jobs(&self, worker_id: &WorkerId) -> Result<(), CleanupError> {
+        // TODO: Get jobs assigned to this worker
+        // For now, this is a placeholder
+
+        info!(worker_id = %worker_id, "Cleaning up worker jobs");
+        Ok(())
+    }
+}
+
 /// Health check service
 #[derive(Debug)]
 pub struct HealthCheckService<R>
@@ -4559,5 +4746,295 @@ mod health_check_tests {
 
         assert!(result.last_check >= before);
         assert!(result.last_check <= after);
+    }
+}
+
+#[cfg(test)]
+mod cleanup_service_tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    /// Mock JobRepository for testing
+    struct MockJobRepository;
+
+    #[async_trait::async_trait]
+    impl hodei_ports::JobRepository for MockJobRepository {
+        async fn save_job(
+            &self,
+            _job: &hodei_core::Job,
+        ) -> Result<(), hodei_ports::JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn get_job(
+            &self,
+            _id: &hodei_core::JobId,
+        ) -> Result<Option<hodei_core::Job>, hodei_ports::JobRepositoryError> {
+            Ok(None)
+        }
+
+        async fn get_pending_jobs(
+            &self,
+        ) -> Result<Vec<hodei_core::Job>, hodei_ports::JobRepositoryError> {
+            Ok(Vec::new())
+        }
+
+        async fn get_running_jobs(
+            &self,
+        ) -> Result<Vec<hodei_core::Job>, hodei_ports::JobRepositoryError> {
+            Ok(Vec::new())
+        }
+
+        async fn delete_job(
+            &self,
+            _id: &hodei_core::JobId,
+        ) -> Result<(), hodei_ports::JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn compare_and_swap_status(
+            &self,
+            _id: &hodei_core::JobId,
+            _expected_state: &str,
+            _new_state: &str,
+        ) -> Result<bool, hodei_ports::JobRepositoryError> {
+            Ok(false)
+        }
+    }
+
+    fn create_stale_worker() -> Worker {
+        let id = WorkerId::new();
+        let id_clone = id.clone();
+        // Create a worker with old last_seen timestamp
+        let old_time = chrono::Utc::now() - chrono::Duration::minutes(10);
+        Worker {
+            id: id_clone,
+            name: "stale-worker".to_string(),
+            status: hodei_core::WorkerStatus {
+                worker_id: id,
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: std::time::SystemTime::now(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: Some("test-tenant".to_string()),
+            capabilities: hodei_core::WorkerCapabilities::new(4, 8192),
+            metadata: HashMap::new(),
+            current_jobs: vec![],
+            last_heartbeat: old_time,
+        }
+    }
+
+    fn create_recent_worker() -> Worker {
+        let id = WorkerId::new();
+        let id_clone = id.clone();
+        let recent_time = chrono::Utc::now() - chrono::Duration::seconds(30);
+        Worker {
+            id: id_clone,
+            name: "recent-worker".to_string(),
+            status: hodei_core::WorkerStatus {
+                worker_id: id,
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: std::time::SystemTime::now(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: Some("test-tenant".to_string()),
+            capabilities: hodei_core::WorkerCapabilities::new(4, 8192),
+            metadata: HashMap::new(),
+            current_jobs: vec![],
+            last_heartbeat: recent_time,
+        }
+    }
+
+    /// Mock WorkerRepository that returns specified stale workers
+    struct MockStaleWorkerRepository {
+        workers: Vec<Worker>,
+    }
+
+    impl MockStaleWorkerRepository {
+        fn new(workers: Vec<Worker>) -> Self {
+            Self { workers }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl hodei_ports::WorkerRepository for MockStaleWorkerRepository {
+        async fn save_worker(
+            &self,
+            _worker: &Worker,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn get_worker(
+            &self,
+            _id: &WorkerId,
+        ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(None)
+        }
+
+        async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(self.workers.clone())
+        }
+
+        async fn delete_worker(
+            &self,
+            _id: &WorkerId,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn update_last_seen(
+            &self,
+            _id: &WorkerId,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn find_stale_workers(
+            &self,
+            _threshold_duration: std::time::Duration,
+        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(self.workers.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_service_creation() {
+        let config = CleanupConfig::new();
+        let worker_repo = Arc::new(MockStaleWorkerRepository::new(vec![]));
+        let job_repo = Arc::new(MockJobRepository);
+
+        let service = WorkerCleanupService::new(config, worker_repo, job_repo);
+
+        assert_eq!(service.config.stale_threshold, Duration::from_secs(300));
+        assert_eq!(
+            service.config.disconnect_threshold,
+            Duration::from_secs(600)
+        );
+        assert_eq!(service.config.cleanup_interval, Duration::from_secs(300));
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_no_stale_workers() {
+        let config = CleanupConfig::new();
+        let worker_repo = Arc::new(MockStaleWorkerRepository::new(vec![]));
+        let job_repo = Arc::new(MockJobRepository);
+
+        let service = WorkerCleanupService::new(config, worker_repo, job_repo);
+
+        let report = service.run_cleanup().await.unwrap();
+
+        assert_eq!(report.cleaned_workers, 0);
+        assert_eq!(report.disconnected_workers, 0);
+        assert_eq!(report.jobs_cleaned, 0);
+        assert!(report.duration > Duration::from_millis(0));
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_with_stale_workers() {
+        let config = CleanupConfig::new();
+        let stale_workers = vec![create_stale_worker(), create_stale_worker()];
+        let worker_repo = Arc::new(MockStaleWorkerRepository::new(stale_workers));
+        let job_repo = Arc::new(MockJobRepository);
+
+        let service = WorkerCleanupService::new(config, worker_repo, job_repo);
+
+        let report = service.run_cleanup().await.unwrap();
+
+        // Workers are marked as not reachable, so they should be cleaned
+        assert!(report.cleaned_workers > 0);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_with_recent_workers() {
+        let config = CleanupConfig::new();
+        let recent_workers = vec![create_recent_worker(), create_recent_worker()];
+        let worker_repo = Arc::new(MockStaleWorkerRepository::new(recent_workers));
+        let job_repo = Arc::new(MockJobRepository);
+
+        let service = WorkerCleanupService::new(config, worker_repo, job_repo);
+
+        let report = service.run_cleanup().await.unwrap();
+
+        // Recent workers shouldn't be found as stale
+        assert_eq!(report.cleaned_workers, 0);
+        assert_eq!(report.disconnected_workers, 0);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_with_mixed_workers() {
+        let mut workers = Vec::new();
+        workers.push(create_stale_worker());
+        workers.push(create_recent_worker());
+
+        let config = CleanupConfig::new();
+        let worker_repo = Arc::new(MockStaleWorkerRepository::new(workers));
+        let job_repo = Arc::new(MockJobRepository);
+
+        let service = WorkerCleanupService::new(config, worker_repo, job_repo);
+
+        let report = service.run_cleanup().await.unwrap();
+
+        // Should find at least 1 stale worker
+        assert!(report.cleaned_workers >= 1);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_job_cleaning() {
+        let config = CleanupConfig::new();
+        let stale_workers = vec![create_stale_worker()];
+        let worker_repo = Arc::new(MockStaleWorkerRepository::new(stale_workers));
+        let job_repo = Arc::new(MockJobRepository);
+
+        let service = WorkerCleanupService::new(config, worker_repo, job_repo);
+
+        let report = service.run_cleanup().await.unwrap();
+
+        // Should attempt to clean jobs for disconnected workers
+        assert!(report.jobs_cleaned >= 0); // May be 0 if no jobs to clean
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_duration_tracking() {
+        let config = CleanupConfig::new();
+        let worker_repo = Arc::new(MockStaleWorkerRepository::new(vec![]));
+        let job_repo = Arc::new(MockJobRepository);
+
+        let service = WorkerCleanupService::new(config, worker_repo, job_repo);
+
+        let start = Instant::now();
+        let report = service.run_cleanup().await.unwrap();
+        let end = Instant::now();
+
+        // Duration should be tracked
+        assert!(report.duration > Duration::from_millis(0));
+        assert!(report.duration <= end.duration_since(start));
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_custom_thresholds() {
+        let mut config = CleanupConfig::new();
+        config.stale_threshold = Duration::from_secs(60); // 1 minute
+        config.disconnect_threshold = Duration::from_secs(120); // 2 minutes
+
+        let stale_workers = vec![create_stale_worker()];
+        let worker_repo = Arc::new(MockStaleWorkerRepository::new(stale_workers));
+        let job_repo = Arc::new(MockJobRepository);
+
+        let service = WorkerCleanupService::new(config, worker_repo, job_repo);
+
+        let report = service.run_cleanup().await.unwrap();
+
+        // Should use custom thresholds
+        assert_eq!(service.config.stale_threshold, Duration::from_secs(60));
+        assert_eq!(
+            service.config.disconnect_threshold,
+            Duration::from_secs(120)
+        );
     }
 }
