@@ -1,20 +1,27 @@
 //! Docker Provider Adapter
 //!
 //! This module provides a concrete implementation of the WorkerProvider port
-//! using Docker CLI for dynamic worker provisioning, avoiding dependency conflicts.
+//! using bollard-next for dynamic worker provisioning.
 
 use async_trait::async_trait;
+use bollard_next::container::{
+    Config, CreateContainerOptions, InspectContainerOptions, KillContainerOptions,
+    ListContainersOptions, RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
+};
+use bollard_next::image::CreateImageOptions;
+use bollard_next::{API_DEFAULT_VERSION, Docker};
+use futures::StreamExt;
 use hodei_core::{Worker, WorkerId};
 use hodei_ports::worker_provider::{
     ProviderCapabilities, ProviderConfig, ProviderError, ProviderType, WorkerProvider,
 };
-use serde::Deserialize;
 use std::collections::HashMap;
-use tokio::process::Command;
+use tracing::info;
 
 /// Docker worker provider implementation
 #[derive(Debug, Clone)]
 pub struct DockerProvider {
+    docker: Docker,
     name: String,
 }
 
@@ -26,49 +33,49 @@ impl DockerProvider {
             ));
         }
 
-        // Verify docker CLI is available
-        let output = Command::new("docker")
-            .arg("--version")
-            .output()
-            .await
-            .map_err(|e| ProviderError::Provider(format!("Docker CLI not found: {}", e)))?;
+        #[cfg(unix)]
+        let docker = Docker::connect_with_socket_defaults()
+            .map_err(|e| ProviderError::Provider(format!("Failed to connect to Docker: {}", e)))?;
 
-        if !output.status.success() {
-            return Err(ProviderError::Provider(
-                "Docker CLI is not working properly".to_string(),
-            ));
-        }
+        #[cfg(windows)]
+        let docker = Docker::connect_with_local_defaults()
+            .map_err(|e| ProviderError::Provider(format!("Failed to connect to Docker: {}", e)))?;
 
-        tracing::info!(
-            "Docker provider initialized: {}",
-            String::from_utf8_lossy(&output.stdout)
+        info!("Docker provider initialized with bollard-next client");
+
+        Ok(Self {
+            docker,
+            name: config.name,
+        })
+    }
+
+    async fn ensure_image(&self, image: &str) -> Result<(), ProviderError> {
+        let mut stream = self.docker.create_image(
+            Some(CreateImageOptions {
+                from_image: image,
+                ..Default::default()
+            }),
+            None,
+            None,
         );
 
-        Ok(Self { name: config.name })
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(ProviderError::Provider(format!(
+                        "Failed to pull image '{}': {}",
+                        image, e
+                    )));
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn create_container_name(worker_id: &WorkerId) -> String {
         format!("hodei-worker-{}", worker_id)
-    }
-
-    async fn run_docker_command(&self, args: &[&str]) -> Result<String, ProviderError> {
-        let output = Command::new("docker")
-            .args(args)
-            .output()
-            .await
-            .map_err(|e| {
-                ProviderError::Provider(format!("Failed to execute docker command: {}", e))
-            })?;
-
-        if !output.status.success() {
-            let error = String::from_utf8_lossy(&output.stderr);
-            return Err(ProviderError::Provider(format!(
-                "Docker command failed: {}",
-                error
-            )));
-        }
-
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 }
 
@@ -102,50 +109,53 @@ impl WorkerProvider for DockerProvider {
         // Use custom image if provided, otherwise default HWP Agent image
         let image = config.custom_image.as_deref().unwrap_or("hwp-agent:latest");
 
-        // Ensure image exists
-        tracing::info!("Pulling image {} if needed", image);
-        self.run_docker_command(&["pull", image]).await.ok();
+        self.ensure_image(image).await?;
 
-        // Build env vars
-        let env_vars: Vec<String> = vec![
-            "WORKER_ID=placeholder".to_string(),
-            "HODEI_SERVER_GRPC_URL=http://hodei-server:50051".to_string(),
-        ];
+        let container_config = Config {
+            image: Some(image.to_string()),
+            env: Some(vec![
+                "WORKER_ID=placeholder".to_string(),
+                "HODEI_SERVER_GRPC_URL=http://hodei-server:50051".to_string(),
+            ]),
+            labels: {
+                let mut labels = HashMap::new();
+                labels.insert("hodei.worker".to_string(), "true".to_string());
+                labels.insert("hodei.worker.id".to_string(), worker_id.to_string());
+                Some(labels)
+            },
+            host_config: Some(bollard_next::service::HostConfig {
+                memory: Some(4 * 1024 * 1024 * 1024),
+                nano_cpus: Some(2 * 1_000_000_000),
+                auto_remove: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
 
-        // Create label for worker ID
-        let worker_id_label = format!("hodei.worker.id={}", worker_id);
+        let create_options = CreateContainerOptions {
+            name: container_name.clone(),
+            ..Default::default()
+        };
 
-        // Create container
-        let mut create_cmd = vec![
-            "create",
-            "--name",
-            &container_name,
-            "-e",
-            &env_vars[0],
-            "-e",
-            &env_vars[1],
-            "--label",
-            "hodei.worker=true",
-            "--label",
-            &worker_id_label,
-            "-m",
-            "4g",
-            "--cpus",
-            "2",
-            "--rm",
-            image,
-        ];
-
-        self.run_docker_command(&create_cmd)
+        self.docker
+            .create_container(Some(create_options), container_config)
             .await
-            .map_err(|e| ProviderError::Provider(format!("Failed to create container: {}", e)))?;
+            .map_err(|e| {
+                ProviderError::Provider(format!(
+                    "Failed to create container '{}': {}",
+                    container_name, e
+                ))
+            })?;
 
-        // Start container
-        self.run_docker_command(&["start", &container_name])
+        self.docker
+            .start_container::<&str>(&container_name, Some(StartContainerOptions::default()))
             .await
-            .map_err(|e| ProviderError::Provider(format!("Failed to start container: {}", e)))?;
-
-        tracing::info!("Container {} created and started", container_name);
+            .map_err(|e| {
+                ProviderError::Provider(format!(
+                    "Failed to start container '{}': {}",
+                    container_name, e
+                ))
+            })?;
 
         let worker = Worker::new(
             worker_id.clone(),
@@ -162,31 +172,33 @@ impl WorkerProvider for DockerProvider {
     ) -> Result<hodei_core::WorkerStatus, ProviderError> {
         let container_name = Self::create_container_name(worker_id);
 
-        // Get container status via inspect
-        let output = self
-            .run_docker_command(&["inspect", "--format", "{{.State.Status}}", &container_name])
-            .await;
+        let container_info = self
+            .docker
+            .inspect_container(&container_name, Some(InspectContainerOptions::default()))
+            .await
+            .map_err(|e| {
+                if e.to_string().contains("404") {
+                    ProviderError::NotFound(format!("Container '{}' not found", container_name))
+                } else {
+                    ProviderError::Provider(format!("Failed to inspect container: {}", e))
+                }
+            })?;
 
-        let status_str = match output {
-            Ok(status) => status.trim().to_string(),
-            Err(_) => {
-                return Ok(hodei_core::WorkerStatus::new(
+        let status = match container_info
+            .state
+            .as_ref()
+            .and_then(|s| s.status.as_ref())
+        {
+            Some(bollard_next::models::ContainerStateStatusEnum::RUNNING) => {
+                hodei_core::WorkerStatus::new(
                     worker_id.clone(),
-                    hodei_core::WorkerStatus::OFFLINE.to_string(),
-                ));
+                    hodei_core::WorkerStatus::IDLE.to_string(),
+                )
             }
-        };
-
-        let status = if status_str == "running" {
-            hodei_core::WorkerStatus::new(
-                worker_id.clone(),
-                hodei_core::WorkerStatus::IDLE.to_string(),
-            )
-        } else {
-            hodei_core::WorkerStatus::new(
+            _ => hodei_core::WorkerStatus::new(
                 worker_id.clone(),
                 hodei_core::WorkerStatus::OFFLINE.to_string(),
-            )
+            ),
         };
 
         Ok(status)
@@ -196,10 +208,28 @@ impl WorkerProvider for DockerProvider {
         let container_name = Self::create_container_name(worker_id);
 
         if graceful {
-            self.run_docker_command(&["stop", "--time", "30", &container_name])
-                .await?;
+            self.docker
+                .stop_container(&container_name, Some(StopContainerOptions { t: 30 }))
+                .await
+                .map_err(|e| {
+                    ProviderError::Provider(format!(
+                        "Failed to stop container '{}': {}",
+                        container_name, e
+                    ))
+                })?;
         } else {
-            self.run_docker_command(&["kill", &container_name]).await?;
+            self.docker
+                .kill_container::<&str>(
+                    &container_name,
+                    Some(KillContainerOptions { signal: "SIGKILL" }),
+                )
+                .await
+                .map_err(|e| {
+                    ProviderError::Provider(format!(
+                        "Failed to kill container '{}': {}",
+                        container_name, e
+                    ))
+                })?;
         }
 
         Ok(())
@@ -208,38 +238,58 @@ impl WorkerProvider for DockerProvider {
     async fn delete_worker(&self, worker_id: &WorkerId) -> Result<(), ProviderError> {
         let container_name = Self::create_container_name(worker_id);
 
-        // Stop container first (ignore errors if already stopped)
         let _ = self
-            .run_docker_command(&["stop", "--time", "5", &container_name])
+            .docker
+            .stop_container(&container_name, Some(StopContainerOptions { t: 5 }))
             .await;
 
-        // Remove container
-        self.run_docker_command(&["rm", &container_name]).await?;
+        self.docker
+            .remove_container(
+                &container_name,
+                Some(RemoveContainerOptions {
+                    force: true,
+                    ..Default::default()
+                }),
+            )
+            .await
+            .map_err(|e| {
+                ProviderError::Provider(format!(
+                    "Failed to remove container '{}': {}",
+                    container_name, e
+                ))
+            })?;
 
         Ok(())
     }
 
     async fn list_workers(&self) -> Result<Vec<WorkerId>, ProviderError> {
-        // List containers with hodei.worker label
-        let output = self
-            .run_docker_command(&[
-                "ps",
-                "--filter",
-                "label=hodei.worker=true",
-                "--format",
-                "{{.Label \"hodei.worker.id\"}}",
-            ])
-            .await?;
+        let mut filters = HashMap::new();
+        filters.insert("label".to_string(), vec!["hodei.worker=true".to_string()]);
+
+        let containers = self
+            .docker
+            .list_containers(Some(ListContainersOptions {
+                all: false,
+                filters,
+                ..Default::default()
+            }))
+            .await
+            .map_err(|e| ProviderError::Provider(format!("Failed to list containers: {}", e)))?;
 
         let mut worker_ids = Vec::new();
-        for line in output.lines() {
-            let worker_id_str = line.trim();
-            if !worker_id_str.is_empty() {
-                let uuid = uuid::Uuid::parse_str(worker_id_str).map_err(|_| {
-                    ProviderError::Provider(format!("Invalid worker ID: {}", worker_id_str))
-                })?;
-                let worker_id = WorkerId::from_uuid(uuid);
-                worker_ids.push(worker_id);
+        for container in containers {
+            if let Some(labels) = container.labels {
+                if let Some(worker_id_str) = labels.get("hodei.worker.id") {
+                    match uuid::Uuid::parse_str(worker_id_str) {
+                        Ok(uuid) => {
+                            let worker_id = WorkerId::from_uuid(uuid);
+                            worker_ids.push(worker_id);
+                        }
+                        Err(_) => {
+                            // Skip invalid worker IDs
+                        }
+                    }
+                }
             }
         }
 
