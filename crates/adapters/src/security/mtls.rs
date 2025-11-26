@@ -190,6 +190,9 @@ impl ProductionCertificateValidator {
         // US-01.4: Validate Extended Key Usage (EKU) for client authentication
         self.validate_extended_key_usage(cert)?;
 
+        // US-01.5: Validate Subject Alternative Name (SAN) for client identity
+        self.validate_subject_alternative_name(cert)?;
+
         // TODO: Add comprehensive validation:
         // - Verify certificate signature (requires CA certificate)
         // - Verify certificate policies
@@ -261,6 +264,66 @@ impl ProductionCertificateValidator {
         // EKU not present - this is acceptable, Key Usage is often sufficient
         // RFC allows certificates without EKU to be used for client authentication
         // if the Key Usage indicates the appropriate purposes
+
+        Ok(())
+    }
+
+    fn validate_subject_alternative_name(
+        &self,
+        cert: &x509_parser::certificate::X509Certificate,
+    ) -> std::result::Result<(), CertificateValidationError> {
+        // Extract Subject Alternative Name extension from certificate
+        let san = cert.subject_alternative_name().map_err(|e| {
+            CertificateValidationError::Internal(format!("Failed to parse SAN: {}", e))
+        })?;
+
+        // SAN is OPTIONAL for client certificates
+        // If present, it should contain DNS names or IP addresses for client identity
+        // Reference: RFC 5280 Section 4.2.1.6
+
+        if let Some(san_ext) = san {
+            let general_names = &san_ext.value.general_names;
+
+            // Check if SAN contains any DNS names
+            let has_valid_dns = general_names.iter().any(|name| {
+                if let x509_parser::extensions::GeneralName::DNSName(dns) = name {
+                    // Check if this DNS is in the allowed list
+                    self.config
+                        .allowed_client_dns_names
+                        .iter()
+                        .any(|allowed| allowed == dns)
+                } else {
+                    false
+                }
+            });
+
+            // Check if SAN contains any IP addresses
+            let has_valid_ip = general_names.iter().any(|name| {
+                if let x509_parser::extensions::GeneralName::IPAddress(ip_addr) = name {
+                    // Parse the IP address
+                    if let Ok(ip) = std::str::from_utf8(ip_addr) {
+                        // Check if this IP is in the allowed list
+                        self.config
+                            .allowed_client_ips
+                            .iter()
+                            .any(|allowed_ip| allowed_ip.to_string() == ip)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            });
+
+            // At least one SAN entry must match the allowed list
+            if !has_valid_dns && !has_valid_ip {
+                return Err(CertificateValidationError::NameMismatch);
+            }
+        }
+
+        // SAN not present - this is acceptable
+        // Fall back to Common Name (CN) validation if needed
+        // RFC allows certificates without SAN to be validated using CN
 
         Ok(())
     }
