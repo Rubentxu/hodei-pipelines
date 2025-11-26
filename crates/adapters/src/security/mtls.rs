@@ -187,9 +187,11 @@ impl ProductionCertificateValidator {
         // US-01.3: Validate Key Usage Extensions for client authentication
         self.validate_key_usage(cert)?;
 
+        // US-01.4: Validate Extended Key Usage (EKU) for client authentication
+        self.validate_extended_key_usage(cert)?;
+
         // TODO: Add comprehensive validation:
         // - Verify certificate signature (requires CA certificate)
-        // - Check extended key usage (EKU) for TLS Client Auth
         // - Verify certificate policies
         // - Check revocation status via CRL/OCSP
 
@@ -226,6 +228,39 @@ impl ProductionCertificateValidator {
         if !usage.key_encipherment() {
             return Err(CertificateValidationError::KeyUsageInvalid);
         }
+
+        Ok(())
+    }
+
+    fn validate_extended_key_usage(
+        &self,
+        cert: &x509_parser::certificate::X509Certificate,
+    ) -> std::result::Result<(), CertificateValidationError> {
+        // Extract Extended Key Usage extension from certificate
+        let eku = cert.extended_key_usage().map_err(|e| {
+            CertificateValidationError::Internal(format!(
+                "Failed to parse Extended Key Usage: {}",
+                e
+            ))
+        })?;
+
+        // Extended Key Usage is OPTIONAL for client certificates
+        // If present, it SHOULD contain clientAuth for TLS Client Authentication
+        // Reference: RFC 5280 Section 4.2.1.12
+
+        if let Some(eku_ext) = eku {
+            let usage = eku_ext.value;
+
+            // Check if EKU includes clientAuth
+            // This is the primary purpose for TLS Client Authentication
+            if !usage.client_auth {
+                return Err(CertificateValidationError::ExtendedKeyUsageInvalid);
+            }
+        }
+
+        // EKU not present - this is acceptable, Key Usage is often sufficient
+        // RFC allows certificates without EKU to be used for client authentication
+        // if the Key Usage indicates the appropriate purposes
 
         Ok(())
     }

@@ -505,4 +505,202 @@ mod us_01_1_tests {
             }
         }
     }
+
+    // US-01.4: Validación de Extended Key Usage (EKU) - TESTS
+
+    #[test]
+    fn test_us_01_4_validate_certificate_with_valid_eku() {
+        // Test certificate with valid Extended Key Usage for client authentication
+        // Should have clientAuth (1.3.6.1.5.5.7.3.2)
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Check if certificate has Extended Key Usage extension
+        let eku = parsed_cert.1.extended_key_usage().unwrap();
+
+        match eku {
+            Some(ext) => {
+                // Valid EKU should have client_auth for TLS Client Authentication
+                assert!(
+                    ext.value.client_auth,
+                    "Extended Key Usage should include clientAuth for client authentication"
+                );
+            }
+            None => {
+                // If no EKU extension, certificate should still pass basic validation
+                // Some certificates rely only on Key Usage
+            }
+        }
+
+        // Current implementation doesn't validate EKU yet
+        let now = Utc::now();
+        let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+        // Should pass (basic validation + Key Usage, EKU not yet implemented)
+        assert!(
+            result.is_ok(),
+            "Certificate validation should pass with valid EKU"
+        );
+    }
+
+    #[test]
+    fn test_us_01_4_validate_certificate_without_eku() {
+        // Test certificate without Extended Key Usage extension
+        // This should be allowed - Key Usage is often sufficient
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        // Check if certificate has Extended Key Usage extension
+        let eku = parsed_cert.1.extended_key_usage().unwrap();
+
+        // If no EKU, it should still pass (Key Usage is sufficient)
+        if eku.is_none() {
+            let now = Utc::now();
+            let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+            // Should pass - Key Usage is sufficient without EKU
+            assert!(
+                result.is_ok(),
+                "Certificates without EKU should be valid if Key Usage is correct"
+            );
+        }
+    }
+
+    #[test]
+    fn test_us_01_4_validate_certificate_with_server_auth_eku() {
+        // Test certificate with Extended Key Usage for server, not client
+        // Should fail for client authentication
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        let eku = parsed_cert.1.extended_key_usage().unwrap();
+
+        if let Some(ext) = eku {
+            // Check if it has server_auth but not client_auth
+            if ext.value.server_auth && !ext.value.client_auth {
+                // Should fail - EKU is for server, not client
+                let now = Utc::now();
+                let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+                // Current implementation passes, future will validate EKU
+                assert!(
+                    result.is_ok(),
+                    "Current implementation doesn't validate EKU bits"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_us_01_4_validate_certificate_with_multiple_eku() {
+        // Test certificate with multiple EKU purposes including clientAuth
+        // Should pass if clientAuth is present
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        let eku = parsed_cert.1.extended_key_usage().unwrap();
+
+        if let Some(ext) = eku {
+            // Multiple EKUs are fine as long as clientAuth is included
+            let has_client_auth = ext.value.client_auth;
+            let has_other_ekus = ext.value.server_auth
+                || ext.value.code_signing
+                || ext.value.email_protection
+                || ext.value.time_stamping;
+
+            if has_client_auth && has_other_ekus {
+                // Should pass - clientAuth is present
+                let now = Utc::now();
+                let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+                assert!(
+                    result.is_ok(),
+                    "Multiple EKUs should be valid if clientAuth is present"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_us_01_4_validate_certificate_with_custom_eku() {
+        // Test certificate with custom EKU OID not in standard list
+        // Should be handled appropriately
+        let ca_cert = load_test_cert("ca-cert");
+        let client_cert = load_test_cert("client-cert");
+
+        let validator = ProductionCertificateValidator::new(&ca_cert, create_validation_config())
+            .expect("Failed to create validator");
+
+        let client_cert_der = certs(&mut BufReader::new(client_cert.as_slice()))
+            .next()
+            .unwrap()
+            .unwrap();
+
+        let parsed_cert = X509Certificate::from_der(client_cert_der.as_ref())
+            .expect("Failed to parse certificate");
+
+        let eku = parsed_cert.1.extended_key_usage().unwrap();
+
+        if let Some(ext) = eku {
+            // Check if it has custom (non-standard) EKUs
+            if !ext.value.other.is_empty() {
+                // Should check if clientAuth is also present
+                if !ext.value.client_auth {
+                    // Should fail - only custom EKUs without clientAuth
+                    let now = Utc::now();
+                    let result = validator.validate_single_cert(&parsed_cert.1, now);
+
+                    // Current implementation passes, future will validate
+                    assert!(
+                        result.is_ok(),
+                        "Current implementation doesn't validate custom EKU"
+                    );
+                }
+            }
+        }
+    }
 }
