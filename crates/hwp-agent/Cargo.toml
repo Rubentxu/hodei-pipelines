@@ -37,6 +37,9 @@ tokio-util = { workspace = true, features = ["codec"] }
 # Crypto utilities
 sha2 = { workspace = true }
 
+# Text processing utilities
+aho-corasick = { workspace = true }
+
 # Workspace crates
 hodei-core = { workspace = true }
 hodei-ports = { workspace = true }
