@@ -10,8 +10,28 @@ use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, info, warn};
 
 use hwp_proto::{
-    AgentMessage, AgentPayload, AssignJobRequest, CancelJobRequest, Empty, JobAccepted, JobResult,
-    LogEntry, ServerMessage, ServerPayload, WorkerRegistration, WorkerService, WorkerStatus,
+    AgentMessage,
+    AgentPayload,
+    // Artifact upload types
+    ArtifactChunk,
+    AssignJobRequest,
+    CancelJobRequest,
+    Empty,
+    FinalizeUploadRequest,
+    FinalizeUploadResponse,
+    InitiateUploadRequest,
+    InitiateUploadResponse,
+    JobAccepted,
+    JobResult,
+    LogEntry,
+    ResumeUploadRequest,
+    ResumeUploadResponse,
+    ServerMessage,
+    ServerPayload,
+    UploadArtifactResponse,
+    WorkerRegistration,
+    WorkerService,
+    WorkerStatus,
 };
 
 use hodei_core::WorkerCapabilities;
@@ -250,5 +270,56 @@ impl WorkerService for HwpService {
         Ok(Response::new(
             Box::pin(output_stream) as Self::JobStreamStream
         ))
+    }
+
+    async fn upload_artifact(
+        &self,
+        _request: Request<Streaming<ArtifactChunk>>,
+    ) -> Result<Response<UploadArtifactResponse>, Status> {
+        // TODO: Implement actual artifact upload handling
+        Err(Status::unimplemented(
+            "Artifact upload not yet implemented on server",
+        ))
+    }
+
+    async fn initiate_upload(
+        &self,
+        _request: Request<InitiateUploadRequest>,
+    ) -> Result<Response<InitiateUploadResponse>, Status> {
+        // TODO: Implement actual upload initiation
+        let upload_id = format!("upload-{}", uuid::Uuid::new_v4());
+        Ok(Response::new(InitiateUploadResponse {
+            upload_id,
+            accepted: true,
+            error_message: "".to_string(),
+        }))
+    }
+
+    async fn resume_upload(
+        &self,
+        _request: Request<ResumeUploadRequest>,
+    ) -> Result<Response<ResumeUploadResponse>, Status> {
+        // TODO: Implement actual resume logic
+        Ok(Response::new(ResumeUploadResponse {
+            upload_id: "resumed-upload-id".to_string(),
+            can_resume: true,
+            error_message: "".to_string(),
+            next_expected_chunk: 0,
+        }))
+    }
+
+    async fn finalize_upload(
+        &self,
+        request: Request<FinalizeUploadRequest>,
+    ) -> Result<Response<FinalizeUploadResponse>, Status> {
+        let req = request.into_inner();
+        info!("Finalizing upload for artifact: {}", req.artifact_id);
+
+        Ok(Response::new(FinalizeUploadResponse {
+            artifact_id: req.artifact_id,
+            success: true,
+            error_message: "".to_string(),
+            server_checksum: req.checksum,
+        }))
     }
 }
