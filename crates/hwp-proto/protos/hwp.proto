@@ -94,6 +94,80 @@ message ServerMessage {
   }
 }
 
+// Artifact upload related messages
+message ArtifactChunk {
+  bytes data = 1;
+  uint32 sequence_number = 2;
+  uint32 total_chunks = 3;
+  uint64 total_size = 4;
+  string filename = 5;
+  string checksum = 6;
+  bool is_compressed = 7;
+  string compression_type = 8;
+}
+
+message UploadArtifactRequest {
+  string artifact_id = 1;
+  string job_id = 2;
+  uint64 total_size = 3;
+  string filename = 4;
+  string checksum = 5;
+  bool is_compressed = 6;
+  string compression_type = 7;
+}
+
+message UploadArtifactResponse {
+  string artifact_id = 1;
+  bool success = 2;
+  string error_message = 3;
+  uint64 bytes_received = 4;
+  string server_checksum = 5;
+}
+
+message InitiateUploadRequest {
+  string artifact_id = 1;
+  string job_id = 2;
+  uint64 total_size = 3;
+  string filename = 4;
+  string checksum = 5;
+  bool is_compressed = 6;
+  string compression_type = 7;
+}
+
+message InitiateUploadResponse {
+  string upload_id = 1;
+  bool accepted = 2;
+  string error_message = 3;
+}
+
+message ResumeUploadRequest {
+  string upload_id = 1;
+  string artifact_id = 2;
+  uint32 last_received_chunk = 3;
+  uint64 bytes_received = 4;
+}
+
+message ResumeUploadResponse {
+  string upload_id = 1;
+  bool can_resume = 2;
+  string error_message = 3;
+  uint32 next_expected_chunk = 4;
+}
+
+message FinalizeUploadRequest {
+  string upload_id = 1;
+  string artifact_id = 2;
+  uint32 total_chunks = 3;
+  string checksum = 4;
+}
+
+message FinalizeUploadResponse {
+  string artifact_id = 1;
+  bool success = 2;
+  string error_message = 3;
+  string server_checksum = 4;
+}
+
 service WorkerService {
   // Register a worker with the server
   rpc RegisterWorker(WorkerRegistration) returns (WorkerStatus);
@@ -116,4 +190,16 @@ service WorkerService {
   // Bidirectional streaming for real-time job execution
   // Server sends job assignments, client sends logs and results
   rpc JobStream(stream AgentMessage) returns (stream ServerMessage);
+
+  // Upload an artifact in chunks (streaming)
+  rpc UploadArtifact(stream ArtifactChunk) returns (UploadArtifactResponse);
+
+  // Initiate a new upload session
+  rpc InitiateUpload(InitiateUploadRequest) returns (InitiateUploadResponse);
+
+  // Resume an interrupted upload
+  rpc ResumeUpload(ResumeUploadRequest) returns (ResumeUploadResponse);
+
+  // Finalize an upload session
+  rpc FinalizeUpload(FinalizeUploadRequest) returns (FinalizeUploadResponse);
 }

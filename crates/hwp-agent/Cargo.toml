@@ -34,6 +34,9 @@ crossbeam = { workspace = true }
 # HTTP utilities
 tokio-util = { workspace = true, features = ["codec"] }
 
+# Crypto utilities
+sha2 = { workspace = true }
+
 # Workspace crates
 hodei-core = { workspace = true }
 hodei-ports = { workspace = true }

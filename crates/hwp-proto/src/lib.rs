@@ -8,9 +8,31 @@ pub mod pb {
 }
 
 pub use pb::{
-    AgentMessage, AssignJobRequest, CancelJobRequest, Empty, GetWorkerStatusRequest,
-    HeartbeatRequest, JobAccepted, JobResult, JobSpec, LogEntry, ResourceQuota, ResourceUsage,
-    ServerMessage, WorkerRegistration, WorkerStatus,
+    AgentMessage,
+    // Artifact upload messages
+    ArtifactChunk,
+    AssignJobRequest,
+    CancelJobRequest,
+    Empty,
+    FinalizeUploadRequest,
+    FinalizeUploadResponse,
+    GetWorkerStatusRequest,
+    HeartbeatRequest,
+    InitiateUploadRequest,
+    InitiateUploadResponse,
+    JobAccepted,
+    JobResult,
+    JobSpec,
+    LogEntry,
+    ResourceQuota,
+    ResourceUsage,
+    ResumeUploadRequest,
+    ResumeUploadResponse,
+    ServerMessage,
+    UploadArtifactRequest,
+    UploadArtifactResponse,
+    WorkerRegistration,
+    WorkerStatus,
 };
 
 pub use pb::worker_service_client::WorkerServiceClient;

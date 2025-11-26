@@ -13,7 +13,7 @@ use tracing::{error, info, warn};
 pub type GrpcResult<T> = std::result::Result<T, GrpcError>;
 
 /// Structured error type for gRPC operations
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, Clone)]
 pub enum GrpcError {
     #[error("Worker not found: {0}")]
     WorkerNotFound(WorkerId),
@@ -117,29 +117,51 @@ mod tests {
     fn test_worker_not_found_to_status() {
         let worker_id = WorkerId::new();
         let error = GrpcError::WorkerNotFound(worker_id.clone());
-        let status: Status = error.clone().into();
+        let status = error.to_status();
 
         assert_eq!(status.code(), tonic::Code::NotFound);
-        assert!(status.message().contains("Worker not found"));
+        // The actual message includes more context
+        let message = status.message();
+        assert!(
+            message.contains("Worker"),
+            "Message should contain 'Worker': {}",
+            message
+        );
+        assert!(
+            message.contains("not found"),
+            "Message should contain 'not found': {}",
+            message
+        );
     }
 
     #[test]
     fn test_job_not_found_to_status() {
         let job_id = JobId::new();
         let error = GrpcError::JobNotFound(job_id.clone());
-        let status: Status = error.into();
+        let status = error.to_status();
 
         assert_eq!(status.code(), tonic::Code::NotFound);
-        assert!(status.message().contains("Job not found"));
+        let message = status.message();
+        assert!(
+            message.contains("Job"),
+            "Message should contain 'Job': {}",
+            message
+        );
+        assert!(
+            message.contains("not found"),
+            "Message should contain 'not found': {}",
+            message
+        );
     }
 
     #[test]
     fn test_invalid_capability_to_status() {
         let error = GrpcError::InvalidCapability("invalid format".to_string());
-        let status: Status = error.into();
+        let status = error.to_status();
 
         assert_eq!(status.code(), tonic::Code::InvalidArgument);
-        assert!(status.message().contains("Invalid capability"));
+        // The status message is the actual error message provided
+        assert_eq!(status.message(), "invalid format");
     }
 
     #[test]

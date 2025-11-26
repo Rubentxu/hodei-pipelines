@@ -11,12 +11,12 @@
 mod auto_registration_tests {
     use hodei_adapters::{RegistrationConfig, WorkerRegistrationAdapter};
     use hodei_core::{Worker, WorkerId};
+    use hodei_core::{WorkerCapabilities, WorkerStatus};
     use hodei_modules::worker_management::{WorkerManagementConfig, WorkerManagementService};
     use hodei_ports::ProviderFactoryTrait;
     use hodei_ports::WorkerRegistrationPort;
     use hodei_ports::scheduler_port::{SchedulerError, SchedulerPort};
     use hodei_ports::worker_provider::{ProviderCapabilities, ProviderError, WorkerProvider};
-    use hodei_core::{WorkerCapabilities, WorkerStatus};
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
@@ -99,6 +99,31 @@ mod auto_registration_tests {
         async fn get_registered_workers(&self) -> Result<Vec<WorkerId>, SchedulerError> {
             let workers = self.registered_workers.lock().await;
             Ok(workers.clone())
+        }
+
+        async fn register_transmitter(
+            &self,
+            _worker_id: &WorkerId,
+            _transmitter: tokio::sync::mpsc::UnboundedSender<
+                Result<hwp_proto::pb::ServerMessage, SchedulerError>,
+            >,
+        ) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn unregister_transmitter(
+            &self,
+            _worker_id: &WorkerId,
+        ) -> Result<(), SchedulerError> {
+            Ok(())
+        }
+
+        async fn send_to_worker(
+            &self,
+            _worker_id: &WorkerId,
+            _message: hwp_proto::pb::ServerMessage,
+        ) -> Result<(), SchedulerError> {
+            Ok(())
         }
     }
 
