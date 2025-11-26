@@ -293,6 +293,51 @@ impl Job {
         Ok(())
     }
 
+    /// Compare and swap job state atomically
+    ///
+    /// # Arguments
+    /// * `expected_state` - The state we expect the job to be in
+    /// * `new_state` - The state to transition to
+    ///
+    /// # Returns
+    /// * `Ok(true)` - State was updated
+    /// * `Ok(false)` - Current state doesn't match expected_state
+    /// * `Err(DomainError::InvalidStateTransition)` - Transition is invalid
+    pub fn compare_and_swap_status(
+        &mut self,
+        expected_state: &str,
+        new_state: &str,
+    ) -> Result<bool> {
+        // Check if current state matches expected
+        if self.state.as_str() != expected_state {
+            return Ok(false);
+        }
+
+        // Parse and validate new state
+        let new_state_obj = JobState::new(new_state.to_string())?;
+
+        // Validate transition is allowed
+        if !self.state.can_transition_to(&new_state_obj) {
+            return Err(DomainError::InvalidStateTransition {
+                from: self.state.as_str().to_string(),
+                to: new_state.to_string(),
+            });
+        }
+
+        // Apply transition
+        self.state = new_state_obj;
+        self.updated_at = chrono::Utc::now();
+
+        // Update timestamps based on new state
+        if self.state.as_str() == JobState::RUNNING {
+            self.started_at = Some(chrono::Utc::now());
+        } else if self.state.is_terminal() {
+            self.completed_at = Some(chrono::Utc::now());
+        }
+
+        Ok(true)
+    }
+
     /// Get estimated memory size of the job (for monitoring)
     pub fn estimated_memory_size(&self) -> usize {
         // Base size estimation (in bytes)
@@ -623,5 +668,63 @@ mod tests {
         assert_eq!(job.description(), Some("Test job with description"));
         assert_eq!(job.tenant_id(), Some("tenant-456"));
         assert!(job.is_pending());
+    }
+
+    // ===== TDD Tests: compare_and_swap_status =====
+
+    #[test]
+    fn job_compare_and_swap_successful_transition() {
+        let spec = create_valid_job_spec();
+        let mut job = Job::new(JobId::new(), spec).unwrap();
+
+        // Valid transition PENDING -> SCHEDULED
+        let result = job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), true);
+        assert_eq!(job.state.as_str(), JobState::SCHEDULED);
+    }
+
+    #[test]
+    fn job_compare_and_swap_returns_false_on_state_mismatch() {
+        let spec = create_valid_job_spec();
+        let mut job = Job::new(JobId::new(), spec).unwrap();
+        job.schedule().unwrap(); // Now in SCHEDULED state
+
+        // Try to transition from PENDING (doesn't match current SCHEDULED state)
+        let result = job.compare_and_swap_status(JobState::PENDING, JobState::RUNNING);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), false);
+        assert_eq!(job.state.as_str(), JobState::SCHEDULED); // State unchanged
+    }
+
+    #[test]
+    fn job_compare_and_swap_rejects_invalid_transition() {
+        let spec = create_valid_job_spec();
+        let mut job = Job::new(JobId::new(), spec).unwrap();
+
+        // Invalid transition PENDING -> RUNNING (must go through SCHEDULED)
+        let result = job.compare_and_swap_status(JobState::PENDING, JobState::RUNNING);
+        assert!(result.is_err());
+        assert_eq!(job.state.as_str(), JobState::PENDING); // State unchanged
+    }
+
+    #[test]
+    fn job_compare_and_swap_updates_timestamps() {
+        let spec = create_valid_job_spec();
+        let mut job = Job::new(JobId::new(), spec).unwrap();
+
+        // Transition to RUNNING should set started_at
+        let result = job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED);
+        assert!(result.is_ok());
+        assert!(job.started_at.is_none()); // SCHEDULED doesn't set started_at
+
+        job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING)
+            .unwrap();
+        assert!(job.started_at.is_some()); // RUNNING sets started_at
+
+        // Transition to terminal state should set completed_at
+        job.compare_and_swap_status(JobState::RUNNING, JobState::SUCCESS)
+            .unwrap();
+        assert!(job.completed_at.is_some()); // SUCCESS sets completed_at
     }
 }

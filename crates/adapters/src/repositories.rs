@@ -76,16 +76,25 @@ impl JobRepository for InMemoryJobRepository {
         let mut jobs = self.jobs.write().await;
 
         if let Some(job) = jobs.get_mut(id) {
-            if job.state.as_str() == expected_state {
-                job.state = hodei_core::JobState::new(new_state.to_string())
-                    .map_err(|e| hodei_ports::JobRepositoryError::Validation(e.to_string()))?;
-                job.updated_at = chrono::Utc::now();
-                return Ok(true);
+            // Delegate state transition validation to domain layer
+            match job.compare_and_swap_status(expected_state, new_state) {
+                Ok(updated) => {
+                    if updated {
+                        // Job state was successfully updated
+                        Ok(true)
+                    } else {
+                        // State didn't match, nothing to update
+                        Ok(false)
+                    }
+                }
+                Err(e) => {
+                    // Invalid state transition - domain rule violation
+                    Err(hodei_ports::JobRepositoryError::Validation(e.to_string()))
+                }
             }
-            return Ok(false);
+        } else {
+            Err(hodei_ports::JobRepositoryError::NotFound(id.clone()))
         }
-
-        Err(hodei_ports::JobRepositoryError::NotFound(id.clone()))
     }
 }
 

@@ -808,24 +808,39 @@ impl JobRepository for RedbJobRepository {
 
                 let mut job = old_job;
 
-                job.state = hodei_core::JobState::new(new_state.to_string())
-                    .map_err(|e| JobRepositoryError::Validation(e.to_string()))?;
-                job.updated_at = chrono::Utc::now();
+                // Delegate state transition validation to domain layer
+                match job.compare_and_swap_status(expected_state, new_state) {
+                    Ok(updated) => {
+                        if updated {
+                            // State was successfully updated
+                            let new_value = serde_json::to_vec(&job).map_err(|e| {
+                                JobRepositoryError::Database(format!(
+                                    "Failed to serialize job: {}",
+                                    e
+                                ))
+                            })?;
 
-                let new_value = serde_json::to_vec(&job).map_err(|e| {
-                    JobRepositoryError::Database(format!("Failed to serialize job: {}", e))
-                })?;
+                            table
+                                .insert(key.as_slice(), new_value.as_slice())
+                                .map_err(|e| {
+                                    JobRepositoryError::Database(format!(
+                                        "Failed to insert job: {}",
+                                        e
+                                    ))
+                                })?;
 
-                table
-                    .insert(key.as_slice(), new_value.as_slice())
-                    .map_err(|e| {
-                        JobRepositoryError::Database(format!("Failed to insert job: {}", e))
-                    })?;
+                            // Update cache
+                            self.cache.insert(id.to_string(), job);
 
-                // Update cache
-                self.cache.insert(id.to_string(), job);
-
-                swapped = true;
+                            swapped = true;
+                        }
+                        // else: state didn't match (already checked above, so shouldn't happen)
+                    }
+                    Err(e) => {
+                        // Invalid state transition - domain rule violation
+                        return Err(JobRepositoryError::Validation(e.to_string()));
+                    }
+                }
             }
         }
 
