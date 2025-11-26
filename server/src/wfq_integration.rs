@@ -646,7 +646,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body = bytes::Bytes::from(response.into_body()).await.unwrap();
         let response_data: ApiResponseDto<WFQStatsDto> = serde_json::from_slice(&body).unwrap();
 
         assert!(response_data.success);
@@ -771,7 +771,8 @@ mod tests {
         assert!(response.error.is_none());
         assert!(response.timestamp > 0);
 
-        let error_response = ApiResponseDto::error("test error".to_string());
+        let error_response: ApiResponseDto<String> =
+            ApiResponseDto::error("test error".to_string());
         assert!(!error_response.success);
         assert!(error_response.data.is_none());
         assert!(error_response.error.is_some());
