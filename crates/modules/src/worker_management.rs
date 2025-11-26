@@ -2435,7 +2435,7 @@ mod tests {
             &self,
             _worker_id: &WorkerId,
             _transmitter: tokio::sync::mpsc::UnboundedSender<
-                Result<hwp_proto::pb::ServerMessage, String>,
+                Result<hwp_proto::pb::ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
             >,
         ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
             Ok(())

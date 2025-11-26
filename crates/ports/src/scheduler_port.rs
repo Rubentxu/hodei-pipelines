@@ -297,7 +297,7 @@ mod tests {
         pub fn with_transmitter(
             mut self,
             worker_id: WorkerId,
-            transmitter: mpsc::UnboundedSender<Result<ServerMessage, String>>,
+            transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
         ) -> Self {
             self.registered_transmitters.insert(worker_id, transmitter);
             self
