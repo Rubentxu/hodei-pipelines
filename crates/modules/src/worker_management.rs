@@ -746,6 +746,254 @@ pub enum CleanupError {
     Internal(String),
 }
 
+/// Health metrics
+#[derive(Debug, Clone)]
+pub struct WorkerHealthMetrics {
+    pub total_workers: u32,
+    pub healthy_workers: u32,
+    pub unhealthy_workers: u32,
+    pub disconnected_workers: u32,
+    pub recovery_workers: u32,
+    pub unknown_workers: u32,
+    pub healthy_percentage: f64,
+    pub average_response_time_ms: f64,
+}
+
+/// Health score configuration
+#[derive(Debug, Clone)]
+pub struct HealthScoreConfig {
+    pub failure_weight: f64,
+    pub age_weight: f64,
+    pub response_time_weight: f64,
+    pub job_success_rate_weight: f64,
+}
+
+impl Default for HealthScoreConfig {
+    fn default() -> Self {
+        Self {
+            failure_weight: 10.0,
+            age_weight: 5.0,
+            response_time_weight: 2.0,
+            job_success_rate_weight: 15.0,
+        }
+    }
+}
+
+/// Worker health metrics collector
+#[derive(Debug)]
+pub struct WorkerHealthMetricsCollector<R>
+where
+    R: hodei_ports::WorkerRepository + Send + Sync,
+{
+    worker_repo: Arc<R>,
+    health_status_cache: Arc<RwLock<HashMap<WorkerId, HealthCheckResult>>>,
+    score_config: HealthScoreConfig,
+}
+
+impl<R> WorkerHealthMetricsCollector<R>
+where
+    R: hodei_ports::WorkerRepository + Send + Sync,
+{
+    /// Create new metrics collector
+    pub fn new(
+        worker_repo: Arc<R>,
+        health_status_cache: Arc<RwLock<HashMap<WorkerId, HealthCheckResult>>>,
+    ) -> Self {
+        Self {
+            worker_repo,
+            health_status_cache,
+            score_config: HealthScoreConfig::default(),
+        }
+    }
+
+    /// Collect health metrics for all workers
+    pub async fn collect_metrics(&self) -> Result<WorkerHealthMetrics, String> {
+        // Get all workers
+        let workers = self
+            .worker_repo
+            .get_all_workers()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let total_workers = workers.len() as u32;
+
+        // Get health status for all workers
+        let health_status = self.health_status_cache.read().await;
+
+        // Categorize workers by health status
+        let mut healthy_count = 0;
+        let mut unhealthy_count = 0;
+        let mut disconnected_count = 0;
+        let mut recovery_count = 0;
+        let mut unknown_count = 0;
+        let mut total_response_time = 0.0;
+        let mut response_time_count = 0;
+
+        for worker in workers {
+            if let Some(status) = health_status.get(&worker.id) {
+                match status.status {
+                    HealthStatus::Healthy => healthy_count += 1,
+                    HealthStatus::Unhealthy { .. } => unhealthy_count += 1,
+                    HealthStatus::Recovering => recovery_count += 1,
+                    HealthStatus::Unknown => unknown_count += 1,
+                }
+
+                // Sum response times
+                total_response_time += status.response_time.as_millis() as f64;
+                response_time_count += 1;
+            } else {
+                // No health status - unknown
+                unknown_count += 1;
+            }
+        }
+
+        // Calculate metrics
+        let healthy_percentage = if total_workers > 0 {
+            (healthy_count as f64 / total_workers as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let average_response_time_ms = if response_time_count > 0 {
+            total_response_time / response_time_count as f64
+        } else {
+            0.0
+        };
+
+        Ok(WorkerHealthMetrics {
+            total_workers,
+            healthy_workers: healthy_count,
+            unhealthy_workers: unhealthy_count,
+            disconnected_workers: disconnected_count,
+            recovery_workers: recovery_count,
+            unknown_workers: unknown_count,
+            healthy_percentage,
+            average_response_time_ms,
+        })
+    }
+
+    /// Calculate health score for a specific worker
+    pub async fn calculate_health_score(&self, worker_id: &WorkerId) -> Result<f64, String> {
+        // Get worker
+        let worker = self
+            .worker_repo
+            .get_worker(worker_id)
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "Worker not found".to_string())?;
+
+        // Get health status
+        let health_status = self.health_status_cache.read().await;
+        let status_result = health_status.get(worker_id).cloned();
+
+        // Calculate base score
+        let mut score = 100.0;
+
+        // Apply penalties based on health status
+        if let Some(status) = status_result {
+            // Penalty for consecutive failures
+            let failure_penalty =
+                status.consecutive_failures as f64 * self.score_config.failure_weight;
+            score -= failure_penalty;
+
+            // Penalty for long time since last check
+            let age_seconds = chrono::Utc::now()
+                .signed_duration_since(status.last_check)
+                .num_seconds()
+                .max(0) as f64;
+            let age_penalty = if age_seconds > 300.0 {
+                // More than 5 minutes
+                (age_seconds / 60.0) * self.score_config.age_weight
+            } else {
+                0.0
+            };
+            score -= age_penalty;
+
+            // Penalty for slow response times
+            let response_time_ms = status.response_time.as_millis() as f64;
+            let response_penalty = if response_time_ms > 5000.0 {
+                // More than 5 seconds
+                (response_time_ms / 1000.0) * self.score_config.response_time_weight
+            } else {
+                0.0
+            };
+            score -= response_penalty;
+        } else {
+            // Unknown status penalty
+            score -= 20.0;
+        }
+
+        // Ensure score is within bounds
+        if score < 0.0 {
+            score = 0.0;
+        } else if score > 100.0 {
+            score = 100.0;
+        }
+
+        Ok(score)
+    }
+
+    /// Check if there are too many unhealthy workers
+    pub async fn check_unhealthy_threshold(
+        &self,
+        threshold_percentage: f64,
+    ) -> Result<bool, String> {
+        let metrics = self.collect_metrics().await?;
+        let unhealthy_percentage = if metrics.total_workers > 0 {
+            (metrics.unhealthy_workers as f64 / metrics.total_workers as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(unhealthy_percentage > threshold_percentage)
+    }
+
+    /// Check if a specific worker has been unhealthy for too long
+    pub async fn check_worker_unhealthy_duration(
+        &self,
+        worker_id: &WorkerId,
+        max_duration_minutes: u64,
+    ) -> Result<bool, String> {
+        let health_status = self.health_status_cache.read().await;
+        if let Some(status) = health_status.get(worker_id) {
+            if matches!(status.status, HealthStatus::Unhealthy { .. }) {
+                let unhealthy_duration_minutes = chrono::Utc::now()
+                    .signed_duration_since(status.last_check)
+                    .num_minutes();
+
+                Ok(unhealthy_duration_minutes > max_duration_minutes as i64)
+            } else {
+                Ok(false)
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Get list of workers with low health scores
+    pub async fn get_low_health_score_workers(
+        &self,
+        min_score: f64,
+    ) -> Result<Vec<WorkerId>, String> {
+        let workers = self
+            .worker_repo
+            .get_all_workers()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let mut low_score_workers = Vec::new();
+
+        for worker in workers {
+            let score = self.calculate_health_score(&worker.id).await?;
+            if score < min_score {
+                low_score_workers.push(worker.id);
+            }
+        }
+
+        Ok(low_score_workers)
+    }
+}
+
 /// Worker cleanup service
 #[derive(Debug)]
 pub struct WorkerCleanupService<R, J>
@@ -4746,6 +4994,766 @@ mod health_check_tests {
 
         assert!(result.last_check >= before);
         assert!(result.last_check <= after);
+    }
+}
+
+#[cfg(test)]
+mod health_metrics_tests {
+    use super::*;
+    use hodei_ports::WorkerRepository;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    /// Mock WorkerRepository for metrics testing
+    #[derive(Clone)]
+    struct MockWorkerRepositoryForMetrics {
+        workers: Vec<Worker>,
+    }
+
+    impl MockWorkerRepositoryForMetrics {
+        fn new(workers: Vec<Worker>) -> Self {
+            Self { workers }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl hodei_ports::WorkerRepository for MockWorkerRepositoryForMetrics {
+        async fn save_worker(
+            &self,
+            _worker: &Worker,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn get_worker(
+            &self,
+            id: &WorkerId,
+        ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(self.workers.iter().find(|w| w.id == *id).cloned())
+        }
+
+        async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(self.workers.clone())
+        }
+
+        async fn delete_worker(
+            &self,
+            _id: &WorkerId,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn update_last_seen(
+            &self,
+            _id: &WorkerId,
+        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+            Ok(())
+        }
+
+        async fn find_stale_workers(
+            &self,
+            _threshold_duration: std::time::Duration,
+        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+            Ok(Vec::new())
+        }
+    }
+
+    fn create_worker_with_status(worker_id: &str, status: HealthStatus) -> Worker {
+        let id = WorkerId::new();
+        let status_clone = status.clone();
+
+        // Store in a hashmap for the worker metadata
+        let mut metadata = HashMap::new();
+        if matches!(status, HealthStatus::Healthy) {
+            metadata.insert("status".to_string(), "healthy".to_string());
+        } else if matches!(status, HealthStatus::Unhealthy { .. }) {
+            metadata.insert("status".to_string(), "unhealthy".to_string());
+        }
+
+        Worker {
+            id: id.clone(),
+            name: format!("worker-{}", worker_id),
+            status: hodei_core::WorkerStatus {
+                worker_id: id,
+                status: "IDLE".to_string(),
+                current_jobs: vec![],
+                last_heartbeat: std::time::SystemTime::now(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            tenant_id: Some("test-tenant".to_string()),
+            capabilities: hodei_core::WorkerCapabilities::new(4, 8192),
+            metadata,
+            current_jobs: vec![],
+            last_heartbeat: chrono::Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_worker_health_metrics_collector_creation() {
+        let workers = vec![];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        // Just verify the collector was created successfully
+        let _ = collector;
+    }
+
+    #[tokio::test]
+    async fn test_collect_metrics_empty_workers() {
+        let workers = vec![];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        let metrics = collector.collect_metrics().await.unwrap();
+
+        assert_eq!(metrics.total_workers, 0);
+        assert_eq!(metrics.healthy_workers, 0);
+        assert_eq!(metrics.unhealthy_workers, 0);
+        assert_eq!(metrics.disconnected_workers, 0);
+        assert_eq!(metrics.recovery_workers, 0);
+        assert_eq!(metrics.unknown_workers, 0);
+        assert_eq!(metrics.healthy_percentage, 0.0);
+        assert_eq!(metrics.average_response_time_ms, 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_collect_metrics_all_healthy_workers() {
+        let mut workers = vec![];
+        for i in 0..5 {
+            workers.push(create_worker_with_status(
+                &format!("worker-{}", i),
+                HealthStatus::Healthy,
+            ));
+        }
+
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        // Populate cache with health status
+        // Get actual worker IDs from repository
+        let worker_ids = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers.into_iter().map(|w| w.id).collect::<Vec<_>>()
+        };
+
+        // Populate cache with health status using actual worker IDs
+        {
+            let mut cache_guard = cache.write().await;
+            for (i, worker_id) in worker_ids.into_iter().enumerate() {
+                cache_guard.insert(
+                    worker_id.clone(),
+                    HealthCheckResult {
+                        worker_id,
+                        status: HealthStatus::Healthy,
+                        response_time: Duration::from_millis(100 + i as u64 * 10),
+                        consecutive_failures: 0,
+                        last_check: chrono::Utc::now(),
+                    },
+                );
+            }
+        }
+
+        let collector = WorkerHealthMetricsCollector::new(repo, cache);
+
+        let metrics = collector.collect_metrics().await.unwrap();
+
+        assert_eq!(metrics.total_workers, 5);
+        assert_eq!(metrics.healthy_workers, 5);
+        assert_eq!(metrics.unhealthy_workers, 0);
+        assert_eq!(metrics.recovery_workers, 0);
+        assert_eq!(metrics.unknown_workers, 0);
+        assert_eq!(metrics.healthy_percentage, 100.0);
+        assert!((metrics.average_response_time_ms - 120.0).abs() < f64::EPSILON); // Average of 100, 110, 120, 130, 140
+    }
+
+    #[tokio::test]
+    async fn test_collect_metrics_mixed_health_status() {
+        let mut workers = vec![];
+        workers.push(create_worker_with_status("worker-1", HealthStatus::Healthy));
+        workers.push(create_worker_with_status("worker-2", HealthStatus::Healthy));
+        workers.push(create_worker_with_status(
+            "worker-3",
+            HealthStatus::Unhealthy {
+                reason: "Connection failed".to_string(),
+            },
+        ));
+        workers.push(create_worker_with_status(
+            "worker-4",
+            HealthStatus::Unhealthy {
+                reason: "Timeout".to_string(),
+            },
+        ));
+        workers.push(create_worker_with_status(
+            "worker-5",
+            HealthStatus::Recovering,
+        ));
+        workers.push(create_worker_with_status("worker-6", HealthStatus::Unknown));
+
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        // Get actual worker IDs from repository
+        let worker_ids = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers.into_iter().map(|w| w.id).collect::<Vec<_>>()
+        };
+
+        // Populate cache
+        {
+            let mut cache_guard = cache.write().await;
+            let statuses = vec![
+                HealthStatus::Healthy,
+                HealthStatus::Healthy,
+                HealthStatus::Unhealthy {
+                    reason: "Connection failed".to_string(),
+                },
+                HealthStatus::Unhealthy {
+                    reason: "Timeout".to_string(),
+                },
+                HealthStatus::Recovering,
+                HealthStatus::Unknown,
+            ];
+
+            for (i, (worker_id, status)) in
+                worker_ids.into_iter().zip(statuses.into_iter()).enumerate()
+            {
+                let consecutive_failures = if matches!(status, HealthStatus::Unhealthy { .. }) {
+                    2
+                } else {
+                    0
+                };
+                cache_guard.insert(
+                    worker_id.clone(),
+                    HealthCheckResult {
+                        worker_id,
+                        status: status.clone(),
+                        response_time: Duration::from_millis(100 + i as u64 * 50),
+                        consecutive_failures,
+                        last_check: chrono::Utc::now(),
+                    },
+                );
+            }
+        }
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        let metrics = collector.collect_metrics().await.unwrap();
+
+        assert_eq!(metrics.total_workers, 6);
+        assert_eq!(metrics.healthy_workers, 2);
+        assert_eq!(metrics.unhealthy_workers, 2);
+        assert_eq!(metrics.recovery_workers, 1);
+        assert_eq!(metrics.unknown_workers, 1);
+        assert!((metrics.healthy_percentage - 33.33).abs() < 1.0); // 2/6 = 33.33%
+    }
+
+    #[tokio::test]
+    async fn test_calculate_health_score_healthy_worker() {
+        let workers = vec![create_worker_with_status("worker-1", HealthStatus::Healthy)];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache.clone());
+
+        // Get the worker ID from the first worker
+        let worker_id = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers[0].id.clone()
+        };
+
+        // Populate cache
+        {
+            let mut cache_guard = cache.write().await;
+            cache_guard.insert(
+                worker_id.clone(),
+                HealthCheckResult {
+                    worker_id: worker_id.clone(),
+                    status: HealthStatus::Healthy,
+                    response_time: Duration::from_millis(100),
+                    consecutive_failures: 0,
+                    last_check: chrono::Utc::now(),
+                },
+            );
+        }
+
+        let score = collector.calculate_health_score(&worker_id).await.unwrap();
+
+        // Healthy worker with no issues should have score close to 100
+        assert!(score >= 90.0 && score <= 100.0);
+    }
+
+    #[tokio::test]
+    async fn test_calculate_health_score_unhealthy_worker() {
+        let workers = vec![create_worker_with_status(
+            "worker-1",
+            HealthStatus::Unhealthy {
+                reason: "Connection failed".to_string(),
+            },
+        )];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache.clone());
+
+        let worker_id = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers[0].id.clone()
+        };
+
+        // Populate cache with unhealthy status
+        {
+            let mut cache_guard = cache.write().await;
+            cache_guard.insert(
+                worker_id.clone(),
+                HealthCheckResult {
+                    worker_id: worker_id.clone(),
+                    status: HealthStatus::Unhealthy {
+                        reason: "Connection failed".to_string(),
+                    },
+                    response_time: Duration::from_millis(5000),
+                    consecutive_failures: 5,
+                    last_check: chrono::Utc::now(),
+                },
+            );
+        }
+
+        let score = collector.calculate_health_score(&worker_id).await.unwrap();
+
+        // Worker with 5 consecutive failures should have score around 50 (100 - 5*10)
+        assert!(score < 70.0);
+    }
+
+    #[tokio::test]
+    async fn test_calculate_health_score_unknown_worker() {
+        let workers = vec![create_worker_with_status("worker-1", HealthStatus::Unknown)];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        // Don't populate cache (simulating unknown status)
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        let worker_id = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers[0].id.clone()
+        };
+
+        let score = collector.calculate_health_score(&worker_id).await.unwrap();
+
+        // Unknown status should have penalty
+        assert!(score < 85.0); // 100 - 20 penalty for unknown
+    }
+
+    #[tokio::test]
+    async fn test_calculate_health_score_with_old_check() {
+        let workers = vec![create_worker_with_status("worker-1", HealthStatus::Healthy)];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache.clone());
+
+        let worker_id = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers[0].id.clone()
+        };
+
+        // Populate cache with old check time
+        {
+            let mut cache_guard = cache.write().await;
+            cache_guard.insert(
+                worker_id.clone(),
+                HealthCheckResult {
+                    worker_id: worker_id.clone(),
+                    status: HealthStatus::Healthy,
+                    response_time: Duration::from_millis(100),
+                    consecutive_failures: 0,
+                    last_check: chrono::Utc::now() - chrono::Duration::minutes(10),
+                },
+            );
+        }
+
+        let score = collector.calculate_health_score(&worker_id).await.unwrap();
+
+        // Old check time should have age penalty
+        assert!(score < 95.0); // Should have age penalty applied
+    }
+
+    #[tokio::test]
+    async fn test_calculate_health_score_slow_response() {
+        let workers = vec![create_worker_with_status("worker-1", HealthStatus::Healthy)];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache.clone());
+
+        let worker_id = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers[0].id.clone()
+        };
+
+        // Populate cache with slow response time
+        {
+            let mut cache_guard = cache.write().await;
+            cache_guard.insert(
+                worker_id.clone(),
+                HealthCheckResult {
+                    worker_id: worker_id.clone(),
+                    status: HealthStatus::Healthy,
+                    response_time: Duration::from_millis(10000), // 10 seconds
+                    consecutive_failures: 0,
+                    last_check: chrono::Utc::now(),
+                },
+            );
+        }
+
+        let score = collector.calculate_health_score(&worker_id).await.unwrap();
+
+        // Slow response time should have penalty
+        assert!(score <= 80.0); // Should have response time penalty
+    }
+
+    #[tokio::test]
+    async fn test_check_unhealthy_threshold() {
+        let mut workers = vec![];
+        for i in 0..10 {
+            if i < 7 {
+                workers.push(create_worker_with_status(
+                    &format!("worker-{}", i),
+                    HealthStatus::Healthy,
+                ));
+            } else {
+                workers.push(create_worker_with_status(
+                    &format!("worker-{}", i),
+                    HealthStatus::Unhealthy {
+                        reason: "Failed".to_string(),
+                    },
+                ));
+            }
+        }
+
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        // Get actual worker IDs from repository
+        let worker_ids = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers.into_iter().map(|w| w.id).collect::<Vec<_>>()
+        };
+
+        // Populate cache
+        {
+            let mut cache_guard = cache.write().await;
+            for (i, worker_id) in worker_ids.into_iter().enumerate() {
+                let status = if i < 7 {
+                    HealthStatus::Healthy
+                } else {
+                    HealthStatus::Unhealthy {
+                        reason: "Failed".to_string(),
+                    }
+                };
+                cache_guard.insert(
+                    worker_id.clone(),
+                    HealthCheckResult {
+                        worker_id,
+                        status: status.clone(),
+                        response_time: Duration::from_millis(100),
+                        consecutive_failures: if i >= 7 { 3 } else { 0 },
+                        last_check: chrono::Utc::now(),
+                    },
+                );
+            }
+        }
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        // 30% unhealthy (3 out of 10)
+        let exceeds_threshold_30 = collector.check_unhealthy_threshold(25.0).await.unwrap();
+        assert!(exceeds_threshold_30);
+
+        let exceeds_threshold_50 = collector.check_unhealthy_threshold(50.0).await.unwrap();
+        assert!(!exceeds_threshold_50);
+    }
+
+    #[tokio::test]
+    async fn test_check_worker_unhealthy_duration() {
+        let workers = vec![create_worker_with_status(
+            "worker-1",
+            HealthStatus::Unhealthy {
+                reason: "Failed".to_string(),
+            },
+        )];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        // Get worker_id first
+        let worker_id = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers[0].id.clone()
+        };
+
+        // Populate cache with unhealthy worker
+        {
+            let mut cache_guard = cache.write().await;
+            cache_guard.insert(
+                worker_id.clone(),
+                HealthCheckResult {
+                    worker_id: worker_id.clone(),
+                    status: HealthStatus::Unhealthy {
+                        reason: "Failed".to_string(),
+                    },
+                    response_time: Duration::from_millis(100),
+                    consecutive_failures: 3,
+                    last_check: chrono::Utc::now() - chrono::Duration::minutes(10),
+                },
+            );
+        }
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        // Worker unhealthy for 10 minutes - should exceed 5 minute threshold
+        let exceeds_5min = collector
+            .check_worker_unhealthy_duration(&worker_id, 5)
+            .await
+            .unwrap();
+        assert!(exceeds_5min);
+
+        // Should not exceed 15 minute threshold
+        let exceeds_15min = collector
+            .check_worker_unhealthy_duration(&worker_id, 15)
+            .await
+            .unwrap();
+        assert!(!exceeds_15min);
+    }
+
+    #[tokio::test]
+    async fn test_get_low_health_score_workers() {
+        let mut workers = vec![];
+        for i in 0..5 {
+            workers.push(create_worker_with_status(
+                &format!("worker-{}", i),
+                HealthStatus::Healthy,
+            ));
+        }
+
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        // Get actual worker IDs from repository
+        let worker_ids = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers.into_iter().map(|w| w.id).collect::<Vec<_>>()
+        };
+
+        // Populate cache with varying health scores
+        {
+            let mut cache_guard = cache.write().await;
+            for (i, worker_id) in worker_ids.into_iter().enumerate() {
+                let consecutive_failures = i as u32; // Worker 0 has 0 failures, worker 4 has 4
+                let status = if consecutive_failures > 0 {
+                    HealthStatus::Unhealthy {
+                        reason: "Failed".to_string(),
+                    }
+                } else {
+                    HealthStatus::Healthy
+                };
+                cache_guard.insert(
+                    worker_id.clone(),
+                    HealthCheckResult {
+                        worker_id,
+                        status: status.clone(),
+                        response_time: Duration::from_millis(100),
+                        consecutive_failures,
+                        last_check: chrono::Utc::now(),
+                    },
+                );
+            }
+        }
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        let low_score_workers = collector.get_low_health_score_workers(80.0).await.unwrap();
+
+        // Workers with high failure counts should have low scores
+        // Worker 3 and 4 should have scores < 80
+        assert!(low_score_workers.len() >= 2);
+    }
+
+    #[tokio::test]
+    async fn test_get_low_health_score_workers_none() {
+        let workers = vec![];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        let low_score_workers = collector.get_low_health_score_workers(80.0).await.unwrap();
+
+        assert!(low_score_workers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_health_score_bounds() {
+        let workers = vec![create_worker_with_status("worker-1", HealthStatus::Healthy)];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache.clone());
+
+        let worker_id = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers[0].id.clone()
+        };
+
+        // Populate cache with extremely unhealthy worker
+        {
+            let mut cache_guard = cache.write().await;
+            cache_guard.insert(
+                worker_id.clone(),
+                HealthCheckResult {
+                    worker_id: worker_id.clone(),
+                    status: HealthStatus::Unhealthy {
+                        reason: "Failed".to_string(),
+                    },
+                    response_time: Duration::from_millis(30000), // 30 seconds
+                    consecutive_failures: 20,                    // Very high
+                    last_check: chrono::Utc::now() - chrono::Duration::hours(1),
+                },
+            );
+        }
+
+        let score = collector.calculate_health_score(&worker_id).await.unwrap();
+
+        // Score should be bounded between 0 and 100
+        assert!(score >= 0.0);
+        assert!(score <= 100.0);
+    }
+
+    #[tokio::test]
+    async fn test_health_score_calculation_accuracy() {
+        let workers = vec![create_worker_with_status("worker-1", HealthStatus::Healthy)];
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache.clone());
+
+        let worker_id = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers[0].id.clone()
+        };
+
+        // Populate cache with specific values
+        {
+            let mut cache_guard = cache.write().await;
+            cache_guard.insert(
+                worker_id.clone(),
+                HealthCheckResult {
+                    worker_id: worker_id.clone(),
+                    status: HealthStatus::Unhealthy {
+                        reason: "Failed".to_string(),
+                    },
+                    response_time: Duration::from_millis(6000), // 6 seconds - should trigger penalty
+                    consecutive_failures: 3,                    // 3 * 10 = 30 penalty
+                    last_check: chrono::Utc::now(),
+                },
+            );
+        }
+
+        let score = collector.calculate_health_score(&worker_id).await.unwrap();
+
+        // Expected: 100 - 30 (failures) - 12 (6 sec * 2) = 58
+        assert!((score - 58.0).abs() < 5.0);
+    }
+
+    #[tokio::test]
+    async fn test_collect_metrics_response_time_calculation() {
+        let mut workers = vec![];
+        for i in 0..4 {
+            workers.push(create_worker_with_status(
+                &format!("worker-{}", i),
+                HealthStatus::Healthy,
+            ));
+        }
+
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        // Get actual worker IDs from repository
+        let worker_ids = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers.into_iter().map(|w| w.id).collect::<Vec<_>>()
+        };
+
+        // Populate cache with known response times
+        {
+            let mut cache_guard = cache.write().await;
+            for (i, worker_id) in worker_ids.into_iter().enumerate() {
+                cache_guard.insert(
+                    worker_id.clone(),
+                    HealthCheckResult {
+                        worker_id,
+                        status: HealthStatus::Healthy,
+                        response_time: Duration::from_millis((i + 1) as u64 * 100), // 100, 200, 300, 400
+                        consecutive_failures: 0,
+                        last_check: chrono::Utc::now(),
+                    },
+                );
+            }
+        }
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        let metrics = collector.collect_metrics().await.unwrap();
+
+        // Average should be (100 + 200 + 300 + 400) / 4 = 250
+        assert!((metrics.average_response_time_ms - 250.0).abs() < f64::EPSILON);
+    }
+
+    #[tokio::test]
+    async fn test_collect_metrics_unknown_workers_handling() {
+        let workers = vec![
+            create_worker_with_status("worker-1", HealthStatus::Healthy),
+            create_worker_with_status("worker-2", HealthStatus::Healthy),
+        ];
+
+        let repo = Arc::new(MockWorkerRepositoryForMetrics::new(workers));
+        let cache = Arc::new(RwLock::new(HashMap::new()));
+
+        // Get actual worker IDs from repository
+        let worker_ids = {
+            let workers = repo.as_ref().get_all_workers().await.unwrap();
+            workers.into_iter().map(|w| w.id).collect::<Vec<_>>()
+        };
+
+        // Only populate cache for the first worker
+        {
+            let mut cache_guard = cache.write().await;
+            let worker_id = worker_ids[0].clone();
+            cache_guard.insert(
+                worker_id,
+                HealthCheckResult {
+                    worker_id: worker_ids[0].clone(),
+                    status: HealthStatus::Healthy,
+                    response_time: Duration::from_millis(100),
+                    consecutive_failures: 0,
+                    last_check: chrono::Utc::now(),
+                },
+            );
+        }
+
+        let collector = WorkerHealthMetricsCollector::new(repo.clone(), cache);
+
+        let metrics = collector.collect_metrics().await.unwrap();
+
+        // One worker is unknown
+        assert_eq!(metrics.total_workers, 2);
+        assert_eq!(metrics.healthy_workers, 1);
+        assert_eq!(metrics.unknown_workers, 1);
+        assert_eq!(metrics.healthy_percentage, 50.0);
     }
 }
 
