@@ -113,7 +113,7 @@ impl WorkerService for HwpService {
         request: Request<Streaming<AgentMessage>>,
     ) -> Result<Response<Self::JobStreamStream>, Status> {
         let mut inbound = request.into_inner();
-        let (tx, rx) = mpsc::channel(100);
+        let (tx, rx) = mpsc::unbounded_channel();
 
         // Spawn a task to handle incoming messages from the agent
         let scheduler = self.scheduler.clone();
@@ -154,11 +154,18 @@ impl WorkerService for HwpService {
         });
 
         // Return the outbound stream (server -> agent)
-        // In a real implementation, we would register this tx with the scheduler
-        // so it can send AssignJob requests to this specific worker.
-        // For now, we just return an empty stream or keep it open.
+        // Register this tx with the scheduler so it can send AssignJob requests to this worker
+        // Extract worker_id from metadata or request context
+        let worker_id = WorkerId::new(); // TODO: Extract from request metadata
 
-        // TODO: Register tx with Scheduler to enable pushing jobs
+        // Register the transmitter with the scheduler
+        if let Err(e) = scheduler.register_transmitter(&worker_id, tx).await {
+            error!(
+                "Failed to register transmitter for worker {}: {}",
+                worker_id, e
+            );
+            return Err(Status::internal("Failed to establish bidirectional stream"));
+        }
 
         let output_stream = ReceiverStream::new(rx);
         Ok(Response::new(

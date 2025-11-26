@@ -735,6 +735,41 @@ where
     pub async fn start(&self) -> Result<(), SchedulerError> {
         Ok(())
     }
+
+    /// Send a job to a worker through their registered transmitter (US-02.3)
+    pub async fn send_job_to_worker(
+        &self,
+        worker_id: &WorkerId,
+        job: &Job,
+    ) -> Result<(), SchedulerError> {
+        let job_spec = job.spec.clone();
+        let gpu_count = job_spec.resources.gpu.unwrap_or(0) as u32;
+
+        let message = ServerMessage {
+            payload: Some(hwp_proto::pb::server_message::Payload::AssignJob(
+                hwp_proto::pb::AssignJobRequest {
+                    worker_id: worker_id.to_string(),
+                    job_id: job.id.as_uuid().to_string(),
+                    job_spec: Some(hwp_proto::pb::JobSpec {
+                        name: job.id.to_string(),
+                        image: job_spec.image,
+                        command: job_spec.command,
+                        resources: Some(hwp_proto::pb::ResourceQuota {
+                            cpu_m: job_spec.resources.cpu_m,
+                            memory_mb: job_spec.resources.memory_mb,
+                            gpu: gpu_count,
+                        }),
+                        timeout_ms: 0,
+                        retries: 0,
+                        env: job_spec.env,
+                        secret_refs: vec![],
+                    }),
+                },
+            )),
+        };
+
+        self.send_to_worker(worker_id, message).await
+    }
 }
 
 impl<R, E, W, WR> Clone for SchedulerModule<R, E, W, WR>
