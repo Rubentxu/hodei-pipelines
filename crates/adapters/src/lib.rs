@@ -33,7 +33,8 @@ pub use hodei_ports::worker_provider::{ProviderConfig, ProviderType};
 
 // PostgreSQL implementations
 pub use crate::postgres::{
-    PostgreSqlJobRepository, PostgreSqlPipelineRepository, PostgreSqlWorkerRepository,
+    PostgreSqlJobRepository, PostgreSqlPipelineExecutionRepository, PostgreSqlPipelineRepository,
+    PostgreSqlWorkerRepository,
 };
 
 // Redb (embedded) implementations

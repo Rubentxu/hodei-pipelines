@@ -9,8 +9,12 @@ use hodei_core::{
     pipeline::{
         Pipeline, PipelineId, PipelineStatus, PipelineStep, PipelineStepBuilder, PipelineStepId,
     },
+    pipeline_execution::{
+        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionId,
+        StepExecutionStatus,
+    },
 };
-use hodei_ports::{EventPublisher, PipelineRepository};
+use hodei_ports::{EventBusError, EventPublisher, PipelineRepository, SystemEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::result::Result as StdResult;
@@ -411,6 +415,74 @@ where
         Ok(())
     }
 
+    /// Execute pipeline with orchestration of steps and dependencies
+    pub async fn execute_pipeline(
+        &self,
+        request: ExecutePipelineRequest,
+    ) -> Result<PipelineExecution, PipelineCrudError> {
+        info!("Executing pipeline: {}", request.pipeline_id);
+
+        // Get pipeline from repository
+        let pipeline = self
+            .pipeline_repo
+            .get_pipeline(&request.pipeline_id)
+            .await
+            .map_err(PipelineCrudError::PipelineRepository)?
+            .ok_or(PipelineCrudError::NotFound(request.pipeline_id.clone()))?;
+
+        // Validate pipeline is not already running
+        if pipeline.is_running() {
+            return Err(PipelineCrudError::Validation(
+                "Pipeline is already running".to_string(),
+            ));
+        }
+
+        // Validate pipeline is in valid state to execute
+        if pipeline.is_terminal() {
+            return Err(PipelineCrudError::Validation(
+                "Cannot execute pipeline in terminal state".to_string(),
+            ));
+        }
+
+        // Get execution order based on dependencies
+        let execution_order = pipeline
+            .get_execution_order()
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
+
+        // Extract step IDs in execution order
+        let step_ids: Vec<PipelineStepId> =
+            execution_order.iter().map(|step| step.id.clone()).collect();
+
+        // Create pipeline execution with all steps
+        let variables = request.variables.unwrap_or_default();
+        let execution = PipelineExecution::new(
+            pipeline.id.clone(),
+            step_ids,
+            variables,
+            request.tenant_id,
+            request.correlation_id,
+        );
+
+        // Publish pipeline execution started event
+        self.event_bus
+            .publish(SystemEvent::PipelineExecutionStarted {
+                pipeline_id: pipeline.id.clone(),
+                execution_id: execution.id.clone(),
+            })
+            .await
+            .map_err(PipelineCrudError::EventBus)?;
+
+        info!(
+            "Pipeline execution started: {} (execution_id: {})",
+            request.pipeline_id, execution.id
+        );
+
+        // TODO: In a real implementation, this would trigger async step execution
+        // For now, we just return the execution instance
+
+        Ok(execution)
+    }
+
     /// Create a pipeline step from request using Builder Pattern
     fn create_pipeline_step(
         &self,
@@ -504,6 +576,15 @@ pub struct UpdatePipelineRequest {
     pub variables: Option<HashMap<String, String>>,
 }
 
+/// Request to execute a pipeline
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutePipelineRequest {
+    pub pipeline_id: PipelineId,
+    pub variables: Option<HashMap<String, String>>,
+    pub tenant_id: Option<String>,
+    pub correlation_id: Option<String>,
+}
+
 /// Filter for listing pipelines
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListPipelinesFilter {
@@ -580,7 +661,7 @@ pub enum PipelineCrudError {
     PipelineRepository(hodei_ports::PipelineRepositoryError),
 
     #[error("Event bus error: {0}")]
-    EventBus(hodei_ports::EventBusError),
+    EventBus(EventBusError),
 }
 
 #[cfg(test)]

@@ -14,6 +14,7 @@ pub mod job_definitions;
 pub mod job_specifications;
 pub mod mappers;
 pub mod pipeline;
+pub mod pipeline_execution;
 pub mod pipeline_step_specifications;
 pub mod projections;
 pub mod queueing;
@@ -33,6 +34,10 @@ pub use crate::health_checks::{HealthCheck, HealthStatus};
 pub use crate::job::Job;
 pub use crate::job_definitions::{ExecResult, JobId, JobSpec, JobState, ResourceQuota};
 pub use crate::pipeline::{Pipeline, PipelineId, PipelineStatus};
+pub use crate::pipeline_execution::{
+    ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionId,
+    StepExecutionStatus,
+};
 pub use crate::worker::Worker;
 pub use crate::worker_messages::{
     RuntimeSpec, WorkerCapabilities, WorkerId, WorkerMessage, WorkerState, WorkerStateMessage,

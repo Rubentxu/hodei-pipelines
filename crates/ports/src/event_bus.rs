@@ -3,7 +3,7 @@
 //! Defines interfaces for event bus that supports both in-memory and distributed (NATS) implementations.
 
 use async_trait::async_trait;
-use hodei_core::PipelineId;
+use hodei_core::{ExecutionId, PipelineId};
 use hodei_core::{JobId, JobSpec, WorkerId};
 use serde::{Deserialize, Serialize};
 
@@ -64,6 +64,12 @@ pub enum SystemEvent {
 
     /// Pipeline completed event
     PipelineCompleted { pipeline_id: PipelineId },
+
+    /// Pipeline execution started event
+    PipelineExecutionStarted {
+        pipeline_id: PipelineId,
+        execution_id: ExecutionId,
+    },
 }
 
 /// Event bus error types

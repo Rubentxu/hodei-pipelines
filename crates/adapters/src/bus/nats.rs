@@ -476,6 +476,9 @@ impl NatsBus {
             SystemEvent::PipelineCreated(_) => "hodei.events.pipeline.created".to_string(),
             SystemEvent::PipelineStarted { .. } => "hodei.events.pipeline.started".to_string(),
             SystemEvent::PipelineCompleted { .. } => "hodei.events.pipeline.completed".to_string(),
+            SystemEvent::PipelineExecutionStarted { .. } => {
+                "hodei.events.pipeline.execution.started".to_string()
+            }
         }
     }
 

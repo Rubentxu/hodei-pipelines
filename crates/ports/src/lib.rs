@@ -8,6 +8,7 @@ pub use hodei_core::WorkerStatus;
 
 pub mod event_bus;
 pub mod job_repository;
+pub mod pipeline_execution_repository;
 pub mod pipeline_repository;
 pub mod rbac_repository;
 pub mod resource_pool;

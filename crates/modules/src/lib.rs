@@ -13,6 +13,7 @@ pub mod metrics_collection;
 pub mod multi_tenancy_quota_manager;
 pub mod orchestrator;
 pub mod pipeline_crud;
+pub mod pipeline_execution_orchestrator;
 pub mod pool_lifecycle;
 pub mod queue_assignment;
 pub mod queue_prioritization;
@@ -65,9 +66,12 @@ pub use crate::multi_tenancy_quota_manager::{
 };
 pub use crate::orchestrator::{OrchestratorConfig, OrchestratorModule};
 pub use crate::pipeline_crud::{
-    CreatePipelineRequest, CreatePipelineStepRequest, ListPipelinesFilter, ListPipelinesResponse,
-    PipelineCrudConfig, PipelineCrudError, PipelineCrudService, PipelineSummary,
-    UpdatePipelineRequest,
+    CreatePipelineRequest, CreatePipelineStepRequest, ExecutePipelineRequest, ListPipelinesFilter,
+    ListPipelinesResponse, PipelineCrudConfig, PipelineCrudError, PipelineCrudService,
+    PipelineSummary, UpdatePipelineRequest,
+};
+pub use crate::pipeline_execution_orchestrator::{
+    PipelineExecutionConfig, PipelineExecutionError, PipelineExecutionOrchestrator,
 };
 pub use crate::pool_lifecycle::{
     HealthCheckResult, InMemoryStateStore, LifecycleError, PoolConfig, PoolEvent,
