@@ -2,8 +2,8 @@
 //!
 //! This module provides compression utilities for artifact uploads.
 
-use flate2::{write::GzEncoder, Compression};
-use std::io::{self, Read, Write};
+use flate2::{Compression, write::GzEncoder};
+use std::io::{self, BufReader};
 use thiserror::Error;
 
 /// Compression types supported

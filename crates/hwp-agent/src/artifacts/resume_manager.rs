@@ -4,14 +4,13 @@
 //! by tracking uploaded chunks and enabling resumption from the last confirmed chunk.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::fs;
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
-use crate::artifacts::uploader::ArtifactUploader;
 use crate::AgentError;
+use crate::artifacts::uploader::ArtifactUploader;
 
 /// Upload session tracking information
 #[derive(Debug, Clone)]
@@ -90,7 +89,10 @@ impl ResumeManager {
 
         if let Some(session) = sessions.get_mut(artifact_id) {
             session.uploaded_chunks.insert(chunk_index, chunk_data);
-            info!("Recorded chunk {} for artifact {}", chunk_index, artifact_id);
+            info!(
+                "Recorded chunk {} for artifact {}",
+                chunk_index, artifact_id
+            );
         } else {
             warn!("No active session found for artifact {}", artifact_id);
         }
@@ -139,7 +141,7 @@ impl ResumeManager {
     pub async fn resume_upload(
         &self,
         artifact_id: &str,
-        mut uploader: ArtifactUploader,
+        _uploader: ArtifactUploader,
     ) -> Result<String, AgentError> {
         info!("Resuming upload for artifact: {}", artifact_id);
 
@@ -151,9 +153,11 @@ impl ResumeManager {
 
         if missing_chunks.is_empty() {
             info!("Upload already complete for artifact: {}", artifact_id);
-            return Ok(format!("{}/artifacts/{}",
+            return Ok(format!(
+                "{}/artifacts/{}",
                 self.get_upload_url(artifact_id).await?,
-                artifact_id));
+                artifact_id
+            ));
         }
 
         // TODO: In a real implementation, we would:
@@ -165,9 +169,11 @@ impl ResumeManager {
         // For now, we'll mark the session as complete if all chunks are recorded
         self.complete_session(artifact_id).await?;
 
-        Ok(format!("{}/artifacts/{}",
+        Ok(format!(
+            "{}/artifacts/{}",
             self.get_upload_url(artifact_id).await?,
-            artifact_id))
+            artifact_id
+        ))
     }
 
     /// Get upload URL for an artifact
@@ -190,7 +196,10 @@ impl ResumeManager {
 
         sessions.remove(artifact_id);
 
-        info!("Completed and cleaned up session for artifact: {}", artifact_id);
+        info!(
+            "Completed and cleaned up session for artifact: {}",
+            artifact_id
+        );
 
         Ok(())
     }
@@ -224,17 +233,17 @@ impl ResumeManager {
     pub async fn verify_chunk(
         &self,
         artifact_id: &str,
-        chunk_index: u32,
+        _chunk_index: u32,
         chunk_data: &[u8],
     ) -> Result<bool, AgentError> {
         let sessions = self.active_sessions.lock().await;
 
-        if let Some(session) = sessions.get(artifact_id) {
+        if let Some(_session) = sessions.get(artifact_id) {
             // Calculate checksum of the chunk
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             hasher.update(chunk_data);
-            let calculated_checksum = format!("{:x}", hasher.finalize());
+            let _calculated_checksum = format!("{:x}", hasher.finalize());
 
             // TODO: Verify against server-provided checksum or stored checksum
             // For now, we'll just return true
@@ -270,17 +279,19 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        let result = manager.register_session(
-            "test-artifact",
-            temp_file.path().to_path_buf(),
-            1000,
-            10,
-            "test-job",
-            "http://localhost:8080",
-            "gzip",
-            true,
-            "checksum123",
-        ).await;
+        let result = manager
+            .register_session(
+                "test-artifact",
+                temp_file.path().to_path_buf(),
+                1000,
+                10,
+                "test-job",
+                "http://localhost:8080",
+                "gzip",
+                true,
+                "checksum123",
+            )
+            .await;
 
         assert!(result.is_ok());
 
@@ -294,20 +305,25 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager.register_session(
-            "test-artifact",
-            temp_file.path().to_path_buf(),
-            1000,
-            10,
-            "test-job",
-            "http://localhost:8080",
-            "gzip",
-            true,
-            "checksum123",
-        ).await.unwrap();
+        manager
+            .register_session(
+                "test-artifact",
+                temp_file.path().to_path_buf(),
+                1000,
+                10,
+                "test-job",
+                "http://localhost:8080",
+                "gzip",
+                true,
+                "checksum123",
+            )
+            .await
+            .unwrap();
 
         let chunk_data = vec![1, 2, 3, 4, 5];
-        let result = manager.record_chunk_upload("test-artifact", 0, chunk_data).await;
+        let result = manager
+            .record_chunk_upload("test-artifact", 0, chunk_data)
+            .await;
 
         assert!(result.is_ok());
 
@@ -321,22 +337,34 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager.register_session(
-            "test-artifact",
-            temp_file.path().to_path_buf(),
-            1000,
-            5,
-            "test-job",
-            "http://localhost:8080",
-            "gzip",
-            true,
-            "checksum123",
-        ).await.unwrap();
+        manager
+            .register_session(
+                "test-artifact",
+                temp_file.path().to_path_buf(),
+                1000,
+                5,
+                "test-job",
+                "http://localhost:8080",
+                "gzip",
+                true,
+                "checksum123",
+            )
+            .await
+            .unwrap();
 
         // Record chunks 0, 2, 4
-        manager.record_chunk_upload("test-artifact", 0, vec![1, 2, 3]).await.unwrap();
-        manager.record_chunk_upload("test-artifact", 2, vec![4, 5, 6]).await.unwrap();
-        manager.record_chunk_upload("test-artifact", 4, vec![7, 8, 9]).await.unwrap();
+        manager
+            .record_chunk_upload("test-artifact", 0, vec![1, 2, 3])
+            .await
+            .unwrap();
+        manager
+            .record_chunk_upload("test-artifact", 2, vec![4, 5, 6])
+            .await
+            .unwrap();
+        manager
+            .record_chunk_upload("test-artifact", 4, vec![7, 8, 9])
+            .await
+            .unwrap();
 
         let missing = manager.get_missing_chunks("test-artifact").await.unwrap();
         assert_eq!(missing, vec![1, 3]);
@@ -347,17 +375,20 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager.register_session(
-            "test-artifact",
-            temp_file.path().to_path_buf(),
-            1000,
-            10,
-            "test-job",
-            "http://localhost:8080",
-            "gzip",
-            true,
-            "checksum123",
-        ).await.unwrap();
+        manager
+            .register_session(
+                "test-artifact",
+                temp_file.path().to_path_buf(),
+                1000,
+                10,
+                "test-job",
+                "http://localhost:8080",
+                "gzip",
+                true,
+                "checksum123",
+            )
+            .await
+            .unwrap();
 
         let result = manager.complete_session("test-artifact").await;
         assert!(result.is_ok());
@@ -371,17 +402,20 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager.register_session(
-            "test-artifact",
-            temp_file.path().to_path_buf(),
-            1000,
-            10,
-            "test-job",
-            "http://localhost:8080",
-            "gzip",
-            true,
-            "checksum123",
-        ).await.unwrap();
+        manager
+            .register_session(
+                "test-artifact",
+                temp_file.path().to_path_buf(),
+                1000,
+                10,
+                "test-job",
+                "http://localhost:8080",
+                "gzip",
+                true,
+                "checksum123",
+            )
+            .await
+            .unwrap();
 
         let result = manager.abandon_session("test-artifact").await;
         assert!(result.is_ok());
@@ -395,17 +429,20 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager.register_session(
-            "test-artifact",
-            temp_file.path().to_path_buf(),
-            1000,
-            10,
-            "test-job",
-            "http://localhost:8080",
-            "gzip",
-            true,
-            "checksum123",
-        ).await.unwrap();
+        manager
+            .register_session(
+                "test-artifact",
+                temp_file.path().to_path_buf(),
+                1000,
+                10,
+                "test-job",
+                "http://localhost:8080",
+                "gzip",
+                true,
+                "checksum123",
+            )
+            .await
+            .unwrap();
 
         let chunk_data = vec![1, 2, 3, 4, 5];
         let result = manager.verify_chunk("test-artifact", 0, &chunk_data).await;

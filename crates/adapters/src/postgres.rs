@@ -10,7 +10,6 @@ use hodei_ports::{
     JobRepository, JobRepositoryError, PipelineRepository, PipelineRepositoryError,
     WorkerRepository, WorkerRepositoryError,
 };
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres, Row};
 use std::collections::HashMap;

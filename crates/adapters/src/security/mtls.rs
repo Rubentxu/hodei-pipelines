@@ -6,7 +6,7 @@ use rustls::pki_types::CertificateDer;
 use rustls_pemfile::certs;
 use serde::Deserialize;
 use std::fs;
-use std::io::{BufReader, Write};
+use std::io::BufReader;
 use std::net::IpAddr;
 use x509_parser::prelude::*;
 

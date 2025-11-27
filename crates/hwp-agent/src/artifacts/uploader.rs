@@ -109,7 +109,7 @@ impl ArtifactUploader {
             .map_err(|e| AgentError::Other(format!("Failed to read file: {}", e)))?;
 
         // Calculate original checksum
-        let original_checksum = Self::calculate_checksum(&data).await?;
+        let _original_checksum = Self::calculate_checksum(&data).await?;
 
         // Compress if needed
         let (data_to_send, is_compressed, compression_type) =

@@ -483,7 +483,7 @@ impl WorkerClient for GrpcWorkerClient {
 
         info!("Assigning job {} to worker {} via gRPC", job_id, worker_id);
 
-        let result = timeout(self.timeout, async {
+        let _result = timeout(self.timeout, async {
             let mut client = self.worker_service_client();
             client.assign_job(request).await
         })
@@ -524,7 +524,7 @@ impl WorkerClient for GrpcWorkerClient {
 
         info!("Cancelling job {} on worker {} via gRPC", job_id, worker_id);
 
-        let result = timeout(self.timeout, async {
+        let _result = timeout(self.timeout, async {
             let mut client = self.worker_service_client();
             client.cancel_job(request).await
         })
@@ -630,7 +630,7 @@ impl WorkerClient for GrpcWorkerClient {
             resource_usage,
         };
 
-        let result = timeout(self.timeout, async {
+        let _result = timeout(self.timeout, async {
             let mut client = self.worker_service_client();
             client.heartbeat(request).await
         })
@@ -812,7 +812,7 @@ impl WorkerClient for HttpWorkerClient {
             "timestamp": chrono::Utc::now().timestamp()
         });
 
-        let response = timeout(self.timeout, async {
+        let _response = timeout(self.timeout, async {
             self.client.post(&url).json(&payload).send().await
         })
         .await

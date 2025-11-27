@@ -87,12 +87,12 @@ impl RowExtractor {
     /// Extract Pipeline aggregate from PostgreSQL row
     ///
     /// # Arguments
-    /// * `row` - PostgreSQL row with pipeline data
+    /// * `_row` - PostgreSQL row with pipeline data
     ///
     /// # Returns
     /// * `Result<Pipeline, Box<dyn std::error::Error + Send + Sync>>` - Pipeline aggregate or error
     pub async fn extract_pipeline_from_row(
-        row: &PgRow,
+        _row: &PgRow,
     ) -> Result<hodei_core::Pipeline, Box<dyn std::error::Error + Send + Sync>> {
         // Note: Pipeline extraction would be implemented based on actual Pipeline API
         // For now, returning a placeholder error
