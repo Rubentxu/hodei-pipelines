@@ -7,11 +7,10 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use crate::multi_tenancy_quota_manager::{
-    MultiTenancyQuotaManager, QuotaDecision, QuotaViolationReason, ResourceRequest, TenantId,
-    TenantQuota,
+    MultiTenancyQuotaManager, QuotaDecision, ResourceRequest, TenantId,
 };
 
 /// Enforcement policy configuration

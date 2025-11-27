@@ -8,12 +8,12 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use crate::multi_tenancy_quota_manager::{
-    BillingTier, BurstPolicy, QuotaLimits, QuotaType, ResourceRequest, TenantId, TenantQuota,
+    BillingTier, ResourceRequest, TenantId, TenantQuota,
     TenantUsage,
 };
 
@@ -229,7 +229,7 @@ impl WeightedFairQueueingEngine {
             .get(&request.tenant_id)
             .ok_or_else(|| WFQError::TenantNotFound(request.tenant_id.clone()))?;
 
-        let mut global_time = self.global_virtual_time.write().await;
+        let global_time = self.global_virtual_time.write().await;
         let packet_size = self.calculate_packet_size(&request);
 
         // Calculate virtual finish time
@@ -316,7 +316,7 @@ impl WeightedFairQueueingEngine {
             return allocations;
         }
 
-        let mut global_time = self.global_virtual_time.read().await;
+        let global_time = self.global_virtual_time.read().await;
 
         for (tenant_id, weight) in weights.iter() {
             let allocated = (pool_capacity as f64 * weight.weight / total_weight) as u64;
@@ -607,6 +607,7 @@ impl Default for WFQConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{BurstPolicy, QuotaLimits, QuotaType};
 
     fn create_test_quota(tenant_id: &str, billing_tier: BillingTier) -> TenantQuota {
         TenantQuota {

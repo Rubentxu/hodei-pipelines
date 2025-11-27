@@ -5,12 +5,11 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 use hodei_core::JobId;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::info;
 
 use crate::sla_tracking::{SLALevel, SLATracker};
 
@@ -361,7 +360,7 @@ impl QueuePrioritizationEngine {
         let mut new_queue = VecDeque::new();
         let mut preempted = false;
 
-        for job in queue.pop_front() {
+        while let Some(job) = queue.pop_front() {
             if job.job_id == candidate.current_job_id && !preempted {
                 preempted = true;
                 info!(job_id = %job.job_id, "Job preempted");

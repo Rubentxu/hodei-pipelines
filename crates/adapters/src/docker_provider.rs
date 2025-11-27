@@ -9,7 +9,7 @@ use bollard_next::container::{
     ListContainersOptions, RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
 };
 use bollard_next::image::CreateImageOptions;
-use bollard_next::{API_DEFAULT_VERSION, Docker};
+use bollard_next::Docker;
 use futures::StreamExt;
 use hodei_core::{Worker, WorkerId};
 use hodei_ports::worker_provider::{

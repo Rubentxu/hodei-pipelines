@@ -9,23 +9,15 @@ repository.workspace = true
 
 [dependencies]
 # Workspace core crates
-hodei-core = { workspace = true, path = "crates/core" }
-hodei-ports = { workspace = true, path = "crates/ports" }
-hodei-modules = { workspace = true, path = "crates/modules" }
-hodei-adapters = { workspace = true, path = "crates/adapters", features = ["docker-provider", "kubernetes-provider"] }
+hodei-core = { workspace = true }
+hodei-ports = { workspace = true }
+hodei-modules = { workspace = true }
+hodei-adapters = { workspace = true, features = ["docker-provider", "kubernetes-provider"] }
 hwp-proto = { workspace = true }
 
 # Workspace dependencies
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["sync"] }
-
-[lib]
-name = "hodei_server"
-path = "src/lib.rs"
-
-[[bin]]
-name = "server"
-path = "src/main.rs"
 tonic = { workspace = true, features = ["transport"] }
 axum = { workspace = true, features = ["json", "http2"] }
 tower = { workspace = true, features = ["util", "timeout"] }
@@ -42,17 +34,21 @@ uuid = { workspace = true }
 prometheus = { workspace = true }
 config = { workspace = true }
 chrono = { workspace = true }
-rand = "0.8"
+rand = { workspace = true }
 serde_yaml = "0.9"
 reqwest = { version = "0.11", features = ["json"] }
-async-trait = "0.1"
+async-trait = { workspace = true }
 
-# OpenAPI / Swagger UI (latest stable versions, compatible with axum 0.8)
+# OpenAPI / Swagger UI
 utoipa = "4.2"
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 
+[lib]
+name = "hodei_server"
+path = "src/lib.rs"
+
 [[bin]]
-name = "hodei-server"
+name = "server"
 path = "src/main.rs"
 
 [dev-dependencies]

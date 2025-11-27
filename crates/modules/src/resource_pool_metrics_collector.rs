@@ -7,13 +7,12 @@
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
 use crate::multi_tenancy_quota_manager::{PoolId, TenantId};
 use hodei_ports::ResourcePool;
-use hodei_ports::ResourcePoolStatus;
 
 /// Metrics collection error types
 #[derive(Debug, thiserror::Error)]

@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use hodei_core::{Worker, WorkerId};
-use hodei_core::{ResourceQuota, WorkerStatus};
+use hodei_core::ResourceQuota;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

@@ -385,8 +385,6 @@ impl<'de> serde::Deserialize<'de> for Job {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::Error;
-
         #[derive(serde::Deserialize)]
         struct JobHelper {
             id: JobId,

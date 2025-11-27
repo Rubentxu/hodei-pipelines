@@ -6,12 +6,12 @@
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::error;
 
 pub use crate::auto_scaling_engine::ScaleDirection;
-use crate::metrics_collection::{MetricType, MetricsCollector, RealTimeSnapshot};
+use crate::metrics_collection::{MetricType, RealTimeSnapshot};
 
 /// Time-based scaling trigger
 #[derive(Debug, Clone)]

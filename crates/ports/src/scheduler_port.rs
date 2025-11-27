@@ -11,7 +11,6 @@ use hodei_core::WorkerId;
 use hwp_proto::ServerMessage;
 use tokio::sync::mpsc;
 
-use crate::{EventBusError, JobRepositoryError, WorkerClientError, WorkerRepositoryError};
 
 /// Scheduler port error
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]

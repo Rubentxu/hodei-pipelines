@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Tenant identifier type
 pub type TenantId = String;
@@ -271,7 +271,7 @@ impl MultiTenancyQuotaManager {
     }
 
     /// Register a new tenant with quota configuration
-    pub async fn register_tenant(&self, mut quota: TenantQuota) -> Result<(), QuotaError> {
+    pub async fn register_tenant(&self, quota: TenantQuota) -> Result<(), QuotaError> {
         let mut quotas = self.quotas.write().await;
 
         let tenant_id = quota.tenant_id.clone();

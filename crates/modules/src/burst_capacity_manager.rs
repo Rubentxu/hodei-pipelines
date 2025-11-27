@@ -9,7 +9,7 @@ use std::time::Duration;
 use tracing::{info, warn};
 
 use crate::multi_tenancy_quota_manager::{
-    BurstPolicy, MultiTenancyQuotaManager, QuotaLimits, TenantId, TenantUsage,
+    MultiTenancyQuotaManager, TenantId, TenantUsage,
 };
 
 /// Burst capacity configuration

@@ -5,12 +5,12 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use hodei_core::JobId;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 /// SLA tracking for a job
 #[derive(Debug, Clone)]
@@ -376,7 +376,7 @@ impl SLATracker {
         let now = Utc::now();
         let mut at_risk_count = 0;
         let mut critical_count = 0;
-        let mut violated_count = 0;
+        let violated_count = 0;
         let mut total_time_remaining = Duration::from_secs(0);
         let mut jobs_with_time = 0;
 

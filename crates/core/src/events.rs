@@ -11,7 +11,6 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use uuid::Uuid;
 
 #[cfg(feature = "sqlx")]
@@ -568,7 +567,7 @@ impl EventStore for PostgreSqlEventStore {
         .await
         .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
 
-        let mut events = Vec::new();
+        let events = Vec::new();
 
         for row in rows {
             let event_type: String = row.get("event_type");
@@ -601,7 +600,7 @@ impl EventStore for PostgreSqlEventStore {
         .await
         .map_err(|e| EventStoreError::DatabaseError(e.to_string()))?;
 
-        let mut events = Vec::new();
+        let events = Vec::new();
 
         for row in rows {
             let event_type_str: String = row.get("event_type");

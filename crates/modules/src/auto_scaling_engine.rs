@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Auto-scaling policy
 #[derive(Debug, Clone)]

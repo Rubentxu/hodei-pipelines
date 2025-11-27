@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use chrono::Utc;
 use thiserror::Error;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use super::queue_assignment::{QueueAssignmentEngine, QueueType};
 use super::scaling_policies::{ScalingAction, ScalingContext, ScalingDecision, ScalingEngine};

@@ -9,7 +9,6 @@ use std::fs;
 use std::io::{BufReader, Write};
 use std::net::IpAddr;
 use x509_parser::prelude::*;
-use x509_parser::time::ASN1Time;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MtlsConfig {

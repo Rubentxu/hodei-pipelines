@@ -6,9 +6,9 @@
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::error;
 
 /// Core metric types for resource pools
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -194,7 +194,7 @@ impl MetricsStore {
             .ok_or_else(|| MetricsError::StorageError(format!("Pool {} not found", pool_id)))?;
 
         let mut latest_metrics: HashMap<MetricType, f64> = HashMap::new();
-        let mut latest_timestamp = chrono::MIN_DATETIME;
+        let mut latest_timestamp = chrono::DateTime::<Utc>::MIN_UTC;
 
         for metric in metrics.iter() {
             if metric.timestamp > latest_timestamp {

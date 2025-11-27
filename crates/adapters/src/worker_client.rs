@@ -12,10 +12,10 @@ use hodei_ports::{WorkerClient, WorkerClientError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::timeout;
-use tonic::{Status, transport::Channel};
+use tonic::transport::Channel;
 use tracing::{debug, error, info, warn};
 
 /// Resource usage metrics for a worker

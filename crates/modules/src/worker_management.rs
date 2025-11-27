@@ -7,18 +7,15 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use async_trait::async_trait;
 use chrono::Utc;
-use hodei_adapters::{DefaultProviderFactory, RegistrationConfig, WorkerRegistrationAdapter};
+use hodei_adapters::WorkerRegistrationAdapter;
 use hodei_core;
 use hodei_core::{JobId, Worker, WorkerCapabilities, WorkerId};
-use hodei_ports::ProviderFactoryTrait;
 use hodei_ports::scheduler_port::SchedulerPort;
 use hodei_ports::worker_provider::{ProviderConfig, ProviderError, WorkerProvider};
 use hodei_ports::{WorkerRegistrationError, WorkerRegistrationPort};
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
-use uuid::Uuid;
 
 /// Configuration for worker management service
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,7 +121,7 @@ where
     /// Create a new dynamic worker with custom configuration
     pub async fn provision_worker_with_config(
         &self,
-        mut config: ProviderConfig,
+        config: ProviderConfig,
         cpu_cores: u32,
         memory_mb: u64,
     ) -> Result<Worker, WorkerManagementError> {
@@ -826,7 +823,7 @@ where
         // Categorize workers by health status
         let mut healthy_count = 0;
         let mut unhealthy_count = 0;
-        let mut disconnected_count = 0;
+        let disconnected_count = 0;
         let mut recovery_count = 0;
         let mut unknown_count = 0;
         let mut total_response_time = 0.0;
@@ -3684,6 +3681,7 @@ where
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use hodei_adapters::RegistrationConfig;
     use hodei_core::WorkerCapabilities;
     use hodei_ports::worker_provider::ProviderCapabilities;
 

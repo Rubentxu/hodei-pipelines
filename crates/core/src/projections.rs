@@ -334,7 +334,7 @@ impl Projector for JobStatusProjector {
                     if let Ok(job_event) = serde_json::from_value::<JobCreatedEvent>(event_data) {
                         let projection =
                             JobStatusProjection::new(job_event.aggregate_id, job_event.job_name);
-                        if let Some(tenant) = job_event.tenant_id {
+                        if let Some(_tenant) = job_event.tenant_id {
                             // Update projection with tenant
                         }
                         self.projections.insert(job_event.aggregate_id, projection);
@@ -393,9 +393,9 @@ pub enum ProjectionError {
 /// Build projections from an event store
 pub async fn build_projections_from_events<T: EventStore + Send + Sync>(
     event_store: Arc<T>,
-    from_version: Option<u64>,
+    _from_version: Option<u64>,
 ) -> Result<JobStatusProjector, ProjectionError> {
-    use crate::events::EventRegistry;
+    
 
     let mut projector = JobStatusProjector::new();
 

@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use hodei_core::{JobId, Worker, WorkerId};
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Job requirements
 #[derive(Debug, Clone)]

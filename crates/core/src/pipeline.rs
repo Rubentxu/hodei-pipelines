@@ -7,7 +7,6 @@ use crate::{DomainError, Result};
 // use daggy::{Dag, NodeIndex};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt;
 use uuid::Uuid;
 
 /// Pipeline identifier - Value Object

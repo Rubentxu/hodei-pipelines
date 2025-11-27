@@ -8,11 +8,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
-use hodei_core::WorkerId;
-use hodei_core::{ResourceQuota, WorkerStatus};
 use thiserror::Error;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::error;
 
 /// Scaling decision
 #[derive(Debug, Clone)]

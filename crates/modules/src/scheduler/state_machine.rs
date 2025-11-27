@@ -5,11 +5,10 @@
 //! flexibility in the scheduling process.
 
 use crate::scheduler::{
-    ClusterState, ResourceUsage, SchedulerConfig, SchedulerError, SchedulerModule, Worker,
+    SchedulerError, SchedulerModule, Worker,
     WorkerNode,
 };
-use hodei_core::{Job, JobId};
-use std::sync::Arc;
+use hodei_core::Job;
 
 /// Scheduling state to eliminate temporal coupling
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use hodei_adapters::DefaultProviderFactory;
-use hodei_core::{Worker, WorkerId};
+use hodei_core::WorkerId;
 use hodei_ports::{
     ProviderFactoryTrait,
     resource_pool::{
@@ -14,10 +14,8 @@ use hodei_ports::{
     },
     worker_provider::{ProviderConfig, ProviderError, WorkerProvider},
 };
-use hodei_core::{ResourceQuota, WorkerStatus};
-use serde::{Deserialize, Serialize};
+use hodei_core::ResourceQuota;
 use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
 use tracing::{error, info, warn};
 
 /// Resource Pool Service
@@ -301,7 +299,7 @@ pub async fn create_kubernetes_resource_pool(
     min_size: u32,
     max_size: u32,
 ) -> Result<ResourcePoolService, ResourcePoolServiceError> {
-    let mut config = ResourcePoolConfig {
+    let config = ResourcePoolConfig {
         pool_type: ResourcePoolType::Kubernetes,
         name,
         provider_name: "k8s-provider".to_string(),

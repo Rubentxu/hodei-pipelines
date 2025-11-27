@@ -4,9 +4,7 @@
 //! based on resource pool metrics and tenant usage patterns.
 
 use chrono::{DateTime, Utc};
-use rand::Rng;
 use std::collections::HashMap;
-use std::time::Duration;
 
 /// Cost optimization recommendation types
 #[derive(Debug, Clone)]

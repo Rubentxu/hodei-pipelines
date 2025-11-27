@@ -4,7 +4,7 @@
 //! into domain entities, reducing code duplication across repository implementations.
 
 use hodei_core::{Job, JobId, Worker, WorkerId};
-use hodei_core::{JobSpec, WorkerCapabilities, WorkerStatus};
+use hodei_core::{JobSpec, WorkerCapabilities};
 use sqlx::{Row, postgres::PgRow};
 
 /// Common row extractor for PostgreSQL databases
@@ -38,7 +38,7 @@ impl RowExtractor {
         }
 
         // Create Job with validated spec
-        let mut job = Job::new(id, spec).map_err(|e| format!("Failed to create job: {}", e))?;
+        let job = Job::new(id, spec).map_err(|e| format!("Failed to create job: {}", e))?;
 
         // Optionally restore additional fields if needed
         // (name, description, state, timestamps, etc. would be reconstructed)

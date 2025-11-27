@@ -10,7 +10,7 @@ use dashmap::DashMap;
 use hodei_core::{Job, JobId, JobState, Worker};
 use hodei_core::{WorkerCapabilities, WorkerId};
 use hodei_ports::{
-    EventPublisher, JobRepository, JobRepositoryError, SchedulerPort, WorkerClient,
+    EventPublisher, JobRepository, SchedulerPort, WorkerClient,
     WorkerRepository, scheduler_port::SchedulerError,
 };
 use hwp_proto::ServerMessage;
@@ -317,7 +317,7 @@ where
         event_bus: Arc<E>,
         worker_client: Arc<W>,
         worker_repo: Arc<WR>,
-        mut config: SchedulerConfig,
+        config: SchedulerConfig,
     ) -> Self {
         let max_queue_size = config.max_queue_size;
         Self {
