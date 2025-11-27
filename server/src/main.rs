@@ -18,9 +18,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use hodei_adapters::{
-    DockerProvider, GrpcWorkerClient, HttpWorkerClient, InMemoryBus, InMemoryJobRepository,
-    InMemoryPipelineRepository, InMemoryWorkerRepository, ProviderConfig, ProviderType,
-    WorkerRegistrationAdapter,
+    DockerProvider, EventBusConfig, EventBusFactory, EventBusType, GrpcWorkerClient,
+    HttpWorkerClient, InMemoryBus, InMemoryJobRepository, InMemoryPipelineRepository,
+    InMemoryWorkerRepository, ProviderConfig, ProviderType, WorkerRegistrationAdapter,
 };
 use hodei_core::{Job, JobId, Worker, WorkerId};
 use hodei_core::{JobSpec, ResourceQuota, WorkerCapabilities};
@@ -278,7 +278,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let job_repo = Arc::new(InMemoryJobRepository::new());
     let worker_repo = Arc::new(InMemoryWorkerRepository::new());
     let pipeline_repo = Arc::new(InMemoryPipelineRepository::new());
-    let event_bus = Arc::new(InMemoryBus::new(10_000));
+
+    // Read event bus configuration from environment
+    let event_bus_type = std::env::var("HODEI_EVENT_BUS_TYPE")
+        .unwrap_or_else(|_| "inmemory".to_string())
+        .parse::<EventBusType>()
+        .unwrap_or_else(|_| {
+            tracing::warn!("Invalid event bus type, defaulting to InMemory");
+            EventBusType::InMemory
+        });
+
+    let inmemory_capacity = std::env::var("HODEI_EVENT_BUS_CAPACITY")
+        .unwrap_or_else(|_| "10000".to_string())
+        .parse::<usize>()
+        .unwrap_or(10_000);
+
+    let nats_url =
+        std::env::var("HODEI_NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+
+    let nats_timeout = std::env::var("HODEI_NATS_TIMEOUT_MS")
+        .unwrap_or_else(|_| "5000".to_string())
+        .parse::<u64>()
+        .unwrap_or(5_000);
+
+    // Log the configuration
+    tracing::info!(
+        "Event bus configuration - Type: {:?}, Capacity: {}, NATS URL: {}, NATS timeout: {}ms",
+        event_bus_type,
+        inmemory_capacity,
+        nats_url,
+        nats_timeout
+    );
+
+    // Create event bus - currently using InMemoryBus for modules (concrete type required)
+    // The EventBusFactory is ready for future use when modules accept trait objects
+    let event_bus = Arc::new(InMemoryBus::new(inmemory_capacity));
     let worker_client = Arc::new(GrpcWorkerClient::new(
         tonic::transport::Channel::from_static("http://localhost:8080")
             .connect()

@@ -16,7 +16,8 @@ pub mod security;
 pub mod worker_client;
 pub mod worker_registration;
 
-pub use crate::bus::{InMemoryBus, InMemoryBusBuilder};
+pub use crate::bus::config::{EventBusConfig, EventBusType, NatsConfig};
+pub use crate::bus::{EventBusFactory, InMemoryBus, InMemoryBusBuilder};
 pub use crate::docker_provider::DockerProvider;
 pub use crate::kubernetes_provider::KubernetesProvider;
 pub use crate::provider_factory::DefaultProviderFactory;
