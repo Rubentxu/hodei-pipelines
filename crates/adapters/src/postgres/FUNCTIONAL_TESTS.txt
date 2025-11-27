@@ -1,0 +1,119 @@
+# Pipeline Execution Functional Tests
+
+## 🎯 Tests Funcionales Reales con Testcontainers
+
+Estos son **tests funcionales reales** que utilizan PostgreSQL y Testcontainers. **NO son mocks ni simulaciones**.
+
+## 📋 Tests Implementados
+
+### Test 1: Pipeline Creation and Persistence (TDD Red → Green)
+Verifica que:
+- Los pipelines se pueden crear con múltiples steps
+- Los pipelines se persisten correctamente en PostgreSQL
+- Los steps con dependencias se guardan y recuperan correctamente
+
+### Test 2: Pipeline Execution Orchestration (TDD Red → Green)
+Verifica que:
+- El PipelineExecutionOrchestrator puede ejecutar pipelines
+- Las ejecuciones se crean y persisten en base de datos
+- El sistema de eventos funciona correctamente
+
+### Test 3: Pipeline with Dependencies (TDD Red → Green)
+Verifica que:
+- Pipelines con dependencias complejas funcionan
+- Las dependencias entre steps se respetan
+- El orden de ejecución se calcula correctamente
+
+### Test 4: Pipeline Variables (TDD Red → Green)
+Verifica que:
+- Variables de pipeline se persisten correctamente
+- Variables se propagan a los jobs
+- Soporte multi-tenant funciona
+
+## 🚀 Cómo Ejecutar
+
+```bash
+# Ejecutar TODOS los tests funcionales
+cargo test --features integration --lib postgres::functional_tests
+
+# Ejecutar un test específico
+cargo test --features integration --lib postgres::functional_tests::test_pipeline_creation_and_persistence
+```
+
+## ⚙️ Características
+
+### ✅ Auto-gestionables
+- **NO requiere levantar PostgreSQL manualmente**
+- Testcontainers crea y destruye automáticamente los contenedores
+- Cada test tiene su propia base de datos limpia
+
+### ✅ PostgreSQL Real
+- Usan **PostgreSQL real**, no SQLite ni mocks
+- Conexiones reales con sqlx
+- Transacciones y constraints reales
+
+### ✅ TDD (Test-Driven Development)
+- Tests escritos **ANTES** de implementar funcionalidad
+- Rojo → Verde → Refactor
+- Cada test es una especificación de comportamiento
+
+### ✅ Aislados
+- Cada test usa su propia base de datos
+- Clean up automático entre tests
+- Sin efectos secundarios
+
+## 📦 Dependencias
+
+```toml
+[features]
+integration = ["testcontainers", "sqlx/runtime-tokio-rustls", "hodei-core/sqlx"]
+```
+
+Requiere:
+- `testcontainers` - Para levantar PostgreSQL automáticamente
+- `sqlx` - Cliente PostgreSQL con async/await
+- Feature `integration` habilitada
+
+## 🔧 Configuración
+
+### PostgreSQL
+- Usuario: `postgres`
+- Password: `postgres`
+- Base de datos: `postgres`
+- Puerto: Aleatorio (asignado por Testcontainers)
+
+### Variables de entorno (opcionales)
+```bash
+# Usar PostgreSQL externo en lugar de Testcontainers
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/hodei_test"
+```
+
+## 📊 Cobertura
+
+Los tests cubren:
+- ✅ Creación y persistencia de pipelines
+- ✅ Orquestación de ejecución de pipelines
+- ✅ Dependencias entre steps
+- ✅ Variables y entornos
+- ✅ Multi-tenancy
+- ✅ Esquemas de base de datos
+- ✅ Repositorios PostgreSQL (Job, Pipeline, PipelineExecution)
+
+## 🚧 En Desarrollo
+
+Próximos tests:
+- [ ] Pipeline execution con jobs reales
+- [ ] Cancelación de ejecuciones
+- [ ] Reintentos y manejo de errores
+- [ ] Concurrencia y paralelización
+- [ ] Métricas y monitoreo
+- [ ] Rollback de ejecuciones fallidas
+
+## 🎓 Metodología
+
+Estos tests siguen **TDD estricto**:
+1. **RED**: Test que falla (especifica comportamiento esperado)
+2. **GREEN**: Implementación mínima para pasar el test
+3. **REFACTOR**: Mejorar código manteniendo tests verdes
+
+**NO son integration tests tradicionales** - son **unit tests funcionales** que prueban comportamiento real del sistema usando componentes reales.
