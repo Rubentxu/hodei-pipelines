@@ -50,6 +50,12 @@ message ResourceUsage {
   uint64 cpu_usage_m = 1;
   uint64 memory_usage_mb = 2;
   uint32 active_jobs = 3;
+  double disk_read_mb = 4;
+  double disk_write_mb = 5;
+  double network_sent_mb = 6;
+  double network_received_mb = 7;
+  double gpu_utilization_percent = 8;
+  int64 timestamp = 9;
 }
 
 message JobAccepted {
