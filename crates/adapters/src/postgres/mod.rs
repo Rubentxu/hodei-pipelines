@@ -2,6 +2,7 @@
 //!
 //! Production-ready PostgreSQL implementations for repositories and services.
 
+pub mod functional_tests;
 pub mod job_repository;
 pub mod pipeline_execution_repository;
 pub mod pipeline_repository;
