@@ -37,8 +37,8 @@ pub use crate::postgres::{
     PostgreSqlWorkerRepository,
 };
 
-// Redb (embedded) implementations
-pub use crate::redb::{RedbJobRepository, RedbPipelineRepository, RedbWorkerRepository};
+// Redb (embedded) implementations - temporarily commented out
+// pub use crate::redb::{RedbJobRepository, RedbPipelineRepository, RedbWorkerRepository};
 
 // RBAC repositories
 pub use crate::rbac_repositories::{InMemoryPermissionRepository, InMemoryRoleRepository};

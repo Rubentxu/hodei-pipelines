@@ -1,14 +1,14 @@
 //! Pipeline Repository Port
 
 use async_trait::async_trait;
-use hodei_core::{Pipeline, PipelineId};
+use hodei_core::{Pipeline, PipelineId, Result};
 
 #[async_trait]
 pub trait PipelineRepository: Send + Sync {
-    async fn save_pipeline(&self, pipeline: &Pipeline) -> Result<(), PipelineRepositoryError>;
-    async fn get_pipeline(&self, id: &PipelineId) -> Result<Option<Pipeline>, PipelineRepositoryError>;
-    async fn delete_pipeline(&self, id: &PipelineId) -> Result<(), PipelineRepositoryError>;
-    async fn get_all_pipelines(&self) -> Result<Vec<Pipeline>, PipelineRepositoryError>;
+    async fn save_pipeline(&self, pipeline: &Pipeline) -> Result<()>;
+    async fn get_pipeline(&self, id: &PipelineId) -> Result<Option<Pipeline>>;
+    async fn delete_pipeline(&self, id: &PipelineId) -> Result<()>;
+    async fn get_all_pipelines(&self) -> Result<Vec<Pipeline>>;
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -17,6 +17,8 @@ pub enum PipelineRepositoryError {
     NotFound(PipelineId),
     #[error("Database error: {0}")]
     Database(String),
+    #[error("Validation error: {0}")]
+    Validation(String),
 }
 
 #[cfg(test)]

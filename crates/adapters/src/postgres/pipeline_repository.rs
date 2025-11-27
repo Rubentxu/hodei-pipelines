@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use hodei_core::{DomainError, Pipeline, PipelineId, Result};
-use hodei_ports::PipelineRepository;
+use hodei_ports::{PipelineRepository, PipelineRepositoryError};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use tracing::{error, info};
@@ -23,7 +23,7 @@ impl PostgreSqlPipelineRepository {
     }
 
     /// Initialize database schema for pipelines
-    pub async fn init_schema(&self) -> Result<(), DomainError> {
+    pub async fn init_schema(&self) -> Result<()> {
         info!("Initializing pipeline schema");
 
         // Create pipelines table
@@ -97,7 +97,7 @@ impl PostgreSqlPipelineRepository {
 
 #[async_trait]
 impl PipelineRepository for PostgreSqlPipelineRepository {
-    async fn save_pipeline(&self, pipeline: &Pipeline) -> Result<(), DomainError> {
+    async fn save_pipeline(&self, pipeline: &Pipeline) -> Result<()> {
         sqlx::query(
             r#"
             INSERT INTO pipelines (
@@ -156,10 +156,7 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
         Ok(())
     }
 
-    async fn get_pipeline(
-        &self,
-        pipeline_id: &PipelineId,
-    ) -> Result<Option<Pipeline>, DomainError> {
+    async fn get_pipeline(&self, pipeline_id: &PipelineId) -> Result<Option<Pipeline>> {
         let pipeline_row = sqlx::query(r#"
             SELECT pipeline_id, name, description, status, variables, workflow_definition, created_at, updated_at, tenant_id
             FROM pipelines
@@ -191,15 +188,12 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
             for step_row in step_rows {
                 let job_spec: hodei_core::job::JobSpec =
                     serde_json::from_value(step_row.get("job_spec")).map_err(|e| {
-                        DomainError::Infrastructure(format!(
-                            "Failed to deserialize job spec: {}",
-                            e
-                        ))
+                        DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
                     })?;
 
                 let depends_on: Vec<hodei_core::pipeline::PipelineStepId> =
                     serde_json::from_value(step_row.get("depends_on")).map_err(|e| {
-                        DomainError::Infrastructure(format!(
+                        DomainError::Validation(format!(
                             "Failed to deserialize dependencies: {}",
                             e
                         ))
@@ -242,7 +236,7 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
         }
     }
 
-    async fn get_all_pipelines(&self) -> Result<Vec<Pipeline>, DomainError> {
+    async fn get_all_pipelines(&self) -> Result<Vec<Pipeline>> {
         let pipeline_rows = sqlx::query(
             r#"
             SELECT pipeline_id
@@ -266,7 +260,7 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
         Ok(pipelines)
     }
 
-    async fn delete_pipeline(&self, pipeline_id: &PipelineId) -> Result<(), DomainError> {
+    async fn delete_pipeline(&self, pipeline_id: &PipelineId) -> Result<()> {
         sqlx::query(
             r#"
             DELETE FROM pipelines WHERE pipeline_id = $1

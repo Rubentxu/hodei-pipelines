@@ -870,6 +870,9 @@ mod tests {
     }
 }
 
+// Temporarily disabled - needs update to match new trait signatures
+// Will be restored after PostgreSQL implementations are working
+/*
 #[async_trait]
 impl JobRepository for RedbJobRepository {
     async fn save_job(&self, job: &Job) -> Result<(), JobRepositoryError> {
@@ -1157,6 +1160,7 @@ impl JobRepository for RedbJobRepository {
         Ok(())
     }
 }
+*/
 
 /// Redb-backed worker repository
 pub struct RedbWorkerRepository {
@@ -1196,6 +1200,7 @@ impl RedbWorkerRepository {
     }
 }
 
+/*
 #[async_trait]
 impl WorkerRepository for RedbWorkerRepository {
     async fn save_worker(&self, worker: &Worker) -> Result<(), WorkerRepositoryError> {
@@ -1462,7 +1467,9 @@ impl RedbPipelineRepository {
         Ok(())
     }
 }
+*/
 
+/*
 #[async_trait]
 impl PipelineRepository for RedbPipelineRepository {
     async fn save_pipeline(&self, pipeline: &Pipeline) -> Result<(), PipelineRepositoryError> {
@@ -1582,3 +1589,4 @@ impl PipelineRepository for RedbPipelineRepository {
         Ok(pipelines)
     }
 }
+*/

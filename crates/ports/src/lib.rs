@@ -21,6 +21,7 @@ pub mod worker_repository;
 
 pub use crate::event_bus::{EventBusError, EventPublisher, EventSubscriber, SystemEvent};
 pub use crate::job_repository::{JobRepository, JobRepositoryError};
+pub use crate::pipeline_execution_repository::PipelineExecutionRepository;
 pub use crate::pipeline_repository::{PipelineRepository, PipelineRepositoryError};
 pub use crate::rbac_repository::{PermissionRepository, RoleRepository};
 pub use crate::resource_pool::{

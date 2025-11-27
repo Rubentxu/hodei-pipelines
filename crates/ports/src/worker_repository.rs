@@ -1,23 +1,30 @@
 //! Worker Repository Port
 
 use async_trait::async_trait;
-use hodei_core::{Worker, WorkerId};
+use hodei_core::{Result, Worker, WorkerId};
 
 #[async_trait]
 pub trait WorkerRepository: Send + Sync {
-    async fn save_worker(&self, worker: &Worker) -> Result<(), WorkerRepositoryError>;
-    async fn get_worker(&self, id: &WorkerId) -> Result<Option<Worker>, WorkerRepositoryError>;
-    async fn get_all_workers(&self) -> Result<Vec<Worker>, WorkerRepositoryError>;
-    async fn delete_worker(&self, id: &WorkerId) -> Result<(), WorkerRepositoryError>;
+    async fn save_worker(&self, worker: &Worker) -> Result<()>;
+    async fn get_worker(&self, id: &WorkerId) -> Result<Option<Worker>>;
+    async fn get_all_workers(&self) -> Result<Vec<Worker>>;
+    async fn delete_worker(&self, id: &WorkerId) -> Result<()>;
 
     /// Update the last_seen timestamp for a worker (US-03.1: Heartbeat Processing)
-    async fn update_last_seen(&self, id: &WorkerId) -> Result<(), WorkerRepositoryError>;
+    async fn update_last_seen(&self, id: &WorkerId) -> Result<()>;
 
     /// Find workers that haven't sent a heartbeat within the threshold duration
     async fn find_stale_workers(
         &self,
         threshold_duration: std::time::Duration,
-    ) -> Result<Vec<Worker>, WorkerRepositoryError>;
+    ) -> Result<Vec<Worker>>;
+
+    /// Update worker status (US-PIPE-001 extension)
+    async fn update_worker_status(
+        &self,
+        worker_id: &WorkerId,
+        status: hodei_core::WorkerStatus,
+    ) -> Result<()>;
 }
 
 #[derive(thiserror::Error, Debug)]

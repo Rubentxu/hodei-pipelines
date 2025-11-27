@@ -71,7 +71,7 @@ pub use crate::pipeline_crud::{
     PipelineSummary, UpdatePipelineRequest,
 };
 pub use crate::pipeline_execution_orchestrator::{
-    PipelineExecutionConfig, PipelineExecutionError, PipelineExecutionOrchestrator,
+    PipelineExecutionConfig, PipelineExecutionOrchestrator,
 };
 pub use crate::pool_lifecycle::{
     HealthCheckResult, InMemoryStateStore, LifecycleError, PoolConfig, PoolEvent,

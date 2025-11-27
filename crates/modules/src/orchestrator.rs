@@ -55,12 +55,12 @@ where
         self.job_repo
             .save_job(&job)
             .await
-            .map_err(OrchestratorError::JobRepository)?;
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         self.event_bus
             .publish(hodei_ports::SystemEvent::JobCreated(job.spec.clone()))
             .await
-            .map_err(OrchestratorError::EventBus)?;
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         Ok(job)
     }
@@ -69,7 +69,7 @@ where
         self.job_repo
             .get_job(id)
             .await
-            .map_err(OrchestratorError::JobRepository)
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))
     }
 
     pub async fn cancel_job(&self, id: &JobId) -> Result<(), OrchestratorError> {
@@ -79,7 +79,7 @@ where
             .job_repo
             .get_job(id)
             .await
-            .map_err(OrchestratorError::JobRepository)?
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?
             .ok_or(OrchestratorError::JobNotFound(id.clone()))?;
 
         let mut job = job;
@@ -89,7 +89,7 @@ where
         self.job_repo
             .save_job(&job)
             .await
-            .map_err(OrchestratorError::JobRepository)?;
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         Ok(())
     }
@@ -107,12 +107,12 @@ where
         self.pipeline_repo
             .save_pipeline(&pipeline)
             .await
-            .map_err(OrchestratorError::PipelineRepository)?;
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         self.event_bus
             .publish(hodei_ports::SystemEvent::PipelineCreated(pipeline.clone()))
             .await
-            .map_err(OrchestratorError::EventBus)?;
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         Ok(pipeline)
     }
@@ -124,7 +124,7 @@ where
             .pipeline_repo
             .get_pipeline(id)
             .await
-            .map_err(OrchestratorError::PipelineRepository)?
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?
             .ok_or(OrchestratorError::PipelineNotFound(id.clone()))?;
 
         pipeline
@@ -134,14 +134,14 @@ where
         self.pipeline_repo
             .save_pipeline(&pipeline)
             .await
-            .map_err(OrchestratorError::PipelineRepository)?;
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         self.event_bus
             .publish(hodei_ports::SystemEvent::PipelineStarted {
                 pipeline_id: id.clone(),
             })
             .await
-            .map_err(OrchestratorError::EventBus)?;
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         Ok(())
     }

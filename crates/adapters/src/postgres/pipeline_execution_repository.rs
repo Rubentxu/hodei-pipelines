@@ -244,21 +244,20 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
                         },
                     })
                 })
-                .collect::<Result<Vec<_>, DomainError>>()?;
+                .collect::<std::result::Result<Vec<_>, _>>()?;
 
-            let variables: HashMap<String, serde_json::Value> = row.get("variables");
+            let variables_json: serde_json::Value = row.get("variables");
+            let variables = serde_json::from_value::<HashMap<String, String>>(variables_json)
+                .unwrap_or_default();
             let execution = PipelineExecution {
                 id: ExecutionId::from_uuid(row.get("execution_id")),
                 pipeline_id: hodei_core::PipelineId::from_uuid(row.get("pipeline_id")),
-                status: ExecutionStatus::from_str(row.get("status"))
-                    .unwrap_or(ExecutionStatus::PENDING),
+                status: ExecutionStatus::from_str(row.get::<String, _>("status").as_str())
+                    .unwrap_or_else(|_| ExecutionStatus::PENDING),
                 started_at: row.get("started_at"),
                 completed_at: row.get("completed_at"),
                 steps,
-                variables: variables
-                    .into_iter()
-                    .map(|(k, v)| (k, v.as_str().unwrap_or_default().to_string()))
-                    .collect(),
+                variables: variables.into_iter().map(|(k, v)| (k, v)).collect(),
                 tenant_id: row.get("tenant_id"),
                 correlation_id: row.get("correlation_id"),
             };

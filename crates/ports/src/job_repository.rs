@@ -3,25 +3,25 @@
 //! Defines the interface for job persistence.
 
 use async_trait::async_trait;
-use hodei_core::{Job, JobId, WorkerId};
+use hodei_core::{Job, JobId, Result, WorkerId};
 
 /// Job repository port
 #[async_trait]
 pub trait JobRepository: Send + Sync {
     /// Save a job
-    async fn save_job(&self, job: &Job) -> Result<(), JobRepositoryError>;
+    async fn save_job(&self, job: &Job) -> Result<()>;
 
     /// Get a job by ID
-    async fn get_job(&self, id: &JobId) -> Result<Option<Job>, JobRepositoryError>;
+    async fn get_job(&self, id: &JobId) -> Result<Option<Job>>;
 
     /// Get all pending jobs
-    async fn get_pending_jobs(&self) -> Result<Vec<Job>, JobRepositoryError>;
+    async fn get_pending_jobs(&self) -> Result<Vec<Job>>;
 
     /// Get all running jobs
-    async fn get_running_jobs(&self) -> Result<Vec<Job>, JobRepositoryError>;
+    async fn get_running_jobs(&self) -> Result<Vec<Job>>;
 
     /// Delete a job
-    async fn delete_job(&self, id: &JobId) -> Result<(), JobRepositoryError>;
+    async fn delete_job(&self, id: &JobId) -> Result<()>;
 
     /// Update job state atomically
     async fn compare_and_swap_status(
@@ -29,38 +29,43 @@ pub trait JobRepository: Send + Sync {
         id: &JobId,
         expected_state: &str,
         new_state: &str,
-    ) -> Result<bool, JobRepositoryError>;
+    ) -> Result<bool>;
 
     /// Assign a worker to a job
-    async fn assign_worker(
-        &self,
-        job_id: &JobId,
-        worker_id: &WorkerId,
-    ) -> Result<(), JobRepositoryError>;
+    async fn assign_worker(&self, job_id: &JobId, worker_id: &WorkerId) -> Result<()>;
 
     /// Set job start time
     async fn set_job_start_time(
         &self,
         job_id: &JobId,
         start_time: chrono::DateTime<chrono::Utc>,
-    ) -> Result<(), JobRepositoryError>;
+    ) -> Result<()>;
 
     /// Set job finish time
     async fn set_job_finish_time(
         &self,
         job_id: &JobId,
         finish_time: chrono::DateTime<chrono::Utc>,
-    ) -> Result<(), JobRepositoryError>;
+    ) -> Result<()>;
 
     /// Set job duration
-    async fn set_job_duration(
+    async fn set_job_duration(&self, job_id: &JobId, duration_ms: i64) -> Result<()>;
+
+    /// Create a job from spec (US-PIPE-001 extension)
+    async fn create_job(&self, job_spec: hodei_core::job::JobSpec) -> Result<JobId>;
+
+    /// Update job state (US-PIPE-001 extension)
+    async fn update_job_state(
         &self,
         job_id: &JobId,
-        duration_ms: i64,
-    ) -> Result<(), JobRepositoryError>;
+        state: hodei_core::job::JobState,
+    ) -> Result<()>;
+
+    /// List jobs (US-PIPE-001 extension)
+    async fn list_jobs(&self) -> Result<Vec<Job>>;
 }
 
-/// Job repository error
+/// Job repository error (legacy - for backward compatibility)
 #[derive(thiserror::Error, Debug)]
 pub enum JobRepositoryError {
     #[error("Job not found: {0}")]

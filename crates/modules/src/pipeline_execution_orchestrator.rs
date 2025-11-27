@@ -6,6 +6,7 @@
 use async_trait::async_trait;
 use hodei_core::{
     DomainError, Result,
+    job::JobState,
     pipeline::{Pipeline, PipelineId, PipelineStep, PipelineStepId},
     pipeline_execution::{
         ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionId,
@@ -27,25 +28,6 @@ pub struct PipelineExecutionConfig {
     pub max_retry_attempts: u8,
     pub step_timeout_secs: u64,
     pub cleanup_interval_secs: u64,
-}
-
-/// Error types for pipeline execution orchestrator
-#[derive(thiserror::Error, Debug)]
-pub enum PipelineExecutionError {
-    #[error("Validation error: {0}")]
-    Validation(String),
-
-    #[error("Infrastructure error: {0}")]
-    Infrastructure(String),
-
-    #[error("Timeout error: {0}")]
-    Timeout(String),
-
-    #[error("Event bus error: {0}")]
-    EventBus(String),
-
-    #[error("Not found: {0}")]
-    NotFound(String),
 }
 
 impl Default for PipelineExecutionConfig {
@@ -102,7 +84,7 @@ where
             job_repo,
             pipeline_repo,
             event_bus,
-            config,
+            config: config.clone(),
             cancellation_sender,
             cancellation_receiver: Arc::new(tokio::sync::Mutex::new(cancellation_receiver)),
             step_semaphore: Arc::new(Semaphore::new(config.max_concurrent_steps)),
@@ -116,7 +98,7 @@ where
         variables: HashMap<String, String>,
         tenant_id: Option<String>,
         correlation_id: Option<String>,
-    ) -> Result<ExecutionId, DomainError> {
+    ) -> Result<ExecutionId> {
         info!("Starting pipeline execution: {}", pipeline_id);
 
         // Get pipeline from repository
@@ -125,7 +107,7 @@ where
             .get_pipeline(&pipeline_id)
             .await
             .map_err(|e| DomainError::Infrastructure(format!("Failed to get pipeline: {}", e)))?
-            .ok_or(DomainError::NotFound(format!(
+            \.ok_or_else(|| DomainError::NotFound(format!(
                 "Pipeline not found: {}",
                 pipeline_id
             )))?;
@@ -169,7 +151,7 @@ where
                 execution_id: execution_id.clone(),
             })
             .await
-            .map_err(|e| DomainError::EventBus(format!("Failed to publish event: {}", e)))?;
+            .map_err(|e| DomainError::Infrastructure(format!("Failed to publish event: {}", e)))?;
 
         // Start async execution in background
         let execution_repo = self.execution_repo.clone();
@@ -210,7 +192,7 @@ where
     }
 
     /// Cancel a running pipeline execution
-    pub async fn cancel_execution(&self, execution_id: &ExecutionId) -> Result<(), DomainError> {
+    pub async fn cancel_execution(&self, execution_id: &ExecutionId) -> Result<()> {
         info!("Cancelling pipeline execution: {}", execution_id);
 
         // Send cancellation signal
@@ -234,7 +216,7 @@ where
     pub async fn get_execution(
         &self,
         execution_id: &ExecutionId,
-    ) -> Result<Option<PipelineExecution>, DomainError> {
+    ) -> Result<Option<PipelineExecution>> {
         self.execution_repo
             .get_execution(execution_id)
             .await
@@ -429,7 +411,7 @@ where
                 .steps
                 .iter()
                 .find(|s| &s.id == step_id)
-                .ok_or(DomainError::NotFound(format!(
+                \.ok_or_else(|| DomainError::NotFound(format!(
                     "Step not found: {}",
                     step_id
                 )))?;
@@ -465,7 +447,7 @@ where
         })??;
 
         // Update step execution status based on job result
-        let step_status = if job_result.is_success() {
+        let step_status = if job_result.as_str() == JobState::SUCCESS {
             StepExecutionStatus::COMPLETED
         } else {
             StepExecutionStatus::FAILED
@@ -536,7 +518,7 @@ mod tests {
 
     #[async_trait]
     impl PipelineExecutionRepository for MockExecutionRepository {
-        async fn save_execution(&self, execution: &PipelineExecution) -> Result<(), DomainError> {
+        async fn save_execution(&self, execution: &PipelineExecution) -> Result<()> {
             let mut executions = self.executions.lock().unwrap();
             executions.insert(execution.id.clone(), execution.clone());
             Ok(())
@@ -545,7 +527,7 @@ mod tests {
         async fn get_execution(
             &self,
             execution_id: &ExecutionId,
-        ) -> Result<Option<PipelineExecution>, DomainError> {
+        ) -> Result<Option<PipelineExecution>> {
             let executions = self.executions.lock().unwrap();
             Ok(executions.get(execution_id).cloned())
         }
@@ -561,7 +543,7 @@ mod tests {
             &self,
             _execution_id: &ExecutionId,
             _status: ExecutionStatus,
-        ) -> Result<(), DomainError> {
+        ) -> Result<()> {
             Ok(())
         }
 
@@ -570,7 +552,7 @@ mod tests {
             _execution_id: &ExecutionId,
             _step_id: &PipelineStepId,
             _status: StepExecutionStatus,
-        ) -> Result<(), DomainError> {
+        ) -> Result<()> {
             Ok(())
         }
 
@@ -578,11 +560,11 @@ mod tests {
             &self,
             _execution_id: &ExecutionId,
             _step: &StepExecution,
-        ) -> Result<(), DomainError> {
+        ) -> Result<()> {
             Ok(())
         }
 
-        async fn delete_execution(&self, _execution_id: &ExecutionId) -> Result<(), DomainError> {
+        async fn delete_execution(&self, _execution_id: &ExecutionId) -> Result<()> {
             Ok(())
         }
 
@@ -611,11 +593,11 @@ mod tests {
             &self,
             _job_id: &hodei_core::JobId,
             _state: hodei_core::job::JobState,
-        ) -> Result<(), DomainError> {
+        ) -> Result<()> {
             Ok(())
         }
 
-        async fn delete_job(&self, _job_id: &hodei_core::JobId) -> Result<(), DomainError> {
+        async fn delete_job(&self, _job_id: &hodei_core::JobId) -> Result<()> {
             Ok(())
         }
 
