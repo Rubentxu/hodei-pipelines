@@ -643,4 +643,201 @@ mod tests {
             }
         }
     }
+
+    // US-TD-03: Artifact Upload System Tests
+
+    #[tokio::test]
+    async fn test_initiate_upload_generates_unique_upload_id() {
+        let scheduler = Arc::new(hodei_ports::MockSchedulerPort);
+
+        let service = HwpService::new(scheduler);
+
+        let req = InitiateUploadRequest {
+            artifact_id: "test-artifact".to_string(),
+            job_id: "test-job".to_string(),
+            total_size: 1024,
+            filename: "test.txt".to_string(),
+            checksum: "abc123".to_string(),
+            is_compressed: false,
+            compression_type: "".to_string(),
+        };
+
+        let response = service
+            .initiate_upload(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert!(response.accepted, "Upload should be accepted");
+        assert!(
+            !response.upload_id.is_empty(),
+            "Upload ID should be generated"
+        );
+        assert_eq!(
+            response.error_message, "",
+            "No error message should be present"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_initiate_upload_rejects_when_checksum_missing() {
+        let scheduler = Arc::new(hodei_ports::MockSchedulerPort);
+
+        let service = HwpService::new(scheduler);
+
+        let req = InitiateUploadRequest {
+            artifact_id: "test-artifact".to_string(),
+            job_id: "test-job".to_string(),
+            total_size: 1024,
+            filename: "test.txt".to_string(),
+            checksum: "".to_string(), // Empty checksum should be rejected
+            is_compressed: false,
+            compression_type: "".to_string(),
+        };
+
+        let response = service
+            .initiate_upload(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert!(
+            !response.accepted,
+            "Upload should be rejected when checksum is missing"
+        );
+        assert!(
+            !response.error_message.is_empty(),
+            "Error message should be present"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_upload_artifact_streams_chunks_successfully() {
+        let scheduler = Arc::new(hodei_ports::MockSchedulerPort);
+
+        let service = HwpService::new(scheduler);
+
+        // Create a stream of artifact chunks
+        let chunks = vec![
+            ArtifactChunk {
+                data: b"chunk1".to_vec(),
+                sequence_number: 0,
+                total_chunks: 2,
+                total_size: 12,
+                filename: "test.txt".to_string(),
+                checksum: "".to_string(),
+                is_compressed: false,
+                compression_type: "".to_string(),
+            },
+            ArtifactChunk {
+                data: b"chunk2".to_vec(),
+                sequence_number: 1,
+                total_chunks: 2,
+                total_size: 12,
+                filename: "test.txt".to_string(),
+                checksum: "final-checksum".to_string(),
+                is_compressed: false,
+                compression_type: "".to_string(),
+            },
+        ];
+
+        let request_stream = tokio_stream::iter(chunks);
+
+        let response = service
+            .upload_artifact(Request::new(request_stream))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert!(response.success, "Upload should be successful");
+        assert_eq!(response.bytes_received, 12, "Should receive all 12 bytes");
+    }
+
+    #[tokio::test]
+    async fn test_resume_upload_returns_next_expected_chunk() {
+        let scheduler = Arc::new(hodei_ports::MockSchedulerPort);
+
+        let service = HwpService::new(scheduler);
+
+        let req = ResumeUploadRequest {
+            upload_id: "test-upload-id".to_string(),
+            artifact_id: "test-artifact".to_string(),
+            last_received_chunk: 2,
+            bytes_received: 2048,
+        };
+
+        let response = service
+            .resume_upload(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert!(response.can_resume, "Should be able to resume");
+        assert_eq!(
+            response.next_expected_chunk, 3,
+            "Next expected chunk should be 3"
+        );
+        assert_eq!(
+            response.upload_id, "test-upload-id",
+            "Upload ID should match"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_finalize_upload_validates_and_returns_checksum() {
+        let scheduler = Arc::new(hodei_ports::MockSchedulerPort);
+
+        let service = HwpService::new(scheduler);
+
+        let req = FinalizeUploadRequest {
+            upload_id: "test-upload-id".to_string(),
+            artifact_id: "test-artifact".to_string(),
+            total_chunks: 3,
+            checksum: "final-checksum".to_string(),
+        };
+
+        let response = service
+            .finalize_upload(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert!(response.success, "Finalization should be successful");
+        assert_eq!(
+            response.artifact_id, "test-artifact",
+            "Artifact ID should match"
+        );
+        assert_eq!(
+            response.server_checksum, "final-checksum",
+            "Checksum should match"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_upload_with_compression_handles_correctly() {
+        let scheduler = Arc::new(hodei_ports::MockSchedulerPort);
+
+        let service = HwpService::new(scheduler);
+
+        let chunks = vec![ArtifactChunk {
+            data: b"compressed".to_vec(),
+            sequence_number: 0,
+            total_chunks: 1,
+            total_size: 9,
+            filename: "test.gz".to_string(),
+            checksum: "compressed-checksum".to_string(),
+            is_compressed: true,
+            compression_type: "gzip".to_string(),
+        }];
+
+        let request_stream = tokio_stream::iter(chunks);
+
+        let response = service
+            .upload_artifact(Request::new(request_stream))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert!(response.success, "Compressed upload should be successful");
+    }
 }

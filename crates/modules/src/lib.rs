@@ -3,6 +3,7 @@
 //! This crate contains the application layer (use cases) that orchestrates
 //! the domain entities through the ports.
 
+pub mod artifact_management;
 pub mod auto_scaling_engine;
 pub mod burst_capacity_manager;
 pub mod cooldown_management;
@@ -25,6 +26,11 @@ pub mod sla_tracking;
 pub mod weighted_fair_queuing;
 pub mod worker_management;
 
+pub use crate::artifact_management::{
+    ArtifactError, ArtifactId, ArtifactManagementConfig, ArtifactManagementService,
+    ArtifactMetadata, ArtifactRepository, ChunkInfo, StorageBackend, StorageError,
+    StorageProvider, UploadId, UploadStatus,
+};
 pub use crate::auto_scaling_engine::{
     AutoScalingPolicy, AutoScalingPolicyEngine, EvaluationContext, MetricsSnapshot,
     ScaleAction as AutoScalingAction, ScalingConstraints, ScalingDecision as AutoScalingDecision,
