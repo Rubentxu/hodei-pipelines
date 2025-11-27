@@ -3,7 +3,7 @@
 //! Defines the interface for job persistence.
 
 use async_trait::async_trait;
-use hodei_core::{Job, JobId};
+use hodei_core::{Job, JobId, WorkerId};
 
 /// Job repository port
 #[async_trait]
@@ -30,6 +30,34 @@ pub trait JobRepository: Send + Sync {
         expected_state: &str,
         new_state: &str,
     ) -> Result<bool, JobRepositoryError>;
+
+    /// Assign a worker to a job
+    async fn assign_worker(
+        &self,
+        job_id: &JobId,
+        worker_id: &WorkerId,
+    ) -> Result<(), JobRepositoryError>;
+
+    /// Set job start time
+    async fn set_job_start_time(
+        &self,
+        job_id: &JobId,
+        start_time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), JobRepositoryError>;
+
+    /// Set job finish time
+    async fn set_job_finish_time(
+        &self,
+        job_id: &JobId,
+        finish_time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), JobRepositoryError>;
+
+    /// Set job duration
+    async fn set_job_duration(
+        &self,
+        job_id: &JobId,
+        duration_ms: i64,
+    ) -> Result<(), JobRepositoryError>;
 }
 
 /// Job repository error
@@ -79,8 +107,12 @@ mod tests {
         let conflict = JobRepositoryError::Conflict;
         let database = JobRepositoryError::Database("Connection lost".to_string());
         let validation = JobRepositoryError::Validation("Invalid data".to_string());
-        
-        assert!(conflict.to_string().contains("Concurrent modification detected"));
+
+        assert!(
+            conflict
+                .to_string()
+                .contains("Concurrent modification detected")
+        );
         assert!(database.to_string().contains("Database error"));
         assert!(validation.to_string().contains("Invalid job data"));
     }

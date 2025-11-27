@@ -18,6 +18,14 @@ hwp-proto = { workspace = true }
 # Workspace dependencies
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["sync"] }
+
+[lib]
+name = "hodei_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
 tonic = { workspace = true, features = ["transport"] }
 axum = { workspace = true, features = ["json", "http2"] }
 tower = { workspace = true, features = ["util", "timeout"] }

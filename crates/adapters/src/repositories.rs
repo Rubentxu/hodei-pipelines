@@ -96,6 +96,42 @@ impl JobRepository for InMemoryJobRepository {
             Err(hodei_ports::JobRepositoryError::NotFound(id.clone()))
         }
     }
+
+    async fn assign_worker(
+        &self,
+        _job_id: &JobId,
+        _worker_id: &WorkerId,
+    ) -> Result<(), hodei_ports::JobRepositoryError> {
+        // For in-memory implementation, we just need to satisfy the trait
+        Ok(())
+    }
+
+    async fn set_job_start_time(
+        &self,
+        _job_id: &JobId,
+        _start_time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), hodei_ports::JobRepositoryError> {
+        // For in-memory implementation, we just need to satisfy the trait
+        Ok(())
+    }
+
+    async fn set_job_finish_time(
+        &self,
+        _job_id: &JobId,
+        _finish_time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), hodei_ports::JobRepositoryError> {
+        // For in-memory implementation, we just need to satisfy the trait
+        Ok(())
+    }
+
+    async fn set_job_duration(
+        &self,
+        _job_id: &JobId,
+        _duration_ms: i64,
+    ) -> Result<(), hodei_ports::JobRepositoryError> {
+        // For in-memory implementation, we just need to satisfy the trait
+        Ok(())
+    }
 }
 
 /// In-memory worker repository

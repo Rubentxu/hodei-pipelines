@@ -323,3 +323,324 @@ impl WorkerService for HwpService {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use hodei_core::{Job, JobSpec, JobState, ResourceQuota};
+    use hodei_ports::event_bus::{LogEntry, MockEventPublisher, StreamType, SystemEvent};
+    use hodei_ports::job_repository::MockJobRepository;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_job_accepted_updates_state_to_running() {
+        let job_repo = Arc::new(MockJobRepository);
+        let event_bus = Arc::new(MockEventPublisher);
+
+        let job_id = JobId::new();
+        let worker_id = WorkerId::new();
+
+        let job = Job::new(
+            job_id.clone(),
+            JobSpec {
+                name: "test-job".to_string(),
+                image: "ubuntu".to_string(),
+                command: vec!["echo".to_string(), "hello".to_string()],
+                resources: ResourceQuota {
+                    cpu_m: 1000,
+                    memory_mb: 512,
+                    gpu: 0,
+                },
+                timeout_ms: 60000,
+                retries: 0,
+                env: std::collections::HashMap::new(),
+                secret_refs: vec![],
+            },
+        )
+        .unwrap();
+
+        job_repo.save_job(&job).await.unwrap();
+
+        // Update job state to SCHEDULED before calling handle_job_accepted
+        job_repo
+            .compare_and_swap_status(&job_id, "PENDING", "SCHEDULED")
+            .await
+            .unwrap();
+
+        let scheduler = hodei_modules::SchedulerBuilder::new()
+            .job_repository(job_repo.clone())
+            .event_bus(event_bus.clone())
+            .worker_client(Arc::new(hodei_ports::MockWorkerClient))
+            .worker_repository(Arc::new(hodei_ports::MockWorkerRepository))
+            .build()
+            .unwrap();
+
+        // Call the method under test
+        let result = scheduler.handle_job_accepted(&job_id, &worker_id).await;
+
+        assert!(result.is_ok(), "handle_job_accepted should succeed");
+
+        // Verify state was updated to RUNNING
+        let updated_job = job_repo.get_job(&job_id).await.unwrap().unwrap();
+        assert_eq!(
+            updated_job.state,
+            JobState::RUNNING,
+            "Job state should be RUNNING"
+        );
+        assert!(
+            updated_job.started_at.is_some(),
+            "Start time should be recorded"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_log_entry_published_to_event_bus() {
+        let job_repo = Arc::new(MockJobRepository);
+        let event_bus = Arc::new(MockEventPublisher);
+
+        let job_id = JobId::new();
+        let worker_id = WorkerId::new();
+
+        let log_data = b"Test log output".to_vec();
+
+        let scheduler = hodei_modules::SchedulerBuilder::new()
+            .job_repository(job_repo.clone())
+            .event_bus(event_bus.clone())
+            .worker_client(Arc::new(hodei_ports::MockWorkerClient))
+            .worker_repository(Arc::new(hodei_ports::MockWorkerRepository))
+            .build()
+            .unwrap();
+
+        // Call the method under test
+        let result = scheduler
+            .handle_log_entry(&job_id, &worker_id, log_data.clone(), StreamType::Stdout)
+            .await;
+
+        assert!(result.is_ok(), "handle_log_entry should succeed");
+
+        // Verify event was published
+        assert_eq!(
+            event_bus.published_events.len(),
+            1,
+            "One event should be published"
+        );
+
+        if let Some(published_event) = event_bus.published_events.first() {
+            assert!(
+                matches!(published_event, SystemEvent::LogChunkReceived(_)),
+                "Should be LogChunkReceived event"
+            );
+
+            if let SystemEvent::LogChunkReceived(log) = published_event {
+                assert_eq!(log.job_id, job_id, "Job ID should match");
+                assert_eq!(log.data, log_data, "Log data should match");
+                assert_eq!(
+                    log.stream_type,
+                    StreamType::Stdout,
+                    "Stream type should match"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_job_result_updates_state_to_completed() {
+        let job_repo = Arc::new(MockJobRepository);
+        let event_bus = Arc::new(MockEventPublisher);
+
+        let job_id = JobId::new();
+        let worker_id = WorkerId::new();
+
+        let mut job = Job::new(
+            job_id.clone(),
+            JobSpec {
+                name: "test-job".to_string(),
+                image: "ubuntu".to_string(),
+                command: vec!["echo".to_string(), "hello".to_string()],
+                resources: ResourceQuota {
+                    cpu_m: 1000,
+                    memory_mb: 512,
+                    gpu: 0,
+                },
+                timeout_ms: 60000,
+                retries: 0,
+                env: std::collections::HashMap::new(),
+                secret_refs: vec![],
+            },
+        )
+        .unwrap();
+
+        job.start().unwrap();
+        job_repo.save_job(&job).await.unwrap();
+
+        // Update job state to RUNNING before calling handle_job_result
+        job_repo
+            .compare_and_swap_status(&job_id, "PENDING", "RUNNING")
+            .await
+            .unwrap();
+        job_repo
+            .set_job_start_time(&job_id, Utc::now())
+            .await
+            .unwrap();
+
+        let scheduler = hodei_modules::SchedulerBuilder::new()
+            .job_repository(job_repo.clone())
+            .event_bus(event_bus.clone())
+            .worker_client(Arc::new(hodei_ports::MockWorkerClient))
+            .worker_repository(Arc::new(hodei_ports::MockWorkerRepository))
+            .build()
+            .unwrap();
+
+        // Call the method under test with exit code 0 (success)
+        let result = scheduler.handle_job_result(&job_id, &worker_id, 0).await;
+
+        assert!(result.is_ok(), "handle_job_result should succeed");
+
+        // Verify job state was updated to COMPLETED
+        let updated_job = job_repo.get_job(&job_id).await.unwrap().unwrap();
+        assert!(
+            updated_job.finished_at.is_some(),
+            "Finish time should be recorded"
+        );
+        assert!(
+            updated_job.duration.is_some(),
+            "Duration should be calculated"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_job_result_with_nonzero_exit_code_updates_state_to_failed() {
+        let job_repo = Arc::new(MockJobRepository);
+        let event_bus = Arc::new(MockEventPublisher);
+
+        let job_id = JobId::new();
+        let worker_id = WorkerId::new();
+
+        let mut job = Job::new(
+            job_id.clone(),
+            JobSpec {
+                name: "test-job".to_string(),
+                image: "ubuntu".to_string(),
+                command: vec!["false".to_string()],
+                resources: ResourceQuota {
+                    cpu_m: 1000,
+                    memory_mb: 512,
+                    gpu: 0,
+                },
+                timeout_ms: 60000,
+                retries: 0,
+                env: std::collections::HashMap::new(),
+                secret_refs: vec![],
+            },
+        )
+        .unwrap();
+
+        job.start().unwrap();
+        job_repo.save_job(&job).await.unwrap();
+
+        // Update job state to RUNNING before calling handle_job_result
+        job_repo
+            .compare_and_swap_status(&job_id, "PENDING", "RUNNING")
+            .await
+            .unwrap();
+        job_repo
+            .set_job_start_time(&job_id, Utc::now())
+            .await
+            .unwrap();
+
+        let scheduler = hodei_modules::SchedulerBuilder::new()
+            .job_repository(job_repo.clone())
+            .event_bus(event_bus.clone())
+            .worker_client(Arc::new(hodei_ports::MockWorkerClient))
+            .worker_repository(Arc::new(hodei_ports::MockWorkerRepository))
+            .build()
+            .unwrap();
+
+        // Call the method under test with non-zero exit code (failure)
+        let result = scheduler.handle_job_result(&job_id, &worker_id, 1).await;
+
+        assert!(result.is_ok(), "handle_job_result should succeed");
+
+        // Verify job state was updated to FAILED
+        let updated_job = job_repo.get_job(&job_id).await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_job_completed_event_published_with_metrics() {
+        let job_repo = Arc::new(MockJobRepository);
+        let event_bus = Arc::new(MockEventPublisher);
+
+        let job_id = JobId::new();
+        let worker_id = WorkerId::new();
+
+        let mut job = Job::new(
+            job_id.clone(),
+            JobSpec {
+                name: "test-job".to_string(),
+                image: "ubuntu".to_string(),
+                command: vec!["sleep".to_string(), "1".to_string()],
+                resources: ResourceQuota {
+                    cpu_m: 1000,
+                    memory_mb: 512,
+                    gpu: 0,
+                },
+                timeout_ms: 60000,
+                retries: 0,
+                env: std::collections::HashMap::new(),
+                secret_refs: vec![],
+            },
+        )
+        .unwrap();
+
+        job.start().unwrap();
+        let start_time = Utc::now();
+        job_repo.save_job(&job).await.unwrap();
+
+        // Update job state to RUNNING and set start time
+        job_repo
+            .compare_and_swap_status(&job_id, "PENDING", "RUNNING")
+            .await
+            .unwrap();
+        job_repo
+            .set_job_start_time(&job_id, start_time)
+            .await
+            .unwrap();
+
+        // Simulate some execution time
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let scheduler = hodei_modules::SchedulerBuilder::new()
+            .job_repository(job_repo.clone())
+            .event_bus(event_bus.clone())
+            .worker_client(Arc::new(hodei_ports::MockWorkerClient))
+            .worker_repository(Arc::new(hodei_ports::MockWorkerRepository))
+            .build()
+            .unwrap();
+
+        // Call the method under test
+        let result = scheduler.handle_job_result(&job_id, &worker_id, 0).await;
+
+        assert!(result.is_ok(), "handle_job_result should succeed");
+
+        // Verify JobCompleted event was published
+        assert_eq!(
+            event_bus.published_events.len(),
+            1,
+            "One event should be published"
+        );
+
+        if let Some(published_event) = event_bus.published_events.first() {
+            match published_event {
+                SystemEvent::JobCompleted {
+                    job_id: id,
+                    exit_code,
+                } => {
+                    assert_eq!(id, &job_id, "Job ID should match");
+                    assert_eq!(exit_code, &0, "Exit code should be 0");
+                }
+                _ => panic!("Expected JobCompleted event, got {:?}", published_event),
+            }
+        }
+    }
+}

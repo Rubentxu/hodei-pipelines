@@ -7,7 +7,7 @@ pub use state_machine::{SchedulingContext, SchedulingState, SchedulingStateMachi
 use crossbeam::queue::SegQueue;
 use crossbeam::utils::CachePadded;
 use dashmap::DashMap;
-use hodei_core::{Job, JobId, Worker};
+use hodei_core::{Job, JobId, JobState, Worker};
 use hodei_core::{WorkerCapabilities, WorkerId};
 use hodei_ports::{
     EventPublisher, JobRepository, JobRepositoryError, SchedulerPort, WorkerClient,
@@ -400,11 +400,7 @@ where
                     // Update job state
                     if let Err(e) = self
                         .job_repo
-                        .compare_and_swap_status(
-                            &job.id,
-                            hodei_core::JobState::PENDING,
-                            hodei_core::JobState::SCHEDULED,
-                        )
+                        .compare_and_swap_status(&job.id, JobState::PENDING, JobState::SCHEDULED)
                         .await
                     {
                         error!("Failed to update job state: {}", e);
@@ -770,6 +766,203 @@ where
 
         self.send_to_worker(worker_id, message).await
     }
+
+    /// Handle job acceptance event from worker
+    /// Updates job state to RUNNING and records start timestamp
+    pub async fn handle_job_accepted(
+        &self,
+        job_id: &JobId,
+        worker_id: &WorkerId,
+    ) -> Result<(), SchedulerError> {
+        info!("Job {} accepted by worker {}", job_id, worker_id);
+
+        // Check if job exists
+        let job =
+            self.job_repo.get_job(job_id).await.map_err(|e| {
+                SchedulerError::internal(format!("Job {} not found: {}", job_id, e))
+            })?;
+
+        if job.is_none() {
+            return Err(SchedulerError::internal(format!(
+                "Job {} not found",
+                job_id
+            )));
+        }
+
+        // Update job state from SCHEDULED to RUNNING
+        let success = self
+            .job_repo
+            .compare_and_swap_status(job_id, "SCHEDULED", "RUNNING")
+            .await
+            .map_err(|e| {
+                SchedulerError::internal(format!(
+                    "Failed to transition job {} to RUNNING: {}",
+                    job_id, e
+                ))
+            })?;
+
+        if !success {
+            return Err(SchedulerError::internal(format!(
+                "State transition failed for job {}",
+                job_id
+            )));
+        }
+
+        // Record worker assignment
+        self.job_repo
+            .assign_worker(job_id, worker_id)
+            .await
+            .map_err(|e| {
+                SchedulerError::internal(format!(
+                    "Failed to assign worker {} to job {}: {}",
+                    worker_id, job_id, e
+                ))
+            })?;
+
+        // Record start timestamp
+        self.job_repo
+            .set_job_start_time(job_id, chrono::Utc::now())
+            .await
+            .map_err(|e| {
+                SchedulerError::internal(format!(
+                    "Failed to set start time for job {}: {}",
+                    job_id, e
+                ))
+            })?;
+
+        info!(
+            "Job {} state updated to RUNNING on worker {}",
+            job_id, worker_id
+        );
+        Ok(())
+    }
+
+    /// Handle log entry from worker
+    /// Publishes log event to event bus
+    pub async fn handle_log_entry(
+        &self,
+        job_id: &JobId,
+        worker_id: &WorkerId,
+        log_data: Vec<u8>,
+        stream_type: hodei_ports::event_bus::StreamType,
+    ) -> Result<(), SchedulerError> {
+        let log_entry = hodei_ports::event_bus::LogEntry {
+            job_id: job_id.clone(),
+            data: log_data,
+            stream_type,
+            sequence: 0, // TODO: Get sequence from message
+            timestamp: chrono::Utc::now(),
+        };
+
+        // Publish log event to event bus
+        self.event_bus
+            .publish(hodei_ports::event_bus::SystemEvent::LogChunkReceived(
+                log_entry.clone(),
+            ))
+            .await
+            .map_err(|e| {
+                SchedulerError::internal(format!(
+                    "Failed to publish log event for job {}: {}",
+                    job_id, e
+                ))
+            })?;
+
+        info!(
+            "Published log event for job {} from worker {}",
+            job_id, worker_id
+        );
+        Ok(())
+    }
+
+    /// Handle job result from worker
+    /// Updates job state and publishes completion event
+    pub async fn handle_job_result(
+        &self,
+        job_id: &JobId,
+        worker_id: &WorkerId,
+        exit_code: i32,
+    ) -> Result<(), SchedulerError> {
+        info!(
+            "Job {} completed on worker {} with exit code {}",
+            job_id, worker_id, exit_code
+        );
+
+        // Determine final state based on exit code
+        let final_state_str = if exit_code == 0 {
+            "COMPLETED"
+        } else {
+            "FAILED"
+        };
+
+        // Check if job exists
+        let job =
+            self.job_repo.get_job(job_id).await.map_err(|e| {
+                SchedulerError::internal(format!("Job {} not found: {}", job_id, e))
+            })?;
+
+        if job.is_none() {
+            return Err(SchedulerError::internal(format!(
+                "Job {} not found",
+                job_id
+            )));
+        }
+
+        // Update job state to final state (COMPLETED or FAILED)
+        let success = self
+            .job_repo
+            .compare_and_swap_status(job_id, "RUNNING", final_state_str)
+            .await
+            .map_err(|e| {
+                SchedulerError::internal(format!(
+                    "Failed to transition job {} to {}: {}",
+                    job_id, final_state_str, e
+                ))
+            })?;
+
+        if !success {
+            return Err(SchedulerError::internal(format!(
+                "State transition failed for job {}",
+                job_id
+            )));
+        }
+
+        // Record finish timestamp
+        self.job_repo
+            .set_job_finish_time(job_id, chrono::Utc::now())
+            .await
+            .map_err(|e| {
+                SchedulerError::internal(format!(
+                    "Failed to set finish time for job {}: {}",
+                    job_id, e
+                ))
+            })?;
+
+        // Publish job completed/failed event
+        let event = if exit_code == 0 {
+            hodei_ports::event_bus::SystemEvent::JobCompleted {
+                job_id: job_id.clone(),
+                exit_code,
+            }
+        } else {
+            hodei_ports::event_bus::SystemEvent::JobFailed {
+                job_id: job_id.clone(),
+                error: format!("Job failed with exit code {}", exit_code),
+            }
+        };
+
+        self.event_bus.publish(event).await.map_err(|e| {
+            SchedulerError::internal(format!(
+                "Failed to publish job completion event for job {}: {}",
+                job_id, e
+            ))
+        })?;
+
+        info!(
+            "Job {} state updated to {} and event published",
+            job_id, final_state_str
+        );
+        Ok(())
+    }
 }
 
 impl<R, E, W, WR> Clone for SchedulerModule<R, E, W, WR>
@@ -1047,6 +1240,38 @@ mod tests {
             _new: &str,
         ) -> Result<bool, JobRepositoryError> {
             Ok(true)
+        }
+
+        async fn assign_worker(
+            &self,
+            _job_id: &JobId,
+            _worker_id: &WorkerId,
+        ) -> Result<(), JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn set_job_start_time(
+            &self,
+            _job_id: &JobId,
+            _start_time: chrono::DateTime<chrono::Utc>,
+        ) -> Result<(), JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn set_job_finish_time(
+            &self,
+            _job_id: &JobId,
+            _finish_time: chrono::DateTime<chrono::Utc>,
+        ) -> Result<(), JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn set_job_duration(
+            &self,
+            _job_id: &JobId,
+            _duration_ms: i64,
+        ) -> Result<(), JobRepositoryError> {
+            Ok(())
         }
     }
 

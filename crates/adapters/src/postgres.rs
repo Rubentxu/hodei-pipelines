@@ -298,6 +298,42 @@ impl JobRepository for PostgreSqlJobRepository {
 
         Ok(result.is_some())
     }
+
+    async fn assign_worker(
+        &self,
+        _job_id: &JobId,
+        _worker_id: &WorkerId,
+    ) -> Result<(), JobRepositoryError> {
+        // TODO: Implement worker assignment in postgres
+        Ok(())
+    }
+
+    async fn set_job_start_time(
+        &self,
+        _job_id: &JobId,
+        _start_time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), JobRepositoryError> {
+        // TODO: Implement start time tracking in postgres
+        Ok(())
+    }
+
+    async fn set_job_finish_time(
+        &self,
+        _job_id: &JobId,
+        _finish_time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), JobRepositoryError> {
+        // TODO: Implement finish time tracking in postgres
+        Ok(())
+    }
+
+    async fn set_job_duration(
+        &self,
+        _job_id: &JobId,
+        _duration_ms: i64,
+    ) -> Result<(), JobRepositoryError> {
+        // TODO: Implement duration tracking in postgres
+        Ok(())
+    }
 }
 
 impl PostgreSqlJobRepository {

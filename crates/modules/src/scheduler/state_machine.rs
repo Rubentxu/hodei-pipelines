@@ -321,6 +321,38 @@ mod tests {
         ) -> Result<bool, JobRepositoryError> {
             Ok(true)
         }
+
+        async fn assign_worker(
+            &self,
+            _job_id: &JobId,
+            _worker_id: &WorkerId,
+        ) -> Result<(), JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn set_job_start_time(
+            &self,
+            _job_id: &JobId,
+            _start_time: chrono::DateTime<chrono::Utc>,
+        ) -> Result<(), JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn set_job_finish_time(
+            &self,
+            _job_id: &JobId,
+            _finish_time: chrono::DateTime<chrono::Utc>,
+        ) -> Result<(), JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn set_job_duration(
+            &self,
+            _job_id: &JobId,
+            _duration_ms: i64,
+        ) -> Result<(), JobRepositoryError> {
+            Ok(())
+        }
     }
 
     #[async_trait::async_trait]

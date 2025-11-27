@@ -6544,6 +6544,38 @@ mod cleanup_service_tests {
         ) -> Result<bool, hodei_ports::JobRepositoryError> {
             Ok(false)
         }
+
+        async fn assign_worker(
+            &self,
+            _job_id: &hodei_core::JobId,
+            _worker_id: &hodei_core::WorkerId,
+        ) -> Result<(), hodei_ports::JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn set_job_start_time(
+            &self,
+            _job_id: &hodei_core::JobId,
+            _start_time: chrono::DateTime<chrono::Utc>,
+        ) -> Result<(), hodei_ports::JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn set_job_finish_time(
+            &self,
+            _job_id: &hodei_core::JobId,
+            _finish_time: chrono::DateTime<chrono::Utc>,
+        ) -> Result<(), hodei_ports::JobRepositoryError> {
+            Ok(())
+        }
+
+        async fn set_job_duration(
+            &self,
+            _job_id: &hodei_core::JobId,
+            _duration_ms: i64,
+        ) -> Result<(), hodei_ports::JobRepositoryError> {
+            Ok(())
+        }
     }
 
     fn create_stale_worker() -> Worker {
