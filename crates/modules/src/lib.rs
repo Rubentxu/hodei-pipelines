@@ -18,6 +18,7 @@ pub mod queue_assignment;
 pub mod queue_prioritization;
 pub mod queue_scaling_integration;
 pub mod quota_enforcement;
+pub mod rbac;
 pub mod resource_pool;
 pub mod resource_pool_metrics_collector;
 pub mod scaling_policies;
@@ -83,6 +84,10 @@ pub use crate::queue_prioritization::{
 pub use crate::queue_scaling_integration::{
     QueueScalingConfig, QueueScalingError, QueueScalingEvent, QueueScalingIntegration,
     QueueScalingStats,
+};
+pub use crate::rbac::{
+    CreatePermissionRequest, CreateRoleRequest, ListRolesResponse, RbacConfig, RbacError,
+    RoleBasedAccessControlService, UpdateRoleRequest,
 };
 pub use crate::resource_pool::{
     ResourcePoolService, ResourcePoolServiceError, create_docker_resource_pool,

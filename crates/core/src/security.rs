@@ -1,5 +1,245 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
+use crate::DomainError;
+
+// ========== Value Objects for RBAC ==========
+
+/// Role identifier - Value Object
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RoleId(pub Uuid);
+
+impl RoleId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    pub fn from_uuid(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+
+    pub fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+}
+
+impl Default for RoleId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for RoleId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for RoleId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(Self(Uuid::parse_str(s)?))
+    }
+}
+
+/// Permission identifier - Value Object
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PermissionId(pub Uuid);
+
+impl PermissionId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    pub fn from_uuid(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+
+    pub fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+}
+
+impl Default for PermissionId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for PermissionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for PermissionId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(Self(Uuid::parse_str(s)?))
+    }
+}
+
+// ========== RBAC Domain Models ==========
+
+/// Role entity with permissions
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RoleEntity {
+    pub id: RoleId,
+    pub name: String,
+    pub description: String,
+    pub permissions: Vec<PermissionId>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl RoleEntity {
+    pub fn new(
+        id: RoleId,
+        name: String,
+        description: String,
+        permissions: Vec<PermissionId>,
+    ) -> Result<Self, DomainError> {
+        if name.trim().is_empty() {
+            return Err(DomainError::Validation(
+                "Role name cannot be empty".to_string(),
+            ));
+        }
+        if name.len() > 255 {
+            return Err(DomainError::Validation("Role name too long".to_string()));
+        }
+        if description.len() > 1000 {
+            return Err(DomainError::Validation(
+                "Role description too long".to_string(),
+            ));
+        }
+
+        let now = chrono::Utc::now();
+        Ok(Self {
+            id,
+            name,
+            description,
+            permissions,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    pub fn update(
+        &mut self,
+        name: Option<String>,
+        description: Option<String>,
+    ) -> Result<(), DomainError> {
+        if let Some(ref new_name) = name {
+            if new_name.trim().is_empty() {
+                return Err(DomainError::Validation(
+                    "Role name cannot be empty".to_string(),
+                ));
+            }
+            if new_name.len() > 255 {
+                return Err(DomainError::Validation("Role name too long".to_string()));
+            }
+            self.name = new_name.clone();
+        }
+
+        if let Some(ref new_description) = description {
+            if new_description.len() > 1000 {
+                return Err(DomainError::Validation(
+                    "Role description too long".to_string(),
+                ));
+            }
+            self.description = new_description.clone();
+        }
+
+        self.updated_at = chrono::Utc::now();
+        Ok(())
+    }
+
+    pub fn add_permission(&mut self, permission: PermissionId) {
+        if !self.permissions.contains(&permission) {
+            self.permissions.push(permission);
+            self.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn remove_permission(&mut self, permission: &PermissionId) {
+        self.permissions.retain(|p| p != permission);
+        self.updated_at = chrono::Utc::now();
+    }
+
+    pub fn has_permission(&self, permission: &PermissionId) -> bool {
+        self.permissions.contains(permission)
+    }
+}
+
+/// Permission entity
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PermissionEntity {
+    pub id: PermissionId,
+    pub name: String,
+    pub description: String,
+    pub resource: String,
+    pub action: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl PermissionEntity {
+    pub fn new(
+        id: PermissionId,
+        name: String,
+        description: String,
+        resource: String,
+        action: String,
+    ) -> Result<Self, DomainError> {
+        if name.trim().is_empty() {
+            return Err(DomainError::Validation(
+                "Permission name cannot be empty".to_string(),
+            ));
+        }
+        if name.len() > 255 {
+            return Err(DomainError::Validation(
+                "Permission name too long".to_string(),
+            ));
+        }
+        if resource.trim().is_empty() {
+            return Err(DomainError::Validation(
+                "Permission resource cannot be empty".to_string(),
+            ));
+        }
+        if action.trim().is_empty() {
+            return Err(DomainError::Validation(
+                "Permission action cannot be empty".to_string(),
+            ));
+        }
+
+        let now = chrono::Utc::now();
+        Ok(Self {
+            id,
+            name,
+            description,
+            resource,
+            action,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    pub fn update(&mut self, description: Option<String>) {
+        if let Some(ref new_description) = description {
+            self.description = new_description.clone();
+        }
+        self.updated_at = chrono::Utc::now();
+    }
+
+    /// Get permission key in format "resource:action"
+    pub fn key(&self) -> String {
+        format!("{}:{}", self.resource, self.action)
+    }
+}
+
+/// Legacy Role enum (for backward compatibility)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Role {
     Admin,
@@ -9,6 +249,7 @@ pub enum Role {
     System,
 }
 
+/// Legacy Permission enum (for backward compatibility)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Permission {
     ReadJobs,

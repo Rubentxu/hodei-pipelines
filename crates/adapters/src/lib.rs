@@ -10,6 +10,7 @@ pub mod kubernetes_provider;
 pub mod kubernetes_provider_tests;
 pub mod postgres;
 pub mod provider_factory;
+pub mod rbac_repositories;
 pub mod redb;
 pub mod repositories;
 pub mod security;
@@ -37,3 +38,6 @@ pub use crate::postgres::{
 
 // Redb (embedded) implementations
 pub use crate::redb::{RedbJobRepository, RedbPipelineRepository, RedbWorkerRepository};
+
+// RBAC repositories
+pub use crate::rbac_repositories::{InMemoryPermissionRepository, InMemoryRoleRepository};
