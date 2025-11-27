@@ -586,14 +586,28 @@ pub enum PipelineCrudError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_adapters::{InMemoryBus, InMemoryPipelineRepository};
+    use hodei_adapters::InMemoryPipelineRepository;
     use hodei_core::pipeline::Pipeline;
     use std::collections::HashMap;
+
+    // Mock EventBus for tests
+    #[derive(Debug, Clone)]
+    struct MockEventBus;
+
+    #[async_trait::async_trait]
+    impl EventPublisher for MockEventBus {
+        async fn publish(
+            &self,
+            _event: hodei_ports::SystemEvent,
+        ) -> Result<(), hodei_ports::EventBusError> {
+            Ok(())
+        }
+    }
 
     #[tokio::test]
     async fn test_create_pipeline() {
         let repo = Arc::new(InMemoryPipelineRepository::new());
-        let event_bus = Arc::new(InMemoryBus::new());
+        let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
             event_bus.clone(),
@@ -638,7 +652,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_pipeline() {
         let repo = Arc::new(InMemoryPipelineRepository::new());
-        let event_bus = Arc::new(InMemoryBus::new());
+        let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
             event_bus.clone(),
@@ -677,7 +691,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_pipelines() {
         let repo = Arc::new(InMemoryPipelineRepository::new());
-        let event_bus = Arc::new(InMemoryBus::new());
+        let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
             event_bus.clone(),
@@ -722,7 +736,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_pipeline() {
         let repo = Arc::new(InMemoryPipelineRepository::new());
-        let event_bus = Arc::new(InMemoryBus::new());
+        let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
             event_bus.clone(),
@@ -769,7 +783,7 @@ mod tests {
     #[tokio::test]
     async fn test_delete_pipeline() {
         let repo = Arc::new(InMemoryPipelineRepository::new());
-        let event_bus = Arc::new(InMemoryBus::new());
+        let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
             event_bus.clone(),
@@ -807,7 +821,7 @@ mod tests {
     #[tokio::test]
     async fn test_start_pipeline() {
         let repo = Arc::new(InMemoryPipelineRepository::new());
-        let event_bus = Arc::new(InMemoryBus::new());
+        let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
             event_bus.clone(),
@@ -845,7 +859,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_execution_order() {
         let repo = Arc::new(InMemoryPipelineRepository::new());
-        let event_bus = Arc::new(InMemoryBus::new());
+        let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
             event_bus.clone(),
