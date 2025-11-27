@@ -6,6 +6,7 @@
 use crate::{Job, JobId, JobSpec, JobState};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use std::collections::HashMap;
 
 /// Database row representation for Job entity
 #[derive(Debug, Clone)]

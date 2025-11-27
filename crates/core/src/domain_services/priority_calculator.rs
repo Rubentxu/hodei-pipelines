@@ -1,7 +1,7 @@
 //! PriorityCalculator Domain Service
 //! Calculates worker scores for optimal job scheduling using Bin Packing + Load Balancing
 
-use crate::domain_services::WorkerNode;
+use crate::domain_services::{ResourceUsage, WorkerNode};
 use crate::{Job, Worker};
 use std::time::Duration;
 

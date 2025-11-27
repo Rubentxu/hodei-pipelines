@@ -545,12 +545,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_tls_certificate_validator_with_ca() {
+        use std::io::Write;
+
         // Create a temporary CA certificate file
         let mut temp_ca = tempfile::NamedTempFile::with_suffix(".pem").unwrap();
         temp_ca
+            .as_file_mut()
             .write_all(b"-----BEGIN CERTIFICATE-----\nCA content\n-----END CERTIFICATE-----")
             .unwrap();
-        temp_ca.flush().unwrap();
+        temp_ca.as_file_mut().flush().unwrap();
 
         let config = MtlsConfig {
             ca_cert_path: Some(temp_ca.path().to_str().unwrap().to_string()),

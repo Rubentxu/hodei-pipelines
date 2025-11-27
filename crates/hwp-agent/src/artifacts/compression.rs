@@ -3,7 +3,7 @@
 //! This module provides compression utilities for artifact uploads.
 
 use flate2::{Compression, write::GzEncoder};
-use std::io::{self, BufReader};
+use std::io::{self, BufReader, BufWriter, Write};
 use thiserror::Error;
 
 /// Compression types supported
@@ -48,9 +48,10 @@ impl Compressor {
             CompressionType::Gzip => {
                 let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
                 encoder.write_all(data)?;
-                encoder
+                let compressed = encoder
                     .finish()
-                    .map_err(|e| CompressionError::Compression(e.to_string()))
+                    .map_err(|e| CompressionError::Compression(e.to_string()))?;
+                Ok(compressed)
             }
         }
     }
