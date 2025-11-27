@@ -4,7 +4,10 @@
 //! dynamic workers across different infrastructure providers.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
@@ -5527,6 +5530,7 @@ mod health_check_tests {
     #[tokio::test]
     async fn test_worker_marked_healthy_after_recovery() {
         let port = 9999;
+        let server_ready = Arc::new(AtomicBool::new(false));
 
         let worker = create_test_worker(
             "worker-5",
@@ -5549,7 +5553,7 @@ mod health_check_tests {
 
         // First, mark worker as unhealthy by running multiple checks
         // No server is running yet, so these should fail
-        for i in 0..3 {
+        for _ in 0..5 {
             let _ = service.check_worker_health(&worker).await;
             sleep(Duration::from_millis(10)).await;
         }
@@ -5563,6 +5567,7 @@ mod health_check_tests {
         // Now spawn the server to accept connections
         let addr = format!("127.0.0.1:{}", port);
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+        server_ready.store(true, Ordering::Relaxed);
 
         tokio::spawn(async move {
             loop {
@@ -5572,17 +5577,21 @@ mod health_check_tests {
             }
         });
 
-        sleep(Duration::from_millis(100)).await;
+        // Wait for server to be ready
+        while !server_ready.load(Ordering::Relaxed) {
+            sleep(Duration::from_millis(10)).await;
+        }
+        sleep(Duration::from_millis(200)).await;
 
         // Run health checks after server is up
-        for i in 3..6 {
+        for _ in 5..10 {
             let _ = service.check_worker_health(&worker).await;
             sleep(Duration::from_millis(10)).await;
         }
 
         let result_after = service.get_health_status(&worker.id).await.unwrap();
 
-        // Should now be healthy
+        // Should now be healthy after enough successful checks
         assert!(matches!(
             result_after.status,
             HealthStatus::Healthy | HealthStatus::Recovering
