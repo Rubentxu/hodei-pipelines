@@ -110,9 +110,7 @@ where
             .map_err(OrchestratorError::PipelineRepository)?;
 
         self.event_bus
-            .publish(hodei_ports::SystemEvent::PipelineCreated(Arc::new(
-                pipeline.clone(),
-            )))
+            .publish(hodei_ports::SystemEvent::PipelineCreated(pipeline.clone()))
             .await
             .map_err(OrchestratorError::EventBus)?;
 

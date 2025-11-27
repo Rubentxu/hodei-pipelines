@@ -1,7 +1,10 @@
-//! InMemoryBus adapter using tokio::broadcast
+//! Event Bus Adapters
 //!
-//! This is the concrete implementation of the EventPublisher and EventSubscriber
-//! ports, providing zero-copy, high-performance event communication.
+//! This module provides implementations of EventPublisher and EventSubscriber ports:
+//! - InMemoryBus: zero-copy, high-performance in-memory communication
+//! - NatsBus: distributed, persistent event communication via NATS JetStream
+
+pub mod nats;
 
 use async_trait::async_trait;
 use hodei_ports::event_bus::{

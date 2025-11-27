@@ -65,6 +65,9 @@ shellexpand = "3.1"
 # Metrics and monitoring
 prometheus = { workspace = true }
 
+# NATS JetStream
+async-nats = { workspace = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 tracing-test = "0.2.5"

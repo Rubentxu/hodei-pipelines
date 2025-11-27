@@ -1,30 +1,30 @@
-//! Event Bus Port - Zero-copy event communication
+//! Event Bus Port - Network-transmittable event communication
 //!
-//! Defines interfaces for high-performance in-memory event bus.
+//! Defines interfaces for event bus that supports both in-memory and distributed (NATS) implementations.
 
 use async_trait::async_trait;
 use hodei_core::PipelineId;
 use hodei_core::{JobId, JobSpec, WorkerId};
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 
-/// Zero-copy log entry (Arc wrapper for data)
-#[derive(Debug, Clone)]
+/// Log entry (cloneable data for network transmission)
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogEntry {
     pub job_id: JobId,
-    pub data: Arc<Vec<u8>>,
+    pub data: Vec<u8>,
     pub stream_type: StreamType,
     pub sequence: u64,
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum StreamType {
     Stdout,
     Stderr,
 }
 
 /// System events for inter-component communication
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SystemEvent {
     /// Job created event
     JobCreated(JobSpec),
@@ -50,14 +50,14 @@ pub enum SystemEvent {
     /// Worker heartbeat event
     WorkerHeartbeat {
         worker_id: WorkerId,
-        timestamp: std::time::SystemTime,
+        timestamp: chrono::DateTime<chrono::Utc>,
     },
 
-    /// Log chunk received event (zero-copy via Arc)
+    /// Log chunk received event
     LogChunkReceived(LogEntry),
 
-    /// Pipeline created event (zero-copy via Arc)
-    PipelineCreated(Arc<hodei_core::Pipeline>),
+    /// Pipeline created event
+    PipelineCreated(hodei_core::Pipeline),
 
     /// Pipeline started event
     PipelineStarted { pipeline_id: PipelineId },
@@ -126,6 +126,10 @@ pub trait EventSubscriber: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
+    use hodei_core::{JobId, JobSpec, PipelineId, ResourceQuota, WorkerId};
+    use std::collections::HashMap;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_event_publisher_trait_exists() {
@@ -161,5 +165,194 @@ mod tests {
         assert!(dropped.to_string().contains("Subscriber dropped"));
         assert!(closed.to_string().contains("Channel closed"));
         assert!(internal.to_string().contains("Internal error"));
+    }
+
+    // ============= TDD Tests for JSON Serialization (US-NATS-01) =============
+
+    #[test]
+    fn test_system_event_job_created_serialization() {
+        // Create a simple JobSpec
+        let mut env = HashMap::new();
+        env.insert("KEY".to_string(), "value".to_string());
+
+        let job_spec = JobSpec {
+            name: "test-job".to_string(),
+            image: "alpine:latest".to_string(),
+            command: vec!["echo".to_string(), "hello".to_string()],
+            resources: ResourceQuota::default(),
+            timeout_ms: 30000,
+            retries: 0,
+            env,
+            secret_refs: vec![],
+        };
+
+        let event = SystemEvent::JobCreated(job_spec.clone());
+
+        // Test: Should serialize to JSON
+        let result = serde_json::to_string(&event);
+        assert!(
+            result.is_ok(),
+            "JobCreated should serialize to JSON: {:?}",
+            result.err()
+        );
+
+        let json = result.unwrap();
+        assert!(json.contains("JobCreated"));
+
+        // Test: Should deserialize back
+        let deserialized: Result<SystemEvent, _> = serde_json::from_str(&json);
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+
+        if let Ok(SystemEvent::JobCreated(deserialized_spec)) = deserialized {
+            assert_eq!(deserialized_spec.name, job_spec.name);
+            assert_eq!(deserialized_spec.image, job_spec.image);
+        }
+    }
+
+    #[test]
+    fn test_system_event_job_scheduled_serialization() {
+        let event = SystemEvent::JobScheduled {
+            job_id: JobId::new(),
+            worker_id: WorkerId::new(),
+        };
+
+        let result = serde_json::to_string(&event);
+        assert!(
+            result.is_ok(),
+            "JobScheduled should serialize: {:?}",
+            result.err()
+        );
+
+        let deserialized: Result<SystemEvent, _> = serde_json::from_str(&result.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+    }
+
+    #[test]
+    fn test_system_event_job_completed_serialization() {
+        let event = SystemEvent::JobCompleted {
+            job_id: JobId::new(),
+            exit_code: 0,
+        };
+
+        let result = serde_json::to_string(&event);
+        assert!(
+            result.is_ok(),
+            "JobCompleted should serialize: {:?}",
+            result.err()
+        );
+
+        let deserialized: Result<SystemEvent, _> = serde_json::from_str(&result.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+    }
+
+    #[test]
+    fn test_system_event_job_failed_serialization() {
+        let event = SystemEvent::JobFailed {
+            job_id: JobId::new(),
+            error: "Something went wrong".to_string(),
+        };
+
+        let result = serde_json::to_string(&event);
+        assert!(
+            result.is_ok(),
+            "JobFailed should serialize: {:?}",
+            result.err()
+        );
+
+        let deserialized: Result<SystemEvent, _> = serde_json::from_str(&result.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+    }
+
+    #[test]
+    fn test_system_event_worker_connected_serialization() {
+        let event = SystemEvent::WorkerConnected {
+            worker_id: WorkerId::new(),
+        };
+
+        let result = serde_json::to_string(&event);
+        assert!(
+            result.is_ok(),
+            "WorkerConnected should serialize: {:?}",
+            result.err()
+        );
+
+        let deserialized: Result<SystemEvent, _> = serde_json::from_str(&result.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+    }
+
+    #[test]
+    fn test_system_event_worker_heartbeat_serialization() {
+        let event = SystemEvent::WorkerHeartbeat {
+            worker_id: WorkerId::new(),
+            timestamp: chrono::Utc::now(),
+        };
+
+        // Test: Should serialize to JSON
+        let result = serde_json::to_string(&event);
+        assert!(
+            result.is_ok(),
+            "WorkerHeartbeat should serialize: {:?}",
+            result.err()
+        );
+
+        let json = result.unwrap();
+        assert!(json.contains("WorkerHeartbeat"));
+
+        // Test: Should deserialize back
+        let deserialized: Result<SystemEvent, _> = serde_json::from_str(&json);
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+    }
+
+    #[test]
+    fn test_system_event_log_chunk_received_serialization() {
+        let log_entry = LogEntry {
+            job_id: JobId::new(),
+            data: vec![104, 101, 108, 108, 111], // "hello" in bytes
+            stream_type: StreamType::Stdout,
+            sequence: 1,
+            timestamp: Utc::now(),
+        };
+
+        let event = SystemEvent::LogChunkReceived(log_entry);
+
+        // Test: Should serialize to JSON
+        let result = serde_json::to_string(&event);
+        assert!(
+            result.is_ok(),
+            "LogChunkReceived should serialize: {:?}",
+            result.err()
+        );
+
+        let json = result.unwrap();
+        assert!(json.contains("LogChunkReceived"));
+
+        // Test: Should deserialize back
+        let deserialized: Result<SystemEvent, _> = serde_json::from_str(&json);
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+    }
+
+    #[test]
+    fn test_system_event_pipeline_created_serialization() {
+        use hodei_core::{Pipeline, PipelineId};
+
+        let pipeline = Pipeline::new(PipelineId::new(), "test-pipeline".to_string(), vec![])
+            .expect("Failed to create pipeline");
+
+        let event = SystemEvent::PipelineCreated(pipeline);
+
+        // Test: Should serialize to JSON
+        let result = serde_json::to_string(&event);
+        assert!(
+            result.is_ok(),
+            "PipelineCreated should serialize: {:?}",
+            result.err()
+        );
+
+        let json = result.unwrap();
+        assert!(json.contains("PipelineCreated"));
+
+        // Test: Should deserialize back
+        let deserialized: Result<SystemEvent, _> = serde_json::from_str(&json);
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
     }
 }

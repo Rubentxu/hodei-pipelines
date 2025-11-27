@@ -65,6 +65,9 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
 redb = "3.1.0"
 
+# NATS JetStream
+async-nats = "0.45.0"
+
 # Security
 jsonwebtoken = { version = "10.2.0", features = ["rust_crypto"] }
 aho-corasick = "1.1"
