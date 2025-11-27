@@ -266,6 +266,13 @@ impl PipelineRepository for InMemoryPipelineRepository {
         pipelines.remove(id);
         Ok(())
     }
+
+    async fn get_all_pipelines(
+        &self,
+    ) -> Result<Vec<Pipeline>, hodei_ports::PipelineRepositoryError> {
+        let pipelines = self.pipelines.read().await;
+        Ok(pipelines.values().cloned().collect())
+    }
 }
 
 #[cfg(test)]

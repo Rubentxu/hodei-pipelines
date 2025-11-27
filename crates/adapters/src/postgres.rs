@@ -860,4 +860,86 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
 
         Ok(())
     }
+
+    async fn get_all_pipelines(&self) -> Result<Vec<Pipeline>, PipelineRepositoryError> {
+        let query = "SELECT * FROM pipelines ORDER BY created_at DESC";
+
+        let rows = sqlx::query(query)
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| {
+                PipelineRepositoryError::Database(format!("Failed to fetch all pipelines: {}", e))
+            })?;
+
+        let mut pipelines = Vec::new();
+
+        for row in rows {
+            let workflow_def: Option<serde_json::Value> = row.get("workflow_definition");
+
+            // Deserialize workflow_definition to extract steps and variables
+            let (steps, variables) = if let Some(workflow_json) = &workflow_def {
+                match serde_json::from_value::<WorkflowDefinitionJson>(workflow_json.clone()) {
+                    Ok(workflow) => {
+                        let steps = workflow.steps.map_or(vec![], |steps_json| {
+                            steps_json
+                                .into_iter()
+                                .map(|step_json| hodei_core::pipeline::PipelineStep {
+                                    id: PipelineStepId::new(),
+                                    name: step_json.name,
+                                    job_spec: step_json.job_spec,
+                                    depends_on: step_json
+                                        .depends_on
+                                        .unwrap_or_default()
+                                        .into_iter()
+                                        .map(|s| {
+                                            PipelineStepId::from_uuid(
+                                                s.parse().unwrap_or_else(|_| Uuid::new_v4()),
+                                            )
+                                        })
+                                        .collect(),
+                                    timeout_ms: step_json.timeout_ms.unwrap_or(300000),
+                                })
+                                .collect()
+                        });
+
+                        let variables = workflow.variables.unwrap_or_default();
+                        (steps, variables)
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to deserialize workflow_definition for pipeline {}: {}. Using empty steps and variables.",
+                            row.get::<String, &str>("id"),
+                            e
+                        );
+                        (vec![], HashMap::new())
+                    }
+                }
+            } else {
+                (vec![], HashMap::new())
+            };
+
+            // Parse status from string to PipelineStatus enum
+            let status_str: String = row.get("status");
+            let status = hodei_core::PipelineStatus::from_str(&status_str)
+                .unwrap_or_else(|_| hodei_core::PipelineStatus::PENDING);
+
+            let pipeline = Pipeline {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                steps,
+                status,
+                variables,
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+                tenant_id: row.get("tenant_id"),
+                workflow_definition: workflow_def.unwrap_or_else(|| serde_json::Value::Null),
+            };
+
+            pipelines.push(pipeline);
+        }
+
+        info!("Retrieved {} pipelines from PostgreSQL", pipelines.len());
+        Ok(pipelines)
+    }
 }

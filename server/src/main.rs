@@ -605,6 +605,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let wfq_integration_router =
         wfq_integration_routes().with_state(wfq_integration_app_state.clone());
 
+    // Pipeline CRUD setup (US-04.4)
+    // TODO: Implement HTTP endpoints for Pipeline CRUD
+    // The PipelineCrudService is implemented in the application layer
+    // and can be used by creating HTTP handlers following the same pattern
+    // as other handlers in this server
+
+    let pipeline_router = Router::new().route(
+        "/pipelines",
+        get(|| async { "Pipeline CRUD API - Under Development" }),
+    );
+
     let app_state = AppState {
         scheduler: scheduler.clone(),
         worker_management: worker_management.clone(),
@@ -1075,6 +1086,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api/v1", static_pool_management_router)
         // US-09.3.3: Dynamic Pool Management Routes
         .nest("/api/v1", dynamic_pool_management_router)
+        // US-04.4: Pipeline CRUD Routes
+        .nest("/api/v1", pipeline_router)
         // US-09.3.4: Pool Lifecycle Routes
         .nest("/api/v1", pool_lifecycle_router)
         // US-09.4.1: Scaling Policies Routes

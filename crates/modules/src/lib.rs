@@ -12,6 +12,7 @@ pub mod cost_tracking;
 pub mod metrics_collection;
 pub mod multi_tenancy_quota_manager;
 pub mod orchestrator;
+pub mod pipeline_crud;
 pub mod pool_lifecycle;
 pub mod queue_assignment;
 pub mod queue_prioritization;
@@ -28,8 +29,8 @@ pub mod worker_management;
 
 pub use crate::artifact_management::{
     ArtifactError, ArtifactId, ArtifactManagementConfig, ArtifactManagementService,
-    ArtifactMetadata, ArtifactRepository, ChunkInfo, StorageBackend, StorageError,
-    StorageProvider, UploadId, UploadStatus,
+    ArtifactMetadata, ArtifactRepository, ChunkInfo, StorageBackend, StorageError, StorageProvider,
+    UploadId, UploadStatus,
 };
 pub use crate::auto_scaling_engine::{
     AutoScalingPolicy, AutoScalingPolicyEngine, EvaluationContext, MetricsSnapshot,
@@ -62,6 +63,11 @@ pub use crate::multi_tenancy_quota_manager::{
     QuotaViolationReason, ResourceRequest, TenantId, TenantQuota, TenantUsage,
 };
 pub use crate::orchestrator::{OrchestratorConfig, OrchestratorModule};
+pub use crate::pipeline_crud::{
+    CreatePipelineRequest, CreatePipelineStepRequest, ListPipelinesFilter, ListPipelinesResponse,
+    PipelineCrudConfig, PipelineCrudError, PipelineCrudService, PipelineSummary,
+    UpdatePipelineRequest,
+};
 pub use crate::pool_lifecycle::{
     HealthCheckResult, InMemoryStateStore, LifecycleError, PoolConfig, PoolEvent,
     PoolLifecycleState, PoolState, ResourcePoolLifecycleManager,

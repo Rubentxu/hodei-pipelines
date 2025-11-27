@@ -1548,4 +1548,37 @@ impl PipelineRepository for RedbPipelineRepository {
 
         Ok(())
     }
+
+    async fn get_all_pipelines(&self) -> Result<Vec<Pipeline>, PipelineRepositoryError> {
+        let tx = self.db.begin_read().map_err(|e| {
+            PipelineRepositoryError::Database(format!("Failed to begin read transaction: {}", e))
+        })?;
+
+        let table = tx.open_table(PIPELINES_TABLE).map_err(|e| {
+            PipelineRepositoryError::Database(format!("Failed to open pipelines table: {}", e))
+        })?;
+
+        let mut pipelines = Vec::new();
+
+        // Collect all pipeline entries
+        let iter = table.iter().map_err(|e| {
+            PipelineRepositoryError::Database(format!("Failed to iterate pipelines: {}", e))
+        })?;
+
+        for item in iter {
+            let (_key, value) = item.map_err(|e| {
+                PipelineRepositoryError::Database(format!("Failed to get pipeline entry: {}", e))
+            })?;
+
+            let pipeline_bytes = value.value();
+            let pipeline: Pipeline = bincode::deserialize(pipeline_bytes).map_err(|e| {
+                PipelineRepositoryError::Database(format!("Failed to deserialize pipeline: {}", e))
+            })?;
+
+            pipelines.push(pipeline);
+        }
+
+        info!("Retrieved {} pipelines from redb", pipelines.len());
+        Ok(pipelines)
+    }
 }

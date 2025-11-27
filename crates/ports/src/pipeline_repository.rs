@@ -8,6 +8,7 @@ pub trait PipelineRepository: Send + Sync {
     async fn save_pipeline(&self, pipeline: &Pipeline) -> Result<(), PipelineRepositoryError>;
     async fn get_pipeline(&self, id: &PipelineId) -> Result<Option<Pipeline>, PipelineRepositoryError>;
     async fn delete_pipeline(&self, id: &PipelineId) -> Result<(), PipelineRepositoryError>;
+    async fn get_all_pipelines(&self) -> Result<Vec<Pipeline>, PipelineRepositoryError>;
 }
 
 #[derive(thiserror::Error, Debug)]
