@@ -6860,48 +6860,44 @@ impl MockWorkerRepository {
 
 #[async_trait::async_trait]
 impl hodei_ports::WorkerRepository for MockWorkerRepository {
-    async fn save_worker(
-        &self,
-        _worker: &Worker,
-    ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+    async fn save_worker(&self, _worker: &Worker) -> hodei_core::Result<()> {
         Ok(())
     }
 
-    async fn get_worker(
-        &self,
-        id: &WorkerId,
-    ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+    async fn get_worker(&self, id: &WorkerId) -> hodei_core::Result<Option<Worker>> {
         if self.should_error {
-            return Err(hodei_ports::WorkerRepositoryError::Database(
+            return Err(hodei_core::DomainError::Infrastructure(
                 "Mock error".to_string(),
             ));
         }
         Ok(self.workers.iter().find(|w| w.id == *id).cloned())
     }
 
-    async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+    async fn get_all_workers(&self) -> hodei_core::Result<Vec<Worker>> {
         Ok(self.workers.clone())
     }
 
-    async fn delete_worker(
-        &self,
-        _id: &WorkerId,
-    ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+    async fn delete_worker(&self, _id: &WorkerId) -> hodei_core::Result<()> {
         Ok(())
     }
 
-    async fn update_last_seen(
-        &self,
-        _id: &WorkerId,
-    ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+    async fn update_last_seen(&self, _id: &WorkerId) -> hodei_core::Result<()> {
         Ok(())
     }
 
     async fn find_stale_workers(
         &self,
         _threshold_duration: std::time::Duration,
-    ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+    ) -> hodei_core::Result<Vec<Worker>> {
         Ok(Vec::new())
+    }
+
+    async fn update_worker_status(
+        &self,
+        _worker_id: &WorkerId,
+        _status: hodei_core::WorkerStatus,
+    ) -> hodei_core::Result<()> {
+        Ok(())
     }
 }
 

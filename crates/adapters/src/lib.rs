@@ -22,9 +22,11 @@ pub use crate::bus::{EventBusFactory, InMemoryBus, InMemoryBusBuilder};
 pub use crate::docker_provider::DockerProvider;
 pub use crate::kubernetes_provider::KubernetesProvider;
 pub use crate::provider_factory::DefaultProviderFactory;
-pub use crate::repositories::{
-    InMemoryJobRepository, InMemoryPipelineRepository, InMemoryWorkerRepository,
-};
+// Temporarily disabled - need update to match new trait signatures
+// These were replaced with PostgreSQL implementations
+// pub use crate::repositories::{
+//     InMemoryJobRepository, InMemoryPipelineRepository, InMemoryWorkerRepository,
+// };
 pub use crate::worker_client::{GrpcWorkerClient, HttpWorkerClient};
 pub use crate::worker_registration::{RegistrationConfig, WorkerRegistrationAdapter};
 

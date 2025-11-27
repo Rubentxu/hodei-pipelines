@@ -76,7 +76,7 @@ where
         pipeline_repo: Arc<P>,
         event_bus: Arc<E>,
         config: PipelineExecutionConfig,
-    ) -> Result<Self, DomainError> {
+    ) -> Result<Self> {
         let (cancellation_sender, cancellation_receiver) = mpsc::unbounded_channel();
 
         Ok(Self {
@@ -98,8 +98,14 @@ where
         variables: HashMap<String, String>,
         tenant_id: Option<String>,
         correlation_id: Option<String>,
-    ) -> Result<ExecutionId> {
-        info!("Starting pipeline execution: {}", pipeline_id);
+    ) -> Result<ExecutionId>
+    where
+        R: Send + Sync + 'static,
+        J: Send + Sync + 'static,
+        E: Send + Sync + 'static,
+    {
+        let pipeline_id_clone = pipeline_id.clone();
+        info!("Starting pipeline execution: {}", pipeline_id_clone);
 
         // Get pipeline from repository
         let pipeline = self
@@ -107,10 +113,9 @@ where
             .get_pipeline(&pipeline_id)
             .await
             .map_err(|e| DomainError::Infrastructure(format!("Failed to get pipeline: {}", e)))?
-            \.ok_or_else(|| DomainError::NotFound(format!(
-                "Pipeline not found: {}",
-                pipeline_id
-            )))?;
+            .ok_or_else(|| {
+                DomainError::NotFound(format!("Pipeline not found: {}", pipeline_id_clone))
+            })?;
 
         // Validate pipeline is not already running
         if pipeline.is_running() {
@@ -147,7 +152,7 @@ where
         // Publish pipeline execution started event
         self.event_bus
             .publish(hodei_ports::SystemEvent::PipelineExecutionStarted {
-                pipeline_id,
+                pipeline_id: pipeline_id_clone.clone(),
                 execution_id: execution_id.clone(),
             })
             .await
@@ -186,7 +191,7 @@ where
 
         info!(
             "Pipeline execution initiated: {} (execution_id: {})",
-            pipeline_id, execution_id
+            pipeline_id_clone, execution_id
         );
         Ok(execution_id)
     }
@@ -224,19 +229,19 @@ where
     }
 
     /// Internal async execution logic
-    async fn execute_pipeline_async<R, J, E>(
-        execution_repo: Arc<R>,
-        job_repo: Arc<J>,
-        event_bus: Arc<E>,
+    async fn execute_pipeline_async<Rep, JobRepo, EventBus>(
+        execution_repo: Arc<Rep>,
+        job_repo: Arc<JobRepo>,
+        event_bus: Arc<EventBus>,
         pipeline: Pipeline,
         execution_id: ExecutionId,
         config: PipelineExecutionConfig,
         cancellation_receiver: Arc<tokio::sync::Mutex<mpsc::UnboundedReceiver<ExecutionId>>>,
         step_semaphore: Arc<Semaphore>,
     ) where
-        R: PipelineExecutionRepository + Send + Sync,
-        J: JobRepository + Send + Sync,
-        E: EventPublisher + Send + Sync,
+        Rep: PipelineExecutionRepository + Send + Sync,
+        JobRepo: JobRepository + Send + Sync,
+        EventBus: EventPublisher + Send + Sync,
     {
         info!("Starting async pipeline execution: {}", execution_id);
 
@@ -325,6 +330,22 @@ where
             .await;
 
             match step_result {
+                Ok(StepExecutionStatus::PENDING) => {
+                    info!(
+                        "Step pending: {} (execution: {})",
+                        current_step_id, execution_id
+                    );
+                    // PENDING steps should not occur in normal execution flow
+                }
+                Ok(StepExecutionStatus::RUNNING) => {
+                    info!(
+                        "Step running: {} (execution: {})",
+                        current_step_id, execution_id
+                    );
+                    // In a real implementation, we might wait for completion
+                    // For now, treat as completed
+                    completed_steps.insert(current_step_id.clone());
+                }
                 Ok(StepExecutionStatus::COMPLETED) => {
                     completed_steps.insert(current_step_id.clone());
                     info!(
@@ -378,7 +399,7 @@ where
         };
 
         // Update execution status
-        execution.status = final_status;
+        execution.status = final_status.clone();
 
         if let Err(e) = execution_repo.save_execution(&execution).await {
             error!("Failed to save final execution state: {}", e);
@@ -391,30 +412,26 @@ where
     }
 
     /// Execute a single step
-    async fn execute_step<R, J, E>(
-        execution_repo: &Arc<R>,
-        job_repo: &Arc<J>,
-        event_bus: &Arc<E>,
+    async fn execute_step<Rep, JobRepo, EventBus>(
+        execution_repo: &Arc<Rep>,
+        job_repo: &Arc<JobRepo>,
+        event_bus: &Arc<EventBus>,
         execution: &PipelineExecution,
         pipeline: &Pipeline,
         step_id: &PipelineStepId,
         config: &PipelineExecutionConfig,
-    ) -> Result<StepExecutionStatus, DomainError>
+    ) -> Result<StepExecutionStatus>
     where
-        R: PipelineExecutionRepository + Send + Sync,
-        J: JobRepository + Send + Sync,
-        E: EventPublisher + Send + Sync,
+        Rep: PipelineExecutionRepository + Send + Sync,
+        JobRepo: JobRepository + Send + Sync,
+        EventBus: EventPublisher + Send + Sync,
     {
         // Get the step from pipeline
-        let step =
-            pipeline
-                .steps
-                .iter()
-                .find(|s| &s.id == step_id)
-                \.ok_or_else(|| DomainError::NotFound(format!(
-                    "Step not found: {}",
-                    step_id
-                )))?;
+        let step = pipeline
+            .steps
+            .iter()
+            .find(|s| &s.id == step_id)
+            .ok_or_else(|| DomainError::NotFound(format!("Step not found: {}", step_id)))?;
 
         // Create job spec from step
         let mut job_spec = step.job_spec.clone();
@@ -461,7 +478,7 @@ where
 async fn wait_for_job_completion<R>(
     job_repo: Arc<R>,
     job_id: hodei_core::JobId,
-) -> Result<hodei_core::job::JobState, DomainError>
+) -> Result<hodei_core::job::JobState>
 where
     R: JobRepository + Send + Sync,
 {

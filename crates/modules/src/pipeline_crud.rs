@@ -105,13 +105,13 @@ where
         self.pipeline_repo
             .save_pipeline(&pipeline)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         // Publish event
         self.event_bus
             .publish(hodei_ports::SystemEvent::PipelineCreated(pipeline.clone()))
             .await
-            .map_err(PipelineCrudError::EventBus)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         info!("Pipeline created successfully: {}", pipeline.id);
 
@@ -127,7 +127,7 @@ where
             .pipeline_repo
             .get_pipeline(id)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         if let Some(ref p) = pipeline {
             info!("Retrieved pipeline: {}", p.id);
@@ -151,7 +151,7 @@ where
             .pipeline_repo
             .get_all_pipelines()
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         // Apply filter if provided
         if let Some(filter) = filter {
@@ -179,7 +179,7 @@ where
             .pipeline_repo
             .get_pipeline(id)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?
             .ok_or(PipelineCrudError::NotFound(id.clone()))?;
 
         // Update fields if provided
@@ -230,7 +230,7 @@ where
         self.pipeline_repo
             .save_pipeline(&pipeline)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         // Publish event
         info!("Pipeline updated: {}", id);
@@ -249,7 +249,7 @@ where
             .pipeline_repo
             .get_pipeline(id)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?
             .ok_or(PipelineCrudError::NotFound(id.clone()))?;
 
         // Check if pipeline is running
@@ -270,7 +270,7 @@ where
         self.pipeline_repo
             .delete_pipeline(id)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         // Publish event
         info!("Pipeline deleted: {}", id);
@@ -291,7 +291,7 @@ where
             .pipeline_repo
             .get_pipeline(id)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?
             .ok_or(PipelineCrudError::NotFound(id.clone()))?;
 
         let execution_order = pipeline
@@ -309,7 +309,7 @@ where
             .pipeline_repo
             .get_pipeline(id)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?
             .ok_or(PipelineCrudError::NotFound(id.clone()))?;
 
         // Validate pipeline is not already running
@@ -335,7 +335,7 @@ where
         self.pipeline_repo
             .save_pipeline(&pipeline)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         // Publish event
         self.event_bus
@@ -343,7 +343,7 @@ where
                 pipeline_id: id.clone(),
             })
             .await
-            .map_err(PipelineCrudError::EventBus)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         info!("Pipeline started successfully: {}", id);
 
@@ -358,7 +358,7 @@ where
             .pipeline_repo
             .get_pipeline(id)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?
             .ok_or(PipelineCrudError::NotFound(id.clone()))?;
 
         // Complete pipeline
@@ -370,7 +370,7 @@ where
         self.pipeline_repo
             .save_pipeline(&pipeline)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         // Publish event
         self.event_bus
@@ -378,7 +378,7 @@ where
                 pipeline_id: id.clone(),
             })
             .await
-            .map_err(PipelineCrudError::EventBus)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         info!("Pipeline completed successfully: {}", id);
 
@@ -393,7 +393,7 @@ where
             .pipeline_repo
             .get_pipeline(id)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?
             .ok_or(PipelineCrudError::NotFound(id.clone()))?;
 
         // Fail pipeline
@@ -405,7 +405,7 @@ where
         self.pipeline_repo
             .save_pipeline(&pipeline)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         // Publish event
         info!("Pipeline failed: {}", id);
@@ -427,7 +427,7 @@ where
             .pipeline_repo
             .get_pipeline(&request.pipeline_id)
             .await
-            .map_err(PipelineCrudError::PipelineRepository)?
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?
             .ok_or(PipelineCrudError::NotFound(request.pipeline_id.clone()))?;
 
         // Validate pipeline is not already running
@@ -470,7 +470,7 @@ where
                 execution_id: execution.id.clone(),
             })
             .await
-            .map_err(PipelineCrudError::EventBus)?;
+            .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         info!(
             "Pipeline execution started: {} (execution_id: {})",
