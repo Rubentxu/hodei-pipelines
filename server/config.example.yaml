@@ -97,7 +97,7 @@ multi_tenancy:
   # Quota enforcement settings
   quota_enforcement:
     strict_mode: true
-    violation_policy: "reject"  # Options: reject, queue, burst
+    violation_policy: "reject" # Options: reject, queue, burst
     check_interval_ms: 1000
 
   # Tenant isolation
@@ -112,7 +112,7 @@ burst_capacity:
 
   # Burst capacity policies
   default_policy:
-    max_overage_percentage: 150  # 150% of quota
+    max_overage_percentage: 150 # 150% of quota
     burst_duration_minutes: 60
     require_approval: false
 
@@ -122,7 +122,7 @@ burst_capacity:
 
   # Approval workflow (if required)
   approval:
-    auto_approve_threshold: 200  # Auto-approve if < 200% of quota
+    auto_approve_threshold: 200 # Auto-approve if < 200% of quota
     require_manual_approval: true
     approvers:
       - "admin@company.com"
@@ -138,7 +138,7 @@ scheduling:
   # Weighted Fair Queuing settings
   fair_queuing:
     enabled: true
-    weight_strategy: "quota_based"  # Options: quota_based, billing_tier, custom
+    weight_strategy: "quota_based" # Options: quota_based, billing_tier, custom
     fairness_window_minutes: 60
     starvation_prevention: true
     starvation_threshold_minutes: 30
@@ -168,9 +168,9 @@ cost_tracking:
   track_by_pool: true
 
   # Cost calculation
-  hourly_rate_cpu: 0.05      # $0.05 per vCPU per hour
-  hourly_rate_memory_gb: 0.01  # $0.01 per GB per hour
-  hourly_rate_gpu: 2.50      # $2.50 per GPU per hour
+  hourly_rate_cpu: 0.05 # $0.05 per vCPU per hour
+  hourly_rate_memory_gb: 0.01 # $0.01 per GB per hour
+  hourly_rate_gpu: 2.50 # $2.50 per GPU per hour
 
   # Cost aggregation
   aggregation_interval_minutes: 15
@@ -179,8 +179,8 @@ cost_tracking:
   # Budget alerts
   budget_alerts:
     enabled: true
-    warning_threshold: 0.80  # 80% of budget
-    critical_threshold: 0.95  # 95% of budget
+    warning_threshold: 0.80 # 80% of budget
+    critical_threshold: 0.95 # 95% of budget
 
 # Worker Management
 worker_management:
@@ -188,7 +188,7 @@ worker_management:
   idle_timeout_minutes: 30
   cleanup_interval_minutes: 10
   pre_warm_enabled: true
-  pre_warm_target: 0.2  # 20% of max pool size
+  pre_warm_target: 0.2 # 20% of max pool size
 
   # Worker reuse
   reuse_enabled: true
@@ -221,8 +221,8 @@ auto_scaling:
       threshold_up: 50
       threshold_down: 5
     - name: "job_wait_time"
-      threshold_up: 300  # 5 minutes
-      threshold_down: 60  # 1 minute
+      threshold_up: 300 # 5 minutes
+      threshold_down: 60 # 1 minute
 
   # Predictive scaling (optional)
   predictive_scaling:
@@ -253,7 +253,7 @@ metrics:
 observability:
   # Logging
   logging:
-    level: "info"  # Options: trace, debug, info, warn, error
+    level: "info" # Options: trace, debug, info, warn, error
     format: "json"
     output: "stdout"
 
@@ -304,7 +304,7 @@ security:
   jwt:
     secret: "${JWT_SECRET}"
     expiration_hours: 24
-    issuer: "hodei-jobs"
+    issuer: "hodei-pipelines"
 
   # Rate limiting
   rate_limiting:
@@ -340,14 +340,28 @@ grpc:
   server:
     port: 9090
     max_concurrent_streams: 100
-    max_receive_message_size: 10485760  # 10MB
-    max_send_message_size: 10485760  # 10MB
+    max_receive_message_size: 10485760 # 10MB
+    max_send_message_size: 10485760 # 10MB
 
   # Client settings
   client:
     timeout_seconds: 30
     retry_attempts: 3
     retry_delay_seconds: 1
+
+# Event Bus Configuration
+event_bus:
+  # Event bus type: nats (default) or inmemory (for testing only)
+  # NOTE: NATS JetStream is now the default for production use
+  bus_type: "nats"
+
+  # InMemory bus settings (only used if bus_type is inmemory)
+  inmemory_capacity: 10000
+
+  # NATS JetStream configuration (used when bus_type is nats)
+  nats:
+    url: "nats://nats:4222"
+    connection_timeout_ms: 5000
 
 # Feature Flags
 feature_flags:

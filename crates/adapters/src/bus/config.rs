@@ -1,20 +1,39 @@
 //! Event Bus Configuration
 //!
 //! Configuration and factory for selecting between different event bus implementations
+//!
+//! # Breaking Change: NATS JetStream is now the default event bus
+//!
+//! Previously, the default event bus was InMemory. This has been changed to NATS JetStream
+//! for production readiness. To continue using InMemory (for testing or development), explicitly
+//! set `bus_type: EventBusType::InMemory` in your configuration.
+//!
+//! Example:
+//! ```rust
+//! use hodei_adapters::bus::config::{EventBusConfig, EventBusType};
+//!
+//! // For production (NATS JetStream - default)
+//! let config = EventBusConfig::default(); // Uses Nats
+//!
+//! // For testing
+//! let test_config = EventBusConfig {
+//!     bus_type: EventBusType::InMemory,
+//!     inmemory_capacity: 1000,
+//!     nats_config: NatsConfig::default(),
+//! };
+//! ```
 
 use serde::{Deserialize, Serialize};
 
 /// Event bus type enum
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
 pub enum EventBusType {
-    /// In-memory event bus (default)
-    #[default]
+    /// In-memory event bus (deprecated - for testing only)
     InMemory,
-    /// NATS JetStream event bus
+    /// NATS JetStream event bus (default for production)
+    #[default]
     Nats,
 }
-
 
 impl std::str::FromStr for EventBusType {
     type Err = String;
@@ -54,7 +73,7 @@ pub struct EventBusConfig {
 impl Default for EventBusConfig {
     fn default() -> Self {
         Self {
-            bus_type: EventBusType::InMemory,
+            bus_type: EventBusType::Nats, // NATS JetStream is now the default
             inmemory_capacity: 10_000,
             nats_config: NatsConfig::default(),
         }
@@ -91,4 +110,3 @@ impl From<NatsConfig> for super::nats::NatsBusConfig {
         }
     }
 }
-
