@@ -1,24 +1,13 @@
 //! WorkerMatcher Domain Service
 //! Filters and matches workers based on job requirements and resource availability
 
-use crate::{Job, Worker, WorkerId};
-use std::collections::HashMap;
+use crate::{Job, Worker};
 
 /// Domain Service for matching workers to jobs
 /// Handles filtering logic based on resource availability and capability matching
 pub struct WorkerMatcher {
     // Configuration for matching criteria
     enable_strict_matching: bool,
-    // Cache for frequently checked capabilities
-    capability_cache: HashMap<WorkerId, CachedCapabilities>,
-}
-
-#[derive(Debug, Clone)]
-struct CachedCapabilities {
-    cpu_cores: u32,
-    memory_gb: u64,
-    max_concurrent_jobs: u32,
-    is_available: bool,
 }
 
 impl WorkerMatcher {
@@ -26,7 +15,6 @@ impl WorkerMatcher {
     pub fn new() -> Self {
         Self {
             enable_strict_matching: false,
-            capability_cache: HashMap::new(),
         }
     }
 
@@ -35,7 +23,6 @@ impl WorkerMatcher {
     pub fn with_strict_matching(enable: bool) -> Self {
         Self {
             enable_strict_matching: enable,
-            capability_cache: HashMap::new(),
         }
     }
 
