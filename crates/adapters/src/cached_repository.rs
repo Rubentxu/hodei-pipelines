@@ -12,11 +12,14 @@
 use async_trait::async_trait;
 use hodei_core::{DomainError, Job, JobId, Result, WorkerId};
 use hodei_ports::JobRepository;
+use prometheus::Registry;
 use sqlx::{Row, postgres::PgPool};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
+
+use crate::metrics::{CacheMetrics, SharedCacheMetrics};
 
 /// Hybrid Cached Job Repository
 ///
@@ -30,6 +33,8 @@ pub struct CachedJobRepository {
     db_pool: Arc<PgPool>,
     /// Cache statistics for monitoring
     stats: Arc<RwLock<CacheStats>>,
+    /// Prometheus metrics for cache performance monitoring
+    metrics: SharedCacheMetrics,
 }
 
 /// Cache performance statistics
@@ -47,11 +52,17 @@ impl CachedJobRepository {
     /// # Arguments
     /// * `cache_repo` - Pre-initialized Redb repository for caching
     /// * `db_pool` - PostgreSQL connection pool for persistent storage
-    pub fn new(cache_repo: super::redb::RedbJobRepository, db_pool: PgPool) -> Self {
+    /// * `metrics` - Prometheus metrics for cache performance monitoring
+    pub fn new(
+        cache_repo: super::redb::RedbJobRepository,
+        db_pool: PgPool,
+        metrics: SharedCacheMetrics,
+    ) -> Self {
         Self {
             cache: Arc::new(RwLock::new(cache_repo)),
             db_pool: Arc::new(db_pool),
             stats: Arc::new(RwLock::new(CacheStats::default())),
+            metrics,
         }
     }
 
@@ -195,6 +206,8 @@ impl JobRepository for CachedJobRepository {
     async fn save_job(&self, job: &Job) -> Result<()> {
         debug!("CACHE: Saving job {} to cache and database", job.id);
 
+        let start_time = std::time::Instant::now();
+
         // Write-through: Update both cache and database
         let cache = self.cache.write().await;
         cache.save_job(job).await?;
@@ -202,17 +215,29 @@ impl JobRepository for CachedJobRepository {
         // Also save to database
         self.save_to_db(job).await?;
 
+        // Record metrics
+        let duration = start_time.elapsed();
+        self.metrics.record_set_latency(duration);
+
         info!("Job {} saved to both cache and database", job.id);
         Ok(())
     }
 
     async fn get_job(&self, job_id: &JobId) -> Result<Option<Job>> {
+        let start_time = std::time::Instant::now();
+
         // Try cache first
         {
             let cache = self.cache.read().await;
             if let Some(job) = cache.get_job(job_id).await? {
                 let mut stats = self.stats.write().await;
                 stats.cache_hits += 1;
+
+                // Record metrics
+                self.metrics.record_hit();
+                let duration = start_time.elapsed();
+                self.metrics.record_get_latency(duration);
+
                 debug!("CACHE HIT for job {}", job_id);
                 return Ok(Some(job));
             }
@@ -222,6 +247,9 @@ impl JobRepository for CachedJobRepository {
         let mut stats = self.stats.write().await;
         stats.cache_misses += 1;
 
+        // Record metrics
+        self.metrics.record_miss();
+
         debug!("CACHE MISS for job {}, loading from database", job_id);
 
         match self.load_from_db(job_id).await {
@@ -229,6 +257,10 @@ impl JobRepository for CachedJobRepository {
                 // Populate cache
                 let cache = self.cache.write().await;
                 let _ = cache.save_job(&job).await;
+
+                // Record metrics
+                let duration = start_time.elapsed();
+                self.metrics.record_get_latency(duration);
 
                 Ok(Some(job))
             }
