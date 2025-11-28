@@ -4,7 +4,7 @@ use crate::Uuid;
 use crate::error::DomainError;
 use crate::specifications::Specification;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Job identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

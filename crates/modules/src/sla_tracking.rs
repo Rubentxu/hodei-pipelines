@@ -149,7 +149,7 @@ impl SLATracker {
         };
 
         let sla_info = SLAInfo {
-            job_id: job_id,
+            job_id,
             deadline,
             sla_level: sla_level.clone(),
             priority_boost: 0,
@@ -268,7 +268,7 @@ impl SLATracker {
         for job_id in violated_jobs {
             if let Some(sla_info) = jobs.remove(&job_id) {
                 let event = SLAViolationEvent {
-                    job_id: job_id,
+                    job_id,
                     deadline: sla_info.deadline,
                     violation_time: now,
                     sla_level: sla_info.sla_level,

@@ -6,9 +6,9 @@
 use hodei_core::{
     DomainError, Result,
     job::JobState,
-    pipeline::{Pipeline, PipelineId, PipelineStep, PipelineStepId},
+    pipeline::{Pipeline, PipelineId, PipelineStepId},
     pipeline_execution::{
-        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionStatus,
+        ExecutionId, ExecutionStatus, PipelineExecution, StepExecutionStatus,
     },
 };
 use hodei_ports::{EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository};

@@ -373,7 +373,7 @@ where
             hodei_core::DomainError::Infrastructure("worker_repository is required".into())
         })?;
 
-        let config = self.config.unwrap_or_else(SchedulerConfig::default);
+        let config = self.config.unwrap_or_default();
         let max_queue_size = config.max_queue_size;
 
         Ok(SchedulerModule {

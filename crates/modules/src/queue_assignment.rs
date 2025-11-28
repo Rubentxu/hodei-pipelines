@@ -670,7 +670,7 @@ impl QueueAssignmentEngine {
                 let max_wait_time = job.max_wait_time;
 
                 let request = AssignmentRequest {
-                    job_id: job_id,
+                    job_id,
                     requirements,
                     priority: job.priority,
                     tenant_id,

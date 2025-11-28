@@ -142,7 +142,7 @@ impl QueuePrioritizationEngine {
         let preemption_score = self.calculate_preemption_score(base_priority, &sla_level);
 
         let info = PrioritizationInfo {
-            job_id: job_id,
+            job_id,
             base_priority,
             sla_level: sla_level.clone(),
             tenant_id: tenant_id.clone(),

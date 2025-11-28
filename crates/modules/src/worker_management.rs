@@ -2632,7 +2632,7 @@ where
         requirements: WorkerRequirements,
     ) -> Result<WorkerAllocation> {
         let allocation_request = AllocationRequest {
-            job_id: job_id,
+            job_id,
             requirements,
             priority: 0,
             requested_at: Utc::now(),
