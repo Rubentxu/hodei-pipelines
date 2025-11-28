@@ -1,181 +1,103 @@
+![Hodei Pipelines](docs/assets/header.png)
+
+<div align="center">
+
 # Hodei Pipelines
 
-[![Build Status](https://github.com/Rubentxu/hodei-pipelines/actions/workflows/ci.yml/badge.svg)](https://github.com/Rubentxu/hodei-pipelines/actions)
+**High-Performance Distributed Job Orchestration Platform**
+
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Rubentxu/hodei-jobs/ci.yml?branch=main)](https://github.com/Rubentxu/hodei-jobs/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust Version](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 
-A high-performance, distributed job orchestration system built in Rust with hexagonal architecture.
+[Documentation](docs/) | [Architecture](docs/architecture.md) | [Contributing](CONTRIBUTING.md) | [Español](README.es.md)
 
-## 🚀 Features
+</div>
 
-- **High Performance**: Up to 100x throughput improvement in critical paths
-- **Low Latency**: 50-90% reduction in response times
-- **Memory Efficient**: 30-40% reduction in memory footprint
-- **Distributed**: Horizontally scalable architecture
-- **Type-Safe**: Full Rust type safety
-- **Async/Await**: Modern async Rust throughout
+---
 
-## 📊 Performance Highlights
+## 🚀 Overview
 
-### Optimizations Implemented
+**Hodei Pipelines** is a next-generation, distributed job orchestration platform built entirely in **Rust**. It is designed to deliver extreme performance, low latency, and rock-solid reliability for complex CI/CD pipelines, data processing workflows, and automated tasks.
 
-| Component | Improvement | Details |
-|-----------|-------------|---------|
-| Database Queries | **5x faster** | PostgreSQL indexes for common patterns |
-| Concurrent Reads | **10x faster** | Lock-free DashMap caching |
-| Job Scheduling | **8x faster** | Lock-free priority queues |
-| Pipeline Validation | **100x faster** | O(n²) → O(n) algorithm optimization |
-| Event Processing | **4x faster** | Multi-channel architecture |
-| Log Streaming | **12x faster** | Lock-free ring buffer |
-| Memory Usage | **40% reduction** | Arc & CoW patterns |
+Unlike traditional CI/CD systems that can be heavy and resource-intensive, Hodei Pipelines leverages the efficiency of Rust and the power of **NATS JetStream** to handle thousands of concurrent jobs with minimal overhead.
 
-See [Performance Optimizations](docs/performance-optimizations.md) for detailed metrics.
+## ✨ Key Features
+
+- **⚡ Blazing Fast Performance**: Built with Rust for near-zero runtime overhead and efficient resource usage.
+- **🌐 Distributed Architecture**: Decoupled **Server** and **Agent** architecture allows you to scale workers horizontally across any infrastructure (Kubernetes, VMs, Bare Metal).
+- **🔒 Enterprise-Grade Security**:
+    - **mTLS** encryption for all Agent-Server communication.
+    - **RBAC** (Role-Based Access Control) for granular permission management.
+    - **Secret Masking** to protect sensitive data in logs.
+- **📡 Real-Time Event Bus**: Powered by **NATS JetStream** for reliable, asynchronous message passing and stream processing.
+- **📊 Deep Observability**: Native integration with **OpenTelemetry** and **Prometheus** for comprehensive metrics, traces, and logs.
+- **🏢 Multi-Tenancy**: Built-in support for multiple tenants with strict quota enforcement and resource isolation.
+- **🐳 Container Native**: First-class support for Docker and Kubernetes execution environments.
 
 ## 🏗️ Architecture
 
-Built with **Hexagonal Architecture** (Ports & Adapters):
+Hodei Pipelines follows a modern, modular architecture:
 
-```
-┌─────────────────────────────────────┐
-│           APPLICATION               │  ← Use Cases
-├─────────────────────────────────────┤
-│             DOMAIN                  │  ← Entities & Value Objects
-├─────────────────────────────────────┤
-│              CORE                   │  ← Domain Services
-├─────────────────────────────────────┤
-│  PORTS (traits)  │  ADAPTERS (impls)│  ← Infrastructure
-└─────────────────────────────────────┘
-```
+- **Hodei Server**: The control plane that manages API requests, orchestration logic, scheduling, and state persistence (PostgreSQL).
+- **HWP Agent**: Lightweight worker agents that connect securely to the server and execute assigned jobs.
+- **NATS JetStream**: The nervous system ensuring reliable communication between components.
 
-### Core Components
+👉 **[Explore the Architecture (C4 Model)](docs/architecture.md)** - Detailed Context, Container, and Component diagrams.
+👉 **[View Sequence Diagrams (Use Cases)](docs/sequence_diagrams.md)** - Visual flows for Worker Registration, Job Submission, and more.
 
-- **core**: Domain entities, value objects, and business logic
-- **adapters**: Database adapters (PostgreSQL, Redb), external service adapters
-- **modules**: Scheduling, orchestration, and workflow management
-- **ports**: Repository and service interfaces
-- **hwp-agent**: Worker agent for job execution
-- **server**: gRPC API server
+## 🛠️ Quick Start
 
-## 🛠️ Technology Stack
+### Prerequisites
 
-- **Runtime**: Tokio (async/await)
-- **Database**: PostgreSQL (SQLx), Redb (embedded)
-- **Messaging**: NATS JetStream
-- **gRPC**: Tonic
-- **Security**: JWT, TLS
-- **Lock-free**: crossbeam, dashmap
-- **Monitoring**: Prometheus metrics
+- Rust 1.75+
+- Docker & Docker Compose
+- Kubernetes (optional, for full E2E testing)
 
-## 📦 Building
+### Local Development Setup
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/Rubentxu/hodei-jobs.git
+    cd hodei-jobs
+    ```
+
+2.  **Start infrastructure (DB, NATS):**
+    ```bash
+    docker-compose up -d postgres nats
+    ```
+
+3.  **Run the Server:**
+    ```bash
+    cargo run --bin hodei-server
+    ```
+
+4.  **Run an Agent:**
+    ```bash
+    cargo run --bin hwp-agent
+    ```
+
+For detailed testing instructions, including E2E tests with Testkube, see **[TESTING.md](TESTING.md)**.
+
+## 📦 Deployment
+
+Hodei Pipelines is cloud-ready. We provide **Helm Charts** for easy deployment to Kubernetes.
 
 ```bash
-# Build all components
-cargo build --release
-
-# Run tests
-cargo test
-
-# Run integration tests (requires PostgreSQL)
-cargo test --features integration
-
-# Build specific crate
-cargo build -p hodei-core
-```
-
-## 🧪 Testing
-
-The project uses a comprehensive testing strategy:
-
-- **Unit Tests**: 80% of coverage
-- **Integration Tests**: 15% of coverage
-- **Contract Tests**: 5% of coverage
-
-Test results:
-- ✅ 294 tests passing
-- ✅ 0 failures
-- ✅ 100% test suite green
-
-Run tests:
-```bash
-# Unit tests only
-cargo test --lib
-
-# Integration tests
-cargo test --features integration
-
-# All tests
-cargo test
-```
-
-## 📖 Documentation
-
-- [Architecture](docs/diagrama-arquitectura-hexagonal.md)
-- [Performance Optimizations](docs/performance-optimizations.md)
-- [API Documentation](https://docs.rs/hodei-core)
-
-## 🔌 Key Features
-
-### 1. Job Orchestration
-- DAG-based workflow definition
-- Automatic dependency resolution
-- Parallel execution support
-- Failure handling and retries
-
-### 2. Worker Management
-- Dynamic worker registration
-- Capability-based matching
-- Health monitoring
-- Resource quotas
-
-### 3. Scheduling
-- Priority-based scheduling
-- Lock-free priority queue
-- Fair scheduling algorithms
-- Backpressure handling
-
-### 4. Monitoring
-- Real-time metrics (Prometheus)
-- Distributed tracing
-- Event logging
-- Performance analytics
-
-## 📈 Performance Monitoring
-
-Each component exposes performance metrics:
-
-```rust
-use prometheus::{Counter, Histogram};
-
-// Example metrics
-let job_counter = Counter::new("jobs_total", "Total jobs processed");
-let latency_histogram = Histogram::new("job_duration", "Job execution latency");
+make deploy
 ```
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these guidelines:
-
-1. Fork the repository
-2. Create a feature branch
-3. Write tests for your changes
-4. Ensure all tests pass
-5. Submit a pull request
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and setup your development environment.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Built with [Tokio](https://tokio.rs/) for async runtime
-- Performance optimizations inspired by [Crossbeam](https://github.com/crossbeam-rs/crossbeam)
-- Architecture follows principles from [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)
-
-## 📞 Contact
-
-- **Author**: Rubentxu
-- **Email**: [Your Email]
-- **Project Link**: https://github.com/Rubentxu/hodei-pipelines
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-**Built with ❤️ using Rust**
+<div align="center">
+  <sub>Built with ❤️ by the Hodei Team</sub>
+</div>

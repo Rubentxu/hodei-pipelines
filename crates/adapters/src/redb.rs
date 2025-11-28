@@ -61,69 +61,48 @@ impl RedbJobRepository {
     /// Table definition for jobs - using [u8; 16] as key (UUID is 16 bytes)
     const JOBS_TABLE: TableDefinition<'_, [u8; 16], Vec<u8>> = TableDefinition::new("jobs");
 
-    /// Serialize job to bytes
+    /// Serialize job to bytes using JSON
     fn job_to_bytes(job: &Job) -> Vec<u8> {
-        use bincode::Options as _;
-
-        // Use DefaultOptions for consistent serialization
-        let options = bincode::DefaultOptions::new()
-            .with_varint_encoding()
-            .reject_trailing_bytes();
-
-        let bytes = match options.serialize(job) {
-            Ok(b) => {
-                tracing::debug!("Successfully serialized job ({} bytes)", b.len());
-                b
-            }
-            Err(e) => {
-                tracing::error!("Failed to serialize job: {:?}", e);
-
-                // Print job fields for debugging
-                tracing::error!("Job ID: {:?}", job.id);
-                tracing::error!("Job name: {}", job.name);
-                tracing::error!("Job spec: {:?}", job.spec);
-                tracing::error!("Job state: {}", job.state.as_str());
-
-                panic!("Failed to serialize job: {:?}", e);
-            }
-        };
+        // Use JSON serialization for compatibility with all serde types
+        let json = serde_json::to_string(job).expect("Failed to serialize job to JSON");
+        let bytes = json.into_bytes();
+        tracing::debug!(
+            "Successfully serialized job to JSON ({} bytes)",
+            bytes.len()
+        );
         bytes
     }
 
-    /// Deserialize job from bytes
+    /// Deserialize job from bytes using JSON
     fn bytes_to_job(data: &[u8]) -> Option<Job> {
-        use bincode::Options as _;
-
-        // Print the raw data for debugging
-        tracing::debug!("Attempting to deserialize {} bytes of data", data.len());
+        eprintln!("🔍 Attempting to deserialize {} bytes of data", data.len());
 
         // Check if we have any data
         if data.is_empty() {
-            tracing::error!("No data to deserialize");
+            eprintln!("❌ No data to deserialize");
             return None;
         }
 
-        // Use DefaultOptions for consistent deserialization
-        let options = bincode::DefaultOptions::new()
-            .with_varint_encoding()
-            .reject_trailing_bytes();
-
-        match options.deserialize::<Job>(data) {
-            Ok(job) => {
-                tracing::debug!("Successfully deserialized job with name: {}", job.name);
-                Some(job)
-            }
+        // Convert bytes to string and deserialize from JSON
+        match String::from_utf8(data.to_vec()) {
+            Ok(json_str) => match serde_json::from_str::<Job>(&json_str) {
+                Ok(job) => {
+                    eprintln!("✅ Successfully deserialized job with name: {}", job.name);
+                    Some(job)
+                }
+                Err(e) => {
+                    eprintln!("❌ Failed to deserialize JSON to Job:");
+                    eprintln!("   Error: {:?}", e);
+                    eprintln!(
+                        "   JSON (first 200 chars): {}",
+                        &json_str[..std::cmp::min(json_str.len(), 200)]
+                    );
+                    None
+                }
+            },
             Err(e) => {
-                tracing::error!(
-                    "Failed to deserialize job data ({} bytes): {:?}",
-                    data.len(),
-                    e
-                );
-
-                // Print first few bytes for debugging
-                let len = std::cmp::min(data.len(), 32);
-                tracing::error!("First {} bytes: {:?}", len, &data[..len]);
-
+                eprintln!("❌ Failed to convert bytes to UTF-8:");
+                eprintln!("   Error: {:?}", e);
                 None
             }
         }
@@ -583,6 +562,7 @@ mod tests {
 
         repo.init_schema().await.unwrap();
 
+        // First, test serialization directly
         let job_spec = JobSpec {
             name: "test-job".to_string(),
             image: "ubuntu:latest".to_string(),
@@ -597,11 +577,39 @@ mod tests {
         let job = Job::new(JobId::new(), job_spec).unwrap();
         let job_id = job.id;
 
+        // Test serialization
+        let serialized = RedbJobRepository::job_to_bytes(&job);
+        eprintln!("🔍 Serialized job to {} bytes", serialized.len());
+
+        // Test deserialization directly with JSON
+        match String::from_utf8(serialized.clone()) {
+            Ok(json_str) => match serde_json::from_str::<Job>(&json_str) {
+                Ok(deserialized_job) => {
+                    assert_eq!(deserialized_job.id, job_id, "Job ID mismatch");
+                    assert_eq!(deserialized_job.name, job.name, "Job name mismatch");
+                    eprintln!("✅ Direct serialization test passed");
+                }
+                Err(e) => {
+                    eprintln!("❌ Direct JSON deserialization failed:");
+                    eprintln!("   Error: {:?}", e);
+                    panic!("❌ Deserialization failed: {:?}", e);
+                }
+            },
+            Err(e) => {
+                eprintln!("❌ Failed to convert bytes to UTF-8:");
+                panic!("❌ UTF-8 conversion failed: {:?}", e);
+            }
+        }
+
+        // Now test via repository
         repo.save_job(&job).await.unwrap();
 
         let retrieved = repo.get_job(&job_id).await.unwrap();
-        assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().id, job_id);
+        assert!(
+            retrieved.is_some(),
+            "Failed to retrieve job from repository"
+        );
+        assert_eq!(retrieved.unwrap().id, job_id, "Retrieved job ID mismatch");
     }
 
     #[tokio::test]
