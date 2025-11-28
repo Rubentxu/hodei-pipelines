@@ -6,6 +6,7 @@ mod tests {
         AgentConfig, AppConfig, CacheConfig, DatabaseConfig, EventBusConfig, K8sGlobalConfig,
         LoggingConfig, NatsConfig, ServerConfig, TlsConfig,
     };
+    use serial_test::serial;
 
     fn cleanup_env_vars() {
         unsafe {
@@ -41,6 +42,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_database_config_from_env() {
         cleanup_env_vars();
 
@@ -58,6 +60,8 @@ mod tests {
         assert_eq!(config.url, "postgresql://test:test@localhost:5432/testdb");
         assert_eq!(config.max_connections, 50);
         assert_eq!(config.connection_timeout_ms, 10000);
+
+        cleanup_env_vars();
     }
 
     #[test]
@@ -72,6 +76,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_cache_config_from_env() {
         cleanup_env_vars();
 
@@ -86,9 +91,12 @@ mod tests {
         assert_eq!(config.path, "/tmp/test_cache.redb");
         assert_eq!(config.ttl_seconds, 7200);
         assert_eq!(config.max_entries, 50000);
+
+        cleanup_env_vars();
     }
 
     #[test]
+    #[serial]
     fn test_k8s_config_from_env() {
         cleanup_env_vars();
 
@@ -103,9 +111,12 @@ mod tests {
         assert!(config.insecure_skip_verify);
         assert_eq!(config.ca_cert_path, Some("/path/to/ca.pem".to_string()));
         assert_eq!(config.token, Some("token123".to_string()));
+
+        cleanup_env_vars();
     }
 
     #[test]
+    #[serial]
     fn test_nats_config_from_env() {
         cleanup_env_vars();
 
@@ -120,9 +131,12 @@ mod tests {
         assert_eq!(config.url, "nats://nats.example.com:4222");
         assert_eq!(config.subject_prefix, "custom.events");
         assert_eq!(config.connection_timeout_ms, 10000);
+
+        cleanup_env_vars();
     }
 
     #[test]
+    #[serial]
     fn test_agent_config_from_env() {
         cleanup_env_vars();
 
@@ -135,9 +149,12 @@ mod tests {
 
         assert_eq!(config.image, "custom/agent:v1.0.0");
         assert_eq!(config.pull_policy, "Always");
+
+        cleanup_env_vars();
     }
 
     #[test]
+    #[serial]
     fn test_server_config_from_env() {
         cleanup_env_vars();
 
@@ -150,9 +167,12 @@ mod tests {
 
         assert_eq!(config.port, 9090);
         assert_eq!(config.host, "127.0.0.1");
+
+        cleanup_env_vars();
     }
 
     #[test]
+    #[serial]
     fn test_tls_config_from_env() {
         cleanup_env_vars();
 
@@ -167,6 +187,8 @@ mod tests {
         assert!(config.enabled);
         assert_eq!(config.cert_path, Some("/path/to/cert.pem".to_string()));
         assert_eq!(config.key_path, Some("/path/to/key.pem".to_string()));
+
+        cleanup_env_vars();
     }
 
     #[test]
@@ -181,6 +203,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_app_config_load_from_env() {
         cleanup_env_vars();
 
@@ -212,6 +235,8 @@ mod tests {
         assert_eq!(config.nats.url, "nats://localhost:4222");
         assert_eq!(config.server.port, 8080);
         assert_eq!(config.tls.enabled, false);
+
+        cleanup_env_vars();
     }
 
     #[test]
