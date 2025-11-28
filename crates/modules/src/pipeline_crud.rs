@@ -160,10 +160,7 @@ where
 
         // Apply filter if provided
         if let Some(filter) = filter {
-            all_pipelines = all_pipelines
-                .into_iter()
-                .filter(|p| filter.matches(p))
-                .collect();
+            all_pipelines.retain(|p| filter.matches(p));
         }
 
         info!("Found {} pipelines", all_pipelines.len());
@@ -588,17 +585,15 @@ pub struct ListPipelinesFilter {
 impl ListPipelinesFilter {
     /// Check if a pipeline matches the filter
     fn matches(&self, pipeline: &Pipeline) -> bool {
-        if let Some(status) = &self.status {
-            if pipeline.status != *status {
+        if let Some(status) = &self.status
+            && pipeline.status != *status {
                 return false;
             }
-        }
 
-        if let Some(pattern) = &self.name_pattern {
-            if !pipeline.name.contains(pattern) {
+        if let Some(pattern) = &self.name_pattern
+            && !pipeline.name.contains(pattern) {
                 return false;
             }
-        }
 
         true
     }

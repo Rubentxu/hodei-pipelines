@@ -10,7 +10,7 @@ use dashmap::DashMap;
 use hodei_core::{DomainError, Job, JobId, JobState, Result, Worker, WorkerCapabilities, WorkerId};
 use hodei_ports::{
     EventPublisher, JobRepository, PipelineRepository, RoleRepository, SchedulerPort, WorkerClient,
-    WorkerRepository, scheduler_port::SchedulerError,
+    WorkerRepository,
 };
 use hwp_proto::ServerMessage;
 use std::sync::Arc;
@@ -55,6 +55,12 @@ pub struct ResourceUsage {
     pub cpu_percent: f64,
     pub memory_mb: u64,
     pub io_percent: f64,
+}
+
+impl Default for ResourceUsage {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ResourceUsage {
@@ -367,7 +373,7 @@ where
             hodei_core::DomainError::Infrastructure("worker_repository is required".into())
         })?;
 
-        let config = self.config.unwrap_or_else(|| SchedulerConfig::default());
+        let config = self.config.unwrap_or_else(SchedulerConfig::default);
         let max_queue_size = config.max_queue_size;
 
         Ok(SchedulerModule {
@@ -650,12 +656,12 @@ where
         let capability_score_weighted = capability_score * 10.0;
 
         // Combined score
-        let total_score = resource_score
+        
+
+        resource_score
             + load_balancing_score
             + health_score_weighted
-            + capability_score_weighted;
-
-        total_score
+            + capability_score_weighted
     }
 
     /// Calculate how well resources fit (Bin Packing approach)
@@ -750,9 +756,7 @@ where
                 job.spec.env.keys().map(|s| s.as_str()).collect();
             let worker_labels: std::collections::HashSet<&str> = worker
                 .capabilities
-                .labels
-                .iter()
-                .map(|(k, _v)| k.as_str())
+                .labels.keys().map(|k| k.as_str())
                 .collect();
 
             let matching_labels = env_labels.intersection(&worker_labels).count();
@@ -769,7 +773,7 @@ where
 
     async fn reserve_worker(&self, worker: &Worker, job_id: &JobId) -> Result<bool> {
         self.cluster_state
-            .reserve_job(&worker.id, job_id.clone())
+            .reserve_job(&worker.id, *job_id)
             .await
             .map_err(|e| DomainError::Infrastructure(e.to_string()))
     }
@@ -946,7 +950,7 @@ where
         stream_type: hodei_ports::event_bus::StreamType,
     ) -> Result<()> {
         let log_entry = hodei_ports::event_bus::LogEntry {
-            job_id: job_id.clone(),
+            job_id: *job_id,
             data: log_data,
             stream_type,
             sequence: 0, // TODO: Get sequence from message
@@ -1039,12 +1043,12 @@ where
         // Publish job completed/failed event
         let event = if exit_code == 0 {
             hodei_ports::event_bus::SystemEvent::JobCompleted {
-                job_id: job_id.clone(),
+                job_id: *job_id,
                 exit_code,
             }
         } else {
             hodei_ports::event_bus::SystemEvent::JobFailed {
-                job_id: job_id.clone(),
+                job_id: *job_id,
                 error: format!("Job failed with exit code {}", exit_code),
             }
         };
@@ -1219,7 +1223,7 @@ impl ClusterState {
     pub async fn reserve_job(&self, worker_id: &WorkerId, job_id: JobId) -> Result<bool> {
         // Check if worker exists and has capacity
         if let Some(mut worker) = self.workers.get_mut(worker_id) {
-            worker.reserved_jobs.push(job_id.clone());
+            worker.reserved_jobs.push(job_id);
             self.job_assignments.insert(job_id, worker_id.clone());
             Ok(true)
         } else {

@@ -231,6 +231,12 @@ pub struct PredictionEngine {
     pub history: Arc<RwLock<HashMap<String, Vec<HistoricalMetric>>>>,
 }
 
+impl Default for PredictionEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PredictionEngine {
     pub fn new() -> Self {
         Self {
@@ -246,11 +252,10 @@ impl PredictionEngine {
             .push(metric);
 
         // Keep only last 1000 samples
-        if let Some(metrics) = history.get_mut(pool_id) {
-            if metrics.len() > 1000 {
+        if let Some(metrics) = history.get_mut(pool_id)
+            && metrics.len() > 1000 {
                 metrics.drain(0..metrics.len() - 1000);
             }
-        }
     }
 
     pub async fn predict(
@@ -418,7 +423,7 @@ impl AutoScalingPolicyEngine {
 
             for action in triggered_actions {
                 // Apply constraints
-                let constrained_action = self.apply_constraints(&policy, action, &context);
+                let constrained_action = self.apply_constraints(policy, action, &context);
 
                 if constrained_action.direction != ScaleDirection::ScaleUp
                     && constrained_action.direction != ScaleDirection::ScaleDown
@@ -532,9 +537,9 @@ impl AutoScalingPolicyEngine {
                     direction,
                     scale_by,
                 } => {
-                    if let Some(value) = metrics.custom_metrics.get(metric_name) {
-                        if *value > *threshold && *direction == ScaleDirection::ScaleUp
-                            || *value <= *threshold && *direction == ScaleDirection::ScaleDown
+                    if let Some(value) = metrics.custom_metrics.get(metric_name)
+                        && (*value > *threshold && *direction == ScaleDirection::ScaleUp
+                            || *value <= *threshold && *direction == ScaleDirection::ScaleDown)
                         {
                             actions.push(ScaleAction {
                                 direction: direction.clone(),
@@ -542,7 +547,6 @@ impl AutoScalingPolicyEngine {
                                 scale_by: Some(*scale_by),
                             });
                         }
-                    }
                 }
                 ScalingTrigger::TimeBased { .. } => {
                     // Time-based triggers would be evaluated by a scheduler
@@ -599,19 +603,17 @@ impl AutoScalingPolicyEngine {
             }
             ScalingStrategy::Predictive => {
                 // Predictive could increase scale-up to be proactive
-                if let ScaleDirection::ScaleUp = action.direction {
-                    if let Some(scale_by) = &mut action.scale_by {
+                if let ScaleDirection::ScaleUp = action.direction
+                    && let Some(scale_by) = &mut action.scale_by {
                         *scale_by = (*scale_by * 2).min(20);
                     }
-                }
             }
             ScalingStrategy::CostOptimized => {
                 // Conservative on scale-up, slightly more aggressive on scale-down
-                if let ScaleDirection::ScaleUp = action.direction {
-                    if let Some(scale_by) = &mut action.scale_by {
+                if let ScaleDirection::ScaleUp = action.direction
+                    && let Some(scale_by) = &mut action.scale_by {
                         *scale_by = (*scale_by).min(3);
                     }
-                }
             }
             ScalingStrategy::Custom {
                 scale_up_increment,

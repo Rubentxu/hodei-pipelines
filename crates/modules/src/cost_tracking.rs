@@ -330,7 +330,7 @@ impl CostTrackingService {
                 let start = now - chrono::Duration::days(30);
                 (start, now)
             }
-            CostReportingPeriod::Custom { start, end } => (start.clone(), end.clone()),
+            CostReportingPeriod::Custom { start, end } => (*start, *end),
         };
 
         summary.start_time = period_start;
@@ -338,8 +338,8 @@ impl CostTrackingService {
 
         // Aggregate costs
         for job in completed_jobs.iter() {
-            if let Some(end_time) = job.end_time {
-                if end_time >= period_start && end_time <= period_end {
+            if let Some(end_time) = job.end_time
+                && end_time >= period_start && end_time <= period_end {
                     summary.add_job_cost(job);
 
                     // Calculate total worker hours
@@ -347,7 +347,6 @@ impl CostTrackingService {
                         summary.total_worker_hours += duration_seconds as f64 / 3600.0;
                     }
                 }
-            }
         }
 
         summary
@@ -405,6 +404,12 @@ pub struct CostAlerts {
     pub active_alerts: Vec<CostAlert>,
 }
 
+impl Default for CostAlerts {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CostAlerts {
     pub fn new() -> Self {
         Self {
@@ -429,8 +434,8 @@ impl CostAlerts {
 
     fn check_job_cost(&mut self, job_cost: &JobCost) {
         // Check per-job cost
-        if let Some(max_cost) = self.max_cost_per_job_cents {
-            if job_cost.total_cost_cents > max_cost {
+        if let Some(max_cost) = self.max_cost_per_job_cents
+            && job_cost.total_cost_cents > max_cost {
                 self.active_alerts.push(CostAlert {
                     alert_type: CostAlertType::JobCostExceeded,
                     job_id: job_cost.job_id.clone(),
@@ -445,7 +450,6 @@ impl CostAlerts {
                     ),
                 });
             }
-        }
     }
 }
 

@@ -128,7 +128,7 @@ impl AdvancedCooldownManager {
     ) -> bool {
         let tracking = self.cooldown_tracking.read().await;
         if let Some(state) = tracking.get(pool_id) {
-            self.check_cooldown_state(state, &direction, cooldown_type)
+            self.check_cooldown_state(state, direction, cooldown_type)
         } else {
             false
         }
@@ -142,7 +142,7 @@ impl AdvancedCooldownManager {
     ) -> Option<Duration> {
         let tracking = self.cooldown_tracking.read().await;
         if let Some(state) = tracking.get(pool_id) {
-            self.calculate_remaining_cooldown(state, &direction)
+            self.calculate_remaining_cooldown(state, direction)
         } else {
             None
         }
@@ -165,7 +165,7 @@ impl AdvancedCooldownManager {
         }
 
         let now = Utc::now();
-        let duration = self.get_cooldown_duration(&direction);
+        let duration = self.get_cooldown_duration(direction);
 
         let mut tracking = self.cooldown_tracking.write().await;
         let state = tracking
@@ -358,11 +358,10 @@ impl AdvancedCooldownManager {
         cooldown_type: CooldownType,
     ) -> bool {
         // Check if override is active
-        if let Some(expiry) = state.override_expiry {
-            if Utc::now() < expiry {
+        if let Some(expiry) = state.override_expiry
+            && Utc::now() < expiry {
                 return false;
             }
-        }
 
         // Get last scaling time based on type
         let last_time = match cooldown_type {
@@ -377,7 +376,7 @@ impl AdvancedCooldownManager {
         if let Some(last_time) = last_time {
             let elapsed = Utc::now().signed_duration_since(last_time);
             let duration =
-                chrono::Duration::from_std(self.get_cooldown_duration(&direction)).unwrap();
+                chrono::Duration::from_std(self.get_cooldown_duration(direction)).unwrap();
             elapsed < duration
         } else {
             false
@@ -394,7 +393,7 @@ impl AdvancedCooldownManager {
         if let Some(last_time) = last_time {
             let elapsed = Utc::now().signed_duration_since(last_time);
             let duration =
-                chrono::Duration::from_std(self.get_cooldown_duration(&direction)).unwrap();
+                chrono::Duration::from_std(self.get_cooldown_duration(direction)).unwrap();
             if elapsed < duration {
                 Some(duration.to_std().unwrap() - elapsed.to_std().unwrap())
             } else {

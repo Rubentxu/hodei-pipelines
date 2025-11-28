@@ -53,10 +53,10 @@ impl Default for SqlxJobMapper {
 impl JobMapper for SqlxJobMapper {
     fn to_row(&self, job: &Job) -> JobRow {
         JobRow {
-            id: job.id.clone(),
+            id: job.id,
             name: job.name.clone(),
             description: job.description.clone(),
-            spec_json: serde_json::to_value(&job.spec).unwrap_or_else(|_| Value::Null),
+            spec_json: serde_json::to_value(&job.spec).unwrap_or(Value::Null),
             state: job.state.to_string(),
             created_at: job.created_at,
             updated_at: job.updated_at,

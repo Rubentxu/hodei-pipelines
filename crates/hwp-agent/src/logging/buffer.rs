@@ -222,7 +222,7 @@ impl LogBuffer {
     /// Clear the buffer (emergency operation)
     pub fn clear(&self) {
         let mut count = 0;
-        while let Some(_) = self.queue.pop() {
+        while self.queue.pop().is_some() {
             count += 1;
         }
         self.size.store(0, Ordering::Relaxed);

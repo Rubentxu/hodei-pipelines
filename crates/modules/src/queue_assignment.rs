@@ -270,6 +270,12 @@ impl JobQueue {
     }
 }
 
+impl Default for QueueMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl QueueMetrics {
     pub fn new() -> Self {
         Self {
@@ -422,6 +428,12 @@ impl Clone for AssignmentStatistics {
     }
 }
 
+impl Default for AssignmentStatistics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AssignmentStatistics {
     pub fn new() -> Self {
         Self {
@@ -468,6 +480,12 @@ impl AssignmentStatistics {
                 0.0
             },
         }
+    }
+}
+
+impl Default for QueueAssignmentEngine {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -574,7 +592,7 @@ impl QueueAssignmentEngine {
         }
 
         // Try each pool to find a suitable worker
-        for (_pool_id, pool) in &self.pools {
+        for pool in self.pools.values() {
             match pool.allocate_worker(&request.requirements).await {
                 Ok(worker) => {
                     return Ok(Some(AssignmentResult::Assigned {
@@ -645,14 +663,14 @@ impl QueueAssignmentEngine {
         for (queue_id, queue) in &self.queues {
             // Dequeue jobs and try to assign them
             while let Some(job) = queue.dequeue().await {
-                let job_id = job.job_id.clone();
+                let job_id = job.job_id;
                 let queue_type = job.queue_type.clone();
                 let requirements = job.requirements.clone();
                 let tenant_id = job.tenant_id.clone();
                 let max_wait_time = job.max_wait_time;
 
                 let request = AssignmentRequest {
-                    job_id: job_id.clone(),
+                    job_id: job_id,
                     requirements,
                     priority: job.priority,
                     tenant_id,

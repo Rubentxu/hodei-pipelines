@@ -8,16 +8,13 @@ use thiserror::Error;
 
 /// Compression types supported
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub enum CompressionType {
     None,
+    #[default]
     Gzip,
 }
 
-impl Default for CompressionType {
-    fn default() -> Self {
-        CompressionType::Gzip
-    }
-}
 
 /// Compression error
 #[derive(Debug, Error)]

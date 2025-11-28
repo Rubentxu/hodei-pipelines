@@ -303,7 +303,7 @@ impl PipelineExecution {
     ) -> Self {
         let step_executions = steps
             .into_iter()
-            .map(|step_id| StepExecution::new(step_id))
+            .map(StepExecution::new)
             .collect();
 
         Self {

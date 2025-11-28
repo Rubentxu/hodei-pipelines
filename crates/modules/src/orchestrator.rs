@@ -80,7 +80,7 @@ where
             .get_job(id)
             .await
             .map_err(|e| OrchestratorError::DomainError(e.to_string()))?
-            .ok_or(OrchestratorError::JobNotFound(id.clone()))?;
+            .ok_or(OrchestratorError::JobNotFound(*id))?;
 
         let mut job = job;
         job.cancel()

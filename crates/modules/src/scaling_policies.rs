@@ -55,6 +55,12 @@ pub struct ScalingMetrics {
     pub utilization_history: VecDeque<ScalingMetrics>,
 }
 
+impl Default for ScalingMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ScalingMetrics {
     pub fn new() -> Self {
         Self {

@@ -12,6 +12,12 @@ use hodei_ports::worker_provider::{
 /// Default provider factory implementation
 pub struct DefaultProviderFactory;
 
+impl Default for DefaultProviderFactory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DefaultProviderFactory {
     pub fn new() -> Self {
         Self

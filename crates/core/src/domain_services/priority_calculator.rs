@@ -189,9 +189,7 @@ impl PriorityCalculator {
                 job.spec.env.keys().map(|s| s.as_str()).collect();
             let worker_labels: std::collections::HashSet<&str> = worker
                 .capabilities
-                .labels
-                .iter()
-                .map(|(k, _v)| k.as_str())
+                .labels.keys().map(|k| k.as_str())
                 .collect();
 
             let matching_labels = env_labels.intersection(&worker_labels).count();

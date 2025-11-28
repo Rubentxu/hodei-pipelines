@@ -104,7 +104,7 @@ impl ProductionCertificateValidator {
         }
 
         for cert in ca_certs {
-            root_store.add(CertificateDer::from(cert)).map_err(|e| {
+            root_store.add(cert).map_err(|e| {
                 CertificateValidationError::Internal(format!("Failed to add CA to store: {}", e))
             })?;
         }
@@ -211,7 +211,7 @@ impl ProductionCertificateValidator {
 
         // If no Key Usage extension is present, fail validation
         // Client certificates MUST have Key Usage for security
-        let key_usage_ext = key_usage.ok_or_else(|| CertificateValidationError::KeyUsageInvalid)?;
+        let key_usage_ext = key_usage.ok_or(CertificateValidationError::KeyUsageInvalid)?;
 
         let usage = key_usage_ext.value;
 

@@ -402,11 +402,10 @@ fn has_cycle(steps: &[PipelineStep]) -> std::result::Result<bool, DomainError> {
 
     // For each step, check if it's part of a cycle (O(n))
     for step_id in step_lookup.keys() {
-        if !visited.contains_key(step_id) {
-            if has_cycle_dfs(step_id, steps, &step_lookup, &mut visited, &mut rec_stack)? {
+        if !visited.contains_key(step_id)
+            && has_cycle_dfs(step_id, steps, &step_lookup, &mut visited, &mut rec_stack)? {
                 return Ok(true);
             }
-        }
     }
 
     Ok(false)

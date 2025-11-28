@@ -149,7 +149,7 @@ impl SLATracker {
         };
 
         let sla_info = SLAInfo {
-            job_id: job_id.clone(),
+            job_id: job_id,
             deadline,
             sla_level: sla_level.clone(),
             priority_boost: 0,
@@ -250,10 +250,10 @@ impl SLATracker {
         for (job_id, sla_info) in jobs.iter_mut() {
             if now > sla_info.deadline {
                 let violation_time = now;
-                violated_jobs.push(job_id.clone());
+                violated_jobs.push(*job_id);
 
                 let alert = SLAViolationAlert {
-                    job_id: job_id.clone(),
+                    job_id: *job_id,
                     deadline: sla_info.deadline,
                     violation_time,
                     sla_level: sla_info.sla_level.clone(),
@@ -268,7 +268,7 @@ impl SLATracker {
         for job_id in violated_jobs {
             if let Some(sla_info) = jobs.remove(&job_id) {
                 let event = SLAViolationEvent {
-                    job_id: job_id.clone(),
+                    job_id: job_id,
                     deadline: sla_info.deadline,
                     violation_time: now,
                     sla_level: sla_info.sla_level,
@@ -424,7 +424,7 @@ impl SLATracker {
                     / (sla_info.deadline - sla_info.created_at).num_seconds() as f64;
                 elapsed_ratio > self.at_risk_threshold && elapsed_ratio <= self.critical_threshold
             })
-            .map(|(job_id, _)| job_id.clone())
+            .map(|(job_id, _)| *job_id)
             .collect()
     }
 
@@ -439,7 +439,7 @@ impl SLATracker {
                     / (sla_info.deadline - sla_info.created_at).num_seconds() as f64;
                 elapsed_ratio > self.critical_threshold
             })
-            .map(|(job_id, _)| job_id.clone())
+            .map(|(job_id, _)| *job_id)
             .collect()
     }
 }

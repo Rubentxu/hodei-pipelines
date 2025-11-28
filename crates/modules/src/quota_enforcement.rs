@@ -199,8 +199,8 @@ impl QuotaEnforcementEngine {
                 self.update_action_stats("queue");
 
                 // Check if we should preempt
-                if self.policy.preemption_enabled {
-                    if let Some(preempt_candidate) = self.find_preemption_candidate(&request).await
+                if self.policy.preemption_enabled
+                    && let Some(preempt_candidate) = self.find_preemption_candidate(&request).await
                     {
                         self.stats.preempted_jobs += 1;
                         self.update_action_stats("preempt");
@@ -221,12 +221,11 @@ impl QuotaEnforcementEngine {
                             enforcement_action: EnforcementAction::Preempt,
                         });
                     }
-                }
 
                 AdmissionDecision {
                     allowed: false,
                     reason: Some(format!("Queued: {:?}", reason)),
-                    estimated_wait: Some(estimated_wait.clone()),
+                    estimated_wait: Some(*estimated_wait),
                     quota_decision,
                     enforcement_action: EnforcementAction::Queue,
                 }
@@ -316,13 +315,12 @@ impl QuotaEnforcementEngine {
         let tenant_id = request.tenant_id.clone();
 
         // Check queue size
-        if let Some(queue) = self.queued_requests.get(&tenant_id) {
-            if queue.len() >= self.policy.max_queue_size {
+        if let Some(queue) = self.queued_requests.get(&tenant_id)
+            && queue.len() >= self.policy.max_queue_size {
                 return Err(QuotaError::EnforcementError(
                     "Preemption candidate not found".to_string(),
                 ));
             }
-        }
 
         // Create queue entry
         let queue_priority = match request.priority {
@@ -344,7 +342,7 @@ impl QuotaEnforcementEngine {
         let queue = self
             .queued_requests
             .entry(tenant_id.clone())
-            .or_insert_with(Vec::new);
+            .or_default();
         queue.push(queued_request);
 
         // Update stats
@@ -385,11 +383,10 @@ impl QuotaEnforcementEngine {
 
         // Remove processed requests
         for (tenant_id, index) in processed {
-            if let Some(queue) = self.queued_requests.get_mut(&tenant_id) {
-                if index < queue.len() {
+            if let Some(queue) = self.queued_requests.get_mut(&tenant_id)
+                && index < queue.len() {
                     queue.remove(index);
                 }
-            }
         }
 
         Ok(())

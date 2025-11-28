@@ -6,18 +6,15 @@ use serde::{Deserialize, Serialize};
 
 /// Event bus type enum
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum EventBusType {
     /// In-memory event bus (default)
+    #[default]
     InMemory,
     /// NATS JetStream event bus
     Nats,
 }
 
-impl Default for EventBusType {
-    fn default() -> Self {
-        EventBusType::InMemory
-    }
-}
 
 impl std::str::FromStr for EventBusType {
     type Err = String;

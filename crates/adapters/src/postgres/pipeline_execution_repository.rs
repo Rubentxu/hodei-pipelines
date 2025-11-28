@@ -203,7 +203,7 @@ impl PostgreSqlPipelineExecutionRepository {
             started_at: exec_row.get("started_at"),
             completed_at: exec_row.get("completed_at"),
             steps,
-            variables: variables.into_iter().map(|(k, v)| (k, v)).collect(),
+            variables: variables.into_iter().collect(),
             tenant_id: exec_row.get("tenant_id"),
             correlation_id: exec_row.get("correlation_id"),
         })

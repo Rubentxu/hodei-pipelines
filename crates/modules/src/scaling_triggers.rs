@@ -186,8 +186,8 @@ impl TriggerEvaluationEngine {
         }
 
         // Check cooldown period
-        if let Some(cooldown) = trigger.cooldown {
-            if let Some(last_triggered) = trigger.last_triggered {
+        if let Some(cooldown) = trigger.cooldown
+            && let Some(last_triggered) = trigger.last_triggered {
                 let cooldown_duration = chrono::Duration::from_std(cooldown)
                     .map_err(|e| ScalingError::ConfigurationError(e.to_string()))?;
                 if Utc::now().signed_duration_since(last_triggered) < cooldown_duration {
@@ -203,7 +203,6 @@ impl TriggerEvaluationEngine {
                     });
                 }
             }
-        }
 
         // Evaluate based on trigger type
         let (triggered, current_value) = match &trigger.trigger_type {
@@ -220,7 +219,7 @@ impl TriggerEvaluationEngine {
         };
 
         // Record evaluation result
-        self.record_evaluation(&trigger.id, triggered, current_value, &trigger)
+        self.record_evaluation(&trigger.id, triggered, current_value, trigger)
             .await;
 
         Ok(TriggerEvaluationResult {
@@ -234,7 +233,7 @@ impl TriggerEvaluationEngine {
                 format!(
                     "Trigger fired: {} {} {}",
                     current_value,
-                    self.operator_to_string(&trigger),
+                    self.operator_to_string(trigger),
                     trigger.threshold
                 )
             } else {
@@ -361,11 +360,10 @@ impl TriggerEvaluationEngine {
             });
 
         // Keep only last 100 evaluations
-        if let Some(evaluations) = history.get_mut(trigger_id) {
-            if evaluations.len() > 100 {
+        if let Some(evaluations) = history.get_mut(trigger_id)
+            && evaluations.len() > 100 {
                 evaluations.drain(0..evaluations.len() - 100);
             }
-        }
     }
 
     /// Get evaluation history for a trigger

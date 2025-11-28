@@ -257,15 +257,14 @@ impl MetricsCollector {
 
             // /proc/net/dev format: bytes received, packets received, err in, drop in, ...
             // bytes transmitted, packets transmitted, err out, drop out, ...
-            if metrics.len() >= 16 {
-                if let (Ok(rx_bytes), Ok(tx_bytes)) = (
+            if metrics.len() >= 16
+                && let (Ok(rx_bytes), Ok(tx_bytes)) = (
                     metrics[0].parse::<u64>(), // bytes received
                     metrics[8].parse::<u64>(), // bytes transmitted
                 ) {
                     total_rx_bytes += rx_bytes;
                     total_tx_bytes += tx_bytes;
                 }
-            }
         }
 
         // Convert bytes to MB
@@ -304,7 +303,7 @@ impl MetricsCollector {
     async fn try_nvidia_gpu_metrics(&self) -> Result<Option<f64>, MetricsError> {
         // Check if nvidia-smi is available
         let output = tokio::process::Command::new("nvidia-smi")
-            .args(&[
+            .args([
                 "--query-gpu=utilization.gpu",
                 "--format=csv,noheader,nounits",
             ])
@@ -352,18 +351,15 @@ impl MetricsCollector {
                 .to_str()
                 .ok_or(MetricsError::Other("Invalid path".to_string()))
                 .map(|s| s.to_string())
-            {
-                if path.contains("card") {
+                && path.contains("card") {
                     // Check if it's an AMD GPU by looking for vendor file
                     let vendor_path = format!("{}/device/vendor", path);
-                    if let Ok(vendor) = tokio::fs::read_to_string(&vendor_path).await {
-                        if vendor.trim() == "0x1002" {
+                    if let Ok(vendor) = tokio::fs::read_to_string(&vendor_path).await
+                        && vendor.trim() == "0x1002" {
                             // AMD vendor ID
                             amdgpu_paths.push(path);
                         }
-                    }
                 }
-            }
         }
 
         if amdgpu_paths.is_empty() {

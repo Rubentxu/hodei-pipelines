@@ -89,8 +89,8 @@ impl JobStatusProjection {
     }
 
     pub fn execution_duration(&self) -> Option<std::time::Duration> {
-        if let Some(started) = self.started_at {
-            if let Some(completed) = self.completed_at {
+        if let Some(started) = self.started_at
+            && let Some(completed) = self.completed_at {
                 return Some(
                     completed
                         .signed_duration_since(started)
@@ -98,7 +98,6 @@ impl JobStatusProjection {
                         .unwrap_or_default(),
                 );
             }
-        }
         None
     }
 }
@@ -330,8 +329,8 @@ impl Projector for JobStatusProjector {
         match event.event_type() {
             "JobCreated" => {
                 // Use serialize() method from DomainEvent trait
-                if let Ok(event_data) = event.serialize() {
-                    if let Ok(job_event) = serde_json::from_value::<JobCreatedEvent>(event_data) {
+                if let Ok(event_data) = event.serialize()
+                    && let Ok(job_event) = serde_json::from_value::<JobCreatedEvent>(event_data) {
                         let projection =
                             JobStatusProjection::new(job_event.aggregate_id, job_event.job_name);
                         if let Some(_tenant) = job_event.tenant_id {
@@ -339,7 +338,6 @@ impl Projector for JobStatusProjector {
                         }
                         self.projections.insert(job_event.aggregate_id, projection);
                     }
-                }
             }
             "JobScheduled" => {
                 if let Some(proj) = self.projections.get_mut(&event.aggregate_id()) {
@@ -355,18 +353,15 @@ impl Projector for JobStatusProjector {
                 }
             }
             "JobCompleted" => {
-                if let Ok(event_data) = event.serialize() {
-                    if let Ok(completed_event) =
+                if let Ok(event_data) = event.serialize()
+                    && let Ok(completed_event) =
                         serde_json::from_value::<JobCompletedEvent>(event_data)
-                    {
-                        if let Some(proj) = self.projections.get_mut(&event.aggregate_id()) {
+                        && let Some(proj) = self.projections.get_mut(&event.aggregate_id()) {
                             proj.current_state = completed_event.final_state;
                             proj.completed_at = Some(Utc::now());
                             proj.execution_time_ms = Some(completed_event.execution_time_ms);
                             proj.updated_at = Utc::now();
                         }
-                    }
-                }
             }
             _ => {
                 // Ignore unknown event types

@@ -142,7 +142,7 @@ impl QueuePrioritizationEngine {
         let preemption_score = self.calculate_preemption_score(base_priority, &sla_level);
 
         let info = PrioritizationInfo {
-            job_id: job_id.clone(),
+            job_id: job_id,
             base_priority,
             sla_level: sla_level.clone(),
             tenant_id: tenant_id.clone(),
@@ -220,11 +220,11 @@ impl QueuePrioritizationEngine {
         // Fairness component
         let fairness_score = self.calculate_fairness_score(tenant_id).await;
 
-        let total_score = (sla_score * sla_weight)
-            + (priority_score * priority_weight)
-            + (fairness_score * fairness_weight * 100.0);
+        
 
-        total_score
+        (sla_score * sla_weight)
+            + (priority_score * priority_weight)
+            + (fairness_score * fairness_weight * 100.0)
     }
 
     /// Calculate fairness score for a tenant
@@ -301,10 +301,7 @@ impl QueuePrioritizationEngine {
 
     /// Check for preemption candidates
     pub async fn check_preemption_candidates(&self, new_job_id: JobId) -> Vec<PreemptionCandidate> {
-        match self.preemption_policy {
-            PreemptionPolicy::Never => return Vec::new(),
-            _ => {}
-        }
+        if let PreemptionPolicy::Never = self.preemption_policy { return Vec::new() }
 
         let protected = self.protected_tenants.read().await;
         let mut candidates = Vec::new();
@@ -330,8 +327,8 @@ impl QueuePrioritizationEngine {
 
                     if benefit > self.preemption_threshold {
                         let candidate = PreemptionCandidate {
-                            job_id: new_job_id.clone(),
-                            current_job_id: current_job.job_id.clone(),
+                            job_id: new_job_id,
+                            current_job_id: current_job.job_id,
                             priority_score: benefit,
                             tenant_id: current_job.tenant_id.clone(),
                             estimated_waste: Duration::from_secs(0), // Simplified
@@ -393,9 +390,8 @@ impl QueuePrioritizationEngine {
         let fairness_variance = if !allocations.is_empty() {
             let scores: Vec<f64> = allocations.values().map(|a| a.fairness_score).collect();
             let mean: f64 = scores.iter().sum::<f64>() / scores.len() as f64;
-            let variance =
-                scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / scores.len() as f64;
-            variance
+            
+            scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / scores.len() as f64
         } else {
             0.0
         };

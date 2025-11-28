@@ -278,8 +278,8 @@ impl WorkerProvider for DockerProvider {
 
         let mut worker_ids = Vec::new();
         for container in containers {
-            if let Some(labels) = container.labels {
-                if let Some(worker_id_str) = labels.get("hodei.worker.id") {
+            if let Some(labels) = container.labels
+                && let Some(worker_id_str) = labels.get("hodei.worker.id") {
                     match uuid::Uuid::parse_str(worker_id_str) {
                         Ok(uuid) => {
                             let worker_id = WorkerId::from_uuid(uuid);
@@ -290,7 +290,6 @@ impl WorkerProvider for DockerProvider {
                         }
                     }
                 }
-            }
         }
 
         Ok(worker_ids)

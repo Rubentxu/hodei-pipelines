@@ -99,7 +99,7 @@ impl Config {
 
         // TLS settings
         config.tls_enabled =
-            env::var("HODEI_TLS_ENABLED").map_or(false, |v| v.to_lowercase() == "true");
+            env::var("HODEI_TLS_ENABLED").is_ok_and(|v| v.to_lowercase() == "true");
 
         if config.tls_enabled {
             config.tls_cert_path = env::var("HODEI_TLS_CERT_PATH").ok();

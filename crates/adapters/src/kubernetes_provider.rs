@@ -167,8 +167,7 @@ impl KubernetesProvider {
                 if let Some(spec) = template_value
                     .get_mut("spec")
                     .and_then(|s| s.as_object_mut())
-                {
-                    if let Some(containers) =
+                    && let Some(containers) =
                         spec.get_mut("containers").and_then(|c| c.as_array_mut())
                     {
                         for container in containers {
@@ -182,7 +181,6 @@ impl KubernetesProvider {
                             }
                         }
                     }
-                }
 
                 return template_value;
             }
@@ -283,11 +281,10 @@ impl KubernetesProvider {
                             ProviderError::Provider(format!("Failed to parse pod: {}", e))
                         })?;
 
-                        if let Some(status) = pod.get("status").and_then(|s| s.get("phase")) {
-                            if status == "Running" {
+                        if let Some(status) = pod.get("status").and_then(|s| s.get("phase"))
+                            && status == "Running" {
                                 return Ok(());
                             }
-                        }
                     }
                 }
                 Err(e) => {
@@ -485,15 +482,11 @@ impl WorkerProvider for KubernetesProvider {
                     .get("metadata")
                     .and_then(|m| m.get("labels"))
                     .and_then(|l| l.as_object())
-                {
-                    if let Some(worker_id_str) =
+                    && let Some(worker_id_str) =
                         labels.get("hodei.worker.id").and_then(|s| s.as_str())
-                    {
-                        if let Ok(uuid) = uuid::Uuid::parse_str(worker_id_str) {
+                        && let Ok(uuid) = uuid::Uuid::parse_str(worker_id_str) {
                             worker_ids.push(WorkerId::from_uuid(uuid));
                         }
-                    }
-                }
             }
         }
 

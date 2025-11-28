@@ -141,7 +141,7 @@ impl ArtifactUploader {
         let initiate_response = client
             .initiate_upload(Request::new(initiate_req))
             .await
-            .map_err(|e| AgentError::Grpc(e))?
+            .map_err(AgentError::Grpc)?
             .into_inner();
 
         if !initiate_response.accepted {
@@ -155,7 +155,7 @@ impl ArtifactUploader {
 
         // Stream chunks to server
         let chunk_size = 64 * 1024; // 64KB chunks
-        let total_chunks = ((data_to_send.len() + chunk_size - 1) / chunk_size) as u32;
+        let total_chunks = data_to_send.len().div_ceil(chunk_size) as u32;
         let chunks: Vec<ArtifactChunk> = data_to_send
             .chunks(chunk_size)
             .enumerate()
@@ -185,7 +185,7 @@ impl ArtifactUploader {
         let upload_response = client
             .upload_artifact(request_stream)
             .await
-            .map_err(|e| AgentError::Grpc(e))?
+            .map_err(AgentError::Grpc)?
             .into_inner();
 
         if !upload_response.success {
@@ -208,7 +208,7 @@ impl ArtifactUploader {
         let finalize_response = client
             .finalize_upload(Request::new(finalize_req))
             .await
-            .map_err(|e| AgentError::Grpc(e))?
+            .map_err(AgentError::Grpc)?
             .into_inner();
 
         if !finalize_response.success {

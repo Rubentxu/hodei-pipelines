@@ -100,7 +100,7 @@ impl LogStreamer {
             for chunk in chunks {
                 if sender.send(chunk).is_err() {
                     warn!("Failed to send log chunk to gRPC (receiver closed)");
-                    return Err(AgentError::Connection("gRPC sender closed".to_string()).into());
+                    return Err(AgentError::Connection("gRPC sender closed".to_string()));
                 }
             }
         }

@@ -334,13 +334,12 @@ impl MultiTenancyQuotaManager {
         tenant_usage.last_updated = Utc::now();
 
         // Check pool access
-        if !quota.pool_access.is_empty() {
-            if !quota.pool_access.contains_key(&resource_request.pool_id) {
+        if !quota.pool_access.is_empty()
+            && !quota.pool_access.contains_key(&resource_request.pool_id) {
                 return Ok(QuotaDecision::Deny {
                     reason: QuotaViolationReason::PoolAccessDenied,
                 });
             }
-        }
 
         // Check hard limits for CPU
         let projected_cpu = tenant_usage.current_cpu_cores + resource_request.cpu_cores;
@@ -363,7 +362,7 @@ impl MultiTenancyQuotaManager {
         if projected_workers > quota.limits.max_concurrent_workers {
             return Ok(QuotaDecision::Queue {
                 reason: QuotaViolationReason::ConcurrentLimitReached,
-                estimated_wait: self.estimate_wait_time(tenant_usage, &quota).await,
+                estimated_wait: self.estimate_wait_time(tenant_usage, quota).await,
             });
         }
 
@@ -371,7 +370,7 @@ impl MultiTenancyQuotaManager {
         if tenant_usage.current_jobs + 1 > quota.limits.max_concurrent_jobs {
             return Ok(QuotaDecision::Queue {
                 reason: QuotaViolationReason::ConcurrentLimitReached,
-                estimated_wait: self.estimate_wait_time(tenant_usage, &quota).await,
+                estimated_wait: self.estimate_wait_time(tenant_usage, quota).await,
             });
         }
 
@@ -380,7 +379,7 @@ impl MultiTenancyQuotaManager {
             && resource_request.cpu_cores > quota.limits.max_cpu_cores
         {
             let burst_decision = self
-                .check_burst_capacity(tenant_id, &quota, tenant_usage)
+                .check_burst_capacity(tenant_id, quota, tenant_usage)
                 .await?;
             if burst_decision.allowed {
                 tenant_usage.burst_count_today += 1;
@@ -430,7 +429,7 @@ impl MultiTenancyQuotaManager {
         tenant_usage.current_jobs += 1;
 
         // Estimate cost
-        let estimated_cost = self.calculate_cost(&quota, &resource_request);
+        let estimated_cost = self.calculate_cost(quota, resource_request);
         tenant_usage.daily_cost += estimated_cost;
 
         // Record usage event
@@ -572,14 +571,12 @@ impl MultiTenancyQuotaManager {
             let elapsed = Utc::now().signed_duration_since(last_burst);
             if let Ok(cooldown_duration) =
                 chrono::Duration::from_std(quota.burst_policy.cooldown_period)
-            {
-                if elapsed < cooldown_duration {
+                && elapsed < cooldown_duration {
                     return Ok(BurstCapacityDecision {
                         allowed: false,
                         reason: "Burst cooldown period active".to_string(),
                     });
                 }
-            }
         }
 
         Ok(BurstCapacityDecision {

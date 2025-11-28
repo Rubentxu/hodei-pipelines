@@ -381,6 +381,12 @@ pub struct DynamicPoolState {
     pub total_terminated: u64,
 }
 
+impl Default for DynamicPoolState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DynamicPoolState {
     pub fn new() -> Self {
         Self {
@@ -676,6 +682,12 @@ pub struct HealthCheckConfig {
     pub unhealthy_threshold: u32,
 }
 
+impl Default for HealthCheckConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HealthCheckConfig {
     pub fn new() -> Self {
         Self {
@@ -745,6 +757,12 @@ pub struct CleanupConfig {
     pub disconnect_threshold: Duration, // 10 minutes
     pub cleanup_interval: Duration,     // 5 minutes
     pub notify_on_cleanup: bool,
+}
+
+impl Default for CleanupConfig {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CleanupConfig {
@@ -1233,14 +1251,13 @@ where
         // Validate TCP check parameters
         if let HealthCheckType::Tcp { ref host, ref port } = check_type {
             // Validate that the port is parseable from metadata if provided
-            if let Some(port_str) = worker.metadata.get("healthcheck_port") {
-                if port_str.parse::<u16>().is_err() {
+            if let Some(port_str) = worker.metadata.get("healthcheck_port")
+                && port_str.parse::<u16>().is_err() {
                     return Err(DomainError::Infrastructure(format!(
                         "Invalid health check port: {}",
                         port_str
                     )));
                 }
-            }
         }
 
         // Execute health check
@@ -1301,16 +1318,14 @@ where
                 // Fully healthy
                 HealthStatus::Healthy
             }
-        } else {
-            if consecutive_failures >= self.config.unhealthy_threshold {
-                // Too many failures - mark unhealthy
-                HealthStatus::Unhealthy {
-                    reason: result.as_ref().err().unwrap().to_string(),
-                }
-            } else {
-                // Not yet unhealthy, still in recovery window
-                HealthStatus::Recovering
+        } else if consecutive_failures >= self.config.unhealthy_threshold {
+            // Too many failures - mark unhealthy
+            HealthStatus::Unhealthy {
+                reason: result.as_ref().err().unwrap().to_string(),
             }
+        } else {
+            // Not yet unhealthy, still in recovery window
+            HealthStatus::Recovering
         };
 
         // Create health check result
@@ -1392,10 +1407,10 @@ where
             }
             Err(_) => {
                 warn!(worker_id = %worker_id, host = %host, port = %port, "TCP health check timeout");
-                return Err(DomainError::Infrastructure(format!(
+                Err(DomainError::Infrastructure(format!(
                     "Health check timeout for worker {}",
                     worker_id
-                )));
+                )))
             }
         }
     }
@@ -1403,16 +1418,14 @@ where
     /// Determine which health check type to use for a worker
     fn determine_check_type(&self, worker: &Worker) -> HealthCheckType {
         // Check worker's metadata for health check configuration
-        if let Some(host) = worker.metadata.get("healthcheck_host") {
-            if let Some(port_str) = worker.metadata.get("healthcheck_port") {
-                if let Ok(port) = port_str.parse::<u16>() {
+        if let Some(host) = worker.metadata.get("healthcheck_host")
+            && let Some(port_str) = worker.metadata.get("healthcheck_port")
+                && let Ok(port) = port_str.parse::<u16>() {
                     return HealthCheckType::Tcp {
                         host: host.clone(),
                         port,
                     };
                 }
-            }
-        }
 
         // Check if there's a gRPC endpoint configured
         if let Some(endpoint) = worker.metadata.get("grpc_endpoint") {
@@ -1440,6 +1453,12 @@ pub struct ProvisioningConfig {
     pub timeout_per_worker: Duration,
     pub max_retries: u32,
     pub retry_delay: Duration,
+}
+
+impl Default for ProvisioningConfig {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ProvisioningConfig {
@@ -1639,6 +1658,12 @@ pub struct StaticPoolState {
     pub total_idle_time: Duration,
 }
 
+impl Default for StaticPoolState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StaticPoolState {
     pub fn new() -> Self {
         Self {
@@ -1819,7 +1844,7 @@ where
 
         // Check if we have available workers
         if let Some(worker_id) = state.available_workers.pop() {
-            state.busy_workers.insert(worker_id.clone(), job_id.clone());
+            state.busy_workers.insert(worker_id.clone(), job_id);
             drop(state);
 
             self.metrics.record_allocation();
@@ -2605,7 +2630,7 @@ where
         requirements: WorkerRequirements,
     ) -> Result<WorkerAllocation> {
         let allocation_request = AllocationRequest {
-            job_id: job_id.clone(),
+            job_id: job_id,
             requirements,
             priority: 0,
             requested_at: Utc::now(),
@@ -2619,12 +2644,12 @@ where
         &self,
         allocation_request: AllocationRequest,
     ) -> Result<WorkerAllocation> {
-        let job_id = allocation_request.job_id.clone();
+        let job_id = allocation_request.job_id;
         let mut state = self.state.write().await;
 
         // Try to get available worker
         if let Some(worker_id) = state.available_workers.pop() {
-            state.busy_workers.insert(worker_id.clone(), job_id.clone());
+            state.busy_workers.insert(worker_id.clone(), job_id);
             drop(state);
 
             self.metrics.record_allocation();
@@ -2670,7 +2695,7 @@ where
         let mut state = self.state.write().await;
 
         // Verify worker is currently busy
-        if state.busy_workers.remove(&worker_id) != Some(job_id.clone()) {
+        if state.busy_workers.remove(&worker_id) != Some(job_id) {
             return Err(DynamicPoolError::WorkerNotFound {
                 worker_id: worker_id.clone(),
             }
@@ -2818,7 +2843,7 @@ where
 
             // Add matched workers to busy workers
             for match_result in &matched_jobs {
-                let job_id = match_result.job_id.clone();
+                let job_id = match_result.job_id;
                 let worker_id = match_result.worker_id.clone();
                 state.busy_workers.insert(worker_id, job_id);
             }
@@ -3056,11 +3081,10 @@ where
     fn should_terminate_worker(&self) -> bool {
         // Check cooldown period
         let state_guard = self.state.blocking_read();
-        if let Some(last_op) = state_guard.last_scaling_operation {
-            if last_op.elapsed() < self.config.cooldown_period {
+        if let Some(last_op) = state_guard.last_scaling_operation
+            && last_op.elapsed() < self.config.cooldown_period {
                 return false;
             }
-        }
 
         // For now, don't terminate workers (simplified implementation)
         false
@@ -3230,6 +3254,12 @@ impl std::fmt::Debug for InMemoryAuditLogger {
     }
 }
 
+impl Default for InMemoryAuditLogger {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InMemoryAuditLogger {
     pub fn new() -> Self {
         Self {
@@ -3327,6 +3357,12 @@ impl ActionExecutor for MockActionExecutor {
 #[derive(Debug)]
 pub struct MockJobManager {
     pub should_fail: std::sync::atomic::AtomicBool,
+}
+
+impl Default for MockJobManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MockJobManager {
@@ -3442,7 +3478,7 @@ where
             .policies
             .iter()
             .find(|p| p.worker_type == worker_type)
-            .ok_or_else(|| RemediationError::NoPolicyFound(worker_type))?;
+            .ok_or(RemediationError::NoPolicyFound(worker_type))?;
 
         // Evaluate trigger conditions
         let triggered_conditions = self
@@ -3528,7 +3564,7 @@ where
             .policies
             .iter()
             .find(|p| p.worker_type == worker_type)
-            .ok_or_else(|| RemediationError::NoPolicyFound(worker_type))?;
+            .ok_or(RemediationError::NoPolicyFound(worker_type))?;
 
         // Evaluate trigger conditions
         let triggered_conditions = self
@@ -3611,7 +3647,7 @@ where
         }
 
         // Execute actions in sequence
-        for action in actions {
+        if let Some(action) = actions.into_iter().next() {
             // Check max attempts
             let attempts = self.get_remediation_attempts(worker_id).await?;
             if attempts >= policy.max_attempts {

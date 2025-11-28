@@ -51,6 +51,12 @@ pub struct QueueScalingStats {
     pub scaling_decisions_made: u64,
 }
 
+impl Default for QueueScalingStats {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl QueueScalingStats {
     pub fn new() -> Self {
         Self {
@@ -134,11 +140,10 @@ impl QueueScalingIntegration {
             let now = Instant::now();
             let mut last_decisions = self.last_scaling_decisions.write().await;
 
-            if let Some(last_time) = last_decisions.get(&queue_id) {
-                if now.duration_since(*last_time) < self.config.cooldown_between_scaling {
+            if let Some(last_time) = last_decisions.get(&queue_id)
+                && now.duration_since(*last_time) < self.config.cooldown_between_scaling {
                     continue;
                 }
-            }
 
             // Evaluate scaling decision
             let context = ScalingContext {

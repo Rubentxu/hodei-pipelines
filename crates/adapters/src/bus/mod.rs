@@ -95,7 +95,7 @@ impl InMemoryBus {
     pub fn is_closed(&self) -> bool {
         // Note: tokio::broadcast::Sender doesn't have is_closed()
         // We use a counter to track if we're effectively closed
-        self.sender.len() == 0 && self.sender.receiver_count() == 0
+        self.sender.is_empty() && self.sender.receiver_count() == 0
     }
 
     /// Get number of receivers

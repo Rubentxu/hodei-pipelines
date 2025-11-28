@@ -668,6 +668,12 @@ pub trait PoolEventHandler: Send + Sync {
 #[derive(Debug)]
 pub struct LoggingEventHandler;
 
+impl Default for LoggingEventHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LoggingEventHandler {
     pub fn new() -> Self {
         Self

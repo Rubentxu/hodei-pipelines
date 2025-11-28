@@ -28,6 +28,12 @@ pub struct SchedulingContext {
     pub cluster_state: Vec<WorkerNode>,
 }
 
+impl Default for SchedulingContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SchedulingContext {
     pub fn new() -> Self {
         Self {
@@ -113,14 +119,13 @@ impl SchedulingStateMachine {
     {
         self.validate_state(&[SchedulingState::Matching])?;
 
-        if let Some(job) = &self.context.job {
-            if !self.context.eligible_workers.is_empty() {
+        if let Some(job) = &self.context.job
+            && !self.context.eligible_workers.is_empty() {
                 let selected_worker = scheduler
                     .select_best_worker(&self.context.eligible_workers, job)
                     .await?;
                 self.context.selected_worker = Some(selected_worker);
             }
-        }
 
         self.current_state = SchedulingState::Optimizing;
         Ok(())

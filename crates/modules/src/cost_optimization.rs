@@ -316,7 +316,7 @@ impl CostOptimizationEngine {
             CostAnalysisPeriod::LastDay => (now - chrono::Duration::days(1), now),
             CostAnalysisPeriod::LastWeek => (now - chrono::Duration::days(7), now),
             CostAnalysisPeriod::LastMonth => (now - chrono::Duration::days(30), now),
-            CostAnalysisPeriod::Custom { start, end } => (start.clone(), end.clone()),
+            CostAnalysisPeriod::Custom { start, end } => (*start, *end),
         };
 
         Ok((start, end))

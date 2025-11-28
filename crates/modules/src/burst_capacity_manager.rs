@@ -166,8 +166,8 @@ impl BurstCapacityManager {
         // Check burst cooldown
         if let Some(last_burst) = usage.last_burst {
             let elapsed = Utc::now().signed_duration_since(last_burst);
-            if let Ok(cooldown) = ChronoDuration::from_std(self.config.burst_cooldown) {
-                if elapsed < cooldown {
+            if let Ok(cooldown) = ChronoDuration::from_std(self.config.burst_cooldown)
+                && elapsed < cooldown {
                     return Ok(BurstDecision {
                         allowed: false,
                         reason: "Burst cooldown period active".to_string(),
@@ -176,7 +176,6 @@ impl BurstCapacityManager {
                         cost_impact: 0.0,
                     });
                 }
-            }
         }
 
         // Check maximum burst duration
@@ -344,8 +343,8 @@ impl BurstCapacityManager {
     /// Calculate burst cost
     fn calculate_burst_cost(&self, request: &BurstResourceRequest, multiplier: f64) -> f64 {
         let base_cost = request.cpu_cores as f64 * 0.05; // $0.05 per core-hour
-        let burst_cost = base_cost * multiplier * self.config.burst_cost_multiplier;
-        burst_cost
+        
+        base_cost * multiplier * self.config.burst_cost_multiplier
     }
 
     /// Calculate session cost

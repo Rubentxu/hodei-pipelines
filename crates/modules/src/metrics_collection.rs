@@ -182,7 +182,7 @@ impl MetricsStore {
         let pool_id = metric.pool_id.clone();
         self.metrics
             .entry(pool_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(metric);
         Ok(())
     }
@@ -271,6 +271,12 @@ impl MetricsStore {
         }
 
         Ok(removed_count as u64)
+    }
+}
+
+impl Default for AggregationEngine {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

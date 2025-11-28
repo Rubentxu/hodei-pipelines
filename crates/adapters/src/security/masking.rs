@@ -20,7 +20,7 @@ impl AhoCorasickMasker {
         let ac = if config.enabled && !config.patterns.is_empty() {
             Some(
                 AhoCorasick::new(&config.patterns)
-                    .unwrap_or_else(|_| AhoCorasick::new(&["secret"]).unwrap()),
+                    .unwrap_or_else(|_| AhoCorasick::new(["secret"]).unwrap()),
             )
         } else {
             None

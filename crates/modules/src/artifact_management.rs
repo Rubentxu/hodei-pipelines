@@ -275,7 +275,7 @@ where
         // Create artifact metadata
         let metadata = ArtifactMetadata {
             artifact_id: artifact_id.clone(),
-            job_id: job_id.clone(),
+            job_id: *job_id,
             filename: filename.to_string(),
             total_size,
             checksum: checksum.to_string(),
@@ -293,8 +293,7 @@ where
             .initialize_storage(artifact_id, &metadata)
             .await
             .map_err(|e| {
-                ArtifactError::Storage(StorageError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                ArtifactError::Storage(StorageError::Io(std::io::Error::other(
                     e.to_string(),
                 )))
             })?;
@@ -387,8 +386,7 @@ where
             .store_chunk(&metadata.artifact_id, sequence_number, data)
             .await
             .map_err(|e| {
-                ArtifactError::Storage(StorageError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                ArtifactError::Storage(StorageError::Io(std::io::Error::other(
                     e.to_string(),
                 )))
             })?;
@@ -452,8 +450,8 @@ where
         // Find next expected chunk
         let mut next_chunk = 0;
         for chunk in &chunks {
-            if chunk.sequence_number as u32 >= next_chunk {
-                next_chunk = chunk.sequence_number as u32 + 1;
+            if chunk.sequence_number >= next_chunk {
+                next_chunk = chunk.sequence_number + 1;
             }
         }
 
@@ -503,8 +501,7 @@ where
             .finalize_artifact(&metadata.artifact_id)
             .await
             .map_err(|e| {
-                ArtifactError::Storage(StorageError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                ArtifactError::Storage(StorageError::Io(std::io::Error::other(
                     e.to_string(),
                 )))
             })?;
@@ -545,8 +542,7 @@ where
             .delete_artifact(&metadata.artifact_id)
             .await
             .map_err(|e| {
-                ArtifactError::Storage(StorageError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                ArtifactError::Storage(StorageError::Io(std::io::Error::other(
                     e.to_string(),
                 )))
             })?;

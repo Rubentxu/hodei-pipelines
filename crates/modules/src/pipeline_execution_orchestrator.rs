@@ -278,12 +278,11 @@ where
         'main_loop: for step_idx in 0..total_steps {
             // Check for cancellation
             let mut receiver = cancellation_receiver.lock().await;
-            if let Ok(exec_id) = receiver.try_recv() {
-                if exec_id == execution_id {
+            if let Ok(exec_id) = receiver.try_recv()
+                && exec_id == execution_id {
                     cancelled = true;
                     break 'main_loop;
                 }
-            }
             drop(receiver);
 
             // Find next ready step
@@ -377,12 +376,11 @@ where
 
             // Check if execution was cancelled
             let mut receiver = cancellation_receiver.lock().await;
-            if let Ok(exec_id) = receiver.try_recv() {
-                if exec_id == execution_id {
+            if let Ok(exec_id) = receiver.try_recv()
+                && exec_id == execution_id {
                     cancelled = true;
                     break 'main_loop;
                 }
-            }
             drop(receiver);
         }
 
@@ -485,11 +483,10 @@ where
     loop {
         attempts += 1;
 
-        if let Some(job) = job_repo.get_job(&job_id).await.ok().flatten() {
-            if job.state.is_terminal() {
+        if let Some(job) = job_repo.get_job(&job_id).await.ok().flatten()
+            && job.state.is_terminal() {
                 return Ok(job.state);
             }
-        }
 
         if attempts >= max_attempts {
             return Err(DomainError::Timeout(format!(

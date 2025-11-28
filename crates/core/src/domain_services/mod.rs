@@ -43,6 +43,12 @@ pub struct ResourceUsage {
     pub io_percent: f64,
 }
 
+impl Default for ResourceUsage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResourceUsage {
     pub fn new() -> Self {
         Self {

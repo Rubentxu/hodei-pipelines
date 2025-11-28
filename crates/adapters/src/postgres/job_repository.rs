@@ -140,7 +140,7 @@ impl JobRepository for PostgreSqlJobRepository {
         .map_err(|e| DomainError::Infrastructure(format!("Failed to get job: {}", e)))?;
 
         if let Some(row) = row {
-            Ok(Some(self.deserialize_job_from_row(&row, job_id.clone())?))
+            Ok(Some(self.deserialize_job_from_row(&row, *job_id)?))
         } else {
             Ok(None)
         }
@@ -292,7 +292,7 @@ impl JobRepository for PostgreSqlJobRepository {
 
     async fn create_job(&self, job_spec: hodei_core::job::JobSpec) -> Result<JobId> {
         let job_id = JobId::new();
-        let job = Job::new(job_id.clone(), job_spec)?;
+        let job = Job::new(job_id, job_spec)?;
         self.save_job(&job).await?;
         Ok(job_id)
     }

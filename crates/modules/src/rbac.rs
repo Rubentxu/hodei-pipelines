@@ -179,11 +179,9 @@ where
                 .get_role_by_name(new_name)
                 .await
                 .map_err(RbacError::Repository)?
-            {
-                if existing.id != *id {
+                && existing.id != *id {
                     return Err(RbacError::RoleAlreadyExists(existing.id).into());
                 }
-            }
         }
 
         // Update role
