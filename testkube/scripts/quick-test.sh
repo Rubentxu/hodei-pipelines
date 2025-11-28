@@ -8,7 +8,7 @@ fi
 
 # Quick test script for immediate feedback
 
-NAMESPACE=${NAMESPACE:-hodei-jobs}
+NAMESPACE=${NAMESPACE:-hodei-pipelines}
 
 echo "🚀 Quick Test - Hodei Pipelines"
 echo "==============================="

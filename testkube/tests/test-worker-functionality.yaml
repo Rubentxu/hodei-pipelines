@@ -16,7 +16,7 @@ spec:
       set -e
       
       WORKER_POD=${WORKER_POD:-$(kubectl get pods -l app.kubernetes.io/component=worker -o jsonpath='{.items[0].metadata.name}')}
-      NAMESPACE=${NAMESPACE:-hodei-jobs}
+      NAMESPACE=${NAMESPACE:-hodei-pipelines}
       
       echo "Checking worker pod: $WORKER_POD in namespace: $NAMESPACE"
       
@@ -48,6 +48,6 @@ spec:
     variables:
       NAMESPACE:
         name: NAMESPACE
-        value: "hodei-jobs"
+        value: "hodei-pipelines"
         type: basic
   source: testkube

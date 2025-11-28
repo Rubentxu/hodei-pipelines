@@ -4,12 +4,11 @@
 //! using real PostgreSQL instances spun up via TestContainers and Redb instances.
 
 use std::collections::HashMap;
-use testcontainers::clients::Cli;
-use testcontainers::containers::Postgres;
-use testcontainers::Container;
+use testcontainers::{core::IntoContainerPort, runners::AsyncRunner, GenericImage, ImageExt};
 use tracing::info;
 
-use hodei_adapters::{CachedJobRepository, RedbJobRepository};
+use hodei_adapters::cached_repository::CachedJobRepository;
+use hodei_adapters::redb::RedbJobRepository;
 use hodei_core::job::{Job, JobId, JobSpec, ResourceQuota};
 use hodei_ports::JobRepository;
 
@@ -20,7 +19,7 @@ const POSTGRES_DB: &str = "testdb";
 
 /// TestContainer setup for PostgreSQL
 struct PostgresTestContainer {
-    container: Container<Postgres>,
+    container: testcontainers::core::ContainerAsync<GenericImage>,
     connection_string: String,
     port: u16,
 }
@@ -29,18 +28,19 @@ impl PostgresTestContainer {
     async fn start() -> Self {
         info!("🐳 Starting PostgreSQL TestContainer...");
 
-        let docker = Cli::default();
-        let node = docker.run(
-            Postgres::new(POSTGRES_IMAGE)
-                .with_env_var(("POSTGRES_USER", POSTGRES_USER))
-                .with_env_var(("POSTGRES_PASSWORD", POSTGRES_PASSWORD))
-                .with_env_var(("POSTGRES_DB", POSTGRES_DB)),
-        );
+        let node = GenericImage::new("postgres:15-alpine")
+            .with_env_var(("POSTGRES_USER", "postgres"))
+            .with_env_var(("POSTGRES_PASSWORD", "postgres"))
+            .with_env_var(("POSTGRES_DB", "testdb"))
+            .with_exposed_port(5432.tcp())
+            .start()
+            .await
+            .expect("Failed to start PostgreSQL container");
 
-        let port = node.get_host_port_ipv4(5432);
+        let port = node.get_host_port(5432);
         let connection_string = format!(
             "postgresql://{}:{}@localhost:{}/{}",
-            POSTGRES_USER, POSTGRES_PASSWORD, port, POSTGRES_DB
+            "postgres", "postgres", port, "testdb"
         );
 
         // Wait for PostgreSQL to be ready

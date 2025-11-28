@@ -12,7 +12,7 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-NAMESPACE=${NAMESPACE:-hodei-jobs}
+NAMESPACE=${NAMESPACE:-hodei-pipelines}
 
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"

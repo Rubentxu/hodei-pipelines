@@ -93,7 +93,7 @@ Ruta Completa,Nombre Archivo,Categoria,Tamaño (KB),Ultima Modificacion,Procesad
 
 ### Paso 1: Generar Manifiesto
 ```bash
-cd /home/rubentxu/Proyectos/rust/hodei-jobs
+cd /home/rubentxu/Proyectos/rust/hodei-pipelines
 ./scripts/generate_clean_manifest.sh
 ```
 
@@ -163,7 +163,7 @@ open -a "Microsoft Excel" CODE_MANIFEST.csv
 Reporte de Progreso del Manifiesto de Código
 ============================================================
 
-Archivo: /home/rubentxu/Proyectos/rust/hodei-jobs/CODE_MANIFEST.csv
+Archivo: /home/rubentxu/Proyectos/rust/hodei-pipelines/CODE_MANIFEST.csv
 
 📊 Resumen General:
    Total de archivos: 180

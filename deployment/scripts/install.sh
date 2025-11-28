@@ -39,7 +39,7 @@ USO:
 
 OPCIONES:
     -e, --environment ENV        Entorno de instalación (dev|prod) [default: dev]
-    -n, --namespace NS          Namespace de Kubernetes [default: hodei-dev o hodei-jobs]
+    -n, --namespace NS          Namespace de Kubernetes [default: hodei-dev o hodei-pipelines]
     -t, --tag TAG               Tag de la imagen Docker [default: latest]
     --dry-run                  Ejecutar en modo dry-run
     --upgrade                  Actualizar instalación existente
@@ -111,7 +111,7 @@ install_hodei() {
             log_warning "No se recomienda para producción"
             ;;
         prod)
-            namespace=${namespace:-hodei-jobs}
+            namespace=${namespace:-hodei-pipelines}
             values_file="deployment/helm/values-prod.yaml"
             log_info "Instalando en modo PRODUCCIÓN"
             ;;
@@ -275,7 +275,7 @@ main() {
 
     # Ejecutar acción
     if [ "$UNINSTALL" = "true" ]; then
-        local namespace=${NAMESPACE:-hodei-jobs}
+        local namespace=${NAMESPACE:-hodei-pipelines}
         uninstall_hodei $namespace
     else
         install_hodei $ENVIRONMENT $NAMESPACE $TAG $DRY_RUN $UPGRADE

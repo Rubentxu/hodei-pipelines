@@ -15,7 +15,7 @@ spec:
       #!/bin/bash
       set -e
       
-      NAMESPACE=${NAMESPACE:-hodei-jobs}
+      NAMESPACE=${NAMESPACE:-hodei-pipelines}
       SERVER_URL=${SERVER_URL:-http://hodei-server:8080}
       
       echo "Testing Streaming Logs in Hodei Pipelines..."
@@ -166,7 +166,7 @@ spec:
     variables:
       NAMESPACE:
         name: NAMESPACE
-        value: "hodei-jobs"
+        value: "hodei-pipelines"
         type: basic
       SERVER_URL:
         name: SERVER_URL

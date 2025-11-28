@@ -1,0 +1,138 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: job-output-verification
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: server
+    type: use-case
+spec:
+  type: curl
+  content:
+    type: inline
+    data: |
+      #!/bin/bash
+      set -e
+      
+      NAMESPACE=${NAMESPACE:-hodei-pipelines}
+      SERVER_URL=${SERVER_URL:-http://hodei-server:8080}
+      UNIQUE_TOKEN="TOKEN_$(date +%s)_$RANDOM"
+      
+      echo "Testing Job Output Verification in Hodei Pipelines..."
+      echo "Namespace: $NAMESPACE"
+      echo "Server URL: $SERVER_URL"
+      echo "Unique Token: $UNIQUE_TOKEN"
+      echo ""
+      
+      # 1. Create a job that prints the unique token
+      echo "1. Creating a job to print unique token..."
+      job_payload='{
+        "name": "output-test-job-'$(date +%s)'",
+        "pipeline_id": "test-pipeline",
+        "status": "pending",
+        "priority": 10,
+        "payload": "echo '$UNIQUE_TOKEN'"
+      }'
+      
+      # Note: The payload field above assumes the worker executes the payload as a command.
+      # If the worker logic is different (e.g. docker container), we might need to adjust.
+      # For this test, we assume a simple shell executor or similar that can echo.
+      # If not, we rely on the job ID or name being logged, but the requirement was "revisar su salida".
+      # Let's assume the worker logs the execution output or at least the job details.
+      
+      create_response=$(curl -s -X POST $SERVER_URL/api/v1/jobs \
+        -H "Content-Type: application/json" \
+        -d "$job_payload" \
+        -w "\nHTTP_CODE:%{http_code}" 2>/dev/null || echo "HTTP_CODE:000")
+      
+      http_code=$(echo "$create_response" | grep "HTTP_CODE:" | cut -d: -f2)
+      
+      if [ "$http_code" = "201" ] || [ "$http_code" = "200" ]; then
+        job_id=$(echo "$create_response" | sed '/HTTP_CODE:/d' | jq -r '.id // .job_id // empty' 2>/dev/null)
+        echo "   ✅ Job created successfully. Job ID: $job_id"
+      else
+        echo "   ❌ Job creation failed with HTTP $http_code"
+        echo "   Response: $(echo "$create_response" | sed '/HTTP_CODE:/d')"
+        exit 1
+      fi
+      echo ""
+      
+      # 2. Wait for job completion (poll status)
+      echo "2. Waiting for job completion..."
+      MAX_RETRIES=30
+      SLEEP_TIME=2
+      completed=false
+      
+      for ((i=1; i<=MAX_RETRIES; i++)); do
+        job_status_response=$(curl -s $SERVER_URL/api/v1/jobs/$job_id 2>/dev/null)
+        status=$(echo "$job_status_response" | jq -r '.status // "unknown"')
+        
+        echo "   Attempt $i/$MAX_RETRIES: Job status is '$status'"
+        
+        if [ "$status" = "completed" ] || [ "$status" = "failed" ]; then
+          if [ "$status" = "completed" ]; then
+             echo "   ✅ Job completed successfully"
+             completed=true
+          else
+             echo "   ⚠️ Job failed (status: failed), but we will still check logs for partial output"
+             completed=true
+          fi
+          break
+        fi
+        sleep $SLEEP_TIME
+      done
+      
+      if [ "$completed" = "false" ]; then
+        echo "   ⚠️ Timeout waiting for job completion. Proceeding to check logs anyway..."
+      fi
+      echo ""
+      
+      # 3. Verify output in worker logs
+      echo "3. Verifying output in worker logs..."
+      worker_pods=$(kubectl get pods -n $NAMESPACE -l app.kubernetes.io/component=worker -o jsonpath='{.items[*].metadata.name}')
+      
+      if [ -z "$worker_pods" ]; then
+        echo "   ❌ No worker pods found to check logs"
+        exit 1
+      fi
+      
+      found_token=false
+      
+      for pod in $worker_pods; do
+        echo "   Scanning logs of worker: $pod"
+        # Fetch recent logs (enough to cover the job execution)
+        logs=$(kubectl logs $pod -n $NAMESPACE --tail=200 2>/dev/null || echo "")
+        
+        if echo "$logs" | grep -q "$UNIQUE_TOKEN"; then
+          echo "     ✅ Found unique token '$UNIQUE_TOKEN' in logs of $pod"
+          echo "     Log snippet:"
+          echo "$logs" | grep -C 2 "$UNIQUE_TOKEN" | sed 's/^/       /'
+          found_token=true
+          break
+        else
+          echo "     ℹ️ Token not found in this worker"
+        fi
+      done
+      
+      if [ "$found_token" = "true" ]; then
+        echo ""
+        echo "✅ SUCCESS: Job output verified in worker logs."
+        exit 0
+      else
+        echo ""
+        echo "❌ FAILURE: Unique token '$UNIQUE_TOKEN' not found in any worker logs."
+        echo "   This implies the job did not execute, or the output was not logged/captured."
+        exit 1
+      fi
+  executionRequest:
+    variables:
+      NAMESPACE:
+        name: NAMESPACE
+        value: "hodei-pipelines"
+        type: basic
+      SERVER_URL:
+        name: SERVER_URL
+        value: "http://hodei-server:8080"
+        type: basic
+  source: testkube

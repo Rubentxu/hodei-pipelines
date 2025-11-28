@@ -27,19 +27,46 @@ echo -e "${YELLOW}No se detectó un cluster Kubernetes ejecutándose${NC}"
 echo ""
 echo -e "${BLUE}Selecciona una opción para iniciar un cluster:${NC}"
 echo ""
-echo "1) Minikube       - Rápido (2-5 min), recomendado para principiantes"
-echo "2) CRC (OpenShift) - Completo (5-10 min), ya instalado"
-echo "3) kind           - Muy rápido (1-2 min), ligero"
-echo "4) k3d            - Ultra rápido (30s), muy ligero"
-echo "5) Solo verificar - No iniciar nada, solo revisar"
+echo "1) vcluster       - ⭐ RECOMENDADO - Cluster virtual ultra-rápido (30s)"
+echo "2) Minikube       - VM tradicional (2-5 min)"
+echo "3) CRC (OpenShift) - Completo (5-10 min), ya instalado"
+echo "4) kind           - Cluster local (1-2 min)"
+echo "5) k3d            - Ultra ligero (30s)"
+echo "6) Solo verificar - No iniciar nada, solo revisar"
 echo ""
 
-read -p "Opción [1-5]: " -n 1 -r
+read -p "Opción [1-6]: " -n 1 -r
 echo ""
 echo ""
 
 case $REPLY in
     1)
+        echo -e "${BLUE}=== Configurando vcluster ===${NC}"
+
+        # Check if vcluster is installed
+        if ! command -v vcluster &> /dev/null; then
+            echo -e "${YELLOW}Instalando vcluster...${NC}"
+            ./install-vcluster.sh
+            exit 0
+        fi
+
+        # Check base cluster
+        if ! kubectl cluster-info &> /dev/null; then
+            echo -e "${YELLOW}No hay cluster base. Creando con kind...${NC}"
+            if ! command -v kind &> /dev/null; then
+                echo -e "${RED}❌ kind no está instalado${NC}"
+                echo "   Instalar kind o usar otra opción"
+                exit 1
+            fi
+            kind create cluster --name base-cluster
+            echo -e "${GREEN}✅ Cluster base creado${NC}"
+        fi
+
+        echo ""
+        echo "Configurando vcluster + TestKube automáticamente..."
+        ./testkube/scripts/install-and-setup-vcluster.sh
+        ;;
+    2)
         echo -e "${BLUE}=== Iniciando Minikube ===${NC}"
         if ! command -v minikube &> /dev/null; then
             echo -e "${RED}❌ Minikube no está instalado${NC}"
@@ -58,60 +85,60 @@ case $REPLY in
         echo -e "${GREEN}✅ Minikube iniciado${NC}"
         kubectl cluster-info
         ;;
-        
-    2)
+
+    3)
         echo -e "${BLUE}=== Iniciando CRC (OpenShift) ===${NC}"
         if ! command -v crc &> /dev/null; then
             echo -e "${RED}❌ CRC no está instalado${NC}"
             echo "   Instalar desde: https://crc.dev/"
             exit 1
         fi
-        
+
         echo "Iniciando CRC (esto puede tomar varios minutos)..."
         crc start
-        
+
         echo ""
         echo -e "${BLUE}Configurando kubectl...${NC}"
         kubectl config use-context crc-developer
-        
+
         echo ""
         echo -e "${GREEN}✅ CRC iniciado${NC}"
         kubectl cluster-info
         ;;
-        
-    3)
+
+    4)
         echo -e "${BLUE}=== Creando cluster con kind ===${NC}"
         if ! command -v kind &> /dev/null; then
             echo -e "${RED}❌ kind no está instalado${NC}"
             echo "   Instalar desde: https://kind.sigs.k8s.io/docs/user/quick-start/#installation"
             exit 1
         fi
-        
+
         echo "Creando cluster 'hodei'..."
         kind create cluster --name hodei
-        
+
         echo ""
         echo -e "${GREEN}✅ Cluster kind creado${NC}"
         kubectl cluster-info --context kind-hodei
         ;;
-        
-    4)
+
+    5)
         echo -e "${BLUE}=== Creando cluster con k3d ===${NC}"
         if ! command -v k3d &> /dev/null; then
             echo -e "${RED}❌ k3d no está instalado${NC}"
             echo "   Instalar desde: https://k3d.io/#installation"
             exit 1
         fi
-        
+
         echo "Creando cluster 'hodei'..."
         k3d cluster create hodei
-        
+
         echo ""
         echo -e "${GREEN}✅ Cluster k3d creado${NC}"
         kubectl cluster-info --context k3d-hodei
         ;;
-        
-    5)
+
+    6)
         echo -e "${BLUE}=== Verificando configuración ===${NC}"
         echo "Contextos disponibles:"
         kubectl config get-contexts

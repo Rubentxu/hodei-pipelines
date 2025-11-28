@@ -7,10 +7,10 @@ set -e
 
 # Variables
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io/rubentxu}"
-IMAGE_SERVER="${IMAGE_SERVER:-hodei-jobs/hodei-server}"
-IMAGE_AGENT="${IMAGE_AGENT:-hodei-jobs/hwp-agent}"
+IMAGE_SERVER="${IMAGE_SERVER:-hodei-pipelines/hodei-server}"
+IMAGE_AGENT="${IMAGE_AGENT:-hodei-pipelines/hwp-agent}"
 VERSION="${VERSION:-$(git describe --tags --always --dirty)}"
-NAMESPACE="${NAMESPACE:-hodei-jobs}"
+NAMESPACE="${NAMESPACE:-hodei-pipelines}"
 
 # Colores
 GREEN='\033[0;32m'
@@ -227,9 +227,9 @@ COMMANDS:
 ENVIRONMENT VARIABLES:
     VERSION                    Version tag (default: git describe)
     IMAGE_REGISTRY             Docker registry (default: ghcr.io/rubentxu)
-    IMAGE_SERVER               Server image name (default: hodei-jobs/hodei-server)
-    IMAGE_AGENT                Agent image name (default: hodei-jobs/hwp-agent)
-    NAMESPACE                  Kubernetes namespace (default: hodei-jobs)
+    IMAGE_SERVER               Server image name (default: hodei-pipelines/hodei-server)
+    IMAGE_AGENT                Agent image name (default: hodei-pipelines/hwp-agent)
+    NAMESPACE                  Kubernetes namespace (default: hodei-pipelines)
     TESTKUBE_NAMESPACE         TestKube namespace (default: testkube)
     ARGO_SERVER                ArgoCD server URL
     ARGO_TOKEN                 ArgoCD auth token

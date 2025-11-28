@@ -56,20 +56,20 @@ kubectl get pods -n hodei-dev
 ```bash
 # Instalar en modo producción
 helm install hodei deployment/helm \
-  --namespace hodei-jobs \
+  --namespace hodei-pipelines \
   --create-namespace \
   -f deployment/helm/values-prod.yaml \
   --set hodei-server.image.tag=v0.1.0 \
   --set hwp-agent.image.tag=v0.1.0
 
 # Verificar estado
-helm status hodei -n hodei-jobs
+helm status hodei -n hodei-pipelines
 
 # Ver servicios
-kubectl get svc -n hodei-jobs
+kubectl get svc -n hodei-pipelines
 
 # Ver ingress
-kubectl get ingress -n hodei-jobs
+kubectl get ingress -n hodei-pipelines
 ```
 
 ## 🔧 Configuración
@@ -188,10 +188,10 @@ El chart incluye kube-prometheus-stack para monitoreo completo:
 
 ```bash
 # Verificar ServiceMonitors
-kubectl get servicemonitor -n hodei-jobs
+kubectl get servicemonitor -n hodei-pipelines
 
 # Ver métricas
-kubectl port-forward svc/hodei-server 9091:9091 -n hodei-jobs
+kubectl port-forward svc/hodei-server 9091:9091 -n hodei-pipelines
 curl http://localhost:9091/metrics
 ```
 
@@ -218,15 +218,15 @@ Dashboards incluidos:
 ```bash
 # Actualizar valores
 helm upgrade hodei deployment/helm \
-  --namespace hodei-jobs \
+  --namespace hodei-pipelines \
   -f deployment/helm/values-prod.yaml \
   --set hodei-server.image.tag=v0.1.1
 
 # Ver historial
-helm history hodei -n hodei-jobs
+helm history hodei -n hodei-pipelines
 
 # Rollback
-helm rollback hodei 1 -n hodei-jobs
+helm rollback hodei 1 -n hodei-pipelines
 ```
 
 ### Backup y Restore
@@ -234,11 +234,11 @@ helm rollback hodei 1 -n hodei-jobs
 #### PostgreSQL
 ```bash
 # Backup
-kubectl exec -n hodei-jobs deployment/hodei-postgres -- \
+kubectl exec -n hodei-pipelines deployment/hodei-postgres -- \
   pg_dump -U hodei hodei_jobs > backup.sql
 
 # Restore
-kubectl exec -i -n hodei-jobs deployment/hodei-postgres -- \
+kubectl exec -i -n hodei-pipelines deployment/hodei-postgres -- \
   psql -U hodei hodei_jobs < backup.sql
 ```
 
@@ -255,13 +255,13 @@ nats stream ls
 
 ```bash
 # Escalar Hodei Server
-kubectl scale deployment/hodei-server --replicas=5 -n hodei-jobs
+kubectl scale deployment/hodei-server --replicas=5 -n hodei-pipelines
 
 # Escalar HWP Agent
-kubectl scale deployment/hwp-agent --replicas=10 -n hodei-jobs
+kubectl scale deployment/hwp-agent --replicas=10 -n hodei-pipelines
 
 # Ver HPA
-kubectl get hpa -n hodei-jobs
+kubectl get hpa -n hodei-pipelines
 ```
 
 ### Troubleshooting
@@ -269,35 +269,35 @@ kubectl get hpa -n hodei-jobs
 #### Ver logs
 ```bash
 # Hodei Server
-kubectl logs -f deployment/hodei-server -n hodei-jobs
+kubectl logs -f deployment/hodei-server -n hodei-pipelines
 
 # HWP Agent
-kubectl logs -f deployment/hwp-agent -n hodei-jobs
+kubectl logs -f deployment/hwp-agent -n hodei-pipelines
 
 # PostgreSQL
-kubectl logs -f statefulset/hodei-postgres -n hodei-jobs
+kubectl logs -f statefulset/hodei-postgres -n hodei-pipelines
 
 # NATS
-kubectl logs -f deployment/hodei-nats -n hodei-jobs
+kubectl logs -f deployment/hodei-nats -n hodei-pipelines
 ```
 
 #### Verificar estado
 ```bash
 # Health check
-kubectl exec -n hodei-jobs deployment/hodei-server -- \
+kubectl exec -n hodei-pipelines deployment/hodei-server -- \
   curl -f http://localhost:8080/health
 
 # Database connection
-kubectl exec -n hodei-jobs deployment/hodei-server -- \
+kubectl exec -n hodei-pipelines deployment/hodei-server -- \
   psql $DATABASE_URL -c "SELECT version();"
 ```
 
 #### Eventos
 ```bash
-kubectl get events -n hodei-jobs --sort-by='.lastTimestamp'
+kubectl get events -n hodei-pipelines --sort-by='.lastTimestamp'
 
 # Ver eventos específicos
-kubectl describe deployment/hodei-server -n hodei-jobs
+kubectl describe deployment/hodei-server -n hodei-pipelines
 ```
 
 ## 🧪 Testing
@@ -306,16 +306,16 @@ kubectl describe deployment/hodei-server -n hodei-jobs
 
 ```bash
 # Verificar todos los pods
-kubectl get pods -n hodei-jobs
+kubectl get pods -n hodei-pipelines
 
 # Verificar servicios
-kubectl get svc -n hodei-jobs
+kubectl get svc -n hodei-pipelines
 
 # Verificar volúmenes
-kubectl get pvc -n hodei-jobs
+kubectl get pvc -n hodei-pipelines
 
 # Verificar ingress
-kubectl get ingress -n hodei-jobs
+kubectl get ingress -n hodei-pipelines
 ```
 
 ### Tests de integración

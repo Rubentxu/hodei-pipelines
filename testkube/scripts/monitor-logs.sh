@@ -3,7 +3,7 @@
 
 set -e
 
-NAMESPACE=${NAMESPACE:-hodei-jobs}
+NAMESPACE=${NAMESPACE:-hodei-pipelines}
 COMPONENT=${COMPONENT:-all}
 FOLLOW=${FOLLOW:-true}
 
@@ -15,7 +15,7 @@ USAGE:
     ./monitor-logs.sh [OPTIONS]
 
 OPTIONS:
-    -n, --namespace NS    Kubernetes namespace (default: hodei-jobs)
+    -n, --namespace NS    Kubernetes namespace (default: hodei-pipelines)
     -c, --component COMP  Component to monitor (server|worker|all)
     -t, --tail LINES      Number of lines (default: 50)
     -f, --follow          Follow logs (default: true)

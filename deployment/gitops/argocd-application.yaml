@@ -30,7 +30,7 @@ spec:
   # Destino en Kubernetes
   destination:
     server: https://kubernetes.default.svc
-    namespace: hodei-jobs
+    namespace: hodei-pipelines
 
   # Sincronización
   syncPolicy:

@@ -7,7 +7,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: hwp-worker-hpa
-  namespace: hodei-jobs
+  namespace: hodei-pipelines
   labels:
     app: hwp-worker
 spec:

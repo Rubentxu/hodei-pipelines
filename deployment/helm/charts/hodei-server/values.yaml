@@ -5,7 +5,7 @@ replicaCount: 2
 
 image:
   registry: ""
-  repository: "hodei-jobs/hodei-server"
+  repository: "hodei-pipelines/hodei-server"
   tag: "latest"
   pullPolicy: IfNotPresent
 

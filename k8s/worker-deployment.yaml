@@ -6,7 +6,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hwp-worker
-  namespace: hodei-jobs
+  namespace: hodei-pipelines
   labels:
     app: hwp-worker
     version: v1
@@ -36,7 +36,7 @@ spec:
 
       containers:
       - name: hwp-agent
-        image: hodei-jobs/hwp-agent:latest
+        image: hodei-pipelines/hwp-agent:latest
         imagePullPolicy: Always
 
         ports:
@@ -58,10 +58,10 @@ spec:
 
         # URLs del servidor
         - name: SERVER_URL
-          value: "http://hodei-server.hodei-jobs.svc.cluster.local:8080"
+          value: "http://hodei-server.hodei-pipelines.svc.cluster.local:8080"
 
         - name: GRPC_SERVER_URL
-          value: "http://hodei-server.hodei-jobs.svc.cluster.local:50051"
+          value: "http://hodei-server.hodei-pipelines.svc.cluster.local:50051"
 
         # Configuración de recursos
         - name: WORKER_CPU_CORES
@@ -126,7 +126,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: hwp-worker-service
-  namespace: hodei-jobs
+  namespace: hodei-pipelines
   labels:
     app: hwp-worker
 spec:
@@ -148,7 +148,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: hwp-worker
-  namespace: hodei-jobs
+  namespace: hodei-pipelines
 
 ---
 # ========================================
@@ -180,4 +180,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: hwp-worker
-  namespace: hodei-jobs
+  namespace: hodei-pipelines

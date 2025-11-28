@@ -58,10 +58,10 @@ if [ ! -f "/usr/local/bin/hwp-agent" ]; then
 
     case $ARCH in
         x86_64)
-            DOWNLOAD_URL="https://github.com/Rubentxu/hodei-jobs/releases/latest/download/hwp-agent-linux-amd64"
+            DOWNLOAD_URL="https://github.com/Rubentxu/hodei-pipelines/releases/latest/download/hwp-agent-linux-amd64"
             ;;
         aarch64|arm64)
-            DOWNLOAD_URL="https://github.com/Rubentxu/hodei-jobs/releases/latest/download/hwp-agent-linux-arm64"
+            DOWNLOAD_URL="https://github.com/Rubentxu/hodei-pipelines/releases/latest/download/hwp-agent-linux-arm64"
             ;;
         *)
             print_error "Arquitectura no soportada: $ARCH"

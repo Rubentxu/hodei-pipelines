@@ -10,7 +10,7 @@ fi
 
 set -e
 
-NAMESPACE=${NAMESPACE:-hodei-jobs}
+NAMESPACE=${NAMESPACE:-hodei-pipelines}
 SERVER_URL=${SERVER_URL:-http://hodei-server:8080}
 
 echo "╔═══════════════════════════════════════════════════════════════╗"

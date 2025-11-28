@@ -63,8 +63,14 @@ impl RedbJobRepository {
 
     /// Serialize job to bytes
     fn job_to_bytes(job: &Job) -> Vec<u8> {
-        // Check if serde features are available
-        let bytes = match bincode::serialize(job) {
+        use bincode::Options as _;
+
+        // Use DefaultOptions for consistent serialization
+        let options = bincode::DefaultOptions::new()
+            .with_varint_encoding()
+            .reject_trailing_bytes();
+
+        let bytes = match options.serialize(job) {
             Ok(b) => {
                 tracing::debug!("Successfully serialized job ({} bytes)", b.len());
                 b
@@ -86,6 +92,8 @@ impl RedbJobRepository {
 
     /// Deserialize job from bytes
     fn bytes_to_job(data: &[u8]) -> Option<Job> {
+        use bincode::Options as _;
+
         // Print the raw data for debugging
         tracing::debug!("Attempting to deserialize {} bytes of data", data.len());
 
@@ -95,8 +103,12 @@ impl RedbJobRepository {
             return None;
         }
 
-        // Use bincode 1.3 simple API
-        match bincode::deserialize::<Job>(data) {
+        // Use DefaultOptions for consistent deserialization
+        let options = bincode::DefaultOptions::new()
+            .with_varint_encoding()
+            .reject_trailing_bytes();
+
+        match options.deserialize::<Job>(data) {
             Ok(job) => {
                 tracing::debug!("Successfully deserialized job with name: {}", job.name);
                 Some(job)

@@ -172,13 +172,13 @@ impl PrometheusIntegrationService {
         };
 
         let target = PrometheusTarget {
-            job_name: "hodei-jobs".to_string(),
+            job_name: "hodei-pipelines".to_string(),
             static_configs: vec!["localhost:8080".to_string()],
             scrape_interval: "15s".to_string(),
             metrics_path: "/metrics".to_string(),
             scheme: "http".to_string(),
             labels: HashMap::from([
-                ("namespace".to_string(), "hodei-jobs".to_string()),
+                ("namespace".to_string(), "hodei-pipelines".to_string()),
                 ("service".to_string(), "hodei-server".to_string()),
             ]),
         };

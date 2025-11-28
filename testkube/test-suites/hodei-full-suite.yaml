@@ -13,10 +13,10 @@ spec:
       name: wait-for-services
       description: "Wait for all services to be ready"
       commands:
-        - kubectl wait --for=condition=available --timeout=300s deployment/hodei-server -n hodei-jobs
-        - kubectl wait --for=condition=available --timeout=300s deployment/hwp-agent -n hodei-jobs
-        - kubectl wait --for=condition=available --timeout=300s deployment/hodei-postgresql -n hodei-jobs
-        - kubectl wait --for=condition=available --timeout=300s deployment/hodei-nats -n hodei-jobs
+        - kubectl wait --for=condition=available --timeout=300s deployment/hodei-server -n hodei-pipelines
+        - kubectl wait --for=condition=available --timeout=300s deployment/hwp-agent -n hodei-pipelines
+        - kubectl wait --for=condition=available --timeout=300s deployment/hodei-postgresql -n hodei-pipelines
+        - kubectl wait --for=condition=available --timeout=300s deployment/hodei-nats -n hodei-pipelines
   steps:
     - execute:
         - test: database-connectivity
@@ -27,6 +27,8 @@ spec:
         - test: api-endpoints-validation
     - execute:
         - test: worker-functionality-check
+    - execute:
+        - test: job-output-verification
   tags:
     - full
     - nightly

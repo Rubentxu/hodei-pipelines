@@ -8,7 +8,7 @@ global:
 
 # Namespace
 namespace:
-  name: hodei-jobs
+  name: hodei-pipelines
 
 # PostgreSQL (high availability, persistence)
 postgresql:
@@ -56,7 +56,7 @@ postgresql:
         - from:
             - namespaceSelector:
                 matchLabels:
-                  name: hodei-jobs
+                  name: hodei-pipelines
 
 # NATS (clustered, persistent)
 nats:
@@ -294,7 +294,7 @@ prometheus:
             app: hodei-server
         namespaceSelector:
           matchNames:
-            - hodei-jobs
+            - hodei-pipelines
         endpoints:
           - port: http
             path: /metrics
@@ -307,7 +307,7 @@ prometheus:
             app: hwp-agent
         namespaceSelector:
           matchNames:
-            - hodei-jobs
+            - hodei-pipelines
         endpoints:
           - port: grpc
             path: /metrics
@@ -392,7 +392,7 @@ security:
         - from:
             - namespaceSelector:
                 matchLabels:
-                  name: hodei-jobs
+                  name: hodei-pipelines
         - from:
             - namespaceSelector:
                 matchLabels:

@@ -28,7 +28,7 @@ global:
 # =============================================================================
 namespace:
   create: true
-  name: hodei-jobs
+  name: hodei-pipelines
 
 # =============================================================================
 # PostgreSQL Configuration
@@ -118,7 +118,7 @@ hodei-server:
 
   image:
     registry: ""
-    repository: "hodei-jobs/hodei-server"
+    repository: "hodei-pipelines/hodei-server"
     tag: "latest"
     pullPolicy: IfNotPresent
 
@@ -246,7 +246,7 @@ hwp-agent:
 
   image:
     registry: ""
-    repository: "hodei-jobs/hwp-agent"
+    repository: "hodei-pipelines/hwp-agent"
     tag: "latest"
     pullPolicy: IfNotPresent
 
@@ -340,7 +340,7 @@ prometheus:
             app: hodei-server
         namespaceSelector:
           matchNames:
-            - hodei-jobs
+            - hodei-pipelines
         endpoints:
           - port: http
             path: /metrics
@@ -353,7 +353,7 @@ prometheus:
             app.kubernetes.io/name: nats
         namespaceSelector:
           matchNames:
-            - hodei-jobs
+            - hodei-pipelines
         endpoints:
           - port: monitor
             path: /metrics

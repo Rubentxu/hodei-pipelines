@@ -26,7 +26,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Event bus type enum
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum EventBusType {
     /// In-memory event bus (deprecated - for testing only)
     InMemory,

@@ -1,6 +1,6 @@
 # E2E Testing Framework
 
-This directory contains the comprehensive end-to-end testing framework for the hodei-jobs platform.
+This directory contains the comprehensive end-to-end testing framework for the hodei-pipelines platform.
 
 ## Architecture
 

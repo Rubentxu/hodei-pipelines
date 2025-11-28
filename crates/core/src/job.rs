@@ -39,7 +39,7 @@ impl JsonSize for serde_json::Value {
 /// This entity encapsulates the business logic for job lifecycle management
 /// and maintains consistency of job state transitions while optimizing memory usage
 /// through value semantics and efficient cloning patterns.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Job {
     pub id: JobId,
     /// Job name (owned, efficient for typical small strings)
@@ -353,69 +353,6 @@ impl Job {
             - std::mem::size_of::<Option<String>>()
             - std::mem::size_of::<Option<String>>()
             - std::mem::size_of::<serde_json::Value>()
-    }
-}
-
-#[cfg(feature = "serde")]
-impl serde::Serialize for Job {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-
-        let mut state = serializer.serialize_struct("Job", 12)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("name", &self.name)?;
-        state.serialize_field("description", &self.description)?;
-        state.serialize_field("spec", &self.spec)?;
-        state.serialize_field("state", &self.state)?;
-        state.serialize_field("created_at", &self.created_at)?;
-        state.serialize_field("updated_at", &self.updated_at)?;
-        state.serialize_field("started_at", &self.started_at)?;
-        state.serialize_field("completed_at", &self.completed_at)?;
-        state.serialize_field("tenant_id", &self.tenant_id)?;
-        state.serialize_field("result", &self.result)?;
-        state.end()
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for Job {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(serde::Deserialize)]
-        struct JobHelper {
-            id: JobId,
-            name: String,
-            description: Option<String>,
-            spec: JobSpec,
-            state: JobState,
-            created_at: chrono::DateTime<chrono::Utc>,
-            updated_at: chrono::DateTime<chrono::Utc>,
-            started_at: Option<chrono::DateTime<chrono::Utc>>,
-            completed_at: Option<chrono::DateTime<chrono::Utc>>,
-            tenant_id: Option<String>,
-            result: serde_json::Value,
-        }
-
-        let helper = JobHelper::deserialize(deserializer)?;
-
-        Ok(Job {
-            id: helper.id,
-            name: helper.name,
-            description: helper.description,
-            spec: helper.spec,
-            state: helper.state,
-            created_at: helper.created_at,
-            updated_at: helper.updated_at,
-            started_at: helper.started_at,
-            completed_at: helper.completed_at,
-            tenant_id: helper.tenant_id,
-            result: helper.result,
-        })
     }
 }
 

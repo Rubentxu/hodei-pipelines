@@ -358,7 +358,7 @@ kubectl get sa testkube-api-server -n testkube -o yaml
 kubectl exec -n testkube <test-pod> -- curl -f http://hodei-server:8080/health
 
 # Verificar DNS
-kubectl exec -n testkube <test-pod> -- nslookup hodei-server.hodei-jobs.svc.cluster.local
+kubectl exec -n testkube <test-pod> -- nslookup hodei-server.hodei-pipelines.svc.cluster.local
 ```
 
 ## 📚 Recursos Adicionales

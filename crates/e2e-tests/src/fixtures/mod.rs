@@ -194,7 +194,7 @@ scrape_configs:
 /// Jaeger configuration for distributed tracing
 pub const JAEGER_CONFIG: &str = r#"
 {
-  "service_name": "hodei-jobs",
+  "service_name": "hodei-pipelines",
   "sampler": {
     "type": "const",
     "param": 1

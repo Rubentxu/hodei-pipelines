@@ -95,6 +95,9 @@ docs/alineamiento
 !LICENSE.md
 !CONTRIBUTING.md
 !SECURITY.md
+!TESTING.md
+!docs/architecture.md
+!docs/sequence_diagrams.md
 node_modules/
 package-lock.json
 *.csv

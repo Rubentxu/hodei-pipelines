@@ -10,13 +10,100 @@ use std::io::BufReader;
 use std::net::IpAddr;
 use x509_parser::prelude::*;
 
+/// Granular TLS/mTLS Configuration for Production Kubernetes Deployments
 #[derive(Debug, Clone, Deserialize)]
 pub struct MtlsConfig {
+    /// Path to CA certificate for validating client certificates
     pub ca_cert_path: Option<String>,
+
+    /// Require mutual TLS authentication (client certificates)
     pub require_client_cert: bool,
+
+    /// Allowlist of client DNS names for certificate validation
     pub allowed_client_dns_names: Option<Vec<String>>,
+
+    /// Allowlist of client IP addresses for certificate validation
     pub allowed_client_ips: Option<Vec<String>>,
+
+    /// Maximum allowed certificate chain depth
     pub max_cert_chain_depth: Option<u8>,
+
+    /// TLS protocol versions to allow (min and max)
+    pub tls_version: Option<TlsVersionConfig>,
+
+    /// Allowed cipher suites for TLS connections
+    pub cipher_suites: Option<CipherSuiteConfig>,
+
+    /// Certificate revocation checking configuration
+    pub revocation_checking: Option<RevocationConfig>,
+
+    /// Certificate policy OIDs that must be present
+    pub required_policies: Option<Vec<String>>,
+
+    /// Whether to verify certificate hostname/SAN
+    pub verify_hostname: bool,
+
+    /// Whether to verify certificate trust chain
+    pub verify_trust_chain: bool,
+
+    /// Whether to enable certificate transparency logging
+    pub ct_logging: Option<CtLoggingConfig>,
+}
+
+/// TLS version configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct TlsVersionConfig {
+    /// Minimum TLS version (default: TLS 1.2)
+    pub min_version: TlsVersion,
+    /// Maximum TLS version (default: TLS 1.3)
+    pub max_version: Option<TlsVersion>,
+}
+
+/// TLS version enum
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TlsVersion {
+    Tls12,
+    Tls13,
+}
+
+/// Cipher suite configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct CipherSuiteConfig {
+    /// Allow modern cipher suites (TLS 1.3 compatible)
+    pub modern_suites: bool,
+    /// Allow TLS 1.2 cipher suites
+    pub tls12_compatible: bool,
+    /// Explicit allowlist of cipher suites (overrides presets)
+    pub allowed_suites: Option<Vec<String>>,
+    /// Disallow weak cipher suites
+    pub disallow_weak: bool,
+}
+
+/// Certificate revocation checking configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct RevocationConfig {
+    /// Enable OCSP (Online Certificate Status Protocol) checking
+    pub ocsp_enabled: bool,
+    /// Enable CRL (Certificate Revocation List) checking
+    pub crl_enabled: bool,
+    /// OCSP responder URL
+    pub ocsp_responder_url: Option<String>,
+    /// Timeout for revocation checking (seconds)
+    pub check_timeout_seconds: u64,
+    /// Cache TTL for revocation status (seconds)
+    pub cache_ttl_seconds: u64,
+}
+
+/// Certificate Transparency logging configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct CtLoggingConfig {
+    /// Enable CT log submission
+    pub enabled: bool,
+    /// CT log server URL
+    pub log_server_url: Option<String>,
+    /// Maximum number of retries for CT log submission
+    pub max_retries: u8,
 }
 
 impl Default for MtlsConfig {
@@ -27,16 +114,48 @@ impl Default for MtlsConfig {
             allowed_client_dns_names: Some(Vec::new()),
             allowed_client_ips: Some(Vec::new()),
             max_cert_chain_depth: Some(10),
+            tls_version: Some(TlsVersionConfig {
+                min_version: TlsVersion::Tls12,
+                max_version: Some(TlsVersion::Tls13),
+            }),
+            cipher_suites: Some(CipherSuiteConfig {
+                modern_suites: true,
+                tls12_compatible: true,
+                allowed_suites: None,
+                disallow_weak: true,
+            }),
+            revocation_checking: Some(RevocationConfig {
+                ocsp_enabled: true,
+                crl_enabled: true,
+                ocsp_responder_url: None,
+                check_timeout_seconds: 5,
+                cache_ttl_seconds: 3600,
+            }),
+            required_policies: Some(Vec::new()),
+            verify_hostname: true,
+            verify_trust_chain: true,
+            ct_logging: Some(CtLoggingConfig {
+                enabled: false,
+                log_server_url: None,
+                max_retries: 3,
+            }),
         }
     }
 }
 
+/// Certificate validation configuration extracted from MtlsConfig
 #[derive(Debug, Clone)]
 pub struct CertificateValidationConfig {
     pub require_client_auth: bool,
     pub allowed_client_dns_names: Vec<String>,
     pub allowed_client_ips: Vec<IpAddr>,
     pub max_cert_chain_depth: u8,
+    pub verify_hostname: bool,
+    pub verify_trust_chain: bool,
+    pub tls_version: Option<TlsVersionConfig>,
+    pub cipher_suites: Option<CipherSuiteConfig>,
+    pub revocation_checking: Option<RevocationConfig>,
+    pub required_policies: Vec<String>,
 }
 
 impl From<&MtlsConfig> for CertificateValidationConfig {
@@ -54,6 +173,12 @@ impl From<&MtlsConfig> for CertificateValidationConfig {
                 })
                 .unwrap_or_default(),
             max_cert_chain_depth: config.max_cert_chain_depth.unwrap_or(10),
+            verify_hostname: config.verify_hostname,
+            verify_trust_chain: config.verify_trust_chain,
+            tls_version: config.tls_version.clone(),
+            cipher_suites: config.cipher_suites.clone(),
+            revocation_checking: config.revocation_checking.clone(),
+            required_policies: config.required_policies.clone().unwrap_or_default(),
         }
     }
 }
@@ -366,4 +491,3 @@ impl ProductionCertificateValidator {
         Ok(())
     }
 }
-

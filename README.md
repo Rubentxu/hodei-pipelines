@@ -174,7 +174,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Author**: Rubentxu
 - **Email**: [Your Email]
-- **Project Link**: https://github.com/Rubentxu/hodei-jobs
+- **Project Link**: https://github.com/Rubentxu/hodei-pipelines
 
 ---
 
