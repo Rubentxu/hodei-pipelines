@@ -24,6 +24,12 @@ pub struct AppConfig {
     /// NATS configuration
     pub nats: NatsConfig,
 
+    /// Worker configuration
+    pub worker: WorkerConfig,
+
+    /// Scaling configuration
+    pub scaling: ScalingConfig,
+
     /// Worker agent configuration
     pub agent: AgentConfig,
 
@@ -75,6 +81,8 @@ impl AppConfig {
             event_bus: EventBusConfig::from_env()?,
             kubernetes: K8sGlobalConfig::from_env()?,
             nats: NatsConfig::from_env()?,
+            worker: WorkerConfig::from_env()?,
+            scaling: ScalingConfig::from_env()?,
             agent: AgentConfig::from_env()?,
             server: ServerConfig::from_env()?,
             logging: LoggingConfig::from_env()?,
@@ -86,6 +94,8 @@ impl AppConfig {
     pub fn validate(&self) -> Result<()> {
         self.database.validate()?;
         self.cache.validate()?;
+        self.worker.validate()?;
+        self.scaling.validate()?;
         self.kubernetes.validate()?;
         self.tls.validate()?;
 
@@ -257,6 +267,121 @@ impl NatsConfig {
             subject_prefix,
             connection_timeout_ms,
         })
+    }
+}
+
+/// Worker configuration
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct WorkerConfig {
+    /// Worker timeout in seconds
+    pub timeout_seconds: u64,
+
+    /// Maximum concurrent jobs per worker
+    pub max_concurrent_jobs: u32,
+
+    /// Worker heartbeat interval in seconds
+    pub heartbeat_interval_seconds: u64,
+}
+
+impl WorkerConfig {
+    pub fn from_env() -> Result<Self> {
+        let timeout_seconds = std::env::var("HODEI_WORKER_TIMEOUT_SECONDS")
+            .unwrap_or_else(|_| "300".to_string())
+            .parse::<u64>()
+            .map_err(|_| ConfigError::InvalidValue("HODEI_WORKER_TIMEOUT_SECONDS".to_string()))?;
+
+        let max_concurrent_jobs = std::env::var("HODEI_WORKER_MAX_CONCURRENT_JOBS")
+            .unwrap_or_else(|_| "10".to_string())
+            .parse::<u32>()
+            .map_err(|_| {
+                ConfigError::InvalidValue("HODEI_WORKER_MAX_CONCURRENT_JOBS".to_string())
+            })?;
+
+        let heartbeat_interval_seconds = std::env::var("HODEI_WORKER_HEARTBEAT_INTERVAL_SECONDS")
+            .unwrap_or_else(|_| "30".to_string())
+            .parse::<u64>()
+            .map_err(|_| {
+                ConfigError::InvalidValue("HODEI_WORKER_HEARTBEAT_INTERVAL_SECONDS".to_string())
+            })?;
+
+        Ok(Self {
+            timeout_seconds,
+            max_concurrent_jobs,
+            heartbeat_interval_seconds,
+        })
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if self.timeout_seconds == 0 {
+            return Err(ConfigError::InvalidValue(
+                "timeout_seconds must be > 0".to_string(),
+            ));
+        }
+        if self.max_concurrent_jobs == 0 {
+            return Err(ConfigError::InvalidValue(
+                "max_concurrent_jobs must be > 0".to_string(),
+            ));
+        }
+        if self.heartbeat_interval_seconds == 0 {
+            return Err(ConfigError::InvalidValue(
+                "heartbeat_interval_seconds must be > 0".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Scaling configuration
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ScalingConfig {
+    /// Scale cooldown period in seconds
+    pub cooldown_period_seconds: u64,
+
+    /// Minimum number of workers
+    pub min_workers: u32,
+
+    /// Maximum number of workers
+    pub max_workers: u32,
+}
+
+impl ScalingConfig {
+    pub fn from_env() -> Result<Self> {
+        let cooldown_period_seconds = std::env::var("HODEI_SCALING_COOLDOWN_PERIOD_SECONDS")
+            .unwrap_or_else(|_| "300".to_string())
+            .parse::<u64>()
+            .map_err(|_| {
+                ConfigError::InvalidValue("HODEI_SCALING_COOLDOWN_PERIOD_SECONDS".to_string())
+            })?;
+
+        let min_workers = std::env::var("HODEI_SCALING_MIN_WORKERS")
+            .unwrap_or_else(|_| "0".to_string())
+            .parse::<u32>()
+            .map_err(|_| ConfigError::InvalidValue("HODEI_SCALING_MIN_WORKERS".to_string()))?;
+
+        let max_workers = std::env::var("HODEI_SCALING_MAX_WORKERS")
+            .unwrap_or_else(|_| "100".to_string())
+            .parse::<u32>()
+            .map_err(|_| ConfigError::InvalidValue("HODEI_SCALING_MAX_WORKERS".to_string()))?;
+
+        Ok(Self {
+            cooldown_period_seconds,
+            min_workers,
+            max_workers,
+        })
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if self.min_workers > self.max_workers {
+            return Err(ConfigError::InvalidValue(
+                "min_workers cannot be greater than max_workers".to_string(),
+            ));
+        }
+        if self.cooldown_period_seconds == 0 {
+            return Err(ConfigError::InvalidValue(
+                "cooldown_period_seconds must be > 0".to_string(),
+            ));
+        }
+        Ok(())
     }
 }
 

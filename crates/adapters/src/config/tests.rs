@@ -4,7 +4,7 @@
 mod tests {
     use crate::config::{
         AgentConfig, AppConfig, CacheConfig, DatabaseConfig, EventBusConfig, K8sGlobalConfig,
-        LoggingConfig, NatsConfig, ServerConfig, TlsConfig,
+        LoggingConfig, NatsConfig, ScalingConfig, ServerConfig, TlsConfig, WorkerConfig,
     };
     use serial_test::serial;
 
@@ -23,6 +23,12 @@ mod tests {
                 "HODEI_NATS_URL",
                 "HODEI_NATS_SUBJECT_PREFIX",
                 "HODEI_NATS_TIMEOUT_MS",
+                "HODEI_WORKER_TIMEOUT_SECONDS",
+                "HODEI_WORKER_MAX_CONCURRENT_JOBS",
+                "HODEI_WORKER_HEARTBEAT_INTERVAL_SECONDS",
+                "HODEI_SCALING_COOLDOWN_PERIOD_SECONDS",
+                "HODEI_SCALING_MIN_WORKERS",
+                "HODEI_SCALING_MAX_WORKERS",
                 "HODEI_AGENT_IMAGE",
                 "HODEI_AGENT_PULL_POLICY",
                 "HODEI_PORT",
@@ -137,6 +143,68 @@ mod tests {
 
     #[test]
     #[serial]
+    fn test_worker_config_from_env() {
+        cleanup_env_vars();
+
+        unsafe {
+            std::env::set_var("HODEI_WORKER_TIMEOUT_SECONDS", "600");
+            std::env::set_var("HODEI_WORKER_MAX_CONCURRENT_JOBS", "20");
+            std::env::set_var("HODEI_WORKER_HEARTBEAT_INTERVAL_SECONDS", "15");
+        }
+
+        let config = WorkerConfig::from_env().unwrap();
+
+        assert_eq!(config.timeout_seconds, 600);
+        assert_eq!(config.max_concurrent_jobs, 20);
+        assert_eq!(config.heartbeat_interval_seconds, 15);
+
+        cleanup_env_vars();
+    }
+
+    #[test]
+    fn test_worker_config_validation() {
+        let invalid_config = WorkerConfig {
+            timeout_seconds: 0,
+            max_concurrent_jobs: 10,
+            heartbeat_interval_seconds: 30,
+        };
+
+        assert!(invalid_config.validate().is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn test_scaling_config_from_env() {
+        cleanup_env_vars();
+
+        unsafe {
+            std::env::set_var("HODEI_SCALING_COOLDOWN_PERIOD_SECONDS", "600");
+            std::env::set_var("HODEI_SCALING_MIN_WORKERS", "2");
+            std::env::set_var("HODEI_SCALING_MAX_WORKERS", "50");
+        }
+
+        let config = ScalingConfig::from_env().unwrap();
+
+        assert_eq!(config.cooldown_period_seconds, 600);
+        assert_eq!(config.min_workers, 2);
+        assert_eq!(config.max_workers, 50);
+
+        cleanup_env_vars();
+    }
+
+    #[test]
+    fn test_scaling_config_validation() {
+        let invalid_config = ScalingConfig {
+            cooldown_period_seconds: 300,
+            min_workers: 50,
+            max_workers: 10,
+        };
+
+        assert!(invalid_config.validate().is_err());
+    }
+
+    #[test]
+    #[serial]
     fn test_agent_config_from_env() {
         cleanup_env_vars();
 
@@ -217,6 +285,10 @@ mod tests {
             std::env::set_var("HODEI_K8S_INSECURE_SKIP_VERIFY", "false");
             std::env::set_var("HODEI_NATS_URL", "nats://localhost:4222");
             std::env::set_var("HODEI_NATS_SUBJECT_PREFIX", "hodei.events");
+            std::env::set_var("HODEI_WORKER_TIMEOUT_SECONDS", "600");
+            std::env::set_var("HODEI_WORKER_MAX_CONCURRENT_JOBS", "20");
+            std::env::set_var("HODEI_SCALING_MIN_WORKERS", "2");
+            std::env::set_var("HODEI_SCALING_MAX_WORKERS", "50");
             std::env::set_var("HODEI_AGENT_IMAGE", "hodei/hwp-agent:latest");
             std::env::set_var("HODEI_PORT", "8080");
             std::env::set_var("HODEI_HOST", "0.0.0.0");
@@ -233,6 +305,10 @@ mod tests {
         );
         assert_eq!(config.cache.path, "/tmp/hodei_cache.redb");
         assert_eq!(config.nats.url, "nats://localhost:4222");
+        assert_eq!(config.worker.timeout_seconds, 600);
+        assert_eq!(config.worker.max_concurrent_jobs, 20);
+        assert_eq!(config.scaling.min_workers, 2);
+        assert_eq!(config.scaling.max_workers, 50);
         assert_eq!(config.server.port, 8080);
         assert_eq!(config.tls.enabled, false);
 
@@ -264,6 +340,16 @@ mod tests {
                 url: "nats://localhost:4222".to_string(),
                 subject_prefix: "hodei.events".to_string(),
                 connection_timeout_ms: 5000,
+            },
+            worker: WorkerConfig {
+                timeout_seconds: 300,
+                max_concurrent_jobs: 10,
+                heartbeat_interval_seconds: 30,
+            },
+            scaling: ScalingConfig {
+                cooldown_period_seconds: 300,
+                min_workers: 0,
+                max_workers: 100,
             },
             agent: AgentConfig {
                 image: "hodei/hwp-agent:latest".to_string(),

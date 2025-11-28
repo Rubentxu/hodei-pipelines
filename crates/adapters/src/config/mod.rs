@@ -7,5 +7,6 @@ pub mod tests;
 
 pub use app_config::{
     AgentConfig, AppConfig, CacheConfig, ConfigError, DatabaseConfig, EventBusConfig,
-    K8sGlobalConfig, LoggingConfig, NatsConfig, Result as ConfigResult, ServerConfig, TlsConfig,
+    K8sGlobalConfig, LoggingConfig, NatsConfig, Result as ConfigResult, ScalingConfig,
+    ServerConfig, TlsConfig, WorkerConfig,
 };
