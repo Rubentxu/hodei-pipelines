@@ -531,142 +531,142 @@ mod tests {
 
     #[async_trait]
     impl PipelineExecutionRepository for MockExecutionRepository {
-        async fn save_execution(&self, execution: &PipelineExecution) -> Result<()> {
+        async fn save_execution<'a>(&'a self, execution: &'a PipelineExecution) -> Result<()> {
             let mut executions = self.executions.lock().unwrap();
             executions.insert(execution.id, execution.clone());
             Ok(())
         }
 
-        async fn get_execution(
-            &self,
-            execution_id: &ExecutionId,
+        async fn get_execution<'a>(
+            &'a self,
+            execution_id: &'a ExecutionId,
         ) -> Result<Option<PipelineExecution>> {
             let executions = self.executions.lock().unwrap();
             Ok(executions.get(execution_id).cloned())
         }
 
-        async fn get_executions_by_pipeline(
-            &self,
-            _pipeline_id: &hodei_core::PipelineId,
+        async fn get_executions_by_pipeline<'a>(
+            &'a self,
+            _pipeline_id: &'a hodei_core::PipelineId,
         ) -> Result<Vec<PipelineExecution>> {
             unimplemented!()
         }
 
-        async fn update_execution_status(
-            &self,
-            _execution_id: &ExecutionId,
+        async fn update_execution_status<'a>(
+            &'a self,
+            _execution_id: &'a ExecutionId,
             _status: ExecutionStatus,
         ) -> Result<()> {
             Ok(())
         }
 
-        async fn update_step_status(
-            &self,
-            _execution_id: &ExecutionId,
-            _step_id: &PipelineStepId,
+        async fn update_step_status<'a>(
+            &'a self,
+            _execution_id: &'a ExecutionId,
+            _step_id: &'a PipelineStepId,
             _status: StepExecutionStatus,
         ) -> Result<()> {
             Ok(())
         }
 
-        async fn update_step(
-            &self,
-            _execution_id: &ExecutionId,
-            _step: &StepExecution,
+        async fn update_step<'a>(
+            &'a self,
+            _execution_id: &'a ExecutionId,
+            _step: &'a StepExecution,
         ) -> Result<()> {
             Ok(())
         }
 
-        async fn delete_execution(&self, _execution_id: &ExecutionId) -> Result<()> {
+        async fn delete_execution<'a>(&'a self, _execution_id: &'a ExecutionId) -> Result<()> {
             Ok(())
         }
 
-        async fn get_active_executions(&self) -> Result<Vec<PipelineExecution>> {
+        async fn get_active_executions<'a>(&'a self) -> Result<Vec<PipelineExecution>> {
             unimplemented!()
         }
     }
 
     #[async_trait]
     impl JobRepository for MockJobRepository {
-        async fn create_job(
-            &self,
-            _job_spec: hodei_core::job::JobSpec,
+        async fn create_job<'a>(
+            &'a self,
+            _job_spec: &'a hodei_core::job::JobSpec,
         ) -> Result<hodei_core::JobId> {
             Ok(hodei_core::JobId::new())
         }
 
-        async fn get_job(
-            &self,
-            _job_id: &hodei_core::JobId,
+        async fn get_job<'a>(
+            &'a self,
+            _job_id: &'a hodei_core::JobId,
         ) -> Result<Option<hodei_core::job::Job>> {
             Ok(None)
         }
 
-        async fn update_job_state(
-            &self,
-            _job_id: &hodei_core::JobId,
+        async fn update_job_state<'a>(
+            &'a self,
+            _job_id: &'a hodei_core::JobId,
             _state: hodei_core::job::JobState,
         ) -> Result<()> {
             Ok(())
         }
 
-        async fn delete_job(&self, _job_id: &hodei_core::JobId) -> Result<()> {
+        async fn delete_job<'a>(&'a self, _job_id: &'a hodei_core::JobId) -> Result<()> {
             Ok(())
         }
 
-        async fn list_jobs(&self) -> Result<Vec<hodei_core::job::Job>> {
+        async fn list_jobs<'a>(&'a self) -> Result<Vec<hodei_core::job::Job>> {
             Ok(vec![])
         }
 
         // Default implementations for other required methods
-        async fn save_job(&self, _job: &hodei_core::job::Job) -> Result<()> {
+        async fn save_job<'a>(&'a self, _job: &'a hodei_core::job::Job) -> Result<()> {
             Ok(())
         }
 
-        async fn get_pending_jobs(&self) -> Result<Vec<hodei_core::job::Job>> {
+        async fn get_pending_jobs<'a>(&'a self) -> Result<Vec<hodei_core::job::Job>> {
             Ok(vec![])
         }
 
-        async fn get_running_jobs(&self) -> Result<Vec<hodei_core::job::Job>> {
+        async fn get_running_jobs<'a>(&'a self) -> Result<Vec<hodei_core::job::Job>> {
             Ok(vec![])
         }
 
-        async fn compare_and_swap_status(
-            &self,
-            _id: &hodei_core::JobId,
-            _expected_state: &str,
-            _new_state: &str,
+        async fn compare_and_swap_status<'a>(
+            &'a self,
+            _id: &'a hodei_core::JobId,
+            _expected_state: &'a str,
+            _new_state: &'a str,
         ) -> Result<bool> {
             Ok(false)
         }
 
-        async fn assign_worker(
-            &self,
-            _job_id: &hodei_core::JobId,
-            _worker_id: &hodei_core::WorkerId,
+        async fn assign_worker<'a>(
+            &'a self,
+            _job_id: &'a hodei_core::JobId,
+            _worker_id: &'a hodei_core::WorkerId,
         ) -> Result<()> {
             Ok(())
         }
 
-        async fn set_job_start_time(
-            &self,
-            _job_id: &hodei_core::JobId,
+        async fn set_job_start_time<'a>(
+            &'a self,
+            _job_id: &'a hodei_core::JobId,
             _start_time: chrono::DateTime<chrono::Utc>,
         ) -> Result<()> {
             Ok(())
         }
 
-        async fn set_job_finish_time(
-            &self,
-            _job_id: &hodei_core::JobId,
+        async fn set_job_finish_time<'a>(
+            &'a self,
+            _job_id: &'a hodei_core::JobId,
             _finish_time: chrono::DateTime<chrono::Utc>,
         ) -> Result<()> {
             Ok(())
         }
 
-        async fn set_job_duration(
-            &self,
-            _job_id: &hodei_core::JobId,
+        async fn set_job_duration<'a>(
+            &'a self,
+            _job_id: &'a hodei_core::JobId,
             _duration_ms: i64,
         ) -> Result<()> {
             Ok(())
