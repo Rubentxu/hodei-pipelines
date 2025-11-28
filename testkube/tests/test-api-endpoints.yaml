@@ -1,0 +1,57 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: api-endpoints-validation
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: server
+    type: api-test
+spec:
+  type: curl
+  content:
+    type: inline
+    data: |
+      #!/bin/bash
+      set -e
+      
+      BASE_URL=${SERVER_URL:-http://hodei-server:8080}
+      
+      echo "Testing API endpoints..."
+      
+      # Test health endpoint
+      echo "Testing /health endpoint..."
+      response=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL/health)
+      if [ "$response" != "200" ]; then
+        echo "❌ /health endpoint failed with status $response"
+        exit 1
+      fi
+      echo "✅ /health endpoint OK (status 200)"
+      
+      # Test metrics endpoint
+      echo "Testing /metrics endpoint..."
+      response=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL:9091/metrics)
+      if [ "$response" != "200" ]; then
+        echo "❌ /metrics endpoint failed with status $response"
+        exit 1
+      fi
+      echo "✅ /metrics endpoint OK (status 200)"
+      
+      # Test jobs API endpoint (if exists)
+      echo "Testing /api/v1/jobs endpoint..."
+      response=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL/api/v1/jobs)
+      if [ "$response" = "200" ] || [ "$response" = "401" ]; then
+        echo "✅ /api/v1/jobs endpoint OK (status $response)"
+      else
+        echo "⚠️ /api/v1/jobs endpoint returned status $response"
+      fi
+      
+      echo "✅ All API endpoint tests passed!"
+      exit 0
+  executionRequest:
+    variables:
+      SERVER_URL:
+        name: SERVER_URL
+        value: "http://hodei-server:8080"
+        type: basic
+  source: testkube

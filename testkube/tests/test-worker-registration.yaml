@@ -1,0 +1,131 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: worker-registration-check
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: worker
+    type: registration
+spec:
+  type: curl
+  content:
+    type: inline
+    data: |
+      #!/bin/bash
+      set -e
+      
+      NAMESPACE=${NAMESPACE:-hodei-jobs}
+      SERVER_URL=${SERVER_URL:-http://hodei-server:8080}
+      
+      echo "Checking worker registration in Hodei Pipelines..."
+      echo "Namespace: $NAMESPACE"
+      echo "Server URL: $SERVER_URL"
+      echo ""
+      
+      # Get all worker pods
+      echo "1. Getting worker pods..."
+      worker_pods=$(kubectl get pods -n $NAMESPACE -l app.kubernetes.io/component=worker -o jsonpath='{.items[*].metadata.name}')
+      
+      if [ -z "$worker_pods" ]; then
+        echo "   ❌ No worker pods found in namespace $NAMESPACE"
+        exit 1
+      fi
+      
+      pod_count=$(echo $worker_pods | wc -w)
+      echo "   ✅ Found $pod_count worker pod(s): $worker_pods"
+      echo ""
+      
+      # Check worker pod status
+      echo "2. Checking worker pod status..."
+      for pod in $worker_pods; do
+        status=$(kubectl get pod $pod -n $NAMESPACE -o jsonpath='{.status.phase}')
+        ready=$(kubectl get pod $pod -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+        
+        echo "   Pod: $pod"
+        echo "   Status: $status"
+        echo "   Ready: $ready"
+        
+        if [ "$status" != "Running" ]; then
+          echo "   ❌ Worker pod $pod is not running (status: $status)"
+          kubectl describe pod $pod -n $NAMESPACE
+          exit 1
+        fi
+        
+        if [ "$ready" != "True" ]; then
+          echo "   ⚠️  Worker pod $pod is not ready yet"
+        else
+          echo "   ✅ Worker pod $pod is running and ready"
+        fi
+        echo ""
+      done
+      
+      # Check if workers are registered with the server
+      echo "3. Checking worker registration with server..."
+      workers_response=$(curl -s -w "\nHTTP_CODE:%{http_code}" $SERVER_URL/api/v1/workers 2>/dev/null || echo "HTTP_CODE:000")
+      http_code=$(echo "$workers_response" | grep "HTTP_CODE:" | cut -d: -f2)
+      
+      if [ "$http_code" = "200" ]; then
+        workers_count=$(echo "$workers_response" | sed '/HTTP_CODE:/d' | jq '. | length' 2>/dev/null || echo 'N/A')
+        echo "   ✅ Server returned worker list (count: $workers_count)"
+        echo "   Workers: $(echo "$workers_response" | sed '/HTTP_CODE:/d' | jq -r '.[].name // "N/A"' 2>/dev/null || echo 'Unable to parse')"
+      elif [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+        echo "   ✅ Server API requires authentication (HTTP $http_code)"
+        echo "   Workers may be registered but API access requires auth"
+      else
+        echo "   ⚠️  Server returned HTTP $http_code"
+        echo "   Response: $(echo "$workers_response" | sed '/HTTP_CODE:/d' | head -c 200)"
+      fi
+      echo ""
+      
+      # Check worker logs for registration messages
+      echo "4. Checking worker logs for registration..."
+      for pod in $worker_pods; do
+        echo "   Checking pod: $pod"
+        recent_logs=$(kubectl logs $pod -n $NAMESPACE --tail=50 2>/dev/null)
+        
+        if echo "$recent_logs" | grep -qi "registered\|started\|initialized\|ready"; then
+          echo "   ✅ Found registration/ready messages in logs"
+        else
+          echo "   ⚠️  No clear registration messages found"
+        fi
+        
+        # Check for errors
+        if echo "$recent_logs" | grep -qi "error\|fail\|panic"; then
+          echo "   ❌ Found error messages in logs:"
+          echo "$recent_logs" | grep -i "error\|fail\|panic" | head -5
+          exit 1
+        else
+          echo "   ✅ No errors found in logs"
+        fi
+        echo ""
+      done
+      
+      # Check worker resources
+      echo "5. Checking worker resource usage..."
+      for pod in $worker_pods; do
+        cpu_usage=$(kubectl top pod $pod -n $NAMESPACE --no-headers 2>/dev/null | awk '{print $2}' || echo "N/A")
+        mem_usage=$(kubectl top pod $pod -n $NAMESPACE --no-headers 2>/dev/null | awk '{print $3}' || echo "N/A")
+        echo "   Pod: $pod"
+        echo "   CPU: $cpu_usage, Memory: $mem_usage"
+      done
+      echo ""
+      
+      echo "✅ Worker registration check completed successfully!"
+      echo ""
+      echo "Summary:"
+      echo "  - Total workers: $pod_count"
+      echo "  - All workers running: ✅"
+      echo "  - No errors in logs: ✅"
+      exit 0
+  executionRequest:
+    variables:
+      NAMESPACE:
+        name: NAMESPACE
+        value: "hodei-jobs"
+        type: basic
+      SERVER_URL:
+        name: SERVER_URL
+        value: "http://hodei-server:8080"
+        type: basic
+  source: testkube

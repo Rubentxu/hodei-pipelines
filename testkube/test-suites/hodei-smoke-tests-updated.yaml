@@ -1,0 +1,21 @@
+apiVersion: tests.testkube.io/v3
+kind: TestSuite
+metadata:
+  name: hodei-smoke-tests
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    suite: smoke
+spec:
+  description: "Smoke tests for Hodei Pipelines - Basic functionality verification with API testing"
+  steps:
+    - execute:
+        - test: server-health-check
+    - execute:
+        - test: server-metrics-check
+    - execute:
+        - test: api-server-endpoints
+  tags:
+    - smoke
+    - critical
+    - api

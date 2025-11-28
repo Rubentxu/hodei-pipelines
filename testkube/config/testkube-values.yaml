@@ -1,0 +1,29 @@
+# TestKube configuration for Hodei Pipelines
+
+testkube-dashboard:
+  enabled: true
+  service:
+    type: ClusterIP
+    port: 8088
+
+testkube-api-server:
+  service:
+    type: ClusterIP
+    port: 5443
+
+testkube-operator:
+  enabled: true
+
+mongodb:
+  enabled: true
+  auth:
+    enabled: false
+
+# Configure test execution
+testkube-cloud:
+  enabled: false
+
+# Enable test artifacts
+testkube-dashboard:
+  extraEnv:
+    REACT_APP_ENABLE_TEST_RESULTS_ANALYTICS: "true"

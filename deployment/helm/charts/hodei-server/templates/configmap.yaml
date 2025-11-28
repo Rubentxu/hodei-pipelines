@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hodei-server.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hodei-server.labels" . | nindent 4 }}
+data:
+  {{- if .Values.extraConfig }}
+  {{- toYaml .Values.extraConfig | nindent 2 }}
+  {{- end }}

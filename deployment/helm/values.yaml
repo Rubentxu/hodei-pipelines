@@ -1,0 +1,489 @@
+# =============================================================================
+# Hodei Pipelines - Global Configuration
+# =============================================================================
+
+# Global settings applied to all charts
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+  # Kubernetes distribution-specific settings
+  kubernetesDistro: generic
+
+  # Pod security settings
+  podSecurity:
+    enabled: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+  # DNS settings
+  dns:
+    policy: ClusterFirst
+    config: ""
+
+# =============================================================================
+# Namespace Configuration
+# =============================================================================
+namespace:
+  create: true
+  name: hodei-jobs
+
+# =============================================================================
+# PostgreSQL Configuration
+# =============================================================================
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "hodei_password_2024_change_me"
+    database: "hodei_jobs"
+    username: "hodei"
+
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 2
+        memory: 4Gi
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  # Service configuration
+  service:
+    ports:
+      postgresql: 5432
+
+# =============================================================================
+# NATS JetStream Configuration
+# =============================================================================
+nats:
+  enabled: true
+
+  nats:
+    # JetStream configuration
+    jetstream:
+      enabled: true
+      memStorage:
+        enabled: true
+        size: 1Gi
+      fileStorage:
+        enabled: true
+        size: 10Gi
+        storageClass: ""
+
+    # Cluster configuration
+    cluster:
+      enabled: true
+      replicas: 3
+
+    # Resources
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 2
+        memory: 4Gi
+
+    # Service
+    service:
+      type: ClusterIP
+      ports:
+        client: 4222
+        cluster: 6222
+        monitor: 8222
+        leafnodes: 7422
+
+  # Monitoring
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# =============================================================================
+# Hodei Server Configuration
+# =============================================================================
+hodei-server:
+  enabled: true
+
+  image:
+    registry: ""
+    repository: "hodei-jobs/hodei-server"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  # Server configuration
+  server:
+    port: 8080
+    grpcPort: 50051
+    host: "0.0.0.0"
+
+    # CORS settings
+    cors:
+      enabled: true
+      allowedOrigins:
+        - "*"
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+
+  # Database configuration
+  database:
+    type: "postgres"  # postgres, inmemory
+    url: ""  # Will be auto-filled from postgresql connection
+    maxConnections: 20
+    connectionTimeoutSeconds: 30
+
+  # Cache configuration (Redb)
+  cache:
+    enabled: true
+    path: "/data/cache"
+    ttlSeconds: 300
+    maxEntries: 10000
+
+  # Event bus configuration
+  eventBus:
+    type: "nats"  # nats, inmemory
+    nats:
+      url: ""  # Will be auto-filled from nats service
+      subjectPrefix: "hodei"
+
+  # Kubernetes provider configuration
+  kubernetes:
+    global:
+      insecureSkipVerify: false
+      caCertPath: ""
+
+  # Agent configuration
+  agent:
+    image: "hwp-agent:latest"
+    pullPolicy: IfNotPresent
+
+  # Resource limits and requests
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2
+      memory: 4Gi
+
+  # Autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Pod Disruption Budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    ports:
+      http: 8080
+      grpc: 50051
+
+  # Ingress configuration
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts: []
+    tls: []
+
+  # Health checks
+  healthCheck:
+    enabled: true
+    port: 8080
+    path: "/health"
+
+  # Security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  # Volume mounts
+  extraVolumeMounts: []
+  extraVolumes: []
+
+  # Persistence for cache
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+
+# =============================================================================
+# HWP Agent Configuration
+# =============================================================================
+hwp-agent:
+  enabled: true
+
+  image:
+    registry: ""
+    repository: "hodei-jobs/hwp-agent"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  # Agent configuration
+  agent:
+    serverUrl: ""  # Will be auto-filled from hodei-server service
+    grpcServerUrl: ""  # Will be auto-filled from hodei-server service
+    workerId: ""  # Will be auto-generated if empty
+    workerName: ""  # Will be auto-generated if empty
+
+    # Resources
+    cpuCores: 4
+    memoryGb: 8
+
+  # Worker pool configuration
+  pool:
+    name: "default-pool"
+    minSize: 2
+    maxSize: 20
+    autoScalingEnabled: true
+
+  # Autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Resources
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+
+  # Node selection
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  # Security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+
+# =============================================================================
+# Prometheus Monitoring
+# =============================================================================
+prometheus:
+  enabled: true
+
+  # Use kube-prometheus-stack
+  kube-prometheus-stack:
+    enabled: true
+
+    # Grafana integration
+    grafana:
+      enabled: true
+      forceDeployDashboards: true
+
+    # AlertManager
+    alertmanager:
+      enabled: true
+
+    # Prometheus configuration
+    prometheus:
+      prometheusSpec:
+        retention: 30d
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: ""
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 50Gi
+
+    # ServiceMonitor for Hodei Server
+    additionalServiceMonitors:
+      - name: "hodei-server"
+        selector:
+          matchLabels:
+            app: hodei-server
+        namespaceSelector:
+          matchNames:
+            - hodei-jobs
+        endpoints:
+          - port: http
+            path: /metrics
+            interval: 30s
+            scrapeTimeout: 10s
+
+      - name: "nats"
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: nats
+        namespaceSelector:
+          matchNames:
+            - hodei-jobs
+        endpoints:
+          - port: monitor
+            path: /metrics
+            interval: 30s
+
+# =============================================================================
+# Grafana Dashboards
+# =============================================================================
+grafana:
+  enabled: true
+
+  # Default datasource
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-server.monitoring.svc.cluster.local:80
+          access: proxy
+          isDefault: true
+
+  # Default dashboards
+  dashboards:
+    default:
+      hodei-server:
+        gnetId: 0  # Custom dashboard ID to be imported
+        revision: 1
+        datasource: Prometheus
+
+  # Admin password
+  adminPassword: "admin_password_change_me"
+
+  # Persistence
+  persistence:
+    type: pvc
+    enabled: true
+    storageClassName: ""
+    accessModes: ["ReadWriteOnce"]
+    size: 10Gi
+
+# =============================================================================
+# Security Configuration
+# =============================================================================
+security:
+  # TLS configuration
+  tls:
+    enabled: false
+    certSecretName: ""
+    certFilename: "tls.crt"
+    keyFilename: "tls.key"
+
+  # RBAC
+  rbac:
+    create: true
+    rules: []
+
+  # Network policies
+  networkPolicy:
+    enabled: true
+    ingress:
+      enabled: true
+      rules: []
+    egress:
+      enabled: true
+      rules: []
+
+# =============================================================================
+# Observability
+# =============================================================================
+observability:
+  # Logging
+  logging:
+    level: "info"  # trace, debug, info, warn, error
+    format: "json"  # json, compact
+
+  # Tracing
+  tracing:
+    enabled: false
+    jaegerEndpoint: ""
+
+  # Metrics
+  metrics:
+    enabled: true
+    port: 9091
+    path: "/metrics"
+
+# =============================================================================
+# Multi-tenancy
+# =============================================================================
+multiTenancy:
+  enabled: false
+  defaultQuota:
+    cpu_m: 4000
+    memory_mb: 8192
+    max_concurrent_jobs: 10
+
+# =============================================================================
+# Feature Flags
+# =============================================================================
+featureFlags:
+  multi_tenancy: false
+  cost_tracking: true
+  auto_scaling: true
+  burst_capacity: true
+  weighted_fair_queuing: true
+  sla_tracking: true
+  worker_reuse: true
+  grafana_dashboards: true
+  prometheus_alerts: true
+  cost_optimization: true
+
+# =============================================================================
+# Environment-specific Overrides
+# =============================================================================
+# These values are meant to be overridden by values-dev.yaml or values-prod.yaml
+
+# Development environment
+development:
+  log_level: "debug"
+  metrics_enabled: true
+  tracing_enabled: false
+  replicas: 1
+
+# Production environment
+production:
+  log_level: "info"
+  metrics_enabled: true
+  tracing_enabled: true
+  tls_enabled: true
+  replicas: 3
+  persistence:
+    storageClass: "fast-ssd"

@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hwp-agent.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hwp-agent.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount | default 2 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "hwp-agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "hwp-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "hwp-agent.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: hwp-agent
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: 50052
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          {{- if .Values.healthCheck.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: grpc
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: grpc
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds | default 3 }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold | default 3 }}
+          {{- end }}
+          env:
+            # Worker configuration
+            - name: WORKER_ID
+              value: {{ .Values.agent.workerId | default (include "hwp-agent.fullname" .) | quote }}
+            - name: WORKER_NAME
+              value: {{ .Values.agent.workerName | default (include "hwp-agent.fullname" .) | quote }}
+            - name: POOL_NAME
+              value: {{ .Values.pool.name | quote }}
+
+            # Server URLs
+            - name: SERVER_URL
+              value: {{ .Values.agent.serverUrl | default (printf "http://%s-hodei-server:%d" .Release.Name (.Values.serverPort | default 8080)) | quote }}
+            - name: GRPC_SERVER_URL
+              value: {{ .Values.agent.grpcServerUrl | default (printf "http://%s-hodei-server:%d" .Release.Name (.Values.grpcServerPort | default 50051)) | quote }}
+
+            # Resources
+            - name: WORKER_CPU_CORES
+              value: {{ .Values.agent.cpuCores | quote }}
+            - name: WORKER_MEMORY_GB
+              value: {{ .Values.agent.memoryGb | quote }}
+
+            # Logging
+            - name: RUST_LOG
+              value: {{ .Values.observability.logging.level | quote }}
+
+            # Metrics
+            - name: METRICS_PORT
+              value: {{ .Values.metrics.port | quote }}
+
+            # Pool configuration
+            - name: MIN_POOL_SIZE
+              value: {{ .Values.pool.minSize | quote }}
+            - name: MAX_POOL_SIZE
+              value: {{ .Values.pool.maxSize | quote }}
+            - name: AUTO_SCALING_ENABLED
+              value: {{ .Values.pool.autoScalingEnabled | quote }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log/hwp-agent
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: varlog
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

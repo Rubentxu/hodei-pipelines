@@ -1,0 +1,32 @@
+apiVersion: tests.testkube.io/v3
+kind: TestSuite
+metadata:
+  name: hodei-full-suite
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    suite: full
+spec:
+  description: "Full test suite for Hodei Pipelines - Complete system validation"
+  before:
+    - namespace: testkube
+      name: wait-for-services
+      description: "Wait for all services to be ready"
+      commands:
+        - kubectl wait --for=condition=available --timeout=300s deployment/hodei-server -n hodei-jobs
+        - kubectl wait --for=condition=available --timeout=300s deployment/hwp-agent -n hodei-jobs
+        - kubectl wait --for=condition=available --timeout=300s deployment/hodei-postgresql -n hodei-jobs
+        - kubectl wait --for=condition=available --timeout=300s deployment/hodei-nats -n hodei-jobs
+  steps:
+    - execute:
+        - test: database-connectivity
+        - test: nats-connectivity
+    - execute:
+        - test: server-health-check
+    - execute:
+        - test: api-endpoints-validation
+    - execute:
+        - test: worker-functionality-check
+  tags:
+    - full
+    - nightly

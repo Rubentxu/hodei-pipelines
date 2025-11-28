@@ -1,0 +1,24 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: server-metrics-check
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: server
+    type: metrics-check
+spec:
+  type: curl
+  content:
+    type: inline
+  executionRequest:
+    variables:
+      SERVER_URL:
+        name: SERVER_URL
+        value: "http://hodei-server:9091"
+        type: basic
+      ENDPOINT:
+        name: ENDPOINT
+        value: "/metrics"
+        type: basic
+  source: testkube

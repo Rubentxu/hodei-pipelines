@@ -1,0 +1,26 @@
+apiVersion: tests.testkube.io/v3
+kind: TestSuite
+metadata:
+  name: hodei-api-comprehensive
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    suite: api-comprehensive
+spec:
+  description: "Comprehensive API tests for Hodei Pipelines - Full API validation"
+  steps:
+    - execute:
+        - test: api-server-endpoints
+    - execute:
+        - test: worker-registration-check
+    - execute:
+        - test: job-execution-test
+    - execute:
+        - test: streaming-logs-test
+    - execute:
+        - test: server-health-check
+  tags:
+    - api
+    - comprehensive
+    - server
+    - worker

@@ -1,0 +1,96 @@
+# Default values for hwp-agent
+
+replicaCount: 2
+
+image:
+  registry: ""
+  repository: "hodei-jobs/hwp-agent"
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podSecurityContext:
+  fsGroup: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+agent:
+  workerId: ""
+  workerName: ""
+  serverUrl: ""
+  grpcServerUrl: ""
+  cpuCores: 4
+  memoryGb: 8
+
+pool:
+  name: "default-pool"
+  minSize: 2
+  maxSize: 20
+  autoScalingEnabled: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+resources:
+  requests:
+    cpu: 1
+    memory: 2Gi
+  limits:
+    cpu: 4
+    memory: 8Gi
+
+service:
+  type: ClusterIP
+
+healthCheck:
+  enabled: true
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+metrics:
+  port: 9090
+
+observability:
+  logging:
+    level: "info"
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+extraVolumes: []
+
+extraVolumeMounts: {}

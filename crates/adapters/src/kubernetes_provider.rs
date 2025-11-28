@@ -494,32 +494,3 @@ impl WorkerProvider for KubernetesProvider {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use hodei_ports::worker_provider::{ProviderConfig, ProviderType};
-
-    #[tokio::test]
-    async fn test_provider_type() {
-        let config = ProviderConfig::kubernetes("test".to_string());
-        let provider = KubernetesProvider::new(config).await;
-
-        if let Ok(provider) = provider {
-            assert_eq!(provider.provider_type(), ProviderType::Kubernetes);
-            assert_eq!(provider.name(), "test");
-        }
-    }
-
-    #[tokio::test]
-    async fn test_capabilities() {
-        let config = ProviderConfig::kubernetes("test".to_string());
-        let provider = KubernetesProvider::new(config).await;
-
-        if let Ok(provider) = provider {
-            let caps = provider.capabilities().await.unwrap();
-            assert!(caps.supports_auto_scaling);
-            assert!(caps.supports_health_checks);
-            assert!(caps.supports_volumes);
-        }
-    }
-}

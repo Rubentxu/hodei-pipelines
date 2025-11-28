@@ -1,0 +1,443 @@
+# =============================================================================
+# Hodei Pipelines - Production Environment
+# =============================================================================
+
+# Production-specific overrides
+global:
+  imagePullPolicy: IfNotAlways
+
+# Namespace
+namespace:
+  name: hodei-jobs
+
+# PostgreSQL (high availability, persistence)
+postgresql:
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: "fast-ssd"  # Use provisioned storage class
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 4
+        memory: 8Gi
+
+    # Backup configuration
+    backup:
+      enabled: true
+      cronjob:
+        schedule: "0 2 * * *"
+        successfulJobsHistoryLimit: 3
+        failedJobsHistoryLimit: 1
+
+  # Metrics
+  metrics:
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+
+  # Security
+  primary:
+    securityContext:
+      enabled: true
+      runAsUser: 1001
+      fsGroup: 1001
+
+  # Network policy
+  networkPolicy:
+    enabled: true
+    ingress:
+      enabled: true
+      rules:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  name: hodei-jobs
+
+# NATS (clustered, persistent)
+nats:
+  nats:
+    jetstream:
+      enabled: true
+      memStorage:
+        enabled: true
+        size: 2Gi
+      fileStorage:
+        enabled: true
+        size: 50Gi
+        storageClass: "fast-ssd"
+
+    cluster:
+      enabled: true
+      replicas: 3
+
+    # Resources - production grade
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+
+    # Security
+    securityContext:
+      enabled: true
+      runAsUser: 1001
+      fsGroup: 1001
+
+  # Monitoring
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 15s
+
+# Hodei Server (production setup)
+hodei-server:
+  image:
+    tag: "prod"
+    pullPolicy: "Always"
+
+  server:
+    cors:
+      allowedOrigins:
+        - "https://hodei.company.com"
+        - "https://api.company.com"
+
+  # Database - PostgreSQL
+  database:
+    type: "postgres"
+    maxConnections: 50
+    connectionTimeoutSeconds: 30
+
+  # Cache - Redb with persistence
+  cache:
+    ttlSeconds: 300
+    maxEntries: 100000
+
+  # Autoscaling - production grade
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+
+  # Pod Disruption Budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+  # Resources
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+
+  # Persistence
+  persistence:
+    enabled: true
+    storageClass: "fast-ssd"
+    accessMode: ReadWriteOnce
+    size: 50Gi
+
+  # Security - strict
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+  # Health checks - aggressive
+  healthCheck:
+    enabled: true
+    port: 8080
+    path: "/health"
+
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+    readinessProbe:
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+  # Ingress - TLS enabled
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+
+    hosts:
+      - host: api.hodei.company.com
+        paths:
+          - path: /
+            pathType: Prefix
+
+    tls:
+      - secretName: hodei-server-tls
+        hosts:
+          - api.hodei.company.com
+
+# HWP Agent (production workers)
+hwp-agent:
+  image:
+    tag: "prod"
+    pullPolicy: "Always"
+
+  agent:
+    cpuCores: 4
+    memoryGb: 8
+
+  pool:
+    name: "production-pool"
+    minSize: 5
+    maxSize: 50
+    autoScalingEnabled: true
+
+  # Autoscaling - aggressive
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+
+  # Resources - production
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+
+  # Security - strict
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+  # Node selection - dedicated worker nodes
+  nodeSelector:
+    node-type: worker
+
+  # Tolerations for tainted nodes
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "worker"
+      effect: "NoSchedule"
+
+  # Affinity - spread across nodes
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - hwp-agent
+            topologyKey: kubernetes.io/hostname
+
+# Prometheus (full monitoring)
+prometheus:
+  kube-prometheus-stack:
+    # High retention
+    prometheus:
+      prometheusSpec:
+        retention: 90d
+        retentionSize: 100GB
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: "fast-ssd"
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 200Gi
+
+    # More scrape intervals
+    additionalServiceMonitors:
+      - name: "hodei-server"
+        selector:
+          matchLabels:
+            app: hodei-server
+        namespaceSelector:
+          matchNames:
+            - hodei-jobs
+        endpoints:
+          - port: http
+            path: /metrics
+            interval: 15s
+            scrapeTimeout: 10s
+
+      - name: "hwp-agent"
+        selector:
+          matchLabels:
+            app: hwp-agent
+        namespaceSelector:
+          matchNames:
+            - hodei-jobs
+        endpoints:
+          - port: grpc
+            path: /metrics
+            interval: 30s
+
+    # AlertManager - production
+    alertmanager:
+      enabled: true
+      alertmanagerSpec:
+        retention: 120h
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: "fast-ssd"
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 10Gi
+
+# Grafana (production dashboards)
+grafana:
+  adminPassword: "change_this_in_secrets"
+
+  # Persistence
+  persistence:
+    type: pvc
+    enabled: true
+    storageClassName: "fast-ssd"
+    accessModes: ["ReadWriteOnce"]
+    size: 20Gi
+
+  # Security
+  securityContext:
+    runAsUser: 472
+    fsGroup: 472
+
+  # Dashboards
+  dashboards:
+    default:
+      hodei-server:
+        gnetId: 0
+        revision: 1
+        datasource: Prometheus
+      hwp-agent:
+        gnetId: 0
+        revision: 1
+        datasource: Prometheus
+
+# Observability - production logging
+observability:
+  logging:
+    level: "info"
+    format: "json"
+
+  tracing:
+    enabled: true
+    jaegerEndpoint: "http://jaeger-collector:14268/api/traces"
+
+  metrics:
+    enabled: true
+    port: 9091
+    path: "/metrics"
+
+# Security - strict
+security:
+  tls:
+    enabled: true
+    certSecretName: "hodei-server-tls"
+
+  rbac:
+    create: true
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "services", "endpoints"]
+        verbs: ["get", "list", "watch"]
+
+  networkPolicy:
+    enabled: true
+    ingress:
+      enabled: true
+      rules:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  name: hodei-jobs
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  name: monitoring
+    egress:
+      enabled: true
+      rules:
+        - to: []
+          ports:
+            - protocol: TCP
+              port: 5432  # PostgreSQL
+            - protocol: TCP
+              port: 4222  # NATS
+            - protocol: TCP
+              port: 443   # HTTPS
+
+# Multi-tenancy - enabled in prod
+multiTenancy:
+  enabled: true
+  defaultQuota:
+    cpu_m: 4000
+    memory_mb: 8192
+    max_concurrent_jobs: 10
+
+# Feature flags - production features
+featureFlags:
+  multi_tenancy: true
+  cost_tracking: true
+  auto_scaling: true
+  burst_capacity: true
+  weighted_fair_queuing: true
+  sla_tracking: true
+  worker_reuse: true
+  grafana_dashboards: true
+  prometheus_alerts: true
+  cost_optimization: true
+
+# Anti-affinity rules
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app
+              operator: In
+              values:
+                - hodei-server
+        topologyKey: kubernetes.io/hostname

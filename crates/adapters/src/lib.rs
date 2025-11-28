@@ -11,7 +11,6 @@ pub mod kubernetes_provider_tests;
 pub mod postgres;
 pub mod provider_factory;
 pub mod rbac_repositories;
-pub mod redb;
 pub mod security;
 pub mod worker_client;
 pub mod worker_registration;

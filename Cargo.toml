@@ -4,13 +4,13 @@ members = [
     "crates/ports",
     "crates/modules",
     "crates/adapters",
+    "crates/e2e-tests",
     "crates/hwp-proto",
     "crates/hwp-agent",
-    "server",
+    "server", "crates/integration-tests",
 ]
 exclude = [
     "code-manifest",
-    "crates/e2e-tests",
 ]
 resolver = "2"
 

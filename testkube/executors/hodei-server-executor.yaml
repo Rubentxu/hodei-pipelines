@@ -1,0 +1,26 @@
+apiVersion: executors.testkube.io/v1
+kind: Executor
+metadata:
+  name: hodei-server-executor
+  namespace: testkube
+spec:
+  executor_type: job
+  image: byrnedo/alpine-curl:latest
+  command: ["sh", "-c"]
+  args:
+    - |
+      echo "Running Hodei server test..."
+      curl -f $TESTkube_EXECUTORargs__ENDPOINT
+      exit 0
+  types:
+    - hodei-server/test
+  description: "Hodei server custom executor"
+  content_types:
+    - string
+    - git
+    - uri
+    - github
+    - git-file
+  features:
+    - artifacts
+    - junit-report

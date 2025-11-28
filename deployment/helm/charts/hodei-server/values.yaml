@@ -1,0 +1,173 @@
+# Default values for hodei-server
+# This is a YAML-formatted file.
+
+replicaCount: 2
+
+image:
+  registry: ""
+  repository: "hodei-jobs/hodei-server"
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podSecurityContext:
+  fsGroup: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+server:
+  port: 8080
+  grpcPort: 50051
+  host: "0.0.0.0"
+  cors:
+    enabled: true
+    allowedOrigins: []
+    allowedMethods: ["GET", "POST", "PUT", "DELETE"]
+    allowedHeaders: ["Content-Type", "Authorization"]
+
+database:
+  type: "postgres"
+  auth:
+    username: "hodei"
+    password: "hodei_password_2024_change_me"
+  name: "hodei_jobs"
+  port: 5432
+  maxConnections: 20
+  connectionTimeoutSeconds: 30
+
+cache:
+  enabled: true
+  path: "/data/cache"
+  ttlSeconds: 300
+  maxEntries: 10000
+
+eventBus:
+  type: "nats"
+  nats:
+    port: 4222
+    subjectPrefix: "hodei"
+
+kubernetes:
+  global:
+    insecureSkipVerify: false
+    caCertPath: ""
+
+agent:
+  image: "hwp-agent:latest"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 2
+    memory: 4Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+service:
+  type: ClusterIP
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  tls: []
+
+healthCheck:
+  enabled: true
+  port: 8080
+  path: "/health"
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+observability:
+  logging:
+    level: "info"
+  metrics:
+    enabled: true
+    port: 9091
+    path: "/metrics"
+    serviceMonitor:
+      enabled: true
+      interval: "30s"
+      scrapeTimeout: "10s"
+      honorLabels: false
+      annotations: {}
+      namespaceSelector: {}
+      relabelings: []
+      metricRelabelings: []
+
+secrets:
+  enabled: true
+  jwtSecret: ""
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+extraVolumes: []
+
+extraVolumeMounts: []
+
+extraConfig: {}
+
+featureFlags:
+  multi_tenancy: false
+  cost_tracking: true
+  auto_scaling: true
+  burst_capacity: true
+  weighted_fair_queuing: true
+  sla_tracking: true
+  worker_reuse: true
+  grafana_dashboards: true
+  prometheus_alerts: true
+  cost_optimization: true

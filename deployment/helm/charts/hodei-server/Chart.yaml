@@ -1,0 +1,20 @@
+apiVersion: v2
+name: hodei-server
+description: Hodei Pipelines Server - Main API and orchestration service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+home: https://github.com/Rubentxu/hodei-pipelines
+sources:
+  - https://github.com/Rubentxu/hodei-pipelines/tree/main/server
+
+keywords:
+  - hodei
+  - server
+  - orchestration
+  - pipelines
+
+maintainers:
+  - name: Hodei Team
+    email: team@hodei-pipelines.dev

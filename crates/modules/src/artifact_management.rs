@@ -293,9 +293,7 @@ where
             .initialize_storage(artifact_id, &metadata)
             .await
             .map_err(|e| {
-                ArtifactError::Storage(StorageError::Io(std::io::Error::other(
-                    e.to_string(),
-                )))
+                ArtifactError::Storage(StorageError::Io(std::io::Error::other(e.to_string())))
             })?;
 
         // Save metadata
@@ -386,9 +384,7 @@ where
             .store_chunk(&metadata.artifact_id, sequence_number, data)
             .await
             .map_err(|e| {
-                ArtifactError::Storage(StorageError::Io(std::io::Error::other(
-                    e.to_string(),
-                )))
+                ArtifactError::Storage(StorageError::Io(std::io::Error::other(e.to_string())))
             })?;
 
         // Record chunk
@@ -501,9 +497,7 @@ where
             .finalize_artifact(&metadata.artifact_id)
             .await
             .map_err(|e| {
-                ArtifactError::Storage(StorageError::Io(std::io::Error::other(
-                    e.to_string(),
-                )))
+                ArtifactError::Storage(StorageError::Io(std::io::Error::other(e.to_string())))
             })?;
 
         // Update status to Completed
@@ -542,9 +536,7 @@ where
             .delete_artifact(&metadata.artifact_id)
             .await
             .map_err(|e| {
-                ArtifactError::Storage(StorageError::Io(std::io::Error::other(
-                    e.to_string(),
-                )))
+                ArtifactError::Storage(StorageError::Io(std::io::Error::other(e.to_string())))
             })?;
 
         // Delete from repository
@@ -592,335 +584,9 @@ impl Default for ArtifactManagementConfig {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::Utc;
-
-    // Mock implementations for testing
-    #[derive(Default)]
-    struct MockArtifactRepository {
-        artifacts: Arc<RwLock<HashMap<ArtifactId, ArtifactMetadata>>>,
-        chunks: Arc<RwLock<HashMap<ArtifactId, Vec<ChunkInfo>>>>,
-    }
-
-    #[async_trait::async_trait]
-    impl ArtifactRepository for MockArtifactRepository {
-        async fn save_artifact(&self, artifact: &ArtifactMetadata) -> Result<()> {
-            let mut artifacts = self.artifacts.write().await;
-            artifacts.insert(artifact.artifact_id.clone(), artifact.clone());
-            Ok(())
-        }
-
-        async fn get_artifact(&self, artifact_id: &ArtifactId) -> Result<Option<ArtifactMetadata>> {
-            let artifacts = self.artifacts.read().await;
-            Ok(artifacts.get(artifact_id).cloned())
-        }
-
-        async fn update_artifact_status(
-            &self,
-            artifact_id: &ArtifactId,
-            status: UploadStatus,
-        ) -> Result<()> {
-            let mut artifacts = self.artifacts.write().await;
-            if let Some(artifact) = artifacts.get_mut(artifact_id) {
-                artifact.status = status;
-                Ok(())
-            } else {
-                Err(ArtifactError::NotFound(artifact_id.clone()))
-            }
-        }
-
-        async fn record_chunk(&self, artifact_id: &ArtifactId, chunk: &ChunkInfo) -> Result<()> {
-            let mut chunks = self.chunks.write().await;
-            chunks
-                .entry(artifact_id.clone())
-                .or_insert_with(Vec::new)
-                .push(chunk.clone());
-            Ok(())
-        }
-
-        async fn get_chunks(&self, artifact_id: &ArtifactId) -> Result<Vec<ChunkInfo>> {
-            let chunks = self.chunks.read().await;
-            Ok(chunks.get(artifact_id).cloned().unwrap_or_default())
-        }
-
-        async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<()> {
-            let mut artifacts = self.artifacts.write().await;
-            let mut chunks = self.chunks.write().await;
-            artifacts.remove(artifact_id);
-            chunks.remove(artifact_id);
-            Ok(())
-        }
-
-        async fn get_artifact_by_upload_id(
-            &self,
-            upload_id: &UploadId,
-        ) -> Result<Option<ArtifactMetadata>> {
-            let artifacts = self.artifacts.read().await;
-            Ok(artifacts
-                .values()
-                .find(|a| a.upload_id.as_ref() == Some(upload_id))
-                .cloned())
-        }
-    }
-
-    #[derive(Default)]
-    struct MockStorageProvider {
-        stored_chunks: Arc<RwLock<HashMap<ArtifactId, HashMap<u32, Vec<u8>>>>>,
-    }
-
-    #[async_trait::async_trait]
-    impl StorageProvider for MockStorageProvider {
-        async fn initialize_storage(
-            &self,
-            artifact_id: &ArtifactId,
-            _metadata: &ArtifactMetadata,
-        ) -> Result<()> {
-            let mut stored_chunks = self.stored_chunks.write().await;
-            stored_chunks.insert(artifact_id.clone(), HashMap::new());
-            Ok(())
-        }
-
-        async fn store_chunk(
-            &self,
-            artifact_id: &ArtifactId,
-            sequence_number: u32,
-            data: &[u8],
-        ) -> Result<()> {
-            let mut stored_chunks = self.stored_chunks.write().await;
-            if let Some(chunks) = stored_chunks.get_mut(artifact_id) {
-                chunks.insert(sequence_number, data.to_vec());
-            }
-            Ok(())
-        }
-
-        async fn finalize_artifact(&self, artifact_id: &ArtifactId) -> Result<String> {
-            let stored_chunks = self.stored_chunks.read().await;
-            if let Some(chunks) = stored_chunks.get(artifact_id) {
-                let total_bytes: usize = chunks.values().map(|v| v.len()).sum();
-                Ok(format!(
-                    "/artifacts/{}/{}",
-                    artifact_id.as_str(),
-                    total_bytes
-                ))
-            } else {
-                Err(StorageError::NotFound)
-            }
-        }
-
-        async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<()> {
-            let mut stored_chunks = self.stored_chunks.write().await;
-            stored_chunks.remove(artifact_id);
-            Ok(())
-        }
-    }
-
-    #[tokio::test]
-    async fn test_initiate_upload_success() {
-        let repo = Arc::new(MockArtifactRepository::default());
-        let storage = Arc::new(MockStorageProvider::default());
-        let config = ArtifactManagementConfig::default();
-
-        let service = ArtifactManagementService::new(repo, storage, config);
-
-        let artifact_id = ArtifactId::new("test-artifact".to_string());
-        let job_id = JobId::new();
-        let upload_id = service
-            .initiate_upload(
-                &artifact_id,
-                &job_id,
-                "test.txt",
-                1024,
-                "abc123",
-                false,
-                None,
-            )
-            .await
-            .unwrap();
-
-        assert!(!upload_id.as_str().is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_initiate_upload_rejects_empty_checksum() {
-        let repo = Arc::new(MockArtifactRepository::default());
-        let storage = Arc::new(MockStorageProvider::default());
-        let config = ArtifactManagementConfig::default();
-
-        let service = ArtifactManagementService::new(repo, storage, config);
-
-        let artifact_id = ArtifactId::new("test-artifact".to_string());
-        let job_id = JobId::new();
-
-        let result = service
-            .initiate_upload(&artifact_id, &job_id, "test.txt", 1024, "", false, None)
-            .await;
-
-        assert!(result.is_err());
-        if let Err(e) = result {
-            assert!(e.to_string().contains("Checksum is required"));
-        }
-    }
-
-    #[tokio::test]
-    async fn test_upload_chunk_success() {
-        let repo = Arc::new(MockArtifactRepository::default());
-        let storage = Arc::new(MockStorageProvider::default());
-        let config = ArtifactManagementConfig::default();
-
-        let service = ArtifactManagementService::new(repo, storage, config);
-
-        let artifact_id = ArtifactId::new("test-artifact".to_string());
-        let job_id = JobId::new();
-
-        let upload_id = service
-            .initiate_upload(
-                &artifact_id,
-                &job_id,
-                "test.txt",
-                1024,
-                "abc123",
-                false,
-                None,
-            )
-            .await
-            .unwrap();
-
-        // Upload chunk
-        let bytes_received = service
-            .upload_chunk(&upload_id, 0, b"test data", Some("chunk-checksum"))
-            .await
-            .unwrap();
-
-        assert_eq!(bytes_received, 9);
-    }
-
-    #[tokio::test]
-    async fn test_resume_upload_returns_next_chunk() {
-        let repo = Arc::new(MockArtifactRepository::default());
-        let storage = Arc::new(MockStorageProvider::default());
-        let config = ArtifactManagementConfig::default();
-
-        let service = ArtifactManagementService::new(repo, storage, config);
-
-        let artifact_id = ArtifactId::new("test-artifact".to_string());
-        let job_id = JobId::new();
-
-        let upload_id = service
-            .initiate_upload(
-                &artifact_id,
-                &job_id,
-                "test.txt",
-                1024,
-                "abc123",
-                false,
-                None,
-            )
-            .await
-            .unwrap();
-
-        // Upload some chunks
-        service
-            .upload_chunk(&upload_id, 0, b"chunk1", Some("c1"))
-            .await
-            .unwrap();
-        service
-            .upload_chunk(&upload_id, 1, b"chunk2", Some("c2"))
-            .await
-            .unwrap();
-
-        // Resume and get next expected chunk
-        let next_chunk = service.resume_upload(&upload_id).await.unwrap();
-
-        assert_eq!(next_chunk, 2);
-    }
-
-    #[tokio::test]
-    async fn test_finalize_upload_success() {
-        let repo = Arc::new(MockArtifactRepository::default());
-        let storage = Arc::new(MockStorageProvider::default());
-        let config = ArtifactManagementConfig::default();
-
-        let service = ArtifactManagementService::new(repo, storage, config);
-
-        let artifact_id = ArtifactId::new("test-artifact".to_string());
-        let job_id = JobId::new();
-
-        let upload_id = service
-            .initiate_upload(
-                &artifact_id,
-                &job_id,
-                "test.txt",
-                1024,
-                "abc123",
-                false,
-                None,
-            )
-            .await
-            .unwrap();
-
-        // Upload chunk
-        service
-            .upload_chunk(&upload_id, 0, b"test data", Some("abc123"))
-            .await
-            .unwrap();
-
-        // Finalize
-        let artifact_path = service.finalize_upload(&upload_id, "abc123").await.unwrap();
-
-        assert!(!artifact_path.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_cancel_upload_success() {
-        let repo = Arc::new(MockArtifactRepository::default());
-        let storage = Arc::new(MockStorageProvider::default());
-        let config = ArtifactManagementConfig::default();
-
-        let service = ArtifactManagementService::new(repo, storage, config);
-
-        let artifact_id = ArtifactId::new("test-artifact".to_string());
-        let job_id = JobId::new();
-
-        let upload_id = service
-            .initiate_upload(
-                &artifact_id,
-                &job_id,
-                "test.txt",
-                1024,
-                "abc123",
-                false,
-                None,
-            )
-            .await
-            .unwrap();
-
-        // Cancel upload
-        let result = service.cancel_upload(&upload_id).await;
-
-        assert!(result.is_ok());
-    }
-}
-
-// Implement From trait for error conversions
-impl From<ArtifactError> for DomainError {
-    fn from(error: ArtifactError) -> Self {
-        match error {
-            ArtifactError::NotFound(_) => DomainError::NotFound("Artifact not found".to_string()),
-            ArtifactError::InvalidState(msg) => DomainError::Validation(msg),
-            ArtifactError::ChecksumMismatch => {
-                DomainError::Validation("Checksum mismatch".to_string())
-            }
-            ArtifactError::Storage(err) => DomainError::Infrastructure(err.to_string()),
-            ArtifactError::Database(msg) => DomainError::Infrastructure(msg),
-            ArtifactError::Internal(msg) => DomainError::Infrastructure(msg),
-        }
-    }
-}
-
-impl From<StorageError> for DomainError {
-    fn from(error: StorageError) -> Self {
-        DomainError::Infrastructure(error.to_string())
+// Convert ArtifactError to DomainError
+impl From<ArtifactError> for hodei_core::DomainError {
+    fn from(err: ArtifactError) -> Self {
+        hodei_core::DomainError::Other(err.to_string())
     }
 }

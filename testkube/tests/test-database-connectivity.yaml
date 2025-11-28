@@ -1,0 +1,42 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: database-connectivity
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: server
+    type: connectivity
+spec:
+  type: curl
+  content:
+    type: inline
+    data: |
+      #!/bin/sh
+      # Test database connectivity
+      export PGPASSWORD=$POSTGRES_PASSWORD
+      pg_isready -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER
+      exit $?
+  executionRequest:
+    variables:
+      POSTGRES_HOST:
+        name: POSTGRES_HOST
+        value: "hodei-postgresql"
+        type: basic
+      POSTGRES_PORT:
+        name: POSTGRES_PORT
+        value: "5432"
+        type: basic
+      POSTGRES_USER:
+        name: POSTGRES_USER
+        value: "hodei"
+        type: basic
+      POSTGRES_PASSWORD:
+        name: POSTGRES_PASSWORD
+        value: "hodei_password_2024_change_me"
+        type: basic
+      POSTGRES_DB:
+        name: POSTGRES_DB
+        value: "hodei_jobs"
+        type: basic
+  source: testkube

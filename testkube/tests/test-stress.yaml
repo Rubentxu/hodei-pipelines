@@ -1,0 +1,68 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: stress-test
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: server
+    type: stress
+spec:
+  type: curl
+  content:
+    type: inline
+    data: |
+      #!/bin/bash
+      set -e
+      
+      BASE_URL=${SERVER_URL:-http://hodei-server:8080}
+      CONCURRENT_REQUESTS=${CONCURRENT_REQUESTS:-10}
+      TOTAL_REQUESTS=${TOTAL_REQUESTS:-100}
+      
+      echo "Starting stress test..."
+      echo "Base URL: $BASE_URL"
+      echo "Concurrent requests: $CONCURRENT_REQUESTS"
+      echo "Total requests: $TOTAL_REQUESTS"
+      
+      # Function to make a request
+      make_request() {
+        local endpoint=$1
+        local response=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}${endpoint}" --max-time 5)
+        echo "Request to $endpoint: HTTP $response"
+        if [ "$response" != "200" ] && [ "$response" != "401" ]; then
+          echo "❌ Request failed with status $response"
+          return 1
+        fi
+      }
+      
+      # Export function and variables for parallel execution
+      export -f make_request
+      export BASE_URL
+      
+      # Run concurrent requests
+      for i in $(seq 1 $TOTAL_REQUESTS); do
+        echo "Batch $i of $CONCURRENT_REQUESTS concurrent requests..."
+        for j in $(seq 1 $CONCURRENT_REQUESTS); do
+          make_request "/health" &
+        done
+        wait
+        sleep 0.1
+      done
+      
+      echo "✅ Stress test completed successfully!"
+      exit 0
+  executionRequest:
+    variables:
+      SERVER_URL:
+        name: SERVER_URL
+        value: "http://hodei-server:8080"
+        type: basic
+      CONCURRENT_REQUESTS:
+        name: CONCURRENT_REQUESTS
+        value: "10"
+        type: basic
+      TOTAL_REQUESTS:
+        name: TOTAL_REQUESTS
+        value: "50"
+        type: basic
+  source: testkube

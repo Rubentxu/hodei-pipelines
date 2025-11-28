@@ -100,23 +100,3 @@ impl RowExtractor {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    
-
-    #[test]
-    fn test_extract_job_from_row_basic() {
-        // This is a basic test since we don't have a real database connection
-        // In a real implementation, this would test against an actual database
-
-        // Placeholder - the actual implementation would require a test database
-        // For now, we just test that the module compiles
-        assert!(true);
-    }
-
-    #[test]
-    fn test_extract_worker_from_row_basic() {
-        // Placeholder - the actual implementation would require a test database
-        assert!(true);
-    }
-}

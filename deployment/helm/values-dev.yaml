@@ -1,0 +1,177 @@
+# =============================================================================
+# Hodei Pipelines - Development Environment
+# =============================================================================
+
+# Development-specific overrides
+global:
+  imagePullPolicy: IfNotPresent
+
+# Namespace
+namespace:
+  name: hodei-dev
+
+# PostgreSQL (lightweight for dev)
+postgresql:
+  primary:
+    persistence:
+      enabled: false  # No persistence in dev
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+# NATS (single node for dev)
+nats:
+  nats:
+    cluster:
+      enabled: false  # Single node in dev
+    jetstream:
+      fileStorage:
+        enabled: false  # Use memory storage in dev
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+# Hodei Server (single instance)
+hodei-server:
+  image:
+    tag: "dev"
+    pullPolicy: "Always"
+
+  server:
+    cors:
+      allowedOrigins:
+        - "*"
+
+  # Database - use in-memory or lightweight postgres
+  database:
+    type: "inmemory"  # Use in-memory for faster dev
+
+  # Cache - faster, no persistence
+  cache:
+    ttlSeconds: 60
+    maxEntries: 1000
+
+  # Autoscaling - disabled in dev
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
+
+  # Resources - minimal
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  # Persistence disabled
+  persistence:
+    enabled: false
+
+  # Ingress - enabled for local access
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+      nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    hosts:
+      - host: hodei.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+  # Security - relaxed for dev
+  securityContext:
+    allowPrivilegeEscalation: true
+    readOnlyRootFilesystem: false
+    runAsNonRoot: false
+
+# HWP Agent (minimal setup)
+hwp-agent:
+  image:
+    tag: "dev"
+    pullPolicy: "Always"
+
+  agent:
+    cpuCores: 2
+    memoryGb: 2
+
+  pool:
+    minSize: 1
+    maxSize: 3
+
+  autoscaling:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# Prometheus (for development)
+prometheus:
+  kube-prometheus-stack:
+    prometheus:
+      prometheusSpec:
+        retention: 7d
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              resources:
+                requests:
+                  storage: 10Gi
+
+    grafana:
+      adminPassword: "admin"
+
+    # Disable some components in dev
+    kubeStateMetrics:
+      enabled: false
+    nodeExporter:
+      enabled: false
+
+# Grafana
+grafana:
+  adminPassword: "admin"
+  persistence:
+    enabled: false
+
+# Observability - verbose logging
+observability:
+  logging:
+    level: "debug"
+    format: "json"
+
+  tracing:
+    enabled: false
+
+# Security - relaxed for dev
+security:
+  tls:
+    enabled: false
+  networkPolicy:
+    enabled: false
+
+# Feature flags - enable experimental features in dev
+featureFlags:
+  worker_reuse: false
+  cost_tracking: false
+  burst_capacity: false
+  sla_tracking: false

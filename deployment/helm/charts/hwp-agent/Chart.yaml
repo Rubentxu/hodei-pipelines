@@ -1,0 +1,19 @@
+apiVersion: v2
+name: hwp-agent
+description: HWP Agent - Distributed worker nodes for Hodei Pipelines
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+home: https://github.com/Rubentxu/hodei-pipelines
+sources:
+  - https://github.com/Rubentxu/hodei-pipelines/tree/main/crates/hwp-agent
+
+keywords:
+  - hwp-agent
+  - worker
+  - distributed
+
+maintainers:
+  - name: Hodei Team
+    email: team@hodei-pipelines.dev

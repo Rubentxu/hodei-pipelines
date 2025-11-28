@@ -1,0 +1,62 @@
+# =============================================================================
+# ArgoCD Application para Hodei Pipelines
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hodei-pipelines
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # Proyecto ArgoCD
+  project: default
+
+  # Fuente del código fuente
+  source:
+    repoURL: https://github.com/Rubentxu/hodei-pipelines.git
+    targetRevision: main
+    path: deployment/helm
+    helm:
+      valueFiles:
+        - values-prod.yaml
+      parameters:
+        - name: "hodei-server.image.tag"
+          value: "v0.1.0"
+        - name: "hwp-agent.image.tag"
+          value: "v0.1.0"
+
+  # Destino en Kubernetes
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hodei-jobs
+
+  # Sincronización
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Configuración de revisión
+  revisionHistoryLimit: 10
+
+  # Información adicional
+  info:
+    - name: Description
+      value: "Hodei Pipelines - Distributed Job Orchestration Platform"
+    - name: Documentation
+      value: https://github.com/Rubentxu/hodei-pipelines/tree/main/deployment
+    - name: Support
+      value: https://github.com/Rubentxu/hodei-pipelines/issues

@@ -1,0 +1,53 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: worker-functionality-check
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: worker
+    type: functionality
+spec:
+  type: curl
+  content:
+    type: inline
+    data: |
+      #!/bin/bash
+      set -e
+      
+      WORKER_POD=${WORKER_POD:-$(kubectl get pods -l app.kubernetes.io/component=worker -o jsonpath='{.items[0].metadata.name}')}
+      NAMESPACE=${NAMESPACE:-hodei-jobs}
+      
+      echo "Checking worker pod: $WORKER_POD in namespace: $NAMESPACE"
+      
+      # Check if worker pod exists and is running
+      kubectl get pod $WORKER_POD -n $NAMESPACE
+      
+      # Check worker logs for errors
+      echo "Checking worker logs for errors..."
+      error_count=$(kubectl logs $WORKER_POD -n $NAMESPACE 2>&1 | grep -i error | wc -l)
+      if [ "$error_count" -gt 0 ]; then
+        echo "⚠️ Found $error_count errors in worker logs"
+        kubectl logs $WORKER_POD -n $NAMESPACE | tail -20
+      else
+        echo "✅ No errors found in worker logs"
+      fi
+      
+      # Check if worker is accepting jobs (check for specific patterns in logs)
+      echo "Checking worker job processing capabilities..."
+      log_output=$(kubectl logs $WORKER_POD -n $NAMESPACE --tail=50)
+      if echo "$log_output" | grep -q "ready\|started\|initialized"; then
+        echo "✅ Worker appears to be ready and functioning"
+      else
+        echo "⚠️ Could not confirm worker readiness from logs"
+      fi
+      
+      echo "✅ Worker functionality check completed!"
+      exit 0
+  executionRequest:
+    variables:
+      NAMESPACE:
+        name: NAMESPACE
+        value: "hodei-jobs"
+        type: basic
+  source: testkube

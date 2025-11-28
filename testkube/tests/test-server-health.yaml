@@ -1,0 +1,24 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: server-health-check
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: server
+    type: health-check
+spec:
+  type: curl
+  content:
+    type: inline
+  executionRequest:
+    variables:
+      SERVER_URL:
+        name: SERVER_URL
+        value: "http://hodei-server:8080"
+        type: basic
+      ENDPOINT:
+        name: ENDPOINT
+        value: "/health"
+        type: basic
+  source: testkube

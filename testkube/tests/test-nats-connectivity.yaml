@@ -1,0 +1,26 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: nats-connectivity
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: server
+    type: connectivity
+spec:
+  type: curl
+  content:
+    type: inline
+    data: |
+      #!/bin/sh
+      # Test NATS connectivity
+      nats-server --version
+      nats ping -s $NATS_URL
+      exit $?
+  executionRequest:
+    variables:
+      NATS_URL:
+        name: NATS_URL
+        value: "nats://hodei-nats:4222"
+        type: basic
+  source: testkube

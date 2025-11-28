@@ -1,0 +1,122 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: api-server-endpoints
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: server
+    type: api-test
+spec:
+  type: curl
+  content:
+    type: inline
+    data: |
+      #!/bin/bash
+      set -e
+      
+      BASE_URL=${BASE_URL:-http://hodei-server:8080}
+      
+      echo "Testing Hodei Server API endpoints..."
+      echo "Base URL: $BASE_URL"
+      echo ""
+      
+      # Test 1: Health endpoint
+      echo "1. Testing /health endpoint..."
+      response=$(curl -s -w "\nHTTP_CODE:%{http_code}" $BASE_URL/health)
+      http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+      body=$(echo "$response" | sed '/HTTP_CODE:/d')
+      
+      if [ "$http_code" = "200" ]; then
+        echo "   ✅ Health check passed (HTTP $http_code)"
+        echo "   Response: $body"
+      else
+        echo "   ❌ Health check failed (HTTP $http_code)"
+        exit 1
+      fi
+      echo ""
+      
+      # Test 2: Metrics endpoint
+      echo "2. Testing /metrics endpoint..."
+      response=$(curl -s -w "\nHTTP_CODE:%{http_code}" $BASE_URL:9091/metrics)
+      http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+      
+      if [ "$http_code" = "200" ]; then
+        echo "   ✅ Metrics endpoint available (HTTP $http_code)"
+        echo "   Found $(echo "$response" | grep -c '^# HELP') metrics"
+      else
+        echo "   ⚠️  Metrics endpoint returned (HTTP $http_code)"
+      fi
+      echo ""
+      
+      # Test 3: API version endpoint
+      echo "3. Testing /api/v1/version endpoint..."
+      response=$(curl -s -w "\nHTTP_CODE:%{http_code}" $BASE_URL/api/v1/version)
+      http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+      
+      if [ "$http_code" = "200" ]; then
+        echo "   ✅ Version endpoint available (HTTP $http_code)"
+        echo "   Response: $(echo "$response" | sed '/HTTP_CODE:/d')"
+      else
+        echo "   ⚠️  Version endpoint returned (HTTP $http_code)"
+      fi
+      echo ""
+      
+      # Test 4: Jobs API endpoint
+      echo "4. Testing /api/v1/jobs endpoint..."
+      response=$(curl -s -w "\nHTTP_CODE:%{http_code}" $BASE_URL/api/v1/jobs)
+      http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+      
+      if [ "$http_code" = "200" ]; then
+        echo "   ✅ Jobs API available (HTTP $http_code)"
+        echo "   Jobs count: $(echo "$response" | sed '/HTTP_CODE:/d' | jq '. | length' 2>/dev/null || echo 'N/A')"
+      elif [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+        echo "   ✅ Jobs API requires auth (HTTP $http_code) - Expected"
+      else
+        echo "   ⚠️  Jobs API returned (HTTP $http_code)"
+      fi
+      echo ""
+      
+      # Test 5: Workers API endpoint
+      echo "5. Testing /api/v1/workers endpoint..."
+      response=$(curl -s -w "\nHTTP_CODE:%{http_code}" $BASE_URL/api/v1/workers)
+      http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+      
+      if [ "$http_code" = "200" ]; then
+        echo "   ✅ Workers API available (HTTP $http_code)"
+        workers_count=$(echo "$response" | sed '/HTTP_CODE:/d' | jq '. | length' 2>/dev/null || echo 'N/A')
+        echo "   Workers count: $workers_count"
+      elif [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+        echo "   ✅ Workers API requires auth (HTTP $http_code) - Expected"
+      else
+        echo "   ⚠️  Workers API returned (HTTP $http_code)"
+      fi
+      echo ""
+      
+      # Test 6: Pipelines API endpoint
+      echo "6. Testing /api/v1/pipelines endpoint..."
+      response=$(curl -s -w "\nHTTP_CODE:%{http_code}" $BASE_URL/api/v1/pipelines)
+      http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+      
+      if [ "$http_code" = "200" ]; then
+        echo "   ✅ Pipelines API available (HTTP $http_code)"
+      elif [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+        echo "   ✅ Pipelines API requires auth (HTTP $http_code) - Expected"
+      else
+        echo "   ⚠️  Pipelines API returned (HTTP $http_code)"
+      fi
+      echo ""
+      
+      echo "✅ API endpoint tests completed successfully!"
+      exit 0
+  executionRequest:
+    variables:
+      BASE_URL:
+        name: BASE_URL
+        value: "http://hodei-server:8080"
+        type: basic
+      TIMEOUT:
+        name: TIMEOUT
+        value: "30"
+        type: basic
+  source: testkube

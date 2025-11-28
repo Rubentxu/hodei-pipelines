@@ -1,0 +1,35 @@
+apiVersion: tests.testkube.io/v3
+kind: Test
+metadata:
+  name: performance-load-test
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    component: server
+    type: performance
+spec:
+  type: k6/script
+  content:
+    type: git
+    git:
+      uri: https://github.com/your-org/hodei-performance-tests.git
+      branch: main
+      path: k6-script.js
+  executionRequest:
+    args:
+      - --vus 10
+      - --duration 60s
+    variables:
+      BASE_URL:
+        name: BASE_URL
+        value: "http://hodei-server:8080"
+        type: basic
+      VUS:
+        name: VUS
+        value: "10"
+        type: basic
+      DURATION:
+        name: DURATION
+        value: "60s"
+        type: basic
+  source: testkube

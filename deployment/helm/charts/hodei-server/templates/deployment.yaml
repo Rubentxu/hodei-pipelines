@@ -1,0 +1,209 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hodei-server.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hodei-server.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount | default 2 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "hodei-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+      labels:
+        {{- include "hodei-server.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "hodei-server.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: hodei-server
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.server.port }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.server.grpcPort }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.observability.metrics.port }}
+              protocol: TCP
+          {{- if .Values.healthCheck.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.path }}
+              port: {{ .Values.healthCheck.port }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.path }}
+              port: {{ .Values.healthCheck.port }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds | default 3 }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold | default 3 }}
+          {{- end }}
+          env:
+            # Server configuration
+            - name: HODEI_PORT
+              value: {{ .Values.server.port | quote }}
+            - name: HODEI_GRPC_PORT
+              value: {{ .Values.server.grpcPort | quote }}
+            - name: HODEI_HOST
+              value: {{ .Values.server.host | quote }}
+
+            # Database configuration
+            - name: DATABASE_TYPE
+              value: {{ .Values.database.type | quote }}
+            {{- if eq .Values.database.type "postgres" }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hodei-server.fullname" . }}-db
+                  key: url
+            - name: DATABASE_MAX_CONNECTIONS
+              value: {{ .Values.database.maxConnections | quote }}
+            - name: DATABASE_CONNECTION_TIMEOUT
+              value: {{ .Values.database.connectionTimeoutSeconds | quote }}
+            {{- end }}
+
+            # Cache configuration
+            {{- if .Values.cache.enabled }}
+            - name: HODEI_CACHE_PATH
+              value: {{ .Values.cache.path | quote }}
+            - name: HODEI_CACHE_TTL_SECONDS
+              value: {{ .Values.cache.ttlSeconds | quote }}
+            - name: HODEI_CACHE_MAX_ENTRIES
+              value: {{ .Values.cache.maxEntries | quote }}
+            {{- end }}
+
+            # Event bus configuration
+            - name: HODEI_EVENT_BUS_TYPE
+              value: {{ .Values.eventBus.type | quote }}
+            {{- if eq .Values.eventBus.type "nats" }}
+            - name: HODEI_NATS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hodei-server.fullname" . }}-nats
+                  key: url
+            - name: HODEI_NATS_SUBJECT_PREFIX
+              value: {{ .Values.eventBus.nats.subjectPrefix | quote }}
+            {{- end }}
+
+            # Kubernetes TLS configuration
+            - name: HODEI_K8S_INSECURE_SKIP_VERIFY
+              value: {{ .Values.kubernetes.global.insecureSkipVerify | quote }}
+            {{- if .Values.kubernetes.global.caCertPath }}
+            - name: HODEI_K8S_CA_PATH
+              value: {{ .Values.kubernetes.global.caCertPath | quote }}
+            {{- end }}
+
+            # Agent configuration
+            - name: HODEI_AGENT_IMAGE
+              value: {{ .Values.agent.image | quote }}
+            - name: HODEI_AGENT_PULL_POLICY
+              value: {{ .Values.agent.pullPolicy | quote }}
+
+            # Security configuration
+            - name: HODEI_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hodei-server.fullname" . }}-auth
+                  key: jwt-secret
+
+            # Observability
+            - name: RUST_LOG
+              value: {{ .Values.observability.logging.level | quote }}
+            - name: RUST_BACKTRACE
+              value: "1"
+
+            # Metrics
+            - name: HODEI_METRICS_ENABLED
+              value: {{ .Values.observability.metrics.enabled | quote }}
+            - name: HODEI_METRICS_PORT
+              value: {{ .Values.observability.metrics.port | quote }}
+            - name: HODEI_METRICS_PATH
+              value: {{ .Values.observability.metrics.path | quote }}
+
+            # Multi-tenancy
+            - name: HODEI_MULTI_TENANCY_ENABLED
+              value: {{ .Values.featureFlags.multi_tenancy | quote }}
+
+            # Feature flags
+            - name: HODEI_COST_TRACKING_ENABLED
+              value: {{ .Values.featureFlags.cost_tracking | quote }}
+            - name: HODEI_AUTO_SCALING_ENABLED
+              value: {{ .Values.featureFlags.auto_scaling | quote }}
+            - name: HODEI_BURST_CAPACITY_ENABLED
+              value: {{ .Values.featureFlags.burst_capacity | quote }}
+            - name: HODEI_WEIGHTED_FAIR_QUEUING_ENABLED
+              value: {{ .Values.featureFlags.weighted_fair_queuing | quote }}
+            - name: HODEI_SLA_TRACKING_ENABLED
+              value: {{ .Values.featureFlags.sla_tracking | quote }}
+            - name: HODEI_WORKER_REUSE_ENABLED
+              value: {{ .Values.featureFlags.worker_reuse | quote }}
+
+            # CORS
+            - name: HODEI_CORS_ENABLED
+              value: {{ .Values.server.cors.enabled | quote }}
+            - name: HODEI_CORS_ALLOWED_ORIGINS
+              value: {{ join "," .Values.server.cors.allowedOrigins | quote }}
+            - name: HODEI_CORS_ALLOWED_METHODS
+              value: {{ join "," .Values.server.cors.allowedMethods | quote }}
+            - name: HODEI_CORS_ALLOWED_HEADERS
+              value: {{ join "," .Values.server.cors.allowedHeaders | quote }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: cache-data
+              mountPath: {{ .Values.cache.path }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: cache-data
+          {{- if .Values.persistence.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+          {{- else }}
+          persistentVolumeClaim:
+            claimName: {{ include "hodei-server.fullname" . }}-cache
+          {{- end }}
+        {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

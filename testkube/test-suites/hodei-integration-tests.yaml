@@ -1,0 +1,24 @@
+apiVersion: tests.testkube.io/v3
+kind: TestSuite
+metadata:
+  name: hodei-integration-tests
+  namespace: testkube
+  labels:
+    app: hodei-pipelines
+    suite: integration
+spec:
+  description: "Integration tests for Hodei Pipelines - Component interaction verification"
+  steps:
+    - execute:
+        - test: database-connectivity
+    - execute:
+        - test: nats-connectivity
+    - execute:
+        - test: server-health-check
+    - execute:
+        - test: worker-functionality-check
+    - execute:
+        - test: api-endpoints-validation
+  tags:
+    - integration
+    - full

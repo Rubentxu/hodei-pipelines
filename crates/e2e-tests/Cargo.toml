@@ -29,8 +29,8 @@ testcontainers = { workspace = true }
 wiremock = { workspace = true }
 dotenvy = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
-pretty_assertions = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+pretty_assertions = "1.4"
 
 # Workspace crates
 uuid = { workspace = true, features = ["v4"] }

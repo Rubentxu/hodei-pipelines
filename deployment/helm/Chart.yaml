@@ -1,0 +1,70 @@
+apiVersion: v2
+name: hodei-pipelines
+description: |
+  Hodei Pipelines - Distributed Job Orchestration Platform
+
+  This umbrella chart deploys the complete Hodei Pipelines platform including:
+  - Hodei Server (API & gRPC)
+  - PostgreSQL database
+  - NATS JetStream messaging
+  - HWP Agent workers
+  - Prometheus monitoring
+  - Grafana dashboards
+
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+home: https://github.com/Rubentxu/hodei-pipelines
+sources:
+  - https://github.com/Rubentxu/hodei-pipelines
+
+keywords:
+  - cicd
+  - distributed
+  - orchestration
+  - pipelines
+  - jobs
+  - rust
+
+maintainers:
+  - name: Hodei Team
+    email: team@hodei-pipelines.dev
+    url: https://hodei-pipelines.dev
+
+dependencies:
+  # PostgreSQL for persistence
+  - name: postgresql
+    version: "15.*"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+
+  # NATS JetStream for messaging
+  - name: nats
+    version: "1.*"
+    repository: "https://nats-io.github.io/k8s/helm/charts"
+    condition: nats.enabled
+
+  # Hodei Server - Main API service
+  - name: hodei-server
+    version: "0.1.0"
+    repository: "file://./charts/hodei-server"
+    condition: hodei-server.enabled
+
+  # HWP Agent - Worker nodes
+  - name: hwp-agent
+    version: "0.1.0"
+    repository: "file://./charts/hwp-agent"
+    condition: hwp-agent.enabled
+
+  # Prometheus for metrics
+  - name: kube-prometheus-stack
+    version: "55.*"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: prometheus.enabled
+
+  # Grafana for dashboards
+  - name: grafana
+    version: "7.*"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: grafana.enabled

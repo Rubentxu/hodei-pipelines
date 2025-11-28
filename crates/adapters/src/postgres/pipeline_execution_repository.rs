@@ -560,18 +560,3 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use sqlx::Connection;
-
-    #[tokio::test]
-    async fn test_repository_creation() {
-        // This is a basic compilation test
-        let _repo = PostgreSqlPipelineExecutionRepository {
-            pool: PgPool::connect("postgres://postgres:postgres@localhost:5432/test")
-                .await
-                .unwrap(),
-        };
-    }
-}

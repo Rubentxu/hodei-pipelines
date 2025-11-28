@@ -1,0 +1,51 @@
+name: Hodei Pipelines CI/CD with TestKube
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Kubernetes
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Install TestKube
+        run: |
+          curl -sL https://get.testkube.io | bash
+          export PATH=$PATH:/usr/local/bin/
+
+      - name: Setup TestKube
+        run: |
+          testkube set context k3d-testkube
+
+      - name: Deploy Tests
+        run: |
+          ./testkube/scripts/deploy-tests.sh
+
+      - name: Run Smoke Tests
+        run: |
+          ./testkube/scripts/run-tests.sh --suite hodei-smoke-tests
+        env:
+          NAMESPACE: testkube
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy to ArgoCD
+        run: |
+          ./deployment/scripts/ci-cd.sh deploy
+        env:
+          ARGO_SERVER: ${{ secrets.ARGO_SERVER }}
+          ARGO_TOKEN: ${{ secrets.ARGO_TOKEN }}

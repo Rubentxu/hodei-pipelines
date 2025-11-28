@@ -1,0 +1,4 @@
+test-executions/
+logs/
+*.log
+.DS_Store

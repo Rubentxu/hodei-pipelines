@@ -25,6 +25,9 @@ pub enum DomainError {
 
     #[error("timeout: {0}")]
     Timeout(String),
+
+    #[error("other error: {0}")]
+    Other(String),
 }
 
 impl DomainError {

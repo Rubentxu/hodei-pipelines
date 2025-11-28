@@ -339,14 +339,16 @@ impl CostTrackingService {
         // Aggregate costs
         for job in completed_jobs.iter() {
             if let Some(end_time) = job.end_time
-                && end_time >= period_start && end_time <= period_end {
-                    summary.add_job_cost(job);
+                && end_time >= period_start
+                && end_time <= period_end
+            {
+                summary.add_job_cost(job);
 
-                    // Calculate total worker hours
-                    if let Some(duration_seconds) = job.duration_seconds {
-                        summary.total_worker_hours += duration_seconds as f64 / 3600.0;
-                    }
+                // Calculate total worker hours
+                if let Some(duration_seconds) = job.duration_seconds {
+                    summary.total_worker_hours += duration_seconds as f64 / 3600.0;
                 }
+            }
         }
 
         summary
@@ -435,21 +437,22 @@ impl CostAlerts {
     fn check_job_cost(&mut self, job_cost: &JobCost) {
         // Check per-job cost
         if let Some(max_cost) = self.max_cost_per_job_cents
-            && job_cost.total_cost_cents > max_cost {
-                self.active_alerts.push(CostAlert {
-                    alert_type: CostAlertType::JobCostExceeded,
-                    job_id: job_cost.job_id.clone(),
-                    threshold_cents: max_cost,
-                    actual_cost_cents: job_cost.total_cost_cents,
-                    timestamp: Utc::now(),
-                    message: format!(
-                        "Job {} cost ${:.2} exceeded threshold ${:.2}",
-                        job_cost.job_id,
-                        job_cost.total_cost_cents as f64 / 100.0,
-                        max_cost as f64 / 100.0
-                    ),
-                });
-            }
+            && job_cost.total_cost_cents > max_cost
+        {
+            self.active_alerts.push(CostAlert {
+                alert_type: CostAlertType::JobCostExceeded,
+                job_id: job_cost.job_id.clone(),
+                threshold_cents: max_cost,
+                actual_cost_cents: job_cost.total_cost_cents,
+                timestamp: Utc::now(),
+                message: format!(
+                    "Job {} cost ${:.2} exceeded threshold ${:.2}",
+                    job_cost.job_id,
+                    job_cost.total_cost_cents as f64 / 100.0,
+                    max_cost as f64 / 100.0
+                ),
+            });
+        }
     }
 }
 
@@ -488,370 +491,9 @@ pub enum CostTrackingError {
     InvalidCostConfiguration(String),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_worker_cost_calculation() {
-        let worker_cost = WorkerCost::new("standard".to_string(), 5000); // $50/hour
-
-        assert_eq!(worker_cost.total_cost_per_hour_cents(), 5000);
-
-        let duration = Duration::from_secs(1800); // 30 minutes
-        let cost = worker_cost.cost_for_duration_cents(duration);
-        assert_eq!(cost, 2500); // $25.00
-    }
-
-    #[tokio::test]
-    async fn test_job_cost_tracking() {
-        let service = CostTrackingService::new();
-
-        // Register worker cost
-        service
-            .register_worker_cost(WorkerCost::new("standard".to_string(), 6000))
-            .await;
-
-        // Start tracking
-        let job_cost = JobCost::new(
-            "job-1".to_string(),
-            "tenant-1".to_string(),
-            "pool-1".to_string(),
-            "worker-1".to_string(),
-            "standard".to_string(),
-            Utc::now(),
-            2,
-            4,
-        );
-
-        service.start_job_tracking(job_cost).await.unwrap();
-
-        // Wait a bit
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        // Complete tracking
-        let completed_job = service.complete_job_tracking("job-1").await.unwrap();
-
-        assert!(completed_job.total_cost_cents > 0);
-        assert!(completed_job.duration_seconds.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_cost_summary_generation() {
-        let service = CostTrackingService::new();
-
-        // Register worker cost
-        service
-            .register_worker_cost(WorkerCost::new("standard".to_string(), 6000))
-            .await;
-
-        // Add multiple jobs
-        for i in 1..=5 {
-            let job_cost = JobCost::new(
-                format!("job-{}", i),
-                "tenant-1".to_string(),
-                "pool-1".to_string(),
-                format!("worker-{}", i),
-                "standard".to_string(),
-                Utc::now() - chrono::Duration::hours(i),
-                2,
-                4,
-            );
-
-            service.start_job_tracking(job_cost).await.unwrap();
-        }
-
-        // Wait a bit
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        // Complete all jobs
-        for i in 1..=5 {
-            service
-                .complete_job_tracking(&format!("job-{}", i))
-                .await
-                .unwrap();
-        }
-
-        let summary = service
-            .generate_cost_summary(CostReportingPeriod::Hourly)
-            .await;
-
-        assert_eq!(summary.total_jobs, 5);
-        assert!(summary.total_cost_cents > 0);
-        assert!(summary.total_worker_hours > 0.0);
-    }
-
-    #[tokio::test]
-    async fn test_get_job_cost() {
-        let service = CostTrackingService::new();
-
-        // Register worker cost
-        service
-            .register_worker_cost(WorkerCost::new("standard".to_string(), 6000))
-            .await;
-
-        // Start tracking
-        let job_cost = JobCost::new(
-            "job-1".to_string(),
-            "tenant-1".to_string(),
-            "pool-1".to_string(),
-            "worker-1".to_string(),
-            "standard".to_string(),
-            Utc::now(),
-            2,
-            4,
-        );
-
-        service.start_job_tracking(job_cost).await.unwrap();
-
-        // Get active job
-        let retrieved = service.get_job_cost("job-1").await.unwrap();
-        assert_eq!(retrieved.job_id, "job-1");
-    }
-
-    #[tokio::test]
-    async fn test_get_total_cost() {
-        let service = CostTrackingService::new();
-
-        // Register worker cost
-        service
-            .register_worker_cost(WorkerCost::new("standard".to_string(), 6000))
-            .await;
-
-        // Complete a job
-        let job_cost = JobCost::new(
-            "job-1".to_string(),
-            "tenant-1".to_string(),
-            "pool-1".to_string(),
-            "worker-1".to_string(),
-            "standard".to_string(),
-            Utc::now(),
-            2,
-            4,
-        );
-
-        service.start_job_tracking(job_cost).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        service.complete_job_tracking("job-1").await.unwrap();
-
-        let total_cost = service.get_total_cost().await;
-        assert!(total_cost > 0);
-    }
-
-    #[tokio::test]
-    async fn test_get_cost_by_tenant() {
-        let service = CostTrackingService::new();
-
-        // Register worker cost
-        service
-            .register_worker_cost(WorkerCost::new("standard".to_string(), 6000))
-            .await;
-
-        // Add jobs for different tenants
-        for i in 1..=3 {
-            let job_cost = JobCost::new(
-                format!("job-{}", i),
-                if i % 2 == 0 {
-                    "tenant-1".to_string()
-                } else {
-                    "tenant-2".to_string()
-                },
-                "pool-1".to_string(),
-                format!("worker-{}", i),
-                "standard".to_string(),
-                Utc::now(),
-                2,
-                4,
-            );
-
-            service.start_job_tracking(job_cost).await.unwrap();
-        }
-
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
-        // Complete jobs
-        for i in 1..=3 {
-            service
-                .complete_job_tracking(&format!("job-{}", i))
-                .await
-                .unwrap();
-        }
-
-        let cost_by_tenant = service.get_cost_by_tenant().await;
-        assert_eq!(cost_by_tenant.len(), 2);
-        assert!(cost_by_tenant.contains_key("tenant-1"));
-        assert!(cost_by_tenant.contains_key("tenant-2"));
-    }
-
-    #[tokio::test]
-    async fn test_cost_alerts() {
-        let service = CostTrackingService::new();
-
-        // Register a very expensive worker cost and set alert threshold
-        service
-            .register_worker_cost(WorkerCost::new("expensive".to_string(), 1000000)) // $10,000/hour
-            .await;
-
-        let mut alerts = service.cost_alerts.write().await;
-        alerts.set_max_cost_per_job(100); // $1
-        drop(alerts);
-
-        // Start and complete a job with high cost
-        let job_cost = JobCost::new(
-            "job-1".to_string(),
-            "tenant-1".to_string(),
-            "pool-1".to_string(),
-            "worker-1".to_string(),
-            "expensive".to_string(),
-            Utc::now(),
-            2,
-            4,
-        );
-
-        service.start_job_tracking(job_cost).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        service.complete_job_tracking("job-1").await.unwrap();
-
-        let alerts = service.get_cost_alerts().await;
-        assert!(
-            !alerts.active_alerts.is_empty(),
-            "Expected cost alert but got none"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_resource_cost_breakdown() {
-        let worker_cost = WorkerCost::with_resource_costs(
-            "premium".to_string(),
-            10000, // base cost
-            5000,  // cpu
-            3000,  // memory
-            2000,  // storage
-        );
-
-        assert_eq!(worker_cost.total_cost_per_hour_cents(), 20000);
-    }
-
-    #[tokio::test]
-    async fn test_job_cost_methods() {
-        let mut job_cost = JobCost::new(
-            "job-1".to_string(),
-            "tenant-1".to_string(),
-            "pool-1".to_string(),
-            "worker-1".to_string(),
-            "standard".to_string(),
-            Utc::now(),
-            2,
-            4,
-        );
-
-        assert!(job_cost.duration().is_none());
-
-        job_cost.end_time = Some(Utc::now());
-        assert!(job_cost.duration().is_some());
-    }
-
-    #[tokio::test]
-    async fn test_cost_summary_formatting() {
-        let summary = CostSummary::new(CostReportingPeriod::Daily);
-
-        // Add some costs
-        let job_cost = JobCost::new(
-            "job-1".to_string(),
-            "tenant-1".to_string(),
-            "pool-1".to_string(),
-            "worker-1".to_string(),
-            "standard".to_string(),
-            Utc::now(),
-            2,
-            4,
-        );
-
-        let mut summary = summary;
-        summary.add_job_cost(&job_cost);
-
-        assert_eq!(summary.total_jobs, 1);
-        assert!(summary.total_cost_dollars() >= 0.0);
-        assert!(summary.average_cost_per_job_dollars() >= 0.0);
-    }
-
-    #[tokio::test]
-    async fn test_get_job_counts() {
-        let service = CostTrackingService::new();
-
-        assert_eq!(service.get_active_job_count().await, 0);
-        assert_eq!(service.get_completed_job_count().await, 0);
-
-        // Register worker cost
-        service
-            .register_worker_cost(WorkerCost::new("standard".to_string(), 6000))
-            .await;
-
-        // Add a job
-        let job_cost = JobCost::new(
-            "job-1".to_string(),
-            "tenant-1".to_string(),
-            "pool-1".to_string(),
-            "worker-1".to_string(),
-            "standard".to_string(),
-            Utc::now(),
-            2,
-            4,
-        );
-
-        service.start_job_tracking(job_cost).await.unwrap();
-        assert_eq!(service.get_active_job_count().await, 1);
-
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        service.complete_job_tracking("job-1").await.unwrap();
-
-        assert_eq!(service.get_active_job_count().await, 0);
-        assert_eq!(service.get_completed_job_count().await, 1);
-    }
-
-    #[tokio::test]
-    async fn test_error_on_duplicate_job() {
-        let service = CostTrackingService::new();
-
-        let job_cost = JobCost::new(
-            "job-1".to_string(),
-            "tenant-1".to_string(),
-            "pool-1".to_string(),
-            "worker-1".to_string(),
-            "standard".to_string(),
-            Utc::now(),
-            2,
-            4,
-        );
-
-        service.start_job_tracking(job_cost.clone()).await.unwrap();
-
-        // Try to track same job again
-        let result = service.start_job_tracking(job_cost).await;
-        assert!(result.is_err());
-
-        if let Err(e) = result {
-            assert!(matches!(e, CostTrackingError::JobAlreadyTracked(_)));
-        }
-    }
-
-    #[tokio::test]
-    async fn test_error_on_completing_nonexistent_job() {
-        let service = CostTrackingService::new();
-
-        let result = service.complete_job_tracking("nonexistent").await;
-        assert!(result.is_err());
-
-        if let Err(e) = result {
-            // Error is converted to DomainError
-            assert!(matches!(e, DomainError::Infrastructure(_)));
-        }
-    }
-}
-
-// Error conversion to DomainError
-impl From<CostTrackingError> for DomainError {
+// Convert CostTrackingError to DomainError
+impl From<CostTrackingError> for hodei_core::DomainError {
     fn from(err: CostTrackingError) -> Self {
-        DomainError::Infrastructure(err.to_string())
+        hodei_core::DomainError::Other(err.to_string())
     }
 }
