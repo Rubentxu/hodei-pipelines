@@ -3904,9 +3904,7 @@ mod tests {
 
         async fn get_worker(&self, id: &WorkerId) -> Result<Option<Worker>> {
             if self.should_error {
-                return Err(
-                    hodei_ports::WorkerRepositoryError::Database("Mock error".to_string()).into(),
-                );
+                return Err(DomainError::Infrastructure("Mock error".to_string()));
             }
             Ok(self.workers.iter().find(|w| w.id == *id).cloned())
         }
@@ -5351,9 +5349,7 @@ mod health_check_tests {
 
         async fn get_worker(&self, id: &WorkerId) -> Result<Option<Worker>> {
             if self.should_error {
-                return Err(
-                    hodei_ports::WorkerRepositoryError::Database("Mock error".to_string()).into(),
-                );
+                return Err(DomainError::Infrastructure("Mock error".to_string()));
             }
             Ok(self.workers.iter().find(|w| w.id == *id).cloned())
         }
