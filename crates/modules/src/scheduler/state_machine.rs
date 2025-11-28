@@ -5,7 +5,7 @@
 //! flexibility in the scheduling process.
 
 use crate::scheduler::{SchedulerModule, Worker, WorkerNode};
-use hodei_core::{Job, Result};
+use hodei_core::{Job, Result, job::JobState};
 
 /// Scheduling state to eliminate temporal coupling
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,12 +120,13 @@ impl SchedulingStateMachine {
         self.validate_state(&[SchedulingState::Matching])?;
 
         if let Some(job) = &self.context.job
-            && !self.context.eligible_workers.is_empty() {
-                let selected_worker = scheduler
-                    .select_best_worker(&self.context.eligible_workers, job)
-                    .await?;
-                self.context.selected_worker = Some(selected_worker);
-            }
+            && !self.context.eligible_workers.is_empty()
+        {
+            let selected_worker = scheduler
+                .select_best_worker(&self.context.eligible_workers, job)
+                .await?;
+            self.context.selected_worker = Some(selected_worker);
+        }
 
         self.current_state = SchedulingState::Optimizing;
         Ok(())

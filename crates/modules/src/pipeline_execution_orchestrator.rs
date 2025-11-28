@@ -6,10 +6,9 @@
 use hodei_core::{
     DomainError, Result,
     job::JobState,
-    pipeline::{Pipeline, PipelineId, PipelineStepId},
+    pipeline::{Pipeline, PipelineId, PipelineStep, PipelineStepId},
     pipeline_execution::{
-        ExecutionId, ExecutionStatus, PipelineExecution,
-        StepExecutionStatus,
+        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionStatus,
     },
 };
 use hodei_ports::{EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository};
@@ -279,10 +278,11 @@ where
             // Check for cancellation
             let mut receiver = cancellation_receiver.lock().await;
             if let Ok(exec_id) = receiver.try_recv()
-                && exec_id == execution_id {
-                    cancelled = true;
-                    break 'main_loop;
-                }
+                && exec_id == execution_id
+            {
+                cancelled = true;
+                break 'main_loop;
+            }
             drop(receiver);
 
             // Find next ready step
@@ -377,10 +377,11 @@ where
             // Check if execution was cancelled
             let mut receiver = cancellation_receiver.lock().await;
             if let Ok(exec_id) = receiver.try_recv()
-                && exec_id == execution_id {
-                    cancelled = true;
-                    break 'main_loop;
-                }
+                && exec_id == execution_id
+            {
+                cancelled = true;
+                break 'main_loop;
+            }
             drop(receiver);
         }
 
@@ -484,9 +485,10 @@ where
         attempts += 1;
 
         if let Some(job) = job_repo.get_job(&job_id).await.ok().flatten()
-            && job.state.is_terminal() {
-                return Ok(job.state);
-            }
+            && job.state.is_terminal()
+        {
+            return Ok(job.state);
+        }
 
         if attempts >= max_attempts {
             return Err(DomainError::Timeout(format!(
@@ -531,7 +533,7 @@ mod tests {
     impl PipelineExecutionRepository for MockExecutionRepository {
         async fn save_execution(&self, execution: &PipelineExecution) -> Result<()> {
             let mut executions = self.executions.lock().unwrap();
-            executions.insert(execution.id.clone(), execution.clone());
+            executions.insert(execution.id, execution.clone());
             Ok(())
         }
 

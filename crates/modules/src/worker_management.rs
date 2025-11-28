@@ -4,7 +4,7 @@
 //! dynamic workers across different infrastructure providers.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
@@ -1252,12 +1252,13 @@ where
         if let HealthCheckType::Tcp { ref host, ref port } = check_type {
             // Validate that the port is parseable from metadata if provided
             if let Some(port_str) = worker.metadata.get("healthcheck_port")
-                && port_str.parse::<u16>().is_err() {
-                    return Err(DomainError::Infrastructure(format!(
-                        "Invalid health check port: {}",
-                        port_str
-                    )));
-                }
+                && port_str.parse::<u16>().is_err()
+            {
+                return Err(DomainError::Infrastructure(format!(
+                    "Invalid health check port: {}",
+                    port_str
+                )));
+            }
         }
 
         // Execute health check
@@ -1420,12 +1421,13 @@ where
         // Check worker's metadata for health check configuration
         if let Some(host) = worker.metadata.get("healthcheck_host")
             && let Some(port_str) = worker.metadata.get("healthcheck_port")
-                && let Ok(port) = port_str.parse::<u16>() {
-                    return HealthCheckType::Tcp {
-                        host: host.clone(),
-                        port,
-                    };
-                }
+            && let Ok(port) = port_str.parse::<u16>()
+        {
+            return HealthCheckType::Tcp {
+                host: host.clone(),
+                port,
+            };
+        }
 
         // Check if there's a gRPC endpoint configured
         if let Some(endpoint) = worker.metadata.get("grpc_endpoint") {
@@ -3082,9 +3084,10 @@ where
         // Check cooldown period
         let state_guard = self.state.blocking_read();
         if let Some(last_op) = state_guard.last_scaling_operation
-            && last_op.elapsed() < self.config.cooldown_period {
-                return false;
-            }
+            && last_op.elapsed() < self.config.cooldown_period
+        {
+            return false;
+        }
 
         // For now, don't terminate workers (simplified implementation)
         false
