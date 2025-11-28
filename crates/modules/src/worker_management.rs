@@ -4,7 +4,7 @@
 //! dynamic workers across different infrastructure providers.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
