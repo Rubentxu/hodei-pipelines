@@ -10,6 +10,10 @@ use hodei_adapters::redb::RedbJobRepository;
 use hodei_core::job::{Job, JobId, JobSpec, ResourceQuota};
 use hodei_ports::JobRepository;
 
+fn init_tracing() {
+    let _ = tracing_subscriber::fmt::try_init();
+}
+
 /// Helper to create a temporary Redb repository for testing
 struct RedbTestRepo {
     temp_dir: tempfile::TempDir,
@@ -37,7 +41,7 @@ impl RedbTestRepo {
 
 #[tokio::test]
 async fn test_redb_job_save_and_retrieve() {
-    tracing_subscriber::fmt::init();
+    init_tracing();
 
     info!("🚀 Starting Redb Job Repository Integration Test");
 
@@ -87,7 +91,7 @@ async fn test_redb_job_save_and_retrieve() {
 
 #[tokio::test]
 async fn test_redb_job_compare_and_swap() {
-    tracing_subscriber::fmt::init();
+    init_tracing();
 
     info!("🚀 Testing Redb compare-and-swap operations");
 
@@ -138,7 +142,7 @@ async fn test_redb_job_compare_and_swap() {
 
 #[tokio::test]
 async fn test_redb_job_deletion() {
-    tracing_subscriber::fmt::init();
+    init_tracing();
 
     info!("🚀 Testing Redb job deletion");
 
@@ -180,7 +184,7 @@ async fn test_redb_job_deletion() {
 
 #[tokio::test]
 async fn test_redb_pending_and_running_jobs() {
-    tracing_subscriber::fmt::init();
+    init_tracing();
 
     info!("🚀 Testing Redb pending and running jobs filtering");
 
