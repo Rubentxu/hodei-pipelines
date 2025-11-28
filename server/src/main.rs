@@ -1,42 +1,73 @@
-//! Hodei Pipelines Server - Minimal Implementation
+//! Hodei Pipelines Server - Production Bootstrap
 //!
 
 use axum::{Router, routing::get};
-use tracing::info;
+use tracing::{info, instrument};
+
+mod bootstrap;
+
+use crate::bootstrap::{initialize_server, log_config_summary};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     info!("🚀 Starting Hodei Pipelines Server");
-    info!("📚 API Documentation: http://localhost:8080/api/docs");
-    info!("🔗 OpenAPI Spec: http://localhost:8080/api/openapi.json");
+    info!("========================================");
 
-    let port = std::env::var("HODEI_PORT")
-        .unwrap_or_else(|_| "8080".to_string())
-        .parse::<u16>()?;
+    // Initialize all server components
+    let server_components = initialize_server().await.map_err(|e| {
+        tracing::error!("❌ Failed to initialize server: {}", e);
+        e
+    })?;
 
-    // TODO: Implement with PostgreSQL repositories
-    info!("⚠️  Server initialized - repositories not yet configured");
+    // Log configuration summary
+    log_config_summary(&server_components.config);
+
+    info!("========================================");
+    info!("🌐 Setting up HTTP routes...");
 
     // Set up HTTP server routes
-    info!("🌐 Setting up HTTP routes");
+    let app = Router::new()
+        .route("/api/health", get(health_check))
+        .route("/api/server/status", get(server_status));
 
-    let app = Router::new().route("/api/health", get(health_check)).route(
-        "/api/docs",
-        get(|| async { "API Documentation - Under Development" }),
-    );
+    let port = server_components.config.server.port;
+    let host = server_components.config.server.host.clone();
 
     // Start server
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-    info!("✅ Server listening on http://0.0.0.0:{}", port);
-    info!("📖 API Documentation: http://0.0.0.0:{}/api/docs", port);
+    let listener = tokio::net::TcpListener::bind(format!("{}:{}", host, port)).await?;
+    info!("✅ Server listening on http://{}:{}", host, port);
+    info!("📚 API Documentation: http://{}:{}/api/docs", host, port);
+    info!("💡 Health Check: http://{}:{}/api/health", host, port);
+    info!(
+        "🔍 Server Status: http://{}:{}/api/server/status",
+        host, port
+    );
 
     axum::serve(listener, app).await?;
 
     Ok(())
 }
 
+/// Health check endpoint
+#[instrument]
 async fn health_check() -> String {
+    info!("🔍 Health check requested");
     "ok".to_string()
+}
+
+/// Server status endpoint with detailed information
+#[instrument]
+async fn server_status() -> axum::Json<serde_json::Value> {
+    info!("🔍 Server status requested");
+
+    let status = serde_json::json!({
+        "status": "running",
+        "version": env!("CARGO_PKG_VERSION"),
+        "environment": "production",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+    });
+
+    axum::Json(status)
 }
