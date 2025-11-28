@@ -133,9 +133,9 @@ pub trait EventSubscriber: Send + Sync {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use hodei_core::{JobId, JobSpec, PipelineId, ResourceQuota, WorkerId};
+    use hodei_core::{JobId, JobSpec, ResourceQuota, WorkerId};
     use std::collections::HashMap;
-    use std::sync::Arc;
+    
 
     #[tokio::test]
     async fn test_event_publisher_trait_exists() {

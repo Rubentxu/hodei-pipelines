@@ -3,11 +3,10 @@
 //! This module provides structured error types and mappings for gRPC services,
 //! ensuring consistent error handling across the system.
 
-use chrono::Utc;
 use hodei_core::{JobId, WorkerId};
 use hodei_ports::scheduler_port::SchedulerError;
 use tonic::Status;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
 /// Result type alias for gRPC operations
 pub type GrpcResult<T> = std::result::Result<T, GrpcError>;

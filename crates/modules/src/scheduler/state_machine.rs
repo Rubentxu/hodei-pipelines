@@ -4,11 +4,8 @@
 //! transitions explicit and validated, allowing for better testability and
 //! flexibility in the scheduling process.
 
-use crate::scheduler::{
-    SchedulerError, SchedulerModule, Worker,
-    WorkerNode,
-};
-use hodei_core::Job;
+use crate::scheduler::{SchedulerError, SchedulerModule, Worker, WorkerNode};
+use hodei_core::{Job, JobState, Result};
 
 /// Scheduling state to eliminate temporal coupling
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,9 +65,14 @@ impl SchedulingStateMachine {
     pub async fn collect<R, E, W, WR>(
         &mut self,
         scheduler: &SchedulerModule<R, E, W, WR>,
-    ) -> Result<(), SchedulerError>
+    ) -> Result<()>
     where
-        R: hodei_ports::JobRepository + Send + Sync + 'static,
+        R: hodei_ports::JobRepository
+            + hodei_ports::PipelineRepository
+            + hodei_ports::RoleRepository
+            + Send
+            + Sync
+            + 'static,
         E: hodei_ports::EventPublisher + Send + Sync + 'static,
         W: hodei_ports::WorkerClient + Send + Sync + 'static,
         WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
@@ -97,9 +99,14 @@ impl SchedulingStateMachine {
     pub async fn match_jobs<R, E, W, WR>(
         &mut self,
         scheduler: &SchedulerModule<R, E, W, WR>,
-    ) -> Result<(), SchedulerError>
+    ) -> Result<()>
     where
-        R: hodei_ports::JobRepository + Send + Sync + 'static,
+        R: hodei_ports::JobRepository
+            + hodei_ports::PipelineRepository
+            + hodei_ports::RoleRepository
+            + Send
+            + Sync
+            + 'static,
         E: hodei_ports::EventPublisher + Send + Sync + 'static,
         W: hodei_ports::WorkerClient + Send + Sync + 'static,
         WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
@@ -123,9 +130,14 @@ impl SchedulingStateMachine {
     pub async fn optimize<R, E, W, WR>(
         &mut self,
         scheduler: &SchedulerModule<R, E, W, WR>,
-    ) -> Result<(), SchedulerError>
+    ) -> Result<()>
     where
-        R: hodei_ports::JobRepository + Send + Sync + 'static,
+        R: hodei_ports::JobRepository
+            + hodei_ports::PipelineRepository
+            + hodei_ports::RoleRepository
+            + Send
+            + Sync
+            + 'static,
         E: hodei_ports::EventPublisher + Send + Sync + 'static,
         W: hodei_ports::WorkerClient + Send + Sync + 'static,
         WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
@@ -143,9 +155,14 @@ impl SchedulingStateMachine {
     pub async fn commit<R, E, W, WR>(
         &mut self,
         scheduler: &SchedulerModule<R, E, W, WR>,
-    ) -> Result<(), SchedulerError>
+    ) -> Result<()>
     where
-        R: hodei_ports::JobRepository + Send + Sync + 'static,
+        R: hodei_ports::JobRepository
+            + hodei_ports::PipelineRepository
+            + hodei_ports::RoleRepository
+            + Send
+            + Sync
+            + 'static,
         E: hodei_ports::EventPublisher + Send + Sync + 'static,
         W: hodei_ports::WorkerClient + Send + Sync + 'static,
         WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
@@ -164,21 +181,25 @@ impl SchedulingStateMachine {
                         hodei_core::JobState::SCHEDULED,
                     )
                     .await
-                    .map_err(|e| SchedulerError::JobRepository(e.to_string()))?;
+                    .map_err(|e| hodei_core::DomainError::Infrastructure(e.to_string()))?;
 
                 // Assign job to worker
                 scheduler
                     .worker_client
                     .assign_job(&worker.id, &job.id, &job.spec)
                     .await
-                    .map_err(|e| SchedulerError::WorkerClient(e.to_string()))?;
+                    .map_err(|e| hodei_core::DomainError::Infrastructure(e.to_string()))?;
 
                 self.current_state = SchedulingState::Completed;
             } else {
-                return Err(SchedulerError::NoEligibleWorkers);
+                return Err(hodei_core::DomainError::Infrastructure(
+                    "No eligible workers found".to_string(),
+                ));
             }
         } else {
-            return Err(SchedulerError::NoEligibleWorkers);
+            return Err(hodei_core::DomainError::Infrastructure(
+                "No eligible workers found".to_string(),
+            ));
         }
 
         Ok(())
@@ -188,9 +209,14 @@ impl SchedulingStateMachine {
     pub async fn complete<R, E, W, WR>(
         &mut self,
         scheduler: &SchedulerModule<R, E, W, WR>,
-    ) -> Result<(), SchedulerError>
+    ) -> Result<()>
     where
-        R: hodei_ports::JobRepository + Send + Sync + 'static,
+        R: hodei_ports::JobRepository
+            + hodei_ports::PipelineRepository
+            + hodei_ports::RoleRepository
+            + Send
+            + Sync
+            + 'static,
         E: hodei_ports::EventPublisher + Send + Sync + 'static,
         W: hodei_ports::WorkerClient + Send + Sync + 'static,
         WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
@@ -206,16 +232,21 @@ impl SchedulingStateMachine {
     pub async fn discover_matches<R, E, W, WR>(
         &mut self,
         scheduler: &SchedulerModule<R, E, W, WR>,
-    ) -> Result<Option<Worker>, SchedulerError>
+    ) -> Result<Option<Worker>>
     where
-        R: hodei_ports::JobRepository + Send + Sync + 'static,
+        R: hodei_ports::JobRepository
+            + hodei_ports::PipelineRepository
+            + hodei_ports::RoleRepository
+            + Send
+            + Sync
+            + 'static,
         E: hodei_ports::EventPublisher + Send + Sync + 'static,
         W: hodei_ports::WorkerClient + Send + Sync + 'static,
         WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
     {
         // Can only match if we have a job and are in valid state
         if self.context.job.is_none() {
-            return Err(SchedulerError::Validation(
+            return Err(hodei_core::DomainError::Validation(
                 "No job set in context".to_string(),
             ));
         }
@@ -240,9 +271,9 @@ impl SchedulingStateMachine {
         Ok(self.context.selected_worker.clone())
     }
 
-    fn validate_state(&self, allowed_states: &[SchedulingState]) -> Result<(), SchedulerError> {
+    fn validate_state(&self, allowed_states: &[SchedulingState]) -> Result<()> {
         if !allowed_states.contains(&self.current_state) {
-            return Err(SchedulerError::Validation(format!(
+            return Err(hodei_core::DomainError::Validation(format!(
                 "Invalid state transition from {:?} to allowed states {:?}",
                 self.current_state, allowed_states
             )));
@@ -272,9 +303,10 @@ impl Default for SchedulingStateMachine {
 mod tests {
     use super::*;
     use crate::scheduler::{SchedulerBuilder, SchedulerConfig};
-    use hodei_core::Worker;
-    use hodei_core::{Job, JobId, JobSpec, ResourceQuota};
-    use hodei_core::{WorkerCapabilities, WorkerId, WorkerStatus};
+    use hodei_core::{
+        Job, JobId, JobSpec, ResourceQuota, Result, Worker, WorkerCapabilities, WorkerId,
+        WorkerStatus,
+    };
     use hodei_ports::{
         EventPublisher, JobRepository, JobRepositoryError, WorkerClient, WorkerRepository,
     };
@@ -292,23 +324,23 @@ mod tests {
 
     #[async_trait::async_trait]
     impl JobRepository for MockJobRepository {
-        async fn save_job(&self, _job: &Job) -> Result<(), JobRepositoryError> {
+        async fn save_job(&self, _job: &Job) -> Result<()> {
             Ok(())
         }
 
-        async fn get_job(&self, _id: &JobId) -> Result<Option<Job>, JobRepositoryError> {
+        async fn get_job(&self, _id: &JobId) -> Result<Option<Job>> {
             Ok(None)
         }
 
-        async fn get_pending_jobs(&self) -> Result<Vec<Job>, JobRepositoryError> {
+        async fn get_pending_jobs(&self) -> Result<Vec<Job>> {
             Ok(vec![])
         }
 
-        async fn get_running_jobs(&self) -> Result<Vec<Job>, JobRepositoryError> {
+        async fn get_running_jobs(&self) -> Result<Vec<Job>> {
             Ok(vec![])
         }
 
-        async fn delete_job(&self, _id: &JobId) -> Result<(), JobRepositoryError> {
+        async fn delete_job(&self, _id: &JobId) -> Result<()> {
             Ok(())
         }
 
@@ -317,15 +349,11 @@ mod tests {
             _id: &JobId,
             _expected: &str,
             _new: &str,
-        ) -> Result<bool, JobRepositoryError> {
+        ) -> Result<bool> {
             Ok(true)
         }
 
-        async fn assign_worker(
-            &self,
-            _job_id: &JobId,
-            _worker_id: &WorkerId,
-        ) -> Result<(), JobRepositoryError> {
+        async fn assign_worker(&self, _job_id: &JobId, _worker_id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
@@ -333,7 +361,7 @@ mod tests {
             &self,
             _job_id: &JobId,
             _start_time: chrono::DateTime<chrono::Utc>,
-        ) -> Result<(), JobRepositoryError> {
+        ) -> Result<()> {
             Ok(())
         }
 
@@ -341,25 +369,30 @@ mod tests {
             &self,
             _job_id: &JobId,
             _finish_time: chrono::DateTime<chrono::Utc>,
-        ) -> Result<(), JobRepositoryError> {
+        ) -> Result<()> {
             Ok(())
         }
 
-        async fn set_job_duration(
-            &self,
-            _job_id: &JobId,
-            _duration_ms: i64,
-        ) -> Result<(), JobRepositoryError> {
+        async fn set_job_duration(&self, _job_id: &JobId, _duration_ms: i64) -> Result<()> {
             Ok(())
+        }
+
+        async fn create_job(&self, _job_spec: JobSpec) -> Result<JobId> {
+            Ok(JobId::new())
+        }
+
+        async fn update_job_state(&self, _job_id: &JobId, _state: JobState) -> Result<()> {
+            Ok(())
+        }
+
+        async fn list_jobs(&self) -> Result<Vec<Job>> {
+            Ok(vec![])
         }
     }
 
     #[async_trait::async_trait]
     impl EventPublisher for MockEventBus {
-        async fn publish(
-            &self,
-            _event: hodei_ports::SystemEvent,
-        ) -> Result<(), hodei_ports::EventBusError> {
+        async fn publish(&self, _event: hodei_ports::SystemEvent) -> Result<()> {
             Ok(())
         }
     }
@@ -371,22 +404,15 @@ mod tests {
             _worker_id: &WorkerId,
             _job_id: &JobId,
             _job_spec: &JobSpec,
-        ) -> Result<(), hodei_ports::WorkerClientError> {
+        ) -> Result<()> {
             Ok(())
         }
 
-        async fn cancel_job(
-            &self,
-            _worker_id: &WorkerId,
-            _job_id: &JobId,
-        ) -> Result<(), hodei_ports::WorkerClientError> {
+        async fn cancel_job(&self, _worker_id: &WorkerId, _job_id: &JobId) -> Result<()> {
             Ok(())
         }
 
-        async fn get_worker_status(
-            &self,
-            _worker_id: &WorkerId,
-        ) -> Result<WorkerStatus, hodei_ports::WorkerClientError> {
+        async fn get_worker_status(&self, _worker_id: &WorkerId) -> Result<WorkerStatus> {
             Ok(WorkerStatus {
                 worker_id: WorkerId::new(),
                 status: "IDLE".to_string(),
@@ -395,53 +421,46 @@ mod tests {
             })
         }
 
-        async fn send_heartbeat(
-            &self,
-            _worker_id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerClientError> {
+        async fn send_heartbeat(&self, _worker_id: &WorkerId) -> Result<()> {
             Ok(())
         }
     }
 
     #[async_trait::async_trait]
     impl WorkerRepository for MockWorkerRepository {
-        async fn save_worker(
-            &self,
-            _worker: &Worker,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn save_worker(&self, _worker: &Worker) -> Result<()> {
             Ok(())
         }
 
-        async fn get_worker(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_worker(&self, _id: &WorkerId) -> Result<Option<Worker>> {
             Ok(None)
         }
 
-        async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_all_workers(&self) -> Result<Vec<Worker>> {
             Ok(vec![])
         }
 
-        async fn delete_worker(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn delete_worker(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
-        async fn update_last_seen(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn update_last_seen(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
         async fn find_stale_workers(
             &self,
             _threshold_duration: std::time::Duration,
-        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        ) -> Result<Vec<Worker>> {
             Ok(vec![])
+        }
+
+        async fn update_worker_status(
+            &self,
+            _id: &WorkerId,
+            _status: hodei_core::WorkerStatus,
+        ) -> Result<()> {
+            Ok(())
         }
     }
 

@@ -7,12 +7,10 @@ use hodei_core::{
     Result,
     pipeline::PipelineStepId,
     pipeline_execution::{
-        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionId,
+        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution,
         StepExecutionStatus,
     },
 };
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Repository error types
 #[derive(thiserror::Error, Debug)]

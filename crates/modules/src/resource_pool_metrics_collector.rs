@@ -5,6 +5,7 @@
 //! and JSON APIs.
 
 use chrono::{DateTime, Utc};
+use hodei_core::{DomainError, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -155,20 +156,20 @@ pub struct AggregatedPoolMetrics {
 /// Metrics store trait
 #[async_trait::async_trait]
 pub trait MetricsStore: Send + Sync {
-    async fn store_metrics(&self, metrics: &PoolMetrics) -> Result<(), MetricsError>;
+    async fn store_metrics(&self, metrics: &PoolMetrics) -> Result<()>;
     async fn get_metrics(
         &self,
         pool_id: &PoolId,
         start: &DateTime<Utc>,
         end: &DateTime<Utc>,
-    ) -> Result<Vec<PoolMetrics>, MetricsError>;
+    ) -> Result<Vec<PoolMetrics>>;
     async fn get_aggregated_metrics(
         &self,
         pool_id: &PoolId,
         window: AggregationWindow,
         start: &DateTime<Utc>,
         end: &DateTime<Utc>,
-    ) -> Result<Vec<AggregatedPoolMetrics>, MetricsError>;
+    ) -> Result<Vec<AggregatedPoolMetrics>>;
 }
 
 /// In-memory metrics store implementation
@@ -199,7 +200,7 @@ impl InMemoryMetricsStore {
 
 #[async_trait::async_trait]
 impl MetricsStore for InMemoryMetricsStore {
-    async fn store_metrics(&self, metrics: &PoolMetrics) -> Result<(), MetricsError> {
+    async fn store_metrics(&self, metrics: &PoolMetrics) -> Result<()> {
         let mut store = self.metrics.write().await;
         let pool_metrics = store
             .entry(metrics.pool_id.clone())
@@ -221,7 +222,7 @@ impl MetricsStore for InMemoryMetricsStore {
         pool_id: &PoolId,
         start: &DateTime<Utc>,
         end: &DateTime<Utc>,
-    ) -> Result<Vec<PoolMetrics>, MetricsError> {
+    ) -> Result<Vec<PoolMetrics>> {
         let store = self.metrics.read().await;
         let metrics = store.get(pool_id).cloned().unwrap_or_default();
 
@@ -239,7 +240,7 @@ impl MetricsStore for InMemoryMetricsStore {
         window: AggregationWindow,
         start: &DateTime<Utc>,
         end: &DateTime<Utc>,
-    ) -> Result<Vec<AggregatedPoolMetrics>, MetricsError> {
+    ) -> Result<Vec<AggregatedPoolMetrics>> {
         // Simplified aggregation - in production would use proper time-series aggregation
         let metrics = self.get_metrics(pool_id, start, end).await?;
 
@@ -303,11 +304,11 @@ pub struct PrometheusMetricsExporter {
 }
 
 impl PrometheusMetricsExporter {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn new() -> Result<Self> {
         Ok(Self { _enabled: false })
     }
 
-    pub async fn export(&self, _metrics: &PoolMetrics) -> Result<(), MetricsError> {
+    pub async fn export(&self, _metrics: &PoolMetrics) -> Result<()> {
         // Prometheus export disabled - enable with feature flag
         Ok(())
     }
@@ -371,11 +372,10 @@ impl ResourcePoolMetricsCollector {
     async fn collect_pool_metrics(
         pool_id: &PoolId,
         pool: &dyn ResourcePool,
-    ) -> Result<PoolMetrics, MetricsError> {
-        let status = pool
-            .status()
-            .await
-            .map_err(|e| MetricsError::CollectionFailed(pool_id.clone(), e.to_string()))?;
+    ) -> Result<PoolMetrics> {
+        let status = pool.status().await.map_err(|e| {
+            DomainError::Infrastructure(format!("Collection failed for pool {}: {}", pool_id, e))
+        })?;
 
         // Generate per-tenant metrics (in real implementation, would come from multi-tenancy system)
         let per_tenant_metrics = vec![
@@ -466,10 +466,7 @@ impl ResourcePoolMetricsCollector {
     }
 
     /// Get current metrics for a pool
-    pub async fn get_current_metrics(
-        &self,
-        pool_id: &PoolId,
-    ) -> Result<Option<PoolMetrics>, MetricsError> {
+    pub async fn get_current_metrics(&self, pool_id: &PoolId) -> Result<Option<PoolMetrics>> {
         let pools = self.pools.read().await;
         if let Some(pool) = pools.get(pool_id) {
             let metrics = Self::collect_pool_metrics(pool_id, pool.as_ref()).await?;
@@ -489,7 +486,7 @@ impl ResourcePoolMetricsCollector {
         pool_id: &PoolId,
         start: &DateTime<Utc>,
         end: &DateTime<Utc>,
-    ) -> Result<Vec<PoolMetrics>, MetricsError> {
+    ) -> Result<Vec<PoolMetrics>> {
         self.metrics_store.get_metrics(pool_id, start, end).await
     }
 
@@ -500,7 +497,7 @@ impl ResourcePoolMetricsCollector {
         window: AggregationWindow,
         start: &DateTime<Utc>,
         end: &DateTime<Utc>,
-    ) -> Result<Vec<AggregatedPoolMetrics>, MetricsError> {
+    ) -> Result<Vec<AggregatedPoolMetrics>> {
         self.metrics_store
             .get_aggregated_metrics(pool_id, window, start, end)
             .await
@@ -511,11 +508,11 @@ impl ResourcePoolMetricsCollector {
 mod tests {
     use super::*;
     use hodei_core::WorkerId;
+    use hodei_core::{ResourceQuota, WorkerCapabilities};
     use hodei_ports::{
         AllocationStatus, ResourceAllocation, ResourceAllocationRequest, ResourcePool,
         ResourcePoolConfig, ResourcePoolStatus, ResourcePoolType,
     };
-    use hodei_core::{ResourceQuota, WorkerCapabilities};
     use std::collections::HashMap;
 
     // Mock ResourcePool for testing
@@ -549,7 +546,7 @@ mod tests {
             &self.config
         }
 
-        async fn status(&self) -> Result<ResourcePoolStatus, String> {
+        async fn status(&self) -> std::result::Result<ResourcePoolStatus, String> {
             Ok(ResourcePoolStatus {
                 name: self.pool_id.clone(),
                 pool_type: ResourcePoolType::Docker,
@@ -563,7 +560,7 @@ mod tests {
         async fn allocate_resources(
             &mut self,
             _request: ResourceAllocationRequest,
-        ) -> Result<ResourceAllocation, String> {
+        ) -> std::result::Result<ResourceAllocation, String> {
             let worker_id = WorkerId::new();
             Ok(ResourceAllocation {
                 request_id: "test-request".to_string(),
@@ -587,19 +584,22 @@ mod tests {
             })
         }
 
-        async fn release_resources(&mut self, _allocation_id: &str) -> Result<(), String> {
+        async fn release_resources(
+            &mut self,
+            _allocation_id: &str,
+        ) -> std::result::Result<(), String> {
             Ok(())
         }
 
-        async fn list_allocations(&self) -> Result<Vec<ResourceAllocation>, String> {
+        async fn list_allocations(&self) -> std::result::Result<Vec<ResourceAllocation>, String> {
             Ok(vec![])
         }
 
-        async fn scale_to(&mut self, _target_size: u32) -> Result<(), String> {
+        async fn scale_to(&mut self, _target_size: u32) -> std::result::Result<(), String> {
             Ok(())
         }
 
-        async fn list_workers(&self) -> Result<Vec<WorkerId>, String> {
+        async fn list_workers(&self) -> std::result::Result<Vec<WorkerId>, String> {
             Ok(vec![WorkerId::new()])
         }
     }

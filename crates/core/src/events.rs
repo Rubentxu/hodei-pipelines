@@ -11,7 +11,6 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use uuid::Uuid;
 
 #[cfg(feature = "sqlx")]
@@ -667,7 +666,7 @@ impl EventStore for PostgreSqlEventStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
+    
 
     #[test]
     fn test_event_metadata_creation() {

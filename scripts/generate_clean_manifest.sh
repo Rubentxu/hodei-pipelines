@@ -6,7 +6,10 @@
 # y directorios irrelevantes para tener un manifiesto más limpio.
 #
 # Uso:
-#   ./generate_clean_manifest.sh [archivo_salida]
+#   ./generate_clean_manifest.sh [opciones] [archivo_salida]
+#
+# Opciones:
+#   --ports-adapters, -pa    Solo procesar crates de adapters y ports (Infraestructura)
 #
 # Por defecto: CODE_MANIFEST.csv en el directorio raíz del proyecto
 ################################################################################
@@ -18,21 +21,61 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Parámetros
-OUTPUT_FILE="${1:-CODE_MANIFEST.csv}"
+# Parseo de opciones
+PORTS_ADAPTERS_ONLY=0
+OUTPUT_FILE=""
+SHIFTED_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --ports-adapters|-pa)
+            PORTS_ADAPTERS_ONLY=1
+            shift
+            ;;
+        -h|--help)
+            echo "Uso: $0 [opciones] [archivo_salida]"
+            echo ""
+            echo "Opciones:"
+            echo "  --ports-adapters, -pa    Solo procesar crates de adapters y ports (Infraestructura)"
+            echo ""
+            echo "Ejemplos:"
+            echo "  $0                       # Generar CODE_MANIFEST.csv completo"
+            echo "  $0 output.csv            # Generar archivo personalizado"
+            echo "  $0 --ports-adapters      # Solo adapters y ports"
+            echo "  $0 -pa infra.csv         # Solo adapters y ports, archivo personalizado"
+            exit 0
+            ;;
+        *)
+            # Si no es una opción, es el archivo de salida
+            OUTPUT_FILE="$1"
+            shift
+            ;;
+    esac
+done
+
+# Parámetros por defecto
+OUTPUT_FILE="${OUTPUT_FILE:-CODE_MANIFEST.csv}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Resolver ruta absoluta
-if [ "$1" != /* ]; then
-    OUTPUT_FILE="$ROOT_DIR/$OUTPUT_FILE"
-fi
+# Resolver ruta absoluta solo si se pasó un argumento y no es una ruta absoluta
+case "$OUTPUT_FILE" in
+    /*) ;; # Ya es absoluta
+    *) OUTPUT_FILE="$ROOT_DIR/$OUTPUT_FILE" ;;
+esac
 
 # Banner
 echo -e "${BLUE}============================================================${NC}"
-echo -e "${BLUE}Generador de CODE_MANIFEST Limpio (Sin target/)${NC}"
+if [ $PORTS_ADAPTERS_ONLY -eq 1 ]; then
+    echo -e "${BLUE}Generador de CODE_MANIFEST Limpio (Solo Ports & Adapters)${NC}"
+else
+    echo -e "${BLUE}Generador de CODE_MANIFEST Limpio (Sin target/ y tests/)${NC}"
+fi
 echo -e "${BLUE}============================================================${NC}"
 echo -e "${YELLOW}Directorio raíz:${NC} $ROOT_DIR"
 echo -e "${YELLOW}Archivo de salida:${NC} $OUTPUT_FILE"
+if [ $PORTS_ADAPTERS_ONLY -eq 1 ]; then
+    echo -e "${GREEN}Modo: Solo crates/adapters y crates/ports${NC}"
+fi
 echo ""
 
 # Verificar directorio
@@ -49,7 +92,15 @@ echo "Ruta Completa,Categoria,Procesado" > "$TEMP_FILE"
 TOTAL=0
 declare -A CATEGORIES
 
-echo -e "${BLUE}🔍 Buscando archivos .rs (excluyendo target/)...${NC}"
+echo -e "${BLUE}🔍 Buscando archivos .rs (excluyendo target/ y tests/)...${NC}"
+
+# Construir comando find dinámico basado en el modo
+if [ $PORTS_ADAPTERS_ONLY -eq 1 ]; then
+    echo -e "${GREEN}   Filtrando solo: crates/adapters y crates/ports${NC}"
+    SEARCH_PATH="$ROOT_DIR/crates/adapters $ROOT_DIR/crates/ports"
+else
+    SEARCH_PATH="$ROOT_DIR"
+fi
 
 # Buscar archivos excluyendo target/ y otros directorios irrelevantes
 while IFS= read -r -d '' file; do
@@ -100,7 +151,7 @@ while IFS= read -r -d '' file; do
         echo -ne "${BLUE}   Procesados: $TOTAL${NC}\r"
     fi
 
-done < <(find "$ROOT_DIR" \
+done < <(find $SEARCH_PATH \
     -type f \
     -name "*.rs" \
     -not -path "*/target/*" \
@@ -110,6 +161,12 @@ done < <(find "$ROOT_DIR" \
     -not -path "*/.vscode/*" \
     -not -path "*/.claude/*" \
     -not -path "*/Cargo.lock" \
+    -not -path "*/tests/*" \
+    -not -path "*/test/*" \
+    -not -name "*_test.rs" \
+    -not -name "*_tests.rs" \
+    -not -name "functional_tests.rs" \
+    -not -name "integration_tests.rs" \
     -print0 2>/dev/null | sort -z)
 
 # Mover archivo

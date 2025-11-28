@@ -4,11 +4,13 @@
 
 use async_trait::async_trait;
 use hodei_core::{DomainError, Pipeline, PipelineId, Result};
-use hodei_ports::{PipelineRepository, PipelineRepositoryError};
-use serde::{Deserialize, Serialize};
+use hodei_ports::PipelineRepository;
 use sqlx::{PgPool, Row};
-use tracing::{error, info};
-use uuid::Uuid;
+use std::collections::HashMap;
+use tracing::info;
+
+/// Default timeout for pipeline steps (5 minutes in milliseconds)
+const DEFAULT_TIMEOUT_MS: u64 = 300000;
 
 /// PostgreSQL Pipeline Repository
 #[derive(Debug)]
@@ -92,6 +94,69 @@ impl PostgreSqlPipelineRepository {
 
         info!("Pipeline schema initialized successfully");
         Ok(())
+    }
+
+    /// Deserialize a PipelineStep from a SQL row
+    ///
+    /// This method can handle both regular queries and JOIN queries with column aliases
+    fn deserialize_pipeline_step_from_row(
+        &self,
+        step_row: &sqlx::postgres::PgRow,
+    ) -> Result<hodei_core::pipeline::PipelineStep> {
+        // Handle both "name" (regular query) and "step_name" (JOIN query) column names
+        let step_name = step_row
+            .try_get::<String, _>("step_name")
+            .unwrap_or_else(|_| step_row.get::<String, _>("name"));
+
+        let job_spec: hodei_core::job::JobSpec = serde_json::from_value(step_row.get("job_spec"))
+            .map_err(|e| {
+            DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
+        })?;
+
+        let depends_on: Vec<hodei_core::pipeline::PipelineStepId> =
+            serde_json::from_value(step_row.get("depends_on")).map_err(|e| {
+                DomainError::Validation(format!("Failed to deserialize dependencies: {}", e))
+            })?;
+
+        Ok(hodei_core::pipeline::PipelineStep {
+            id: hodei_core::pipeline::PipelineStepId::from_uuid(step_row.get("step_id")),
+            name: step_name,
+            job_spec,
+            depends_on,
+            timeout_ms: step_row.get::<i64, _>("timeout_ms") as u64,
+        })
+    }
+
+    /// Deserialize a Pipeline from SQL rows (main query + steps)
+    fn deserialize_pipeline_from_rows(
+        &self,
+        pipeline_row: &sqlx::postgres::PgRow,
+        step_rows: Vec<sqlx::postgres::PgRow>,
+    ) -> Result<Pipeline> {
+        let steps = step_rows
+            .into_iter()
+            .map(|row| self.deserialize_pipeline_step_from_row(&row))
+            .collect::<Result<Vec<_>>>()?;
+
+        let variables: serde_json::Value = pipeline_row.get("variables");
+        let variables =
+            serde_json::from_value::<HashMap<String, String>>(variables).map_err(|e| {
+                DomainError::Validation(format!("Failed to deserialize variables: {}", e))
+            })?;
+
+        Ok(Pipeline {
+            id: PipelineId::from_uuid(pipeline_row.get("pipeline_id")),
+            name: pipeline_row.get("name"),
+            description: pipeline_row.get("description"),
+            status: hodei_core::pipeline::PipelineStatus::from_str(pipeline_row.get("status"))
+                .map_err(|_| DomainError::Validation("Invalid pipeline status".to_string()))?,
+            steps,
+            variables,
+            created_at: pipeline_row.get("created_at"),
+            updated_at: pipeline_row.get("updated_at"),
+            tenant_id: pipeline_row.get("tenant_id"),
+            workflow_definition: pipeline_row.get("workflow_definition"),
+        })
     }
 }
 
@@ -184,77 +249,50 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
                 DomainError::Infrastructure(format!("Failed to get pipeline steps: {}", e))
             })?;
 
-            let mut steps = Vec::new();
-            for step_row in step_rows {
-                let job_spec: hodei_core::job::JobSpec =
-                    serde_json::from_value(step_row.get("job_spec")).map_err(|e| {
-                        DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
-                    })?;
-
-                let depends_on: Vec<hodei_core::pipeline::PipelineStepId> =
-                    serde_json::from_value(step_row.get("depends_on")).map_err(|e| {
-                        DomainError::Validation(format!(
-                            "Failed to deserialize dependencies: {}",
-                            e
-                        ))
-                    })?;
-
-                steps.push(hodei_core::pipeline::PipelineStep {
-                    id: hodei_core::pipeline::PipelineStepId::from_uuid(step_row.get("step_id")),
-                    name: step_row.get("name"),
-                    job_spec,
-                    depends_on,
-                    timeout_ms: step_row.get::<i64, _>("timeout_ms") as u64,
-                });
-            }
-
-            let variables: serde_json::Value = row.get("variables");
-            let variables: std::collections::HashMap<String, String> = variables
-                .as_object()
-                .map(|obj| {
-                    obj.iter()
-                        .map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_string()))
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            Ok(Some(Pipeline {
-                id: PipelineId::from_uuid(row.get("pipeline_id")),
-                name: row.get("name"),
-                description: row.get("description"),
-                status: hodei_core::pipeline::PipelineStatus::from_str(row.get("status"))
-                    .unwrap_or(hodei_core::pipeline::PipelineStatus::PENDING),
-                steps,
-                variables,
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
-                tenant_id: row.get("tenant_id"),
-                workflow_definition: row.get("workflow_definition"),
-            }))
+            let pipeline = self.deserialize_pipeline_from_rows(&row, step_rows)?;
+            Ok(Some(pipeline))
         } else {
             Ok(None)
         }
     }
 
     async fn get_all_pipelines(&self) -> Result<Vec<Pipeline>> {
+        // Get all pipelines with their steps in a single query using LEFT JOIN
         let pipeline_rows = sqlx::query(
             r#"
-            SELECT pipeline_id
-            FROM pipelines
-            ORDER BY created_at DESC
-            LIMIT 1000
+            SELECT p.pipeline_id, p.name, p.description, p.status, p.variables,
+                   p.workflow_definition, p.created_at, p.updated_at, p.tenant_id,
+                   s.step_id, s.name as step_name, s.job_spec, s.timeout_ms, s.depends_on
+            FROM pipelines p
+            LEFT JOIN pipeline_steps s ON p.pipeline_id = s.pipeline_id
+            ORDER BY p.created_at DESC, s.created_at
         "#,
         )
         .fetch_all(&self.pool)
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to get all pipelines: {}", e)))?;
 
-        let mut pipelines = Vec::new();
+        // Group pipeline steps by pipeline_id
+        let mut pipelines_map: std::collections::HashMap<
+            PipelineId,
+            (sqlx::postgres::PgRow, Vec<sqlx::postgres::PgRow>),
+        > = std::collections::HashMap::new();
+
         for row in pipeline_rows {
             let pipeline_id = PipelineId::from_uuid(row.get("pipeline_id"));
-            if let Some(pipeline) = self.get_pipeline(&pipeline_id).await? {
-                pipelines.push(pipeline);
+            if let Some((_, step_rows)) = pipelines_map.get_mut(&pipeline_id) {
+                step_rows.push(row);
+            } else {
+                pipelines_map.insert(pipeline_id, (row, Vec::new()));
             }
+        }
+
+        // Deserialize each pipeline
+        let mut pipelines = Vec::new();
+        for (_, (pipeline_row, step_rows)) in pipelines_map {
+            let step_rows_sorted = step_rows;
+            let pipeline = self.deserialize_pipeline_from_rows(&pipeline_row, step_rows_sorted)?;
+            pipelines.push(pipeline);
         }
 
         Ok(pipelines)

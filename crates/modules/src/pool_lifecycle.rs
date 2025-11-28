@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use hodei_core::WorkerId;
+use hodei_core::{Result, WorkerId};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
@@ -73,9 +73,9 @@ pub struct PoolConfig {
 }
 
 impl FromStr for PoolConfig {
-    type Err = String;
+    type Err = hodei_core::DomainError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         // Simple default config for health checks
         Ok(PoolConfig {
             pool_id: s.to_string(),
@@ -171,7 +171,7 @@ pub enum LifecycleError {
 }
 
 /// Simple in-memory state store
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct InMemoryStateStore {
     pools: Arc<RwLock<HashMap<String, PoolState>>>,
 }
@@ -181,36 +181,28 @@ impl InMemoryStateStore {
         Self::default()
     }
 
-    pub async fn save_pool_state(
-        &self,
-        pool_id: &str,
-        state: PoolState,
-    ) -> Result<(), LifecycleError> {
+    pub async fn save_pool_state(&self, pool_id: &str, state: PoolState) -> Result<()> {
         let mut pools = self.pools.write().await;
         pools.insert(pool_id.to_string(), state);
         Ok(())
     }
 
-    pub async fn get_pool_state(&self, pool_id: &str) -> Result<PoolState, LifecycleError> {
+    pub async fn get_pool_state(&self, pool_id: &str) -> Result<PoolState> {
         let pools = self.pools.read().await;
         pools
             .get(pool_id)
             .cloned()
-            .ok_or_else(|| LifecycleError::PoolNotFound(pool_id.to_string()))
+            .ok_or_else(|| LifecycleError::PoolNotFound(pool_id.to_string()).into())
     }
 
-    pub async fn update_pool_config(
-        &self,
-        pool_id: &str,
-        config: &PoolConfig,
-    ) -> Result<(), LifecycleError> {
+    pub async fn update_pool_config(&self, pool_id: &str, config: &PoolConfig) -> Result<()> {
         let mut pools = self.pools.write().await;
         if let Some(state) = pools.get_mut(pool_id) {
             state.config = config.clone();
             state.updated_at = Utc::now();
             Ok(())
         } else {
-            Err(LifecycleError::PoolNotFound(pool_id.to_string()))
+            Err(LifecycleError::PoolNotFound(pool_id.to_string()).into())
         }
     }
 
@@ -218,18 +210,18 @@ impl InMemoryStateStore {
         &self,
         pool_id: &str,
         status: PoolLifecycleState,
-    ) -> Result<(), LifecycleError> {
+    ) -> Result<()> {
         let mut pools = self.pools.write().await;
         if let Some(state) = pools.get_mut(pool_id) {
             state.status = status;
             state.updated_at = Utc::now();
             Ok(())
         } else {
-            Err(LifecycleError::PoolNotFound(pool_id.to_string()))
+            Err(LifecycleError::PoolNotFound(pool_id.to_string()).into())
         }
     }
 
-    pub async fn remove_pool(&self, pool_id: &str) -> Result<(), LifecycleError> {
+    pub async fn remove_pool(&self, pool_id: &str) -> Result<()> {
         let mut pools = self.pools.write().await;
         pools
             .remove(pool_id)
@@ -264,7 +256,7 @@ impl MockResourcePool {
         }
     }
 
-    pub async fn initialize(&mut self) -> Result<(), LifecycleError> {
+    pub async fn initialize(&mut self) -> Result<()> {
         self.state = PoolLifecycleState::Initializing;
 
         // Pre-warm workers if configured
@@ -279,7 +271,7 @@ impl MockResourcePool {
         Ok(())
     }
 
-    pub async fn update_config(&mut self, new_config: &PoolConfig) -> Result<(), LifecycleError> {
+    pub async fn update_config(&mut self, new_config: &PoolConfig) -> Result<()> {
         self.config = new_config.clone();
         Ok(())
     }
@@ -288,7 +280,7 @@ impl MockResourcePool {
         self.config.provider_type != new_config.provider_type
     }
 
-    pub async fn scale_to(&mut self, new_size: u32) -> Result<(), LifecycleError> {
+    pub async fn scale_to(&mut self, new_size: u32) -> Result<()> {
         self.state = PoolLifecycleState::Scaling;
 
         if new_size > self.workers.len() as u32 {
@@ -306,7 +298,7 @@ impl MockResourcePool {
         Ok(())
     }
 
-    pub async fn force_destroy(&mut self) -> Result<(), LifecycleError> {
+    pub async fn force_destroy(&mut self) -> Result<()> {
         self.state = PoolLifecycleState::Destroying;
         self.workers.clear();
         self.state = PoolLifecycleState::Destroyed;
@@ -353,7 +345,7 @@ impl ResourcePoolLifecycleManager {
     }
 
     /// Create a new pool
-    pub async fn create_pool(&self, config: PoolConfig) -> Result<String, LifecycleError> {
+    pub async fn create_pool(&self, config: PoolConfig) -> Result<String> {
         info!(pool_id = %config.pool_id, "Creating resource pool");
 
         // Validate configuration
@@ -427,11 +419,7 @@ impl ResourcePoolLifecycleManager {
     }
 
     /// Update pool configuration
-    pub async fn update_pool_config(
-        &self,
-        pool_id: &str,
-        new_config: PoolConfig,
-    ) -> Result<(), LifecycleError> {
+    pub async fn update_pool_config(&self, pool_id: &str, new_config: PoolConfig) -> Result<()> {
         info!(pool_id, "Updating pool configuration");
 
         // Validate new configuration
@@ -479,7 +467,7 @@ impl ResourcePoolLifecycleManager {
     }
 
     /// Scale pool to new size
-    pub async fn scale_pool(&self, pool_id: &str, new_size: u32) -> Result<(), LifecycleError> {
+    pub async fn scale_pool(&self, pool_id: &str, new_size: u32) -> Result<()> {
         info!(pool_id, "Scaling pool to {}", new_size);
 
         // Get pool reference
@@ -524,7 +512,7 @@ impl ResourcePoolLifecycleManager {
     }
 
     /// Destroy pool
-    pub async fn destroy_pool(&self, pool_id: &str, force: bool) -> Result<(), LifecycleError> {
+    pub async fn destroy_pool(&self, pool_id: &str, force: bool) -> Result<()> {
         info!(pool_id, "Destroying pool (force={})", force);
 
         let mut pools = self.pools.write().await;
@@ -558,7 +546,7 @@ impl ResourcePoolLifecycleManager {
     }
 
     /// Get pool state
-    pub async fn get_pool_state(&self, pool_id: &str) -> Result<PoolState, LifecycleError> {
+    pub async fn get_pool_state(&self, pool_id: &str) -> Result<PoolState> {
         self.state_store.get_pool_state(pool_id).await
     }
 
@@ -627,29 +615,31 @@ impl ResourcePoolLifecycleManager {
     }
 
     /// Validate pool configuration
-    fn validate_config(&self, config: &PoolConfig) -> Result<(), LifecycleError> {
+    fn validate_config(&self, config: &PoolConfig) -> Result<()> {
         if config.pool_id.is_empty() {
-            return Err(LifecycleError::InvalidConfig(
-                "Pool ID cannot be empty".to_string(),
-            ));
+            return Err(
+                LifecycleError::InvalidConfig("Pool ID cannot be empty".to_string()).into(),
+            );
         }
 
         if config.provider_type.is_empty() {
-            return Err(LifecycleError::InvalidConfig(
-                "Provider type cannot be empty".to_string(),
-            ));
+            return Err(
+                LifecycleError::InvalidConfig("Provider type cannot be empty".to_string()).into(),
+            );
         }
 
         if config.min_size > config.max_size {
             return Err(LifecycleError::InvalidConfig(
                 "Min size cannot be greater than max size".to_string(),
-            ));
+            )
+            .into());
         }
 
         if config.initial_size < config.min_size || config.initial_size > config.max_size {
             return Err(LifecycleError::InvalidConfig(
                 "Initial size must be between min and max size".to_string(),
-            ));
+            )
+            .into());
         }
 
         Ok(())
@@ -984,5 +974,12 @@ mod tests {
         };
 
         assert!(manager.validate_config(&invalid_config).is_err());
+    }
+}
+
+// Error conversion to DomainError
+impl From<LifecycleError> for hodei_core::DomainError {
+    fn from(err: LifecycleError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

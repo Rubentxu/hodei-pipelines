@@ -3,8 +3,9 @@
 //! Provides complete CRUD operations for Pipeline entities following DDD principles.
 //! Implements use cases for creating, reading, updating, and deleting pipelines.
 
+use hodei_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository;
 use hodei_core::{
-    DomainError,
+    DomainError, Result,
     job::JobSpec,
     pipeline::{
         Pipeline, PipelineId, PipelineStatus, PipelineStep, PipelineStepBuilder, PipelineStepId,
@@ -17,7 +18,6 @@ use hodei_core::{
 use hodei_ports::{EventBusError, EventPublisher, PipelineRepository, SystemEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::result::Result as StdResult;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -52,6 +52,20 @@ where
     config: PipelineCrudConfig,
 }
 
+impl<R, E> Clone for PipelineCrudService<R, E>
+where
+    R: PipelineRepository,
+    E: EventPublisher,
+{
+    fn clone(&self) -> Self {
+        Self {
+            pipeline_repo: self.pipeline_repo.clone(),
+            event_bus: self.event_bus.clone(),
+            config: self.config.clone(),
+        }
+    }
+}
+
 impl<R, E> PipelineCrudService<R, E>
 where
     R: PipelineRepository,
@@ -68,10 +82,7 @@ where
 
     /// Create a new pipeline with validation
     /// Uses Builder Pattern for step creation
-    pub async fn create_pipeline(
-        &self,
-        request: CreatePipelineRequest,
-    ) -> Result<Pipeline, PipelineCrudError> {
+    pub async fn create_pipeline(&self, request: CreatePipelineRequest) -> Result<Pipeline> {
         info!("Creating pipeline: {}", request.name);
 
         // Validate name length
@@ -79,7 +90,8 @@ where
             return Err(PipelineCrudError::Validation(format!(
                 "Pipeline name exceeds maximum length of {}",
                 self.config.max_pipeline_name_length
-            )));
+            ))
+            .into());
         }
 
         // Validate steps count
@@ -87,7 +99,8 @@ where
             return Err(PipelineCrudError::Validation(format!(
                 "Pipeline exceeds maximum number of steps: {}",
                 self.config.max_pipeline_steps
-            )));
+            ))
+            .into());
         }
 
         // Create steps using Builder Pattern
@@ -119,10 +132,7 @@ where
     }
 
     /// Get pipeline by ID
-    pub async fn get_pipeline(
-        &self,
-        id: &PipelineId,
-    ) -> Result<Option<Pipeline>, PipelineCrudError> {
+    pub async fn get_pipeline(&self, id: &PipelineId) -> Result<Option<Pipeline>> {
         let pipeline = self
             .pipeline_repo
             .get_pipeline(id)
@@ -142,7 +152,7 @@ where
     pub async fn list_pipelines(
         &self,
         filter: Option<&ListPipelinesFilter>,
-    ) -> Result<Vec<Pipeline>, PipelineCrudError> {
+    ) -> Result<Vec<Pipeline>> {
         info!("Listing pipelines with filter: {:?}", filter);
 
         // Get all pipelines from repository
@@ -171,7 +181,7 @@ where
         &self,
         id: &PipelineId,
         request: UpdatePipelineRequest,
-    ) -> Result<Pipeline, PipelineCrudError> {
+    ) -> Result<Pipeline> {
         info!("Updating pipeline: {}", id);
 
         // Get existing pipeline
@@ -189,7 +199,8 @@ where
                 return Err(PipelineCrudError::Validation(format!(
                     "Pipeline name exceeds maximum length of {}",
                     self.config.max_pipeline_name_length
-                )));
+                ))
+                .into());
             }
             pipeline.name = name;
         }
@@ -209,7 +220,8 @@ where
                 return Err(PipelineCrudError::Validation(format!(
                     "Pipeline exceeds maximum number of steps: {}",
                     self.config.max_pipeline_steps
-                )));
+                ))
+                .into());
             }
 
             // Validate DAG is acyclic
@@ -241,7 +253,7 @@ where
     }
 
     /// Delete pipeline
-    pub async fn delete_pipeline(&self, id: &PipelineId) -> Result<(), PipelineCrudError> {
+    pub async fn delete_pipeline(&self, id: &PipelineId) -> Result<()> {
         info!("Deleting pipeline: {}", id);
 
         // Check if pipeline exists
@@ -256,7 +268,8 @@ where
         if pipeline.is_running() {
             return Err(PipelineCrudError::Validation(
                 "Cannot delete running pipeline".to_string(),
-            ));
+            )
+            .into());
         }
 
         // Check if pipeline is in terminal state
@@ -281,10 +294,7 @@ where
     }
 
     /// Get pipeline execution order (topological sort)
-    pub async fn get_execution_order(
-        &self,
-        id: &PipelineId,
-    ) -> Result<Vec<PipelineStep>, PipelineCrudError> {
+    pub async fn get_execution_order(&self, id: &PipelineId) -> Result<Vec<PipelineStep>> {
         info!("Getting execution order for pipeline: {}", id);
 
         let pipeline = self
@@ -302,7 +312,7 @@ where
     }
 
     /// Start pipeline execution
-    pub async fn start_pipeline(&self, id: &PipelineId) -> Result<(), PipelineCrudError> {
+    pub async fn start_pipeline(&self, id: &PipelineId) -> Result<()> {
         info!("Starting pipeline: {}", id);
 
         let mut pipeline = self
@@ -314,16 +324,17 @@ where
 
         // Validate pipeline is not already running
         if pipeline.is_running() {
-            return Err(PipelineCrudError::Validation(
-                "Pipeline is already running".to_string(),
-            ));
+            return Err(
+                PipelineCrudError::Validation("Pipeline is already running".to_string()).into(),
+            );
         }
 
         // Validate pipeline is in valid state to start
         if pipeline.is_terminal() {
             return Err(PipelineCrudError::Validation(
                 "Cannot start pipeline in terminal state".to_string(),
-            ));
+            )
+            .into());
         }
 
         // Start pipeline
@@ -351,7 +362,7 @@ where
     }
 
     /// Complete pipeline successfully
-    pub async fn complete_pipeline(&self, id: &PipelineId) -> Result<(), PipelineCrudError> {
+    pub async fn complete_pipeline(&self, id: &PipelineId) -> Result<()> {
         info!("Completing pipeline: {}", id);
 
         let mut pipeline = self
@@ -386,7 +397,7 @@ where
     }
 
     /// Fail pipeline
-    pub async fn fail_pipeline(&self, id: &PipelineId) -> Result<(), PipelineCrudError> {
+    pub async fn fail_pipeline(&self, id: &PipelineId) -> Result<()> {
         info!("Failing pipeline: {}", id);
 
         let mut pipeline = self
@@ -419,7 +430,7 @@ where
     pub async fn execute_pipeline(
         &self,
         request: ExecutePipelineRequest,
-    ) -> Result<PipelineExecution, PipelineCrudError> {
+    ) -> Result<PipelineExecution> {
         info!("Executing pipeline: {}", request.pipeline_id);
 
         // Get pipeline from repository
@@ -432,16 +443,17 @@ where
 
         // Validate pipeline is not already running
         if pipeline.is_running() {
-            return Err(PipelineCrudError::Validation(
-                "Pipeline is already running".to_string(),
-            ));
+            return Err(
+                PipelineCrudError::Validation("Pipeline is already running".to_string()).into(),
+            );
         }
 
         // Validate pipeline is in valid state to execute
         if pipeline.is_terminal() {
             return Err(PipelineCrudError::Validation(
                 "Cannot execute pipeline in terminal state".to_string(),
-            ));
+            )
+            .into());
         }
 
         // Get execution order based on dependencies
@@ -487,7 +499,7 @@ where
     fn create_pipeline_step(
         &self,
         step_request: CreatePipelineStepRequest,
-    ) -> Result<PipelineStep, PipelineCrudError> {
+    ) -> Result<PipelineStep> {
         // Convert JobSpec
         let job_spec = JobSpec {
             name: step_request.name.clone(),
@@ -525,20 +537,6 @@ where
             .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
         Ok(step)
-    }
-}
-
-impl<R, E> Clone for PipelineCrudService<R, E>
-where
-    R: PipelineRepository,
-    E: EventPublisher,
-{
-    fn clone(&self) -> Self {
-        Self {
-            pipeline_repo: self.pipeline_repo.clone(),
-            event_bus: self.event_bus.clone(),
-            config: self.config.clone(),
-        }
     }
 }
 
@@ -667,9 +665,8 @@ pub enum PipelineCrudError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_adapters::InMemoryPipelineRepository;
-    use hodei_core::pipeline::Pipeline;
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     // Mock EventBus for tests
     #[derive(Debug, Clone)]
@@ -680,14 +677,61 @@ mod tests {
         async fn publish(
             &self,
             _event: hodei_ports::SystemEvent,
-        ) -> Result<(), hodei_ports::EventBusError> {
+        ) -> std::result::Result<(), hodei_ports::event_bus::EventBusError> {
+            Ok(())
+        }
+    }
+
+    // Mock PipelineRepository for tests
+    #[derive(Debug, Clone)]
+    struct MockPipelineRepository {
+        pipelines: Arc<tokio::sync::RwLock<Vec<hodei_core::Pipeline>>>,
+    }
+
+    impl MockPipelineRepository {
+        fn new() -> Self {
+            Self {
+                pipelines: Arc::new(tokio::sync::RwLock::new(Vec::new())),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl hodei_ports::PipelineRepository for MockPipelineRepository {
+        async fn save_pipeline(&self, pipeline: &hodei_core::Pipeline) -> hodei_core::Result<()> {
+            let mut pipelines = self.pipelines.write().await;
+            if let Some(pos) = pipelines.iter().position(|p| p.id == pipeline.id) {
+                pipelines[pos] = pipeline.clone();
+            } else {
+                pipelines.push(pipeline.clone());
+            }
+            Ok(())
+        }
+
+        async fn get_pipeline(
+            &self,
+            id: &hodei_core::PipelineId,
+        ) -> hodei_core::Result<Option<hodei_core::Pipeline>> {
+            let pipelines = self.pipelines.read().await;
+            Ok(pipelines.iter().find(|p| p.id == *id).cloned())
+        }
+
+        async fn get_all_pipelines(&self) -> hodei_core::Result<Vec<hodei_core::Pipeline>> {
+            let pipelines = self.pipelines.read().await;
+            Ok(pipelines.clone())
+        }
+
+        async fn delete_pipeline(&self, id: &hodei_core::PipelineId) -> hodei_core::Result<()> {
+            let mut pipelines = self.pipelines.write().await;
+            pipelines.retain(|p| p.id != *id);
             Ok(())
         }
     }
 
     #[tokio::test]
     async fn test_create_pipeline() {
-        let repo = Arc::new(InMemoryPipelineRepository::new());
+        // Use MockPipelineRepository for testing
+        let repo = Arc::new(MockPipelineRepository::new());
         let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
@@ -732,7 +776,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_pipeline() {
-        let repo = Arc::new(InMemoryPipelineRepository::new());
+        let repo = Arc::new(MockPipelineRepository::new());
         let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
@@ -771,7 +815,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_pipelines() {
-        let repo = Arc::new(InMemoryPipelineRepository::new());
+        let repo = Arc::new(MockPipelineRepository::new());
         let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
@@ -816,7 +860,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_pipeline() {
-        let repo = Arc::new(InMemoryPipelineRepository::new());
+        let repo = Arc::new(MockPipelineRepository::new());
         let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
@@ -863,7 +907,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_pipeline() {
-        let repo = Arc::new(InMemoryPipelineRepository::new());
+        let repo = Arc::new(MockPipelineRepository::new());
         let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
@@ -901,7 +945,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_pipeline() {
-        let repo = Arc::new(InMemoryPipelineRepository::new());
+        let repo = Arc::new(MockPipelineRepository::new());
         let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
@@ -939,7 +983,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_execution_order() {
-        let repo = Arc::new(InMemoryPipelineRepository::new());
+        let repo = Arc::new(MockPipelineRepository::new());
         let event_bus = Arc::new(MockEventBus);
         let service = PipelineCrudService::new(
             repo.clone(),
@@ -1015,5 +1059,12 @@ mod tests {
         let order = service.get_execution_order(&created.id).await.unwrap();
         assert_eq!(order.len(), 1);
         assert_eq!(order[0].name, "step1");
+    }
+}
+
+// Error conversion to DomainError
+impl From<PipelineCrudError> for hodei_core::DomainError {
+    fn from(err: PipelineCrudError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

@@ -7,10 +7,9 @@ pub use state_machine::{SchedulingContext, SchedulingState, SchedulingStateMachi
 use crossbeam::queue::SegQueue;
 use crossbeam::utils::CachePadded;
 use dashmap::DashMap;
-use hodei_core::{Job, JobId, JobState, Worker};
-use hodei_core::{WorkerCapabilities, WorkerId};
+use hodei_core::{DomainError, Job, JobId, JobState, Result, Worker, WorkerCapabilities, WorkerId};
 use hodei_ports::{
-    EventPublisher, JobRepository, SchedulerPort, WorkerClient,
+    EventPublisher, JobRepository, PipelineRepository, RoleRepository, SchedulerPort, WorkerClient,
     WorkerRepository, scheduler_port::SchedulerError,
 };
 use hwp_proto::ServerMessage;
@@ -19,6 +18,20 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{error, info};
+
+use crate::burst_capacity_manager;
+use crate::cooldown_management;
+use crate::cost_optimization;
+use crate::cost_tracking;
+use crate::metrics_collection;
+use crate::multi_tenancy_quota_manager;
+use crate::orchestrator;
+use crate::pipeline_crud;
+use crate::pool_lifecycle;
+use crate::queue_assignment;
+use crate::quota_enforcement;
+use crate::rbac;
+use crate::worker_management;
 
 #[derive(Debug, Clone)]
 pub struct SchedulerConfig {
@@ -190,7 +203,7 @@ impl Default for LockFreePriorityQueue {
 
 pub struct SchedulerModule<R, E, W, WR>
 where
-    R: JobRepository + Send + Sync + 'static,
+    R: JobRepository + PipelineRepository + RoleRepository + Send + Sync + 'static,
     E: EventPublisher + Send + Sync + 'static,
     W: WorkerClient + Send + Sync + 'static,
     WR: WorkerRepository + Send + Sync + 'static,
@@ -198,16 +211,49 @@ where
     pub(crate) job_repo: Arc<R>,
     pub(crate) event_bus: Arc<E>,
     pub(crate) worker_client: Arc<W>,
+
     pub(crate) worker_repo: Arc<WR>,
     pub(crate) config: SchedulerConfig,
     pub(crate) queue: Arc<LockFreePriorityQueue>,
     pub(crate) cluster_state: Arc<ClusterState>,
+    pub burst_capacity_manager: Option<burst_capacity_manager::BurstCapacityManager>,
+    pub cooldown_management: Option<cooldown_management::AdvancedCooldownManager>,
+    pub cost_optimization: Option<cost_optimization::CostOptimizationEngine>,
+    pub cost_tracking: Option<cost_tracking::CostTrackingService>,
+    pub metrics_collection: Option<metrics_collection::MetricsCollector>,
+    pub multi_tenancy_quota_manager: Option<multi_tenancy_quota_manager::MultiTenancyQuotaManager>,
+    pub orchestrator: Option<
+        orchestrator::OrchestratorModule<
+            R,
+            E,
+            hodei_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository,
+        >,
+    >, // Assuming P is this for now, or need generic P?
+    pub pipeline_crud: Option<pipeline_crud::PipelineCrudService<R, E>>,
+    pub pool_lifecycle: Option<pool_lifecycle::InMemoryStateStore>,
+    pub queue_assignment: Option<queue_assignment::QueueAssignmentEngine>,
+    pub quota_enforcement: Option<quota_enforcement::QuotaEnforcementEngine>,
+    pub rbac: Option<
+        rbac::RoleBasedAccessControlService<
+            R,
+            hodei_adapters::rbac_repositories::InMemoryPermissionRepository,
+            E,
+        >,
+    >, // Need generic P
+    pub worker_management: Option<
+        Box<
+            worker_management::WorkerManagementService<
+                hodei_adapters::DockerProvider,
+                SchedulerModule<R, E, W, WR>,
+            >,
+        >,
+    >, // Circular dependency broken by Box
 }
 
 /// Builder for SchedulerModule to eliminate Connascence of Position
 pub struct SchedulerBuilder<R, E, W, WR>
 where
-    R: JobRepository + Send + Sync + 'static,
+    R: JobRepository + PipelineRepository + RoleRepository + Send + Sync + 'static,
     E: EventPublisher + Send + Sync + 'static,
     W: WorkerClient + Send + Sync + 'static,
     WR: WorkerRepository + Send + Sync + 'static,
@@ -217,11 +263,41 @@ where
     worker_client: Option<Arc<W>>,
     worker_repo: Option<Arc<WR>>,
     config: Option<SchedulerConfig>,
+    pub burst_capacity_manager: Option<burst_capacity_manager::BurstCapacityManager>,
+    pub cooldown_management: Option<cooldown_management::AdvancedCooldownManager>,
+    pub cost_optimization: Option<cost_optimization::CostOptimizationEngine>,
+    pub cost_tracking: Option<cost_tracking::CostTrackingService>,
+    pub metrics_collection: Option<metrics_collection::MetricsCollector>,
+    pub multi_tenancy_quota_manager: Option<multi_tenancy_quota_manager::MultiTenancyQuotaManager>,
+    pub orchestrator: Option<
+        orchestrator::OrchestratorModule<
+            R,
+            E,
+            hodei_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository,
+        >,
+    >,
+    pub pipeline_crud: Option<pipeline_crud::PipelineCrudService<R, E>>,
+    pub pool_lifecycle: Option<pool_lifecycle::InMemoryStateStore>,
+    pub queue_assignment: Option<queue_assignment::QueueAssignmentEngine>,
+    pub quota_enforcement: Option<quota_enforcement::QuotaEnforcementEngine>,
+    pub rbac: Option<
+        rbac::RoleBasedAccessControlService<
+            R,
+            hodei_adapters::rbac_repositories::InMemoryPermissionRepository,
+            E,
+        >,
+    >,
+    pub worker_management: Option<
+        worker_management::WorkerManagementService<
+            hodei_adapters::docker_provider::DockerProvider,
+            SchedulerModule<R, E, W, WR>,
+        >,
+    >,
 }
 
 impl<R, E, W, WR> SchedulerBuilder<R, E, W, WR>
 where
-    R: JobRepository + Send + Sync + 'static,
+    R: JobRepository + PipelineRepository + RoleRepository + Send + Sync + 'static,
     E: EventPublisher + Send + Sync + 'static,
     W: WorkerClient + Send + Sync + 'static,
     WR: WorkerRepository + Send + Sync + 'static,
@@ -233,6 +309,19 @@ where
             worker_client: None,
             worker_repo: None,
             config: None,
+            burst_capacity_manager: None,
+            cooldown_management: None,
+            cost_optimization: None,
+            cost_tracking: None,
+            metrics_collection: None,
+            multi_tenancy_quota_manager: None,
+            orchestrator: None,
+            pipeline_crud: None,
+            pool_lifecycle: None,
+            queue_assignment: None,
+            quota_enforcement: None,
+            rbac: None,
+            worker_management: None,
         }
     }
 
@@ -261,22 +350,22 @@ where
         self
     }
 
-    pub fn build(self) -> Result<SchedulerModule<R, E, W, WR>, SchedulerError> {
-        let job_repo = self
-            .job_repo
-            .ok_or_else(|| SchedulerError::Config("job_repository is required".into()))?;
+    pub fn build(self) -> Result<SchedulerModule<R, E, W, WR>> {
+        let job_repo = self.job_repo.ok_or_else(|| {
+            hodei_core::DomainError::Infrastructure("job_repository is required".into())
+        })?;
 
-        let event_bus = self
-            .event_bus
-            .ok_or_else(|| SchedulerError::Config("event_bus is required".into()))?;
+        let event_bus = self.event_bus.ok_or_else(|| {
+            hodei_core::DomainError::Infrastructure("event_bus is required".into())
+        })?;
 
-        let worker_client = self
-            .worker_client
-            .ok_or_else(|| SchedulerError::Config("worker_client is required".into()))?;
+        let worker_client = self.worker_client.ok_or_else(|| {
+            hodei_core::DomainError::Infrastructure("worker_client is required".into())
+        })?;
 
-        let worker_repo = self
-            .worker_repo
-            .ok_or_else(|| SchedulerError::Config("worker_repository is required".into()))?;
+        let worker_repo = self.worker_repo.ok_or_else(|| {
+            hodei_core::DomainError::Infrastructure("worker_repository is required".into())
+        })?;
 
         let config = self.config.unwrap_or_else(|| SchedulerConfig::default());
         let max_queue_size = config.max_queue_size;
@@ -289,13 +378,26 @@ where
             config,
             queue: Arc::new(LockFreePriorityQueue::new(max_queue_size)),
             cluster_state: Arc::new(ClusterState::new()),
+            burst_capacity_manager: self.burst_capacity_manager,
+            cooldown_management: self.cooldown_management,
+            cost_optimization: self.cost_optimization,
+            cost_tracking: self.cost_tracking,
+            metrics_collection: self.metrics_collection,
+            multi_tenancy_quota_manager: self.multi_tenancy_quota_manager,
+            orchestrator: self.orchestrator,
+            pipeline_crud: self.pipeline_crud,
+            pool_lifecycle: self.pool_lifecycle,
+            queue_assignment: self.queue_assignment,
+            quota_enforcement: self.quota_enforcement,
+            rbac: self.rbac,
+            worker_management: self.worker_management.map(Box::new),
         })
     }
 }
 
 impl<R, E, W, WR> Default for SchedulerBuilder<R, E, W, WR>
 where
-    R: JobRepository + Send + Sync + 'static,
+    R: JobRepository + PipelineRepository + RoleRepository + Send + Sync + 'static,
     E: EventPublisher + Send + Sync + 'static,
     W: WorkerClient + Send + Sync + 'static,
     WR: WorkerRepository + Send + Sync + 'static,
@@ -307,7 +409,7 @@ where
 
 impl<R, E, W, WR> SchedulerModule<R, E, W, WR>
 where
-    R: JobRepository + Send + Sync + 'static,
+    R: JobRepository + PipelineRepository + RoleRepository + Send + Sync + 'static,
     E: EventPublisher + Send + Sync + 'static,
     W: WorkerClient + Send + Sync + 'static,
     WR: WorkerRepository + Send + Sync + 'static,
@@ -328,15 +430,28 @@ where
             config,
             queue: Arc::new(LockFreePriorityQueue::new(max_queue_size)),
             cluster_state: Arc::new(ClusterState::new()),
+            burst_capacity_manager: None,
+            cooldown_management: None,
+            cost_optimization: None,
+            cost_tracking: None,
+            metrics_collection: None,
+            multi_tenancy_quota_manager: None,
+            orchestrator: None,
+            pipeline_crud: None,
+            pool_lifecycle: None,
+            queue_assignment: None,
+            quota_enforcement: None,
+            rbac: None,
+            worker_management: None,
         }
     }
 
-    pub async fn schedule_job(&self, job: Job, priority: u8) -> Result<(), SchedulerError> {
+    pub async fn schedule_job(&self, job: Job, priority: u8) -> Result<()> {
         info!("Scheduling job: {}", job.id);
 
         job.spec
             .validate()
-            .map_err(|e| SchedulerError::Validation(e.to_string()))?;
+            .map_err(|e| DomainError::Validation(e.to_string()))?;
 
         let entry = QueueEntry {
             job: job.clone(),
@@ -354,12 +469,12 @@ where
     }
 
     /// Schedule job using state machine (eliminates temporal coupling)
-    pub async fn schedule_job_with_state_machine(&self, job: Job) -> Result<(), SchedulerError> {
+    pub async fn schedule_job_with_state_machine(&self, job: Job) -> Result<()> {
         info!("Scheduling job using state machine: {}", job.id);
 
         job.spec
             .validate()
-            .map_err(|e| SchedulerError::Validation(e.to_string()))?;
+            .map_err(|e| DomainError::Validation(e.to_string()))?;
 
         let mut state_machine = state_machine::SchedulingStateMachine::new();
         state_machine.set_job(job);
@@ -371,14 +486,14 @@ where
     }
 
     /// Get scheduling matches without committing (useful for testing or preview)
-    pub async fn discover_matches(&self, job: &Job) -> Result<Option<Worker>, SchedulerError> {
+    pub async fn discover_matches(&self, job: &Job) -> Result<Option<Worker>> {
         let mut state_machine = state_machine::SchedulingStateMachine::new();
         state_machine.set_job(job.clone());
 
         state_machine.discover_matches(self).await
     }
 
-    async fn run_scheduling_cycle(&self) -> Result<(), SchedulerError> {
+    async fn run_scheduling_cycle(&self) -> Result<()> {
         // Dequeue batch of jobs (lock-free, O(1) per job)
         let batch = self.queue.dequeue_batch();
 
@@ -428,12 +543,12 @@ where
         Ok(())
     }
 
-    async fn find_eligible_workers(&self, job: &Job) -> Result<Vec<Worker>, SchedulerError> {
+    async fn find_eligible_workers(&self, job: &Job) -> Result<Vec<Worker>> {
         let all_workers = self
             .worker_repo
             .get_all_workers()
             .await
-            .map_err(|e| SchedulerError::WorkerRepository(e.to_string()))?;
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         let eligible_workers: Vec<Worker> = all_workers
             .into_iter()
@@ -447,13 +562,11 @@ where
         Ok(eligible_workers)
     }
 
-    async fn select_best_worker(
-        &self,
-        workers: &[Worker],
-        job: &Job,
-    ) -> Result<Worker, SchedulerError> {
+    async fn select_best_worker(&self, workers: &[Worker], job: &Job) -> Result<Worker> {
         if workers.is_empty() {
-            return Err(SchedulerError::NoEligibleWorkers);
+            return Err(DomainError::Infrastructure(
+                "No eligible workers found".to_string(),
+            ));
         }
 
         // Get cluster state for current resource utilization
@@ -469,7 +582,7 @@ where
             })
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(worker, _)| worker)
-            .ok_or_else(|| SchedulerError::NoEligibleWorkers)?;
+            .ok_or_else(|| DomainError::Infrastructure("No eligible workers found".to_string()))?;
 
         info!(
             "Selected worker {} for job {} (score: {:.2})",
@@ -654,28 +767,24 @@ where
         score.min(1.5) // Cap at 1.5 for bonus
     }
 
-    async fn reserve_worker(
-        &self,
-        worker: &Worker,
-        job_id: &JobId,
-    ) -> Result<bool, SchedulerError> {
+    async fn reserve_worker(&self, worker: &Worker, job_id: &JobId) -> Result<bool> {
         self.cluster_state
             .reserve_job(&worker.id, job_id.clone())
             .await
-            .map_err(|e| SchedulerError::ClusterState(e.to_string()))
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))
     }
 
-    pub async fn register_worker(&self, worker: Worker) -> Result<(), SchedulerError> {
+    pub async fn register_worker(&self, worker: Worker) -> Result<()> {
         self.worker_repo
             .save_worker(&worker)
             .await
-            .map_err(|e| SchedulerError::WorkerRepository(e.to_string()))?;
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         // Also register in cluster state
         self.cluster_state
             .register_worker(&worker.id, worker.capabilities.clone())
             .await
-            .map_err(|e| SchedulerError::ClusterState(e.to_string()))?;
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         Ok(())
     }
@@ -684,7 +793,7 @@ where
         &self,
         worker_id: &WorkerId,
         resource_usage: Option<ResourceUsage>,
-    ) -> Result<(), SchedulerError> {
+    ) -> Result<()> {
         self.cluster_state
             .update_heartbeat(worker_id.clone(), resource_usage)
             .await;
@@ -700,44 +809,38 @@ where
     pub async fn register_transmitter(
         &self,
         worker_id: &WorkerId,
-        transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
-    ) -> Result<(), SchedulerError> {
+        transmitter: mpsc::UnboundedSender<
+            std::result::Result<ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+        >,
+    ) -> Result<()> {
         self.cluster_state
             .register_transmitter(worker_id, transmitter)
             .await
-            .map_err(|e| SchedulerError::ClusterState(e.to_string()))
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))
     }
 
     /// Unregister a transmitter for a worker
-    pub async fn unregister_transmitter(&self, worker_id: &WorkerId) -> Result<(), SchedulerError> {
+    pub async fn unregister_transmitter(&self, worker_id: &WorkerId) -> Result<()> {
         self.cluster_state
             .unregister_transmitter(worker_id)
             .await
-            .map_err(|e| SchedulerError::ClusterState(e.to_string()))
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))
     }
 
     /// Send a message to a worker through their registered transmitter
-    pub async fn send_to_worker(
-        &self,
-        worker_id: &WorkerId,
-        message: ServerMessage,
-    ) -> Result<(), SchedulerError> {
+    pub async fn send_to_worker(&self, worker_id: &WorkerId, message: ServerMessage) -> Result<()> {
         self.cluster_state
             .send_to_worker(worker_id, message)
             .await
-            .map_err(|e| SchedulerError::ClusterState(e.to_string()))
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))
     }
 
-    pub async fn start(&self) -> Result<(), SchedulerError> {
+    pub async fn start(&self) -> Result<()> {
         Ok(())
     }
 
     /// Send a job to a worker through their registered transmitter (US-02.3)
-    pub async fn send_job_to_worker(
-        &self,
-        worker_id: &WorkerId,
-        job: &Job,
-    ) -> Result<(), SchedulerError> {
+    pub async fn send_job_to_worker(&self, worker_id: &WorkerId, job: &Job) -> Result<()> {
         let job_spec = job.spec.clone();
         let gpu_count = job_spec.resources.gpu.unwrap_or(0) as u32;
 
@@ -769,21 +872,17 @@ where
 
     /// Handle job acceptance event from worker
     /// Updates job state to RUNNING and records start timestamp
-    pub async fn handle_job_accepted(
-        &self,
-        job_id: &JobId,
-        worker_id: &WorkerId,
-    ) -> Result<(), SchedulerError> {
+    pub async fn handle_job_accepted(&self, job_id: &JobId, worker_id: &WorkerId) -> Result<()> {
         info!("Job {} accepted by worker {}", job_id, worker_id);
 
         // Check if job exists
         let job =
             self.job_repo.get_job(job_id).await.map_err(|e| {
-                SchedulerError::internal(format!("Job {} not found: {}", job_id, e))
+                DomainError::Infrastructure(format!("Job {} not found: {}", job_id, e))
             })?;
 
         if job.is_none() {
-            return Err(SchedulerError::internal(format!(
+            return Err(DomainError::Infrastructure(format!(
                 "Job {} not found",
                 job_id
             )));
@@ -795,14 +894,14 @@ where
             .compare_and_swap_status(job_id, "SCHEDULED", "RUNNING")
             .await
             .map_err(|e| {
-                SchedulerError::internal(format!(
+                DomainError::Infrastructure(format!(
                     "Failed to transition job {} to RUNNING: {}",
                     job_id, e
                 ))
             })?;
 
         if !success {
-            return Err(SchedulerError::internal(format!(
+            return Err(DomainError::Infrastructure(format!(
                 "State transition failed for job {}",
                 job_id
             )));
@@ -813,7 +912,7 @@ where
             .assign_worker(job_id, worker_id)
             .await
             .map_err(|e| {
-                SchedulerError::internal(format!(
+                DomainError::Infrastructure(format!(
                     "Failed to assign worker {} to job {}: {}",
                     worker_id, job_id, e
                 ))
@@ -824,7 +923,7 @@ where
             .set_job_start_time(job_id, chrono::Utc::now())
             .await
             .map_err(|e| {
-                SchedulerError::internal(format!(
+                DomainError::Infrastructure(format!(
                     "Failed to set start time for job {}: {}",
                     job_id, e
                 ))
@@ -845,7 +944,7 @@ where
         worker_id: &WorkerId,
         log_data: Vec<u8>,
         stream_type: hodei_ports::event_bus::StreamType,
-    ) -> Result<(), SchedulerError> {
+    ) -> Result<()> {
         let log_entry = hodei_ports::event_bus::LogEntry {
             job_id: job_id.clone(),
             data: log_data,
@@ -861,7 +960,7 @@ where
             ))
             .await
             .map_err(|e| {
-                SchedulerError::internal(format!(
+                DomainError::Infrastructure(format!(
                     "Failed to publish log event for job {}: {}",
                     job_id, e
                 ))
@@ -881,7 +980,7 @@ where
         job_id: &JobId,
         worker_id: &WorkerId,
         exit_code: i32,
-    ) -> Result<(), SchedulerError> {
+    ) -> Result<()> {
         info!(
             "Job {} completed on worker {} with exit code {}",
             job_id, worker_id, exit_code
@@ -897,11 +996,11 @@ where
         // Check if job exists
         let job =
             self.job_repo.get_job(job_id).await.map_err(|e| {
-                SchedulerError::internal(format!("Job {} not found: {}", job_id, e))
+                DomainError::Infrastructure(format!("Job {} not found: {}", job_id, e))
             })?;
 
         if job.is_none() {
-            return Err(SchedulerError::internal(format!(
+            return Err(DomainError::Infrastructure(format!(
                 "Job {} not found",
                 job_id
             )));
@@ -913,14 +1012,14 @@ where
             .compare_and_swap_status(job_id, "RUNNING", final_state_str)
             .await
             .map_err(|e| {
-                SchedulerError::internal(format!(
+                DomainError::Infrastructure(format!(
                     "Failed to transition job {} to {}: {}",
                     job_id, final_state_str, e
                 ))
             })?;
 
         if !success {
-            return Err(SchedulerError::internal(format!(
+            return Err(DomainError::Infrastructure(format!(
                 "State transition failed for job {}",
                 job_id
             )));
@@ -931,7 +1030,7 @@ where
             .set_job_finish_time(job_id, chrono::Utc::now())
             .await
             .map_err(|e| {
-                SchedulerError::internal(format!(
+                DomainError::Infrastructure(format!(
                     "Failed to set finish time for job {}: {}",
                     job_id, e
                 ))
@@ -951,7 +1050,7 @@ where
         };
 
         self.event_bus.publish(event).await.map_err(|e| {
-            SchedulerError::internal(format!(
+            DomainError::Infrastructure(format!(
                 "Failed to publish job completion event for job {}: {}",
                 job_id, e
             ))
@@ -967,7 +1066,7 @@ where
 
 impl<R, E, W, WR> Clone for SchedulerModule<R, E, W, WR>
 where
-    R: JobRepository + Send + Sync + 'static,
+    R: JobRepository + PipelineRepository + RoleRepository + Send + Sync + 'static,
     E: EventPublisher + Send + Sync + 'static,
     W: WorkerClient + Send + Sync + 'static,
     WR: WorkerRepository + Send + Sync + 'static,
@@ -981,6 +1080,19 @@ where
             config: self.config.clone(),
             queue: self.queue.clone(),
             cluster_state: self.cluster_state.clone(),
+            burst_capacity_manager: self.burst_capacity_manager.clone(),
+            cooldown_management: self.cooldown_management.clone(),
+            cost_optimization: self.cost_optimization.clone(),
+            cost_tracking: self.cost_tracking.clone(),
+            metrics_collection: self.metrics_collection.clone(),
+            multi_tenancy_quota_manager: self.multi_tenancy_quota_manager.clone(),
+            orchestrator: self.orchestrator.clone(),
+            pipeline_crud: self.pipeline_crud.clone(),
+            pool_lifecycle: self.pool_lifecycle.clone(),
+            queue_assignment: self.queue_assignment.clone(),
+            quota_enforcement: self.quota_enforcement.clone(),
+            rbac: self.rbac.clone(),
+            worker_management: self.worker_management.clone(),
         }
     }
 }
@@ -1016,8 +1128,14 @@ pub struct ClusterStats {
 pub struct ClusterState {
     workers: Arc<DashMap<WorkerId, WorkerNode>>,
     job_assignments: Arc<DashMap<JobId, WorkerId>>,
-    transmitters:
-        Arc<DashMap<WorkerId, mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>>>,
+    transmitters: Arc<
+        DashMap<
+            WorkerId,
+            mpsc::UnboundedSender<
+                std::result::Result<ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+            >,
+        >,
+    >,
 }
 
 impl ClusterState {
@@ -1033,7 +1151,7 @@ impl ClusterState {
         &self,
         worker_id: &WorkerId,
         capabilities: WorkerCapabilities,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         let node = WorkerNode {
             id: worker_id.clone(),
             capabilities,
@@ -1052,13 +1170,16 @@ impl ClusterState {
         &self,
         worker_id: &WorkerId,
         usage: ResourceUsage,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         if let Some(mut worker) = self.workers.get_mut(worker_id) {
             worker.usage = usage;
             worker.last_heartbeat = Instant::now();
             Ok(())
         } else {
-            Err(format!("Worker {} not found", worker_id))
+            Err(DomainError::Infrastructure(format!(
+                "Worker {} not found",
+                worker_id
+            )))
         }
     }
 
@@ -1075,7 +1196,7 @@ impl ClusterState {
         }
     }
 
-    pub async fn get_worker(&self, worker_id: &WorkerId) -> Result<Option<WorkerNode>, String> {
+    pub async fn get_worker(&self, worker_id: &WorkerId) -> Result<Option<WorkerNode>> {
         Ok(self.workers.get(worker_id).map(|entry| entry.clone()))
     }
 
@@ -1095,25 +1216,31 @@ impl ClusterState {
             .collect()
     }
 
-    pub async fn reserve_job(&self, worker_id: &WorkerId, job_id: JobId) -> Result<bool, String> {
+    pub async fn reserve_job(&self, worker_id: &WorkerId, job_id: JobId) -> Result<bool> {
         // Check if worker exists and has capacity
         if let Some(mut worker) = self.workers.get_mut(worker_id) {
             worker.reserved_jobs.push(job_id.clone());
             self.job_assignments.insert(job_id, worker_id.clone());
             Ok(true)
         } else {
-            Err(format!("Worker {} not found", worker_id))
+            Err(DomainError::Infrastructure(format!(
+                "Worker {} not found",
+                worker_id
+            )))
         }
     }
 
-    pub async fn release_job(&self, job_id: &JobId) -> Result<(), String> {
+    pub async fn release_job(&self, job_id: &JobId) -> Result<()> {
         if let Some((_, worker_id)) = self.job_assignments.remove(job_id) {
             if let Some(mut worker) = self.workers.get_mut(&worker_id) {
                 worker.reserved_jobs.retain(|id| id != job_id);
             }
             Ok(())
         } else {
-            Err(format!("Job {} not found in reservations", job_id))
+            Err(DomainError::Infrastructure(format!(
+                "Job {} not found in reservations",
+                job_id
+            )))
         }
     }
 
@@ -1121,43 +1248,44 @@ impl ClusterState {
     pub async fn register_transmitter(
         &self,
         worker_id: &WorkerId,
-        transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
-    ) -> Result<(), SchedulerError> {
+        transmitter: mpsc::UnboundedSender<
+            std::result::Result<ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+        >,
+    ) -> Result<()> {
         self.transmitters.insert(worker_id.clone(), transmitter);
         info!("Transmitter registered for worker: {}", worker_id);
         Ok(())
     }
 
     /// Unregister a transmitter for a worker
-    pub async fn unregister_transmitter(&self, worker_id: &WorkerId) -> Result<(), String> {
+    pub async fn unregister_transmitter(&self, worker_id: &WorkerId) -> Result<()> {
         if self.transmitters.remove(worker_id).is_some() {
             info!("Transmitter unregistered for worker: {}", worker_id);
             Ok(())
         } else {
-            Err(format!("No transmitter found for worker {}", worker_id))
+            Err(DomainError::Infrastructure(format!(
+                "No transmitter found for worker {}",
+                worker_id
+            )))
         }
     }
 
     /// Send a message to a worker through their registered transmitter
-    pub async fn send_to_worker(
-        &self,
-        worker_id: &WorkerId,
-        message: ServerMessage,
-    ) -> Result<(), String> {
+    pub async fn send_to_worker(&self, worker_id: &WorkerId, message: ServerMessage) -> Result<()> {
         if let Some(transmitter) = self.transmitters.get(worker_id) {
             if let Err(e) = transmitter.send(Ok(message)) {
                 error!("Failed to send message to worker {}: {}", worker_id, e);
-                return Err(format!(
+                return Err(DomainError::Infrastructure(format!(
                     "Failed to send message to worker {}: {}",
                     worker_id, e
-                ));
+                )));
             }
             Ok(())
         } else {
-            Err(format!(
+            Err(DomainError::Infrastructure(format!(
                 "No transmitter registered for worker {}",
                 worker_id
-            ))
+            )))
         }
     }
 
@@ -1193,9 +1321,7 @@ impl Default for ClusterState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_core::Worker;
-    use hodei_core::{Job, JobId, JobSpec};
-    use hodei_core::{WorkerCapabilities, WorkerId};
+    use hodei_core::{Job, JobId, JobSpec, Result, Worker, WorkerCapabilities, WorkerId};
     use hodei_ports::{
         EventPublisher, JobRepository, JobRepositoryError, WorkerClient, WorkerRepository,
     };
@@ -1213,23 +1339,23 @@ mod tests {
 
     #[async_trait::async_trait]
     impl JobRepository for MockJobRepository {
-        async fn save_job(&self, _job: &Job) -> Result<(), JobRepositoryError> {
+        async fn save_job(&self, _job: &Job) -> Result<()> {
             Ok(())
         }
 
-        async fn get_job(&self, _id: &JobId) -> Result<Option<Job>, JobRepositoryError> {
+        async fn get_job(&self, _id: &JobId) -> Result<Option<Job>> {
             Ok(None)
         }
 
-        async fn get_pending_jobs(&self) -> Result<Vec<Job>, JobRepositoryError> {
+        async fn get_pending_jobs(&self) -> Result<Vec<Job>> {
             Ok(vec![])
         }
 
-        async fn get_running_jobs(&self) -> Result<Vec<Job>, JobRepositoryError> {
+        async fn get_running_jobs(&self) -> Result<Vec<Job>> {
             Ok(vec![])
         }
 
-        async fn delete_job(&self, _id: &JobId) -> Result<(), JobRepositoryError> {
+        async fn delete_job(&self, _id: &JobId) -> Result<()> {
             Ok(())
         }
 
@@ -1238,15 +1364,11 @@ mod tests {
             _id: &JobId,
             _expected: &str,
             _new: &str,
-        ) -> Result<bool, JobRepositoryError> {
+        ) -> Result<bool> {
             Ok(true)
         }
 
-        async fn assign_worker(
-            &self,
-            _job_id: &JobId,
-            _worker_id: &WorkerId,
-        ) -> Result<(), JobRepositoryError> {
+        async fn assign_worker(&self, _job_id: &JobId, _worker_id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
@@ -1254,7 +1376,7 @@ mod tests {
             &self,
             _job_id: &JobId,
             _start_time: chrono::DateTime<chrono::Utc>,
-        ) -> Result<(), JobRepositoryError> {
+        ) -> Result<()> {
             Ok(())
         }
 
@@ -1262,25 +1384,85 @@ mod tests {
             &self,
             _job_id: &JobId,
             _finish_time: chrono::DateTime<chrono::Utc>,
-        ) -> Result<(), JobRepositoryError> {
+        ) -> Result<()> {
             Ok(())
         }
 
-        async fn set_job_duration(
-            &self,
-            _job_id: &JobId,
-            _duration_ms: i64,
-        ) -> Result<(), JobRepositoryError> {
+        async fn set_job_duration(&self, _job_id: &JobId, _duration_ms: i64) -> Result<()> {
             Ok(())
+        }
+
+        async fn create_job(&self, _job_spec: JobSpec) -> Result<JobId> {
+            Ok(JobId::new())
+        }
+
+        async fn update_job_state(&self, _job_id: &JobId, _state: JobState) -> Result<()> {
+            Ok(())
+        }
+
+        async fn list_jobs(&self) -> Result<Vec<Job>> {
+            Ok(vec![])
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl PipelineRepository for MockJobRepository {
+        async fn save_pipeline(&self, _pipeline: &hodei_core::Pipeline) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_pipeline(
+            &self,
+            _id: &hodei_core::PipelineId,
+        ) -> Result<Option<hodei_core::Pipeline>> {
+            Ok(None)
+        }
+
+        async fn delete_pipeline(&self, _id: &hodei_core::PipelineId) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_all_pipelines(&self) -> Result<Vec<hodei_core::Pipeline>> {
+            Ok(vec![])
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl RoleRepository for MockJobRepository {
+        async fn save_role(&self, _role: &hodei_core::security::RoleEntity) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_role(
+            &self,
+            _id: &hodei_core::security::RoleId,
+        ) -> Result<Option<hodei_core::security::RoleEntity>> {
+            Ok(None)
+        }
+
+        async fn get_role_by_name(
+            &self,
+            _name: &str,
+        ) -> Result<Option<hodei_core::security::RoleEntity>> {
+            Ok(None)
+        }
+
+        async fn list_all_roles(&self) -> Result<Vec<hodei_core::security::RoleEntity>> {
+            Ok(vec![])
+        }
+
+        async fn delete_role(&self, _id: &hodei_core::security::RoleId) -> Result<()> {
+            Ok(())
+        }
+
+        async fn exists(&self, _id: &hodei_core::security::RoleId) -> Result<bool> {
+            Ok(false)
         }
     }
 
     #[async_trait::async_trait]
     impl EventPublisher for MockEventBus {
-        async fn publish(
-            &self,
-            _event: hodei_ports::SystemEvent,
-        ) -> Result<(), hodei_ports::EventBusError> {
+        async fn publish(&self, _event: hodei_ports::SystemEvent) -> Result<()> {
             Ok(())
         }
     }
@@ -1292,22 +1474,18 @@ mod tests {
             _worker_id: &WorkerId,
             _job_id: &JobId,
             _job_spec: &JobSpec,
-        ) -> Result<(), hodei_ports::WorkerClientError> {
+        ) -> Result<()> {
             Ok(())
         }
 
-        async fn cancel_job(
-            &self,
-            _worker_id: &WorkerId,
-            _job_id: &JobId,
-        ) -> Result<(), hodei_ports::WorkerClientError> {
+        async fn cancel_job(&self, _worker_id: &WorkerId, _job_id: &JobId) -> Result<()> {
             Ok(())
         }
 
         async fn get_worker_status(
             &self,
             _worker_id: &WorkerId,
-        ) -> Result<hodei_core::WorkerStatus, hodei_ports::WorkerClientError> {
+        ) -> Result<hodei_core::WorkerStatus> {
             Ok(hodei_core::WorkerStatus {
                 worker_id: WorkerId::new(),
                 status: "IDLE".to_string(),
@@ -1316,53 +1494,46 @@ mod tests {
             })
         }
 
-        async fn send_heartbeat(
-            &self,
-            _worker_id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerClientError> {
+        async fn send_heartbeat(&self, _worker_id: &WorkerId) -> Result<()> {
             Ok(())
         }
     }
 
     #[async_trait::async_trait]
     impl WorkerRepository for MockWorkerRepository {
-        async fn save_worker(
-            &self,
-            _worker: &Worker,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn save_worker(&self, _worker: &Worker) -> Result<()> {
             Ok(())
         }
 
-        async fn get_worker(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_worker(&self, _id: &WorkerId) -> Result<Option<Worker>> {
             Ok(None)
         }
 
-        async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_all_workers(&self) -> Result<Vec<Worker>> {
             Ok(vec![])
         }
 
-        async fn delete_worker(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn delete_worker(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
-        async fn update_last_seen(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn update_last_seen(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
         async fn find_stale_workers(
             &self,
             _threshold_duration: std::time::Duration,
-        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        ) -> Result<Vec<Worker>> {
             Ok(vec![])
+        }
+
+        async fn update_worker_status(
+            &self,
+            _id: &WorkerId,
+            _status: hodei_core::WorkerStatus,
+        ) -> Result<()> {
+            Ok(())
         }
     }
 
@@ -1474,7 +1645,6 @@ mod tests {
         let event_bus: Arc<MockEventBus> = Arc::new(MockEventBus);
         let worker_client: Arc<MockWorkerClient> = Arc::new(MockWorkerClient);
         let worker_repo: Arc<MockWorkerRepository> = Arc::new(MockWorkerRepository);
-
         let scheduler = SchedulerBuilder::<
             MockJobRepository,
             MockEventBus,
@@ -1498,7 +1668,7 @@ mod tests {
 #[async_trait::async_trait]
 impl<R, E, W, WR> SchedulerPort for SchedulerModule<R, E, W, WR>
 where
-    R: JobRepository + Send + Sync + 'static,
+    R: JobRepository + PipelineRepository + RoleRepository + Send + Sync + 'static,
     E: EventPublisher + Send + Sync + 'static,
     W: WorkerClient + Send + Sync + 'static,
     WR: WorkerRepository + Send + Sync + 'static,
@@ -1506,7 +1676,7 @@ where
     async fn register_worker(
         &self,
         worker: &Worker,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         if let Err(e) = self.worker_repo.save_worker(worker).await {
             return Err(
                 hodei_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
@@ -1518,7 +1688,7 @@ where
     async fn unregister_worker(
         &self,
         worker_id: &WorkerId,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         if let Err(e) = self.worker_repo.delete_worker(worker_id).await {
             return Err(
                 hodei_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
@@ -1529,7 +1699,7 @@ where
 
     async fn get_registered_workers(
         &self,
-    ) -> Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
         let workers =
             self.worker_repo.get_all_workers().await.map_err(|e| {
                 hodei_ports::scheduler_port::SchedulerError::internal(e.to_string())
@@ -1540,8 +1710,10 @@ where
     async fn register_transmitter(
         &self,
         worker_id: &WorkerId,
-        transmitter: mpsc::UnboundedSender<Result<ServerMessage, SchedulerError>>,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        transmitter: mpsc::UnboundedSender<
+            std::result::Result<ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+        >,
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         self.cluster_state
             .register_transmitter(worker_id, transmitter)
             .await
@@ -1556,7 +1728,7 @@ where
     async fn unregister_transmitter(
         &self,
         worker_id: &WorkerId,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         self.cluster_state
             .unregister_transmitter(worker_id)
             .await
@@ -1572,7 +1744,7 @@ where
         &self,
         worker_id: &WorkerId,
         message: ServerMessage,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         self.cluster_state
             .send_to_worker(worker_id, message)
             .await

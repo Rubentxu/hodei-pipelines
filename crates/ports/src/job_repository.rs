@@ -5,6 +5,17 @@
 use async_trait::async_trait;
 use hodei_core::{Job, JobId, Result, WorkerId};
 
+/// Job filter for querying jobs
+#[derive(Debug, Clone)]
+pub struct JobFilter {
+    /// Filter by job state
+    pub state: Option<String>,
+    /// Filter by assigned worker
+    pub worker_id: Option<WorkerId>,
+    /// Filter by job type
+    pub job_type: Option<String>,
+}
+
 /// Job repository port
 #[async_trait]
 pub trait JobRepository: Send + Sync {

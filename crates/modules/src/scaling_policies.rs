@@ -516,6 +516,15 @@ pub enum ScalingError {
 
     #[error("Cooldown violation: {0}")]
     CooldownViolation(String),
+
+    #[error("Metric not found: {0}")]
+    MetricNotFound(String),
+
+    #[error("Evaluation error: {0}")]
+    EvaluationError(String),
+
+    #[error("Configuration error: {0}")]
+    ConfigurationError(String),
 }
 
 #[cfg(test)]

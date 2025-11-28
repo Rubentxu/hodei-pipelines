@@ -12,8 +12,7 @@ use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use hodei_adapters::WorkerRegistrationAdapter;
-use hodei_core;
-use hodei_core::{JobId, Worker, WorkerCapabilities, WorkerId};
+use hodei_core::{DomainError, JobId, Result, Worker, WorkerCapabilities, WorkerId};
 use hodei_ports::scheduler_port::SchedulerPort;
 use hodei_ports::worker_provider::{ProviderConfig, ProviderError, WorkerProvider};
 use hodei_ports::{WorkerRegistrationError, WorkerRegistrationPort};
@@ -37,7 +36,7 @@ impl Default for WorkerManagementConfig {
 }
 
 /// Worker management service
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WorkerManagementService<P, S>
 where
     P: WorkerProvider + Send + Sync,
@@ -81,7 +80,7 @@ where
         image: String,
         cpu_cores: u32,
         memory_mb: u64,
-    ) -> Result<Worker, WorkerManagementError> {
+    ) -> Result<Worker> {
         let worker_id = WorkerId::new();
         let config = ProviderConfig::docker(format!("worker-{}", worker_id));
 
@@ -95,7 +94,7 @@ where
             .provider
             .create_worker(worker_id.clone(), config)
             .await
-            .map_err(WorkerManagementError::Provider)?;
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         info!(
             worker_id = %worker.id,
@@ -127,7 +126,7 @@ where
         config: ProviderConfig,
         cpu_cores: u32,
         memory_mb: u64,
-    ) -> Result<Worker, WorkerManagementError> {
+    ) -> Result<Worker> {
         let worker_id = WorkerId::new();
 
         info!(
@@ -140,7 +139,7 @@ where
             .provider
             .create_worker(worker_id.clone(), config)
             .await
-            .map_err(WorkerManagementError::Provider)?;
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         info!(
             worker_id = %worker.id,
@@ -167,11 +166,7 @@ where
     }
 
     /// Stop a worker
-    pub async fn stop_worker(
-        &self,
-        worker_id: &WorkerId,
-        graceful: bool,
-    ) -> Result<(), WorkerManagementError> {
+    pub async fn stop_worker(&self, worker_id: &WorkerId, graceful: bool) -> Result<()> {
         info!(worker_id = %worker_id, graceful = graceful, "Stopping worker");
 
         self.provider
@@ -184,13 +179,13 @@ where
     }
 
     /// Delete a worker
-    pub async fn delete_worker(&self, worker_id: &WorkerId) -> Result<(), WorkerManagementError> {
+    pub async fn delete_worker(&self, worker_id: &WorkerId) -> Result<()> {
         info!(worker_id = %worker_id, "Deleting worker");
 
         self.provider
             .delete_worker(worker_id)
             .await
-            .map_err(WorkerManagementError::Provider)?;
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         info!(worker_id = %worker_id, "Worker deleted successfully");
         Ok(())
@@ -200,7 +195,7 @@ where
     pub async fn get_worker_status(
         &self,
         worker_id: &WorkerId,
-    ) -> Result<hodei_core::WorkerStatus, WorkerManagementError> {
+    ) -> Result<hodei_core::WorkerStatus> {
         let status = self
             .provider
             .get_worker_status(worker_id)
@@ -211,12 +206,12 @@ where
     }
 
     /// List all workers
-    pub async fn list_workers(&self) -> Result<Vec<WorkerId>, WorkerManagementError> {
+    pub async fn list_workers(&self) -> Result<Vec<WorkerId>> {
         let workers = self
             .provider
             .list_workers()
             .await
-            .map_err(WorkerManagementError::Provider)?;
+            .map_err(|e| DomainError::from(WorkerManagementError::Provider(e)))?;
 
         Ok(workers)
     }
@@ -224,7 +219,7 @@ where
     /// Get provider capabilities
     pub async fn get_provider_capabilities(
         &self,
-    ) -> Result<hodei_ports::worker_provider::ProviderCapabilities, WorkerManagementError> {
+    ) -> Result<hodei_ports::worker_provider::ProviderCapabilities> {
         let capabilities = self
             .provider
             .capabilities()
@@ -244,6 +239,15 @@ pub enum WorkerManagementError {
     Internal(String),
 }
 
+impl From<WorkerManagementError> for DomainError {
+    fn from(err: WorkerManagementError) -> Self {
+        match err {
+            WorkerManagementError::Provider(e) => DomainError::Infrastructure(e.to_string()),
+            WorkerManagementError::Internal(msg) => DomainError::Infrastructure(msg),
+        }
+    }
+}
+
 impl WorkerManagementError {
     pub fn internal<T: Into<String>>(msg: T) -> Self {
         Self::Internal(msg.into())
@@ -253,7 +257,7 @@ impl WorkerManagementError {
 /// Create a default worker management service with Docker provider
 pub async fn create_default_worker_management_service<P, S>(
     provider: P,
-) -> Result<WorkerManagementService<P, S>, WorkerManagementError>
+) -> Result<WorkerManagementService<P, S>>
 where
     P: WorkerProvider + Send + Sync + Clone + 'static,
     S: SchedulerPort + Send + Sync + Clone + 'static,
@@ -267,7 +271,7 @@ where
 /// Create a worker management service with Kubernetes provider
 pub async fn create_kubernetes_worker_management_service<P, S>(
     provider: P,
-) -> Result<WorkerManagementService<P, S>, WorkerManagementError>
+) -> Result<WorkerManagementService<P, S>>
 where
     P: WorkerProvider + Send + Sync + Clone + 'static,
     S: SchedulerPort + Send + Sync + Clone + 'static,
@@ -357,12 +361,12 @@ impl DynamicPoolConfig {
     }
 
     /// Validate configuration constraints
-    pub fn validate(&self) -> Result<(), DynamicPoolError> {
+    pub fn validate(&self) -> Result<()> {
         if self.min_size > self.max_size {
-            return Err(DynamicPoolError::InvalidStateTransition);
+            return Err(DynamicPoolError::InvalidStateTransition.into());
         }
         if self.max_concurrent_provisioning == 0 {
-            return Err(DynamicPoolError::InvalidStateTransition);
+            return Err(DynamicPoolError::InvalidStateTransition.into());
         }
         Ok(())
     }
@@ -606,6 +610,39 @@ pub enum StaticPoolError {
     Provider(#[from] ProviderError),
 }
 
+impl From<StaticPoolError> for DomainError {
+    fn from(err: StaticPoolError) -> Self {
+        match err {
+            StaticPoolError::PoolExhausted {
+                requested,
+                available,
+            } => DomainError::Infrastructure(format!(
+                "Static pool exhausted: requested {}, available {}",
+                requested, available
+            )),
+            StaticPoolError::ProvisioningFailed {
+                worker_id,
+                attempts,
+            } => DomainError::Infrastructure(format!(
+                "Provisioning failed for worker {} after {} attempts",
+                worker_id, attempts
+            )),
+            StaticPoolError::WorkerNotFound { worker_id } => {
+                DomainError::NotFound(format!("Worker not found in static pool: {}", worker_id))
+            }
+            StaticPoolError::WorkerNotAvailable { worker_id } => DomainError::Infrastructure(
+                format!("Worker not available in static pool: {}", worker_id),
+            ),
+            StaticPoolError::InvalidConfig(msg) => DomainError::Validation(msg),
+            StaticPoolError::HealthCheckFailed { worker_id } => DomainError::Infrastructure(
+                format!("Health check failed for worker: {}", worker_id),
+            ),
+            StaticPoolError::Internal(msg) => DomainError::Infrastructure(msg),
+            StaticPoolError::Provider(e) => DomainError::Infrastructure(e.to_string()),
+        }
+    }
+}
+
 /// Provisioning strategy for static pools
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProvisioningStrategy {
@@ -749,6 +786,18 @@ pub enum CleanupError {
     Internal(String),
 }
 
+impl From<DynamicPoolError> for hodei_core::DomainError {
+    fn from(err: DynamicPoolError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
+    }
+}
+
+impl From<RemediationError> for hodei_core::DomainError {
+    fn from(err: RemediationError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
+    }
+}
+
 /// Health metrics
 #[derive(Debug, Clone)]
 pub struct WorkerHealthMetrics {
@@ -810,13 +859,13 @@ where
     }
 
     /// Collect health metrics for all workers
-    pub async fn collect_metrics(&self) -> Result<WorkerHealthMetrics, String> {
+    pub async fn collect_metrics(&self) -> Result<WorkerHealthMetrics> {
         // Get all workers
         let workers = self
             .worker_repo
             .get_all_workers()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         let total_workers = workers.len() as u32;
 
@@ -876,14 +925,14 @@ where
     }
 
     /// Calculate health score for a specific worker
-    pub async fn calculate_health_score(&self, worker_id: &WorkerId) -> Result<f64, String> {
+    pub async fn calculate_health_score(&self, worker_id: &WorkerId) -> Result<f64> {
         // Get worker
         let worker = self
             .worker_repo
             .get_worker(worker_id)
             .await
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| "Worker not found".to_string())?;
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?
+            .ok_or_else(|| DomainError::NotFound(format!("Worker not found: {}", worker_id)))?;
 
         // Get health status
         let health_status = self.health_status_cache.read().await;
@@ -937,10 +986,7 @@ where
     }
 
     /// Check if there are too many unhealthy workers
-    pub async fn check_unhealthy_threshold(
-        &self,
-        threshold_percentage: f64,
-    ) -> Result<bool, String> {
+    pub async fn check_unhealthy_threshold(&self, threshold_percentage: f64) -> Result<bool> {
         let metrics = self.collect_metrics().await?;
         let unhealthy_percentage = if metrics.total_workers > 0 {
             (metrics.unhealthy_workers as f64 / metrics.total_workers as f64) * 100.0
@@ -956,7 +1002,7 @@ where
         &self,
         worker_id: &WorkerId,
         max_duration_minutes: u64,
-    ) -> Result<bool, String> {
+    ) -> Result<bool> {
         let health_status = self.health_status_cache.read().await;
         if let Some(status) = health_status.get(worker_id) {
             if matches!(status.status, HealthStatus::Unhealthy { .. }) {
@@ -974,15 +1020,12 @@ where
     }
 
     /// Get list of workers with low health scores
-    pub async fn get_low_health_score_workers(
-        &self,
-        min_score: f64,
-    ) -> Result<Vec<WorkerId>, String> {
+    pub async fn get_low_health_score_workers(&self, min_score: f64) -> Result<Vec<WorkerId>> {
         let workers = self
             .worker_repo
             .get_all_workers()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         let mut low_score_workers = Vec::new();
 
@@ -1024,7 +1067,7 @@ where
     }
 
     /// Run cleanup for stale workers
-    pub async fn run_cleanup(&self) -> Result<CleanupReport, CleanupError> {
+    pub async fn run_cleanup(&self) -> Result<CleanupReport> {
         info!("Starting worker cleanup task");
 
         let start_time = Instant::now();
@@ -1034,7 +1077,7 @@ where
             .worker_repo
             .find_stale_workers(self.config.stale_threshold)
             .await
-            .map_err(|e| CleanupError::Internal(e.to_string()))?;
+            .map_err(|e| DomainError::Infrastructure(format!("Cleanup internal error: {}", e)))?;
 
         info!("Found {} stale workers", stale_workers.len());
 
@@ -1044,11 +1087,9 @@ where
 
         // Process each stale worker
         for worker in stale_workers {
-            if self
-                .is_worker_reachable(&worker)
-                .await
-                .map_err(|e| CleanupError::Internal(e.to_string()))?
-            {
+            if self.is_worker_reachable(&worker).await.map_err(|e| {
+                DomainError::Infrastructure(format!("Cleanup internal error: {}", e))
+            })? {
                 // Worker is alive, just slow - update last_seen
                 info!(
                     worker_id = %worker.id,
@@ -1123,14 +1164,14 @@ where
     }
 
     /// Check if a worker is reachable (ping or health check)
-    async fn is_worker_reachable(&self, worker: &Worker) -> Result<bool, CleanupError> {
+    async fn is_worker_reachable(&self, worker: &Worker) -> Result<bool> {
         // TODO: Implement actual reachability check
         // For now, assume worker is not reachable if stale
         Ok(false)
     }
 
     /// Cleanup jobs assigned to a disconnected worker
-    async fn cleanup_worker_jobs(&self, worker_id: &WorkerId) -> Result<(), CleanupError> {
+    async fn cleanup_worker_jobs(&self, worker_id: &WorkerId) -> Result<()> {
         // TODO: Get jobs assigned to this worker
         // For now, this is a placeholder
 
@@ -1164,12 +1205,10 @@ where
     }
 
     /// Run health checks for all workers
-    pub async fn run_health_checks(&self) -> Result<(), HealthCheckError> {
-        let workers = self
-            .worker_repo
-            .get_all_workers()
-            .await
-            .map_err(|e| HealthCheckError::Internal(e.to_string()))?;
+    pub async fn run_health_checks(&self) -> Result<()> {
+        let workers = self.worker_repo.get_all_workers().await.map_err(|e| {
+            DomainError::Infrastructure(format!("Health check internal error: {}", e))
+        })?;
 
         info!("Running health checks for {} workers", workers.len());
 
@@ -1187,10 +1226,7 @@ where
     }
 
     /// Check health of a specific worker
-    pub async fn check_worker_health(
-        &self,
-        worker: &Worker,
-    ) -> Result<HealthCheckResult, HealthCheckError> {
+    pub async fn check_worker_health(&self, worker: &Worker) -> Result<HealthCheckResult> {
         let worker_id = worker.id.clone();
         let check_start = std::time::Instant::now();
 
@@ -1202,8 +1238,8 @@ where
             // Validate that the port is parseable from metadata if provided
             if let Some(port_str) = worker.metadata.get("healthcheck_port") {
                 if port_str.parse::<u16>().is_err() {
-                    return Err(HealthCheckError::InvalidConfig(format!(
-                        "Invalid port number: {}",
+                    return Err(DomainError::Infrastructure(format!(
+                        "Invalid health check port: {}",
                         port_str
                     )));
                 }
@@ -1325,12 +1361,7 @@ where
     }
 
     /// Perform TCP health check
-    async fn perform_tcp_check(
-        &self,
-        worker_id: &WorkerId,
-        host: &str,
-        port: u16,
-    ) -> Result<(), HealthCheckError> {
+    async fn perform_tcp_check(&self, worker_id: &WorkerId, host: &str, port: u16) -> Result<()> {
         // If checking localhost with common ports, assume healthy for testing
         // (common dev/test ports only, not dynamically assigned ports)
         if (host == "localhost" || host == "127.0.0.1")
@@ -1357,16 +1388,17 @@ where
             Ok(Err(e)) => {
                 let error = format!("Connection failed: {}", e);
                 warn!(worker_id = %worker_id, host = %host, port = %port, error = %error, "TCP health check failed");
-                Err(HealthCheckError::ConnectionFailed {
-                    worker_id: worker_id.clone(),
-                    error,
-                })
+                Err(DomainError::Infrastructure(format!(
+                    "Health check connection failed for worker {}: {}",
+                    worker_id, error
+                )))
             }
             Err(_) => {
                 warn!(worker_id = %worker_id, host = %host, port = %port, "TCP health check timeout");
-                Err(HealthCheckError::Timeout {
-                    worker_id: worker_id.clone(),
-                })
+                return Err(DomainError::Infrastructure(format!(
+                    "Health check timeout for worker {}",
+                    worker_id
+                )));
             }
         }
     }
@@ -1525,21 +1557,22 @@ impl StaticPoolConfig {
     }
 
     /// Validate configuration constraints
-    pub fn validate(&self) -> Result<(), StaticPoolError> {
+    pub fn validate(&self) -> Result<()> {
         if self.fixed_size == 0 {
             return Err(StaticPoolError::InvalidConfig(
                 "fixed_size must be greater than 0".to_string(),
-            ));
+            )
+            .into());
         }
         if self.worker_type.is_empty() {
-            return Err(StaticPoolError::InvalidConfig(
-                "worker_type cannot be empty".to_string(),
-            ));
+            return Err(
+                StaticPoolError::InvalidConfig("worker_type cannot be empty".to_string()).into(),
+            );
         }
         if self.pool_id.is_empty() {
-            return Err(StaticPoolError::InvalidConfig(
-                "pool_id cannot be empty".to_string(),
-            ));
+            return Err(
+                StaticPoolError::InvalidConfig("pool_id cannot be empty".to_string()).into(),
+            );
         }
         Ok(())
     }
@@ -1697,7 +1730,7 @@ where
     T: WorkerProvider + Send + Sync + Clone + 'static,
 {
     /// Create new static pool manager
-    pub fn new(config: StaticPoolConfig, worker_provider: T) -> Result<Self, StaticPoolError> {
+    pub fn new(config: StaticPoolConfig, worker_provider: T) -> Result<Self> {
         config.validate()?;
         let metrics = StaticPoolMetrics::new(&config.pool_id);
 
@@ -1710,7 +1743,7 @@ where
     }
 
     /// Start the pool manager and provision all workers
-    pub async fn start(&self) -> Result<(), StaticPoolError> {
+    pub async fn start(&self) -> Result<()> {
         info!(
             pool_id = %self.config.pool_id,
             fixed_size = self.config.fixed_size,
@@ -1751,7 +1784,7 @@ where
     }
 
     /// Stop the pool manager and terminate all workers
-    pub async fn stop(&self) -> Result<(), StaticPoolError> {
+    pub async fn stop(&self) -> Result<()> {
         info!(pool_id = %self.config.pool_id, "Stopping static pool");
 
         // Get all worker IDs
@@ -1784,10 +1817,7 @@ where
     }
 
     /// Allocate a worker from the static pool
-    pub async fn allocate_worker(
-        &self,
-        job_id: JobId,
-    ) -> Result<StaticWorkerAllocation, StaticPoolError> {
+    pub async fn allocate_worker(&self, job_id: JobId) -> Result<StaticWorkerAllocation> {
         let mut state = self.state.write().await;
 
         // Check if we have available workers
@@ -1815,20 +1845,17 @@ where
         Err(StaticPoolError::PoolExhausted {
             requested: 1,
             available,
-        })
+        }
+        .into())
     }
 
     /// Release a worker back to the static pool
-    pub async fn release_worker(
-        &self,
-        worker_id: WorkerId,
-        job_id: JobId,
-    ) -> Result<(), StaticPoolError> {
+    pub async fn release_worker(&self, worker_id: WorkerId, job_id: JobId) -> Result<()> {
         let mut state = self.state.write().await;
 
         // Verify worker is currently busy with this job
         if state.busy_workers.remove(&worker_id) != Some(job_id) {
-            return Err(StaticPoolError::WorkerNotFound { worker_id });
+            return Err(StaticPoolError::WorkerNotFound { worker_id }.into());
         }
 
         // Run health check before returning to pool
@@ -1891,7 +1918,7 @@ where
     }
 
     /// Trigger replacement of workers if needed (for testing)
-    pub async fn trigger_replacement_if_needed(&self) -> Result<(), StaticPoolError> {
+    pub async fn trigger_replacement_if_needed(&self) -> Result<()> {
         if !self.config.pre_warm_on_start {
             return Ok(());
         }
@@ -1977,7 +2004,7 @@ where
     }
 
     /// Clean up idle workers that exceed timeout
-    pub async fn cleanup_idle_workers(&self) -> Result<u32, StaticPoolError> {
+    pub async fn cleanup_idle_workers(&self) -> Result<u32> {
         let idle_timeout = self.config.idle_timeout;
 
         // If idle timeout is 0, feature is disabled
@@ -2141,7 +2168,7 @@ where
 
     // Internal methods
 
-    async fn provision_workers_sequential(&self, count: u32) -> Result<(), StaticPoolError> {
+    async fn provision_workers_sequential(&self, count: u32) -> Result<()> {
         for i in 0..count {
             match self.provision_single_worker(i).await {
                 Ok(_) => {
@@ -2162,11 +2189,7 @@ where
         Ok(())
     }
 
-    async fn provision_workers_parallel(
-        &self,
-        count: u32,
-        max_concurrent: u32,
-    ) -> Result<(), StaticPoolError> {
+    async fn provision_workers_parallel(&self, count: u32, max_concurrent: u32) -> Result<()> {
         let mut handles = Vec::new();
         let mut provisioned = 0;
 
@@ -2203,9 +2226,9 @@ where
                             state.available_workers.push(worker.id);
                             provisioned += 1;
                         }
-                        Err(e) => return Err(e),
+                        Err(e) => return Err(e.into()),
                     },
-                    Err(e) => return Err(e),
+                    Err(e) => return Err(e.into()),
                 }
             }
         }
@@ -2213,7 +2236,7 @@ where
         Ok(())
     }
 
-    async fn provision_single_worker(&self, _index: u32) -> Result<(), StaticPoolError> {
+    async fn provision_single_worker(&self, _index: u32) -> Result<()> {
         let worker_id = WorkerId::new();
         let config = ProviderConfig::docker(format!("{}-static-worker", self.config.pool_id));
 
@@ -2231,7 +2254,7 @@ where
                 }
                 Err(e) => {
                     if attempt == self.config.provisioning.max_retries {
-                        return Err(StaticPoolError::Provider(e));
+                        return Err(StaticPoolError::Provider(e).into());
                     }
                     tokio::time::sleep(self.config.provisioning.retry_delay).await;
                 }
@@ -2241,23 +2264,30 @@ where
         Err(StaticPoolError::ProvisioningFailed {
             worker_id,
             attempts: self.config.provisioning.max_retries,
-        })
+        }
+        .into())
     }
 
-    async fn terminate_worker(&self, worker_id: WorkerId) -> Result<(), StaticPoolError> {
-        self.worker_provider.stop_worker(&worker_id, true).await?;
-        self.worker_provider.delete_worker(&worker_id).await?;
+    async fn terminate_worker(&self, worker_id: WorkerId) -> Result<()> {
+        self.worker_provider
+            .stop_worker(&worker_id, true)
+            .await
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
+        self.worker_provider
+            .delete_worker(&worker_id)
+            .await
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
         Ok(())
     }
 
-    async fn get_any_worker_id(&self) -> Result<WorkerId, StaticPoolError> {
+    async fn get_any_worker_id(&self) -> Result<WorkerId> {
         let state = self.state.read().await;
         if let Some(worker_id) = state.available_workers.first().cloned() {
             Ok(worker_id)
         } else if let Some(worker_id) = state.busy_workers.keys().next().cloned() {
             Ok(worker_id)
         } else {
-            Err(StaticPoolError::Internal("No workers found".to_string()))
+            Err(StaticPoolError::Internal("No workers found".to_string()).into())
         }
     }
 }
@@ -2449,20 +2479,20 @@ impl SchedulerPort for MockSchedulerPort {
     async fn register_worker(
         &self,
         _worker: &Worker,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 
     async fn unregister_worker(
         &self,
         _worker_id: &WorkerId,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 
     async fn get_registered_workers(
         &self,
-    ) -> Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
         Ok(Vec::new())
     }
 
@@ -2470,16 +2500,19 @@ impl SchedulerPort for MockSchedulerPort {
         &self,
         _worker_id: &WorkerId,
         _transmitter: tokio::sync::mpsc::UnboundedSender<
-            Result<hwp_proto::pb::ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+            std::result::Result<
+                hwp_proto::pb::ServerMessage,
+                hodei_ports::scheduler_port::SchedulerError,
+            >,
         >,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 
     async fn unregister_transmitter(
         &self,
         _worker_id: &WorkerId,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 
@@ -2487,7 +2520,7 @@ impl SchedulerPort for MockSchedulerPort {
         &self,
         _worker_id: &WorkerId,
         _message: hwp_proto::pb::ServerMessage,
-    ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 }
@@ -2497,7 +2530,7 @@ where
     T: WorkerProvider + Send + Sync + Clone + 'static,
 {
     /// Create new dynamic pool manager
-    pub fn new(config: DynamicPoolConfig, worker_provider: T) -> Result<Self, DynamicPoolError> {
+    pub fn new(config: DynamicPoolConfig, worker_provider: T) -> Result<Self> {
         config.validate()?;
         let metrics = DynamicPoolMetrics::new(&config.pool_id);
         let reuse_metrics = WorkerReuseMetrics::new(config.pool_id.clone());
@@ -2518,7 +2551,7 @@ where
         config: DynamicPoolConfig,
         worker_provider: T,
         registration_adapter: WorkerRegistrationAdapter<MockSchedulerPort>,
-    ) -> Result<Self, DynamicPoolError> {
+    ) -> Result<Self> {
         config.validate()?;
         let metrics = DynamicPoolMetrics::new(&config.pool_id);
         let reuse_metrics = WorkerReuseMetrics::new(config.pool_id.clone());
@@ -2535,7 +2568,7 @@ where
     }
 
     /// Start the pool manager background tasks
-    pub async fn start(&self) -> Result<(), DynamicPoolError> {
+    pub async fn start(&self) -> Result<()> {
         // Pre-warm workers if configured
         if self.config.pre_warm_on_start && self.config.min_size > 0 {
             self.scale_to(self.config.min_size).await?;
@@ -2549,7 +2582,7 @@ where
     }
 
     /// Stop the pool manager
-    pub async fn stop(&self) -> Result<(), DynamicPoolError> {
+    pub async fn stop(&self) -> Result<()> {
         self.cleanup_task
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
@@ -2573,7 +2606,7 @@ where
         &self,
         job_id: JobId,
         requirements: WorkerRequirements,
-    ) -> Result<WorkerAllocation, DynamicPoolError> {
+    ) -> Result<WorkerAllocation> {
         let allocation_request = AllocationRequest {
             job_id: job_id.clone(),
             requirements,
@@ -2588,7 +2621,7 @@ where
     async fn allocate_worker_with_request(
         &self,
         allocation_request: AllocationRequest,
-    ) -> Result<WorkerAllocation, DynamicPoolError> {
+    ) -> Result<WorkerAllocation> {
         let job_id = allocation_request.job_id.clone();
         let mut state = self.state.write().await;
 
@@ -2620,13 +2653,15 @@ where
 
             return Err(DynamicPoolError::ProvisioningTimeout {
                 timeout: self.config.provision_timeout,
-            });
+            }
+            .into());
         }
 
         Err(DynamicPoolError::PoolAtCapacity {
             current: current_size,
             max: self.config.max_size,
-        })
+        }
+        .into())
     }
 
     /// Release a worker back to the pool
@@ -2634,12 +2669,15 @@ where
         &self,
         worker_id: WorkerId,
         job_id: hodei_core::JobId,
-    ) -> Result<(), DynamicPoolError> {
+    ) -> Result<()> {
         let mut state = self.state.write().await;
 
         // Verify worker is currently busy
         if state.busy_workers.remove(&worker_id) != Some(job_id.clone()) {
-            return Err(DynamicPoolError::WorkerNotFound { worker_id });
+            return Err(DynamicPoolError::WorkerNotFound {
+                worker_id: worker_id.clone(),
+            }
+            .into());
         }
 
         // Check if worker should be terminated (idle timeout)
@@ -2660,25 +2698,23 @@ where
     }
 
     /// Return worker to pool after job completion with full lifecycle
-    pub async fn return_worker_to_pool(
-        &self,
-        worker_id: &WorkerId,
-        job_id: &JobId,
-    ) -> Result<(), WorkerReturnError> {
+    pub async fn return_worker_to_pool(&self, worker_id: &WorkerId, job_id: &JobId) -> Result<()> {
         // AC-1: Verify worker is busy with this job
         let mut state = self.state.write().await;
 
         // Check if worker is actually busy with this job
         if let Some(active_job_id) = state.busy_workers.get(worker_id) {
             if active_job_id != job_id {
-                return Err(WorkerReturnError::WorkerNotBusy {
-                    worker_id: worker_id.clone(),
-                });
+                return Err(DomainError::Infrastructure(format!(
+                    "Worker {} is not busy with job {}",
+                    worker_id, job_id
+                )));
             }
         } else {
-            return Err(WorkerReturnError::WorkerNotFound {
-                worker_id: worker_id.clone(),
-            });
+            return Err(DomainError::Infrastructure(format!(
+                "Job not found: {}",
+                job_id
+            )));
         }
 
         // Remove from busy workers
@@ -2700,9 +2736,10 @@ where
                 error = %e,
                 "Failed to clean up worker after job completion"
             );
-            return Err(WorkerReturnError::CleanupFailed {
-                worker_id: worker_id.clone(),
-            });
+            return Err(DomainError::Infrastructure(format!(
+                "No transmitter registered for worker {}",
+                worker_id
+            )));
         }
 
         // AC-2: Run health check
@@ -2711,9 +2748,10 @@ where
                 worker_id = %worker_id,
                 "Health check failed, worker will not be returned to pool"
             );
-            return Err(WorkerReturnError::HealthCheckFailed {
-                worker_id: worker_id.clone(),
-            });
+            return Err(DomainError::Infrastructure(format!(
+                "Health check failed for worker {}",
+                worker_id
+            )));
         }
 
         // AC-3: Add back to available pool
@@ -2822,7 +2860,7 @@ where
         job_id: JobId,
         requirements: WorkerRequirements,
         priority: u8,
-    ) -> Result<(), DynamicPoolError> {
+    ) -> Result<()> {
         let allocation_request = AllocationRequest {
             job_id,
             requirements,
@@ -2837,7 +2875,7 @@ where
     }
 
     /// AC: Remove job from queue
-    pub async fn dequeue_job(&self, job_id: &JobId) -> Result<(), DynamicPoolError> {
+    pub async fn dequeue_job(&self, job_id: &JobId) -> Result<()> {
         let mut state = self.state.write().await;
 
         let original_len = state.pending_allocations.len();
@@ -2848,18 +2886,15 @@ where
         if state.pending_allocations.len() == original_len {
             return Err(DynamicPoolError::WorkerNotFound {
                 worker_id: WorkerId::new(), // Job IDs are not worker IDs, but we need a WorkerId for the error
-            });
+            }
+            .into());
         }
 
         Ok(())
     }
 
     /// Clean up worker after job completion
-    async fn cleanup_worker(
-        &self,
-        worker_id: &WorkerId,
-        job_id: &JobId,
-    ) -> Result<(), WorkerReturnError> {
+    async fn cleanup_worker(&self, worker_id: &WorkerId, job_id: &JobId) -> Result<()> {
         // AC-1: Remove job artifacts and temporary data
         // This would typically involve:
         // - Stopping any job-specific processes
@@ -2910,11 +2945,11 @@ where
     }
 
     /// Manually scale pool to target size
-    pub async fn scale_to(&self, target_size: u32) -> Result<(), DynamicPoolError> {
+    pub async fn scale_to(&self, target_size: u32) -> Result<()> {
         let current_size = self.get_current_size().await;
 
         if target_size < self.config.min_size || target_size > self.config.max_size {
-            return Err(DynamicPoolError::InvalidStateTransition);
+            return Err(DynamicPoolError::InvalidStateTransition.into());
         }
 
         if target_size > current_size {
@@ -2933,9 +2968,15 @@ where
     }
 
     /// Terminate a specific worker
-    pub async fn terminate_worker(&self, worker_id: WorkerId) -> Result<(), DynamicPoolError> {
-        self.worker_provider.stop_worker(&worker_id, true).await?;
-        self.worker_provider.delete_worker(&worker_id).await?;
+    pub async fn terminate_worker(&self, worker_id: WorkerId) -> Result<()> {
+        self.worker_provider
+            .stop_worker(&worker_id, true)
+            .await
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
+        self.worker_provider
+            .delete_worker(&worker_id)
+            .await
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         // Unregister from scheduler
         if let Some(ref adapter) = self.registration_adapter {
@@ -2948,13 +2989,14 @@ where
 
     // Internal methods
 
-    async fn provision_worker(&self) -> Result<(), DynamicPoolError> {
+    async fn provision_worker(&self) -> Result<()> {
         let worker_id = WorkerId::new();
         let config = ProviderConfig::docker(format!("{}-worker", self.config.pool_id));
         let worker = self
             .worker_provider
             .create_worker(worker_id, config)
-            .await?;
+            .await
+            .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
         let mut state = self.state.write().await;
         state.available_workers.push(worker.id.clone());
@@ -2974,7 +3016,7 @@ where
         Ok(())
     }
 
-    async fn provision_workers(&self, count: usize) -> Result<(), DynamicPoolError> {
+    async fn provision_workers(&self, count: usize) -> Result<()> {
         let mut handles = Vec::new();
 
         for _ in 0..count {
@@ -3000,7 +3042,7 @@ where
         Ok(())
     }
 
-    async fn terminate_workers(&self, count: usize) -> Result<(), DynamicPoolError> {
+    async fn terminate_workers(&self, count: usize) -> Result<()> {
         let mut state = self.state.write().await;
 
         for _ in 0..count {
@@ -3032,7 +3074,7 @@ where
         (state.total_provisioned - state.total_terminated) as u32
     }
 
-    async fn get_any_worker_id(&self) -> Result<WorkerId, DynamicPoolError> {
+    async fn get_any_worker_id(&self) -> Result<WorkerId> {
         let state = self.state.read().await;
         if let Some(worker_id) = state.available_workers.first().cloned() {
             Ok(worker_id)
@@ -3042,7 +3084,8 @@ where
             Err(DynamicPoolError::PoolAtMinimum {
                 current: 0,
                 min: self.config.min_size,
-            })
+            }
+            .into())
         }
     }
 
@@ -3164,27 +3207,19 @@ pub struct RemediationActionEvent {
 /// Audit logger trait for tracking remediation actions
 #[async_trait::async_trait]
 pub trait AuditLogger: Send + Sync {
-    async fn log(&self, event: RemediationActionEvent) -> Result<(), RemediationError>;
+    async fn log(&self, event: RemediationActionEvent) -> Result<()>;
 }
 
 /// Action executor trait for performing remediation actions
 #[async_trait::async_trait]
 pub trait ActionExecutor: Send + Sync {
-    async fn execute(
-        &self,
-        worker_id: &WorkerId,
-        action: &RemediationAction,
-    ) -> Result<(), RemediationError>;
+    async fn execute(&self, worker_id: &WorkerId, action: &RemediationAction) -> Result<()>;
 }
 
 /// Job manager trait for job reassignment operations
 #[async_trait::async_trait]
 pub trait JobManager: Send + Sync {
-    async fn reassign_jobs(
-        &self,
-        from_worker: &WorkerId,
-        to_workers: &[WorkerId],
-    ) -> Result<(), RemediationError>;
+    async fn reassign_jobs(&self, from_worker: &WorkerId, to_workers: &[WorkerId]) -> Result<()>;
 }
 
 /// In-memory audit logger implementation
@@ -3213,7 +3248,7 @@ impl InMemoryAuditLogger {
 
 #[async_trait::async_trait]
 impl AuditLogger for InMemoryAuditLogger {
-    async fn log(&self, event: RemediationActionEvent) -> Result<(), RemediationError> {
+    async fn log(&self, event: RemediationActionEvent) -> Result<()> {
         let mut events = self.events.write().await;
         events.push(event);
         Ok(())
@@ -3254,15 +3289,11 @@ impl MockActionExecutor {
 
 #[async_trait::async_trait]
 impl ActionExecutor for MockActionExecutor {
-    async fn execute(
-        &self,
-        worker_id: &WorkerId,
-        action: &RemediationAction,
-    ) -> Result<(), RemediationError> {
+    async fn execute(&self, worker_id: &WorkerId, action: &RemediationAction) -> Result<()> {
         if self.should_fail.load(std::sync::atomic::Ordering::Relaxed) {
-            return Err(RemediationError::ActionFailed(
-                "Mock action executor failure".to_string(),
-            ));
+            return Err(
+                RemediationError::ActionFailed("Mock action executor failure".to_string()).into(),
+            );
         }
 
         match action {
@@ -3317,15 +3348,11 @@ impl MockJobManager {
 
 #[async_trait::async_trait]
 impl JobManager for MockJobManager {
-    async fn reassign_jobs(
-        &self,
-        from_worker: &WorkerId,
-        to_workers: &[WorkerId],
-    ) -> Result<(), RemediationError> {
+    async fn reassign_jobs(&self, from_worker: &WorkerId, to_workers: &[WorkerId]) -> Result<()> {
         if self.should_fail.load(std::sync::atomic::Ordering::Relaxed) {
-            return Err(RemediationError::ActionFailed(
-                "Mock job manager failure".to_string(),
-            ));
+            return Err(
+                RemediationError::ActionFailed("Mock job manager failure".to_string()).into(),
+            );
         }
 
         info!(
@@ -3397,7 +3424,7 @@ where
         worker_id: &WorkerId,
         health_status: &HealthCheckResult,
         health_score: f64,
-    ) -> Result<RemediationResultType, RemediationError> {
+    ) -> Result<RemediationResultType> {
         // Get worker
         let worker = self
             .worker_repo
@@ -3483,7 +3510,7 @@ where
         worker_id: &WorkerId,
         health_status: &HealthCheckResult,
         health_score: f64,
-    ) -> Result<Vec<RemediationAction>, RemediationError> {
+    ) -> Result<Vec<RemediationAction>> {
         // Get worker
         let worker = self
             .worker_repo
@@ -3526,7 +3553,7 @@ where
         policy: &RemediationPolicy,
         health_status: &HealthCheckResult,
         health_score: f64,
-    ) -> Result<Vec<TriggerCondition>, RemediationError> {
+    ) -> Result<Vec<TriggerCondition>> {
         let mut triggered = Vec::new();
 
         for condition in &policy.trigger_conditions {
@@ -3564,7 +3591,7 @@ where
         &self,
         worker_id: &WorkerId,
         policy: &RemediationPolicy,
-    ) -> Result<bool, RemediationError> {
+    ) -> Result<bool> {
         let last_remediation = self.last_remediation.read().await;
         if let Some(last_time) = last_remediation.get(worker_id) {
             Ok(last_time.elapsed() < policy.cooldown)
@@ -3579,7 +3606,7 @@ where
         policy: &RemediationPolicy,
         worker_id: &WorkerId,
         triggered_conditions: &[TriggerCondition],
-    ) -> Result<RemediationResultType, RemediationError> {
+    ) -> Result<RemediationResultType> {
         let actions = self.determine_actions(policy, triggered_conditions);
 
         if actions.is_empty() {
@@ -3610,7 +3637,9 @@ where
                         error = %e,
                         "Remediation action failed"
                     );
-                    return Ok(RemediationResultType::RemediationFailed { error: e });
+                    return Ok(RemediationResultType::RemediationFailed {
+                        error: RemediationError::Internal(e.to_string()),
+                    });
                 }
             }
         }
@@ -3670,10 +3699,7 @@ where
     }
 
     /// Get number of remediation attempts for a worker
-    async fn get_remediation_attempts(
-        &self,
-        worker_id: &WorkerId,
-    ) -> Result<u32, RemediationError> {
+    async fn get_remediation_attempts(&self, worker_id: &WorkerId) -> Result<u32> {
         // In a real implementation, would track attempts per worker
         // For now, return 0 (no limit)
         Ok(0)
@@ -3685,7 +3711,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use hodei_adapters::RegistrationConfig;
-    use hodei_core::WorkerCapabilities;
+    use hodei_core::{Result, WorkerCapabilities};
     use hodei_ports::worker_provider::ProviderCapabilities;
 
     // Mock implementation for testing
@@ -3724,7 +3750,7 @@ mod tests {
             "mock-provider"
         }
 
-        async fn capabilities(&self) -> Result<ProviderCapabilities, ProviderError> {
+        async fn capabilities(&self) -> Result<ProviderCapabilities> {
             Ok(ProviderCapabilities {
                 supports_auto_scaling: true,
                 supports_health_checks: true,
@@ -3738,9 +3764,9 @@ mod tests {
             &self,
             worker_id: WorkerId,
             _config: ProviderConfig,
-        ) -> Result<Worker, ProviderError> {
+        ) -> Result<Worker> {
             if self.should_fail {
-                return Err(ProviderError::Provider("Mock error".to_string()));
+                return Err(ProviderError::Provider("Mock error".to_string()).into());
             }
 
             let worker_name = format!("worker-{}", worker_id);
@@ -3754,25 +3780,21 @@ mod tests {
         async fn get_worker_status(
             &self,
             worker_id: &WorkerId,
-        ) -> Result<hodei_core::WorkerStatus, ProviderError> {
+        ) -> Result<hodei_core::WorkerStatus> {
             Ok(hodei_core::WorkerStatus::create_with_status(
                 "IDLE".to_string(),
             ))
         }
 
-        async fn stop_worker(
-            &self,
-            _worker_id: &WorkerId,
-            _graceful: bool,
-        ) -> Result<(), ProviderError> {
+        async fn stop_worker(&self, _worker_id: &WorkerId, _graceful: bool) -> Result<()> {
             Ok(())
         }
 
-        async fn delete_worker(&self, _worker_id: &WorkerId) -> Result<(), ProviderError> {
+        async fn delete_worker(&self, _worker_id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
-        async fn list_workers(&self) -> Result<Vec<WorkerId>, ProviderError> {
+        async fn list_workers(&self) -> Result<Vec<WorkerId>> {
             Ok(self.workers.iter().map(|w| w.id.clone()).collect())
         }
     }
@@ -3783,40 +3805,27 @@ mod tests {
 
     #[async_trait]
     impl SchedulerPort for MockSchedulerPort {
-        async fn register_worker(
-            &self,
-            _worker: &Worker,
-        ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        async fn register_worker(&self, _worker: &Worker) -> Result<()> {
             Ok(())
         }
 
-        async fn unregister_worker(
-            &self,
-            _worker_id: &WorkerId,
-        ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        async fn unregister_worker(&self, _worker_id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
-        async fn get_registered_workers(
-            &self,
-        ) -> Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
+        async fn get_registered_workers(&self) -> Result<Vec<WorkerId>> {
             Ok(Vec::new())
         }
 
         async fn register_transmitter(
             &self,
             _worker_id: &WorkerId,
-            _transmitter: tokio::sync::mpsc::UnboundedSender<
-                Result<hwp_proto::pb::ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
-            >,
-        ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+            _transmitter: tokio::sync::mpsc::UnboundedSender<Result<hwp_proto::pb::ServerMessage>>,
+        ) -> Result<()> {
             Ok(())
         }
 
-        async fn unregister_transmitter(
-            &self,
-            _worker_id: &WorkerId,
-        ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        async fn unregister_transmitter(&self, _worker_id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
@@ -3824,7 +3833,7 @@ mod tests {
             &self,
             _worker_id: &WorkerId,
             _message: hwp_proto::pb::ServerMessage,
-        ) -> Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        ) -> Result<()> {
             Ok(())
         }
     }
@@ -3853,48 +3862,44 @@ mod tests {
 
     #[async_trait::async_trait]
     impl hodei_ports::WorkerRepository for MockWorkerRepository {
-        async fn save_worker(
-            &self,
-            _worker: &Worker,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn save_worker(&self, _worker: &Worker) -> Result<()> {
             Ok(())
         }
 
-        async fn get_worker(
-            &self,
-            id: &WorkerId,
-        ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_worker(&self, id: &WorkerId) -> Result<Option<Worker>> {
             if self.should_error {
-                return Err(hodei_ports::WorkerRepositoryError::Database(
-                    "Mock error".to_string(),
-                ));
+                return Err(
+                    hodei_ports::WorkerRepositoryError::Database("Mock error".to_string()).into(),
+                );
             }
             Ok(self.workers.iter().find(|w| w.id == *id).cloned())
         }
 
-        async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_all_workers(&self) -> Result<Vec<Worker>> {
             Ok(self.workers.clone())
         }
 
-        async fn delete_worker(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn delete_worker(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
-        async fn update_last_seen(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn update_last_seen(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
         async fn find_stale_workers(
             &self,
             _threshold_duration: std::time::Duration,
-        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        ) -> Result<Vec<Worker>> {
             Ok(Vec::new())
+        }
+
+        async fn update_worker_status(
+            &self,
+            _id: &WorkerId,
+            _status: hodei_core::WorkerStatus,
+        ) -> Result<()> {
+            Ok(())
         }
     }
 
@@ -4030,8 +4035,8 @@ mod tests {
         let result = manager.return_worker_to_pool(&worker_id, &job_id).await;
         assert!(result.is_err());
 
-        if let Err(e) = result {
-            assert!(matches!(e, WorkerReturnError::WorkerNotFound { .. }));
+        if let Err(DomainError::Infrastructure(msg)) = result {
+            assert!(msg.contains("WorkerNotFound"));
         }
     }
 
@@ -4057,8 +4062,8 @@ mod tests {
         let result = manager.return_worker_to_pool(&worker_id, &job_id2).await;
         assert!(result.is_err());
 
-        if let Err(e) = result {
-            assert!(matches!(e, WorkerReturnError::WorkerNotBusy { .. }));
+        if let Err(DomainError::Infrastructure(msg)) = result {
+            assert!(msg.contains("WorkerNotBusy"));
         }
     }
 
@@ -4602,8 +4607,8 @@ mod tests {
         let result = manager.allocate_worker(job2).await;
         assert!(result.is_err());
 
-        if let Err(e) = result {
-            assert!(matches!(e, StaticPoolError::PoolExhausted { .. }));
+        if let Err(DomainError::Infrastructure(msg)) = result {
+            assert!(msg.contains("PoolExhausted"));
         }
     }
 
@@ -5304,48 +5309,44 @@ mod health_check_tests {
 
     #[async_trait::async_trait]
     impl hodei_ports::WorkerRepository for MockWorkerRepository {
-        async fn save_worker(
-            &self,
-            _worker: &Worker,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn save_worker(&self, _worker: &Worker) -> Result<()> {
             Ok(())
         }
 
-        async fn get_worker(
-            &self,
-            id: &WorkerId,
-        ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_worker(&self, id: &WorkerId) -> Result<Option<Worker>> {
             if self.should_error {
-                return Err(hodei_ports::WorkerRepositoryError::Database(
-                    "Mock error".to_string(),
-                ));
+                return Err(
+                    hodei_ports::WorkerRepositoryError::Database("Mock error".to_string()).into(),
+                );
             }
             Ok(self.workers.iter().find(|w| w.id == *id).cloned())
         }
 
-        async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_all_workers(&self) -> Result<Vec<Worker>> {
             Ok(self.workers.clone())
         }
 
-        async fn delete_worker(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn delete_worker(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
-        async fn update_last_seen(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn update_last_seen(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
         async fn find_stale_workers(
             &self,
             _threshold_duration: std::time::Duration,
-        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        ) -> Result<Vec<Worker>> {
             Ok(Vec::new())
+        }
+
+        async fn update_worker_status(
+            &self,
+            _id: &WorkerId,
+            _status: hodei_core::WorkerStatus,
+        ) -> Result<()> {
+            Ok(())
         }
     }
 
@@ -5444,10 +5445,11 @@ mod health_check_tests {
         assert!(result.is_err());
         if let Err(e) = result {
             // Accept either Timeout or InvalidConfig for invalid port
+            let msg = e.to_string();
             assert!(
-                matches!(e, HealthCheckError::Timeout { .. })
-                    || matches!(e, HealthCheckError::InvalidConfig { .. })
-                    || matches!(e, HealthCheckError::ConnectionFailed { .. }),
+                msg.contains("Timeout")
+                    || msg.contains("Invalid configuration")
+                    || msg.contains("Connection failed"),
                 "Expected Timeout, InvalidConfig, or ConnectionFailed error, got: {:?}",
                 e
             );
@@ -5760,43 +5762,39 @@ mod health_metrics_tests {
 
     #[async_trait::async_trait]
     impl hodei_ports::WorkerRepository for MockWorkerRepositoryForMetrics {
-        async fn save_worker(
-            &self,
-            _worker: &Worker,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn save_worker(&self, _worker: &Worker) -> Result<()> {
             Ok(())
         }
 
-        async fn get_worker(
-            &self,
-            id: &WorkerId,
-        ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_worker(&self, id: &WorkerId) -> Result<Option<Worker>> {
             Ok(self.workers.iter().find(|w| w.id == *id).cloned())
         }
 
-        async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_all_workers(&self) -> Result<Vec<Worker>> {
             Ok(self.workers.clone())
         }
 
-        async fn delete_worker(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn delete_worker(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
-        async fn update_last_seen(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn update_last_seen(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
         async fn find_stale_workers(
             &self,
             _threshold_duration: std::time::Duration,
-        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        ) -> Result<Vec<Worker>> {
             Ok(Vec::new())
+        }
+
+        async fn update_worker_status(
+            &self,
+            _id: &WorkerId,
+            _status: hodei_core::WorkerStatus,
+        ) -> Result<()> {
+            Ok(())
         }
     }
 
@@ -6510,36 +6508,23 @@ mod cleanup_service_tests {
 
     #[async_trait::async_trait]
     impl hodei_ports::JobRepository for MockJobRepository {
-        async fn save_job(
-            &self,
-            _job: &hodei_core::Job,
-        ) -> Result<(), hodei_ports::JobRepositoryError> {
+        async fn save_job(&self, _job: &hodei_core::Job) -> Result<()> {
             Ok(())
         }
 
-        async fn get_job(
-            &self,
-            _id: &hodei_core::JobId,
-        ) -> Result<Option<hodei_core::Job>, hodei_ports::JobRepositoryError> {
+        async fn get_job(&self, _id: &hodei_core::JobId) -> Result<Option<hodei_core::Job>> {
             Ok(None)
         }
 
-        async fn get_pending_jobs(
-            &self,
-        ) -> Result<Vec<hodei_core::Job>, hodei_ports::JobRepositoryError> {
+        async fn get_pending_jobs(&self) -> Result<Vec<hodei_core::Job>> {
             Ok(Vec::new())
         }
 
-        async fn get_running_jobs(
-            &self,
-        ) -> Result<Vec<hodei_core::Job>, hodei_ports::JobRepositoryError> {
+        async fn get_running_jobs(&self) -> Result<Vec<hodei_core::Job>> {
             Ok(Vec::new())
         }
 
-        async fn delete_job(
-            &self,
-            _id: &hodei_core::JobId,
-        ) -> Result<(), hodei_ports::JobRepositoryError> {
+        async fn delete_job(&self, _id: &hodei_core::JobId) -> Result<()> {
             Ok(())
         }
 
@@ -6548,7 +6533,7 @@ mod cleanup_service_tests {
             _id: &hodei_core::JobId,
             _expected_state: &str,
             _new_state: &str,
-        ) -> Result<bool, hodei_ports::JobRepositoryError> {
+        ) -> Result<bool> {
             Ok(false)
         }
 
@@ -6556,7 +6541,7 @@ mod cleanup_service_tests {
             &self,
             _job_id: &hodei_core::JobId,
             _worker_id: &hodei_core::WorkerId,
-        ) -> Result<(), hodei_ports::JobRepositoryError> {
+        ) -> Result<()> {
             Ok(())
         }
 
@@ -6564,7 +6549,7 @@ mod cleanup_service_tests {
             &self,
             _job_id: &hodei_core::JobId,
             _start_time: chrono::DateTime<chrono::Utc>,
-        ) -> Result<(), hodei_ports::JobRepositoryError> {
+        ) -> Result<()> {
             Ok(())
         }
 
@@ -6572,7 +6557,7 @@ mod cleanup_service_tests {
             &self,
             _job_id: &hodei_core::JobId,
             _finish_time: chrono::DateTime<chrono::Utc>,
-        ) -> Result<(), hodei_ports::JobRepositoryError> {
+        ) -> Result<()> {
             Ok(())
         }
 
@@ -6580,8 +6565,27 @@ mod cleanup_service_tests {
             &self,
             _job_id: &hodei_core::JobId,
             _duration_ms: i64,
-        ) -> Result<(), hodei_ports::JobRepositoryError> {
+        ) -> Result<()> {
             Ok(())
+        }
+
+        async fn create_job(
+            &self,
+            _job_spec: hodei_core::job::JobSpec,
+        ) -> Result<hodei_core::JobId> {
+            Ok(hodei_core::JobId::new())
+        }
+
+        async fn update_job_state(
+            &self,
+            _job_id: &hodei_core::JobId,
+            _state: hodei_core::job::JobState,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn list_jobs(&self) -> Result<Vec<hodei_core::job::Job>> {
+            Ok(Vec::new())
         }
     }
 
@@ -6645,42 +6649,30 @@ mod cleanup_service_tests {
 
     #[async_trait::async_trait]
     impl hodei_ports::WorkerRepository for MockStaleWorkerRepository {
-        async fn save_worker(
-            &self,
-            _worker: &Worker,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn save_worker(&self, _worker: &Worker) -> Result<()> {
             Ok(())
         }
 
-        async fn get_worker(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<Option<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_worker(&self, _id: &WorkerId) -> Result<Option<Worker>> {
             Ok(None)
         }
 
-        async fn get_all_workers(&self) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        async fn get_all_workers(&self) -> Result<Vec<Worker>> {
             Ok(self.workers.clone())
         }
 
-        async fn delete_worker(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn delete_worker(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
-        async fn update_last_seen(
-            &self,
-            _id: &WorkerId,
-        ) -> Result<(), hodei_ports::WorkerRepositoryError> {
+        async fn update_last_seen(&self, _id: &WorkerId) -> Result<()> {
             Ok(())
         }
 
         async fn find_stale_workers(
             &self,
             threshold_duration: std::time::Duration,
-        ) -> Result<Vec<Worker>, hodei_ports::WorkerRepositoryError> {
+        ) -> Result<Vec<Worker>> {
             let now = chrono::Utc::now();
             let threshold_seconds = threshold_duration.as_secs() as i64;
 
@@ -6695,6 +6687,14 @@ mod cleanup_service_tests {
                 .collect();
 
             Ok(stale_workers)
+        }
+
+        async fn update_worker_status(
+            &self,
+            _id: &WorkerId,
+            _status: hodei_core::WorkerStatus,
+        ) -> Result<()> {
+            Ok(())
         }
     }
 
@@ -7198,7 +7198,7 @@ async fn test_remediation_no_policy_found() {
 
     assert!(result.is_err());
     if let Err(e) = result {
-        assert!(matches!(e, RemediationError::NoPolicyFound(_)));
+        assert!(e.to_string().contains("No remediation policy found"));
     }
 }
 
@@ -7453,7 +7453,7 @@ async fn test_remediation_worker_not_found() {
 
     assert!(result.is_err());
     if let Err(e) = result {
-        assert!(matches!(e, RemediationError::WorkerNotFound(_)));
+        assert!(e.to_string().contains("Worker not found"));
     }
 }
 
@@ -7744,7 +7744,7 @@ async fn test_remediation_action_executor_failure() {
     let result = executor.execute(&worker.id, &action).await;
     assert!(result.is_err());
     if let Err(e) = result {
-        assert!(matches!(e, RemediationError::ActionFailed(_)));
+        assert!(e.to_string().contains("Remediation action failed"));
     }
 }
 
@@ -7770,7 +7770,7 @@ async fn test_remediation_job_manager_failure() {
     let result = job_manager.reassign_jobs(&from_worker, &to_workers).await;
     assert!(result.is_err());
     if let Err(e) = result {
-        assert!(matches!(e, RemediationError::ActionFailed(_)));
+        assert!(e.to_string().contains("Remediation action failed"));
     }
 }
 
@@ -7972,4 +7972,35 @@ async fn test_remediation_max_attempts_limit() {
 
     // In a real implementation, would track attempts and limit
     // For now, the test validates the structure exists
+}
+
+impl From<hodei_ports::worker_provider::ProviderError> for WorkerManagementError {
+    fn from(error: hodei_ports::worker_provider::ProviderError) -> Self {
+        WorkerManagementError::Provider(error)
+    }
+}
+
+impl From<hodei_ports::worker_repository::WorkerRepositoryError> for WorkerManagementError {
+    fn from(error: hodei_ports::worker_repository::WorkerRepositoryError) -> Self {
+        WorkerManagementError::Internal(error.to_string())
+    }
+}
+
+impl From<hodei_ports::job_repository::JobRepositoryError> for WorkerManagementError {
+    fn from(error: hodei_ports::job_repository::JobRepositoryError) -> Self {
+        WorkerManagementError::Internal(error.to_string())
+    }
+}
+
+// Implement From for all ports errors
+impl From<hodei_ports::job_repository::JobRepositoryError> for WorkerManagementError {
+    fn from(error: hodei_ports::job_repository::JobRepositoryError) -> Self {
+        WorkerManagementError::Internal(error.to_string())
+    }
+}
+
+impl From<hodei_ports::worker_repository::WorkerRepositoryError> for WorkerManagementError {
+    fn from(error: hodei_ports::worker_repository::WorkerRepositoryError) -> Self {
+        WorkerManagementError::Internal(error.to_string())
+    }
 }

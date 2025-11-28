@@ -2,7 +2,6 @@
 //!
 
 use axum::{Router, routing::get};
-use std::sync::Arc;
 use tracing::info;
 
 #[tokio::main]

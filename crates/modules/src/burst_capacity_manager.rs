@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tracing::{info, warn};
 
-use crate::multi_tenancy_quota_manager::{
-    MultiTenancyQuotaManager, TenantId, TenantUsage,
-};
+use crate::multi_tenancy_quota_manager::{MultiTenancyQuotaManager, TenantId, TenantUsage};
+
+type Result<T> = std::result::Result<T, BurstError>;
 
 /// Burst capacity configuration
 #[derive(Debug, Clone)]
@@ -78,7 +78,7 @@ pub struct BurstStats {
 }
 
 /// Burst capacity manager
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BurstCapacityManager {
     config: BurstCapacityConfig,
     quota_manager: MultiTenancyQuotaManager,
@@ -133,7 +133,7 @@ impl BurstCapacityManager {
         tenant_id: &str,
         burst_request: BurstResourceRequest,
         requested_multiplier: f64,
-    ) -> Result<BurstDecision, BurstError> {
+    ) -> Result<BurstDecision> {
         // Check if burst is enabled globally
         if !self.config.enabled {
             return Ok(BurstDecision {
@@ -228,7 +228,7 @@ impl BurstCapacityManager {
     }
 
     /// End burst session for a tenant
-    pub async fn end_burst_session(&mut self, tenant_id: &str) -> Result<(), BurstError> {
+    pub async fn end_burst_session(&mut self, tenant_id: &str) -> Result<()> {
         let tenant_id_str = tenant_id.to_string();
         if let Some(session) = self.active_sessions.remove(&tenant_id_str) {
             // Calculate final cost
@@ -276,7 +276,7 @@ impl BurstCapacityManager {
     }
 
     /// Process queued burst requests
-    pub async fn process_queued_bursts(&mut self) -> Result<(), BurstError> {
+    pub async fn process_queued_bursts(&mut self) -> Result<()> {
         if !self.config.enable_burst_queuing {
             return Ok(());
         }
@@ -331,7 +331,7 @@ impl BurstCapacityManager {
         _request: &BurstResourceRequest,
         requested: f64,
         _usage: &TenantUsage,
-    ) -> Result<f64, BurstError> {
+    ) -> Result<f64> {
         // Respect minimum/maximum limits
         let multiplier = requested.max(1.0).min(self.config.default_multiplier);
 
@@ -602,5 +602,12 @@ mod tests {
         let expired_count = manager.cleanup_expired_sessions();
         assert_eq!(expired_count, 1);
         assert!(!manager.is_in_burst("tenant-1"));
+    }
+}
+
+// Error conversion to DomainError
+impl From<BurstError> for hodei_core::DomainError {
+    fn from(err: BurstError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

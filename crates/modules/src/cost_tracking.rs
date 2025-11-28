@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+use hodei_core::{DomainError, Result};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tracing::{error, info};
@@ -206,6 +207,7 @@ impl CostSummary {
 }
 
 /// Cost tracking service
+#[derive(Clone)]
 pub struct CostTrackingService {
     worker_costs: Arc<RwLock<HashMap<String, WorkerCost>>>,
     active_jobs: Arc<RwLock<HashMap<String, JobCost>>>,
@@ -239,13 +241,13 @@ impl CostTrackingService {
     }
 
     /// Start tracking a job
-    pub async fn start_job_tracking(&self, job_cost: JobCost) -> Result<(), CostTrackingError> {
+    pub async fn start_job_tracking(&self, job_cost: JobCost) -> Result<()> {
         let job_id = job_cost.job_id.clone();
 
         let mut active_jobs = self.active_jobs.write().await;
 
         if active_jobs.contains_key(&job_id) {
-            return Err(CostTrackingError::JobAlreadyTracked(job_id));
+            return Err(CostTrackingError::JobAlreadyTracked(job_id).into());
         }
 
         active_jobs.insert(job_id.clone(), job_cost);
@@ -254,7 +256,7 @@ impl CostTrackingService {
     }
 
     /// Complete a job and calculate final cost
-    pub async fn complete_job_tracking(&self, job_id: &str) -> Result<JobCost, CostTrackingError> {
+    pub async fn complete_job_tracking(&self, job_id: &str) -> Result<JobCost> {
         let mut active_jobs = self.active_jobs.write().await;
         let mut completed_jobs = self.completed_jobs.write().await;
 
@@ -270,7 +272,7 @@ impl CostTrackingService {
             let costs = self.worker_costs.read().await;
             match costs.get(&worker_type) {
                 Some(cost) => cost.clone(),
-                None => return Err(CostTrackingError::WorkerTypeNotFound(worker_type)),
+                None => return Err(CostTrackingError::WorkerTypeNotFound(worker_type).into()),
             }
         };
 
@@ -837,7 +839,15 @@ mod tests {
         assert!(result.is_err());
 
         if let Err(e) = result {
-            assert!(matches!(e, CostTrackingError::JobNotFound(_)));
+            // Error is converted to DomainError
+            assert!(matches!(e, DomainError::Infrastructure(_)));
         }
+    }
+}
+
+// Error conversion to DomainError
+impl From<CostTrackingError> for DomainError {
+    fn from(err: CostTrackingError) -> Self {
+        DomainError::Infrastructure(err.to_string())
     }
 }

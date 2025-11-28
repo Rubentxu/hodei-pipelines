@@ -133,7 +133,7 @@ impl QueueScalingIntegration {
             // Check cooldown
             let now = Instant::now();
             let mut last_decisions = self.last_scaling_decisions.write().await;
-            
+
             if let Some(last_time) = last_decisions.get(&queue_id) {
                 if now.duration_since(*last_time) < self.config.cooldown_between_scaling {
                     continue;
@@ -168,7 +168,7 @@ impl QueueScalingIntegration {
 
                     // Record decision
                     last_decisions.insert(queue_id, now);
-                    
+
                     let mut stats = self.stats.write().await;
                     stats.last_scaling_trigger = Some(now);
                     stats.scaling_decisions_made += 1;
@@ -184,12 +184,16 @@ impl QueueScalingIntegration {
     /// Handle queue scaling events
     pub async fn handle_event(&self, event: QueueScalingEvent) {
         match event {
-            QueueScalingEvent::JobSubmitted { queue_type, job_id, .. } => {
+            QueueScalingEvent::JobSubmitted {
+                queue_type, job_id, ..
+            } => {
                 info!(queue_type = ?queue_type, job_id, "Job submitted event");
                 let mut stats = self.stats.write().await;
                 stats.total_jobs_submitted += 1;
             }
-            QueueScalingEvent::JobAssigned { queue_type, job_id, .. } => {
+            QueueScalingEvent::JobAssigned {
+                queue_type, job_id, ..
+            } => {
                 info!(queue_type = ?queue_type, job_id, "Job assigned event");
                 let mut stats = self.stats.write().await;
                 stats.total_jobs_assigned += 1;
@@ -216,13 +220,22 @@ impl QueueScalingIntegration {
     /// Get queue depth for a specific queue
     pub async fn get_queue_depth(&self, queue_id: &str) -> u32 {
         let stats = self.stats.read().await;
-        stats.current_queue_depth.get(queue_id).copied().unwrap_or(0)
+        stats
+            .current_queue_depth
+            .get(queue_id)
+            .copied()
+            .unwrap_or(0)
     }
 
     /// Get maximum queue depth across all queues
     pub async fn get_max_queue_depth(&self) -> u32 {
         let stats = self.stats.read().await;
-        stats.current_queue_depth.values().copied().max().unwrap_or(0)
+        stats
+            .current_queue_depth
+            .values()
+            .copied()
+            .max()
+            .unwrap_or(0)
     }
 }
 
@@ -248,11 +261,7 @@ mod tests {
         let scaling_engine = Arc::new(RwLock::new(ScalingEngine::new()));
         let config = QueueScalingConfig::default();
 
-        let integration = QueueScalingIntegration::new(
-            assignment_engine,
-            scaling_engine,
-            config,
-        );
+        let integration = QueueScalingIntegration::new(assignment_engine, scaling_engine, config);
 
         let stats = integration.get_stats().await;
         assert_eq!(stats.total_jobs_submitted, 0);
@@ -264,11 +273,7 @@ mod tests {
         let scaling_engine = Arc::new(RwLock::new(ScalingEngine::new()));
         let config = QueueScalingConfig::default();
 
-        let integration = QueueScalingIntegration::new(
-            assignment_engine,
-            scaling_engine,
-            config,
-        );
+        let integration = QueueScalingIntegration::new(assignment_engine, scaling_engine, config);
 
         // Test job submitted event
         let event = QueueScalingEvent::JobSubmitted {
@@ -290,30 +295,32 @@ mod tests {
         let scaling_engine = Arc::new(RwLock::new(ScalingEngine::new()));
         let config = QueueScalingConfig::default();
 
-        let integration = QueueScalingIntegration::new(
-            assignment_engine,
-            scaling_engine,
-            config,
-        );
+        let integration = QueueScalingIntegration::new(assignment_engine, scaling_engine, config);
 
         // Handle multiple events
-        integration.handle_event(QueueScalingEvent::JobSubmitted {
-            queue_type: QueueType::Default,
-            priority: 5,
-            tenant_id: "tenant1".to_string(),
-            job_id: "job-1".to_string(),
-        }).await;
+        integration
+            .handle_event(QueueScalingEvent::JobSubmitted {
+                queue_type: QueueType::Default,
+                priority: 5,
+                tenant_id: "tenant1".to_string(),
+                job_id: "job-1".to_string(),
+            })
+            .await;
 
-        integration.handle_event(QueueScalingEvent::JobAssigned {
-            queue_type: QueueType::Default,
-            job_id: "job-1".to_string(),
-            worker_id: "worker-1".to_string(),
-        }).await;
+        integration
+            .handle_event(QueueScalingEvent::JobAssigned {
+                queue_type: QueueType::Default,
+                job_id: "job-1".to_string(),
+                worker_id: "worker-1".to_string(),
+            })
+            .await;
 
-        integration.handle_event(QueueScalingEvent::JobCompleted {
-            queue_type: QueueType::Default,
-            job_id: "job-1".to_string(),
-        }).await;
+        integration
+            .handle_event(QueueScalingEvent::JobCompleted {
+                queue_type: QueueType::Default,
+                job_id: "job-1".to_string(),
+            })
+            .await;
 
         let stats = integration.get_stats().await;
         assert_eq!(stats.total_jobs_submitted, 1);
@@ -327,11 +334,7 @@ mod tests {
         let scaling_engine = Arc::new(RwLock::new(ScalingEngine::new()));
         let config = QueueScalingConfig::default();
 
-        let integration = QueueScalingIntegration::new(
-            assignment_engine,
-            scaling_engine,
-            config,
-        );
+        let integration = QueueScalingIntegration::new(assignment_engine, scaling_engine, config);
 
         // Check initial queue depth (0)
         assert_eq!(integration.get_queue_depth("default").await, 0);
@@ -343,7 +346,7 @@ mod tests {
     #[tokio::test]
     async fn test_config_defaults() {
         let config = QueueScalingConfig::default();
-        
+
         assert_eq!(config.min_queue_depth_for_scaling, 5);
         assert_eq!(config.cooldown_between_scaling, Duration::from_secs(60));
     }
@@ -362,7 +365,7 @@ mod tests {
     #[tokio::test]
     async fn test_stats_initialization() {
         let stats = QueueScalingStats::new();
-        
+
         assert_eq!(stats.total_jobs_submitted, 0);
         assert_eq!(stats.total_jobs_assigned, 0);
         assert_eq!(stats.total_jobs_completed, 0);

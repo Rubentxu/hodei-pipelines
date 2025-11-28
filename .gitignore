@@ -97,3 +97,6 @@ docs/alineamiento
 !SECURITY.md
 node_modules/
 package-lock.json
+*.csv
+codebase*
+*.txt

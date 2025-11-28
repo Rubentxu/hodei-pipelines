@@ -6,7 +6,6 @@ use hodei_core::{Job, JobId, JobSpec, Worker, WorkerId};
 use hodei_ports::event_bus::SystemEvent;
 use hodei_core::{ResourceQuota, WorkerCapabilities};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Helper function to create a test Job
 fn create_test_job() -> Job {

@@ -5,7 +5,7 @@
 //! with business logic in the domain layer.
 
 use async_trait::async_trait;
-use hodei_core::JobId;
+use hodei_core::{DomainError, JobId, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -92,39 +92,32 @@ pub struct ChunkInfo {
 #[async_trait]
 pub trait ArtifactRepository: Send + Sync {
     /// Save artifact metadata
-    async fn save_artifact(&self, artifact: &ArtifactMetadata) -> Result<(), ArtifactError>;
+    async fn save_artifact(&self, artifact: &ArtifactMetadata) -> Result<()>;
 
     /// Get artifact by ID
-    async fn get_artifact(
-        &self,
-        artifact_id: &ArtifactId,
-    ) -> Result<Option<ArtifactMetadata>, ArtifactError>;
+    async fn get_artifact(&self, artifact_id: &ArtifactId) -> Result<Option<ArtifactMetadata>>;
 
     /// Update artifact status
     async fn update_artifact_status(
         &self,
         artifact_id: &ArtifactId,
         status: UploadStatus,
-    ) -> Result<(), ArtifactError>;
+    ) -> Result<()>;
 
     /// Record chunk reception
-    async fn record_chunk(
-        &self,
-        artifact_id: &ArtifactId,
-        chunk: &ChunkInfo,
-    ) -> Result<(), ArtifactError>;
+    async fn record_chunk(&self, artifact_id: &ArtifactId, chunk: &ChunkInfo) -> Result<()>;
 
     /// Get chunks for artifact
-    async fn get_chunks(&self, artifact_id: &ArtifactId) -> Result<Vec<ChunkInfo>, ArtifactError>;
+    async fn get_chunks(&self, artifact_id: &ArtifactId) -> Result<Vec<ChunkInfo>>;
 
     /// Get artifact by upload ID
     async fn get_artifact_by_upload_id(
         &self,
         upload_id: &UploadId,
-    ) -> Result<Option<ArtifactMetadata>, ArtifactError>;
+    ) -> Result<Option<ArtifactMetadata>>;
 
     /// Delete artifact and its chunks
-    async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<(), ArtifactError>;
+    async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<()>;
 }
 
 /// Storage provider port (for actual file storage)
@@ -135,7 +128,7 @@ pub trait StorageProvider: Send + Sync {
         &self,
         artifact_id: &ArtifactId,
         metadata: &ArtifactMetadata,
-    ) -> Result<(), StorageError>;
+    ) -> Result<()>;
 
     /// Store a chunk
     async fn store_chunk(
@@ -143,13 +136,13 @@ pub trait StorageProvider: Send + Sync {
         artifact_id: &ArtifactId,
         sequence_number: u32,
         data: &[u8],
-    ) -> Result<(), StorageError>;
+    ) -> Result<()>;
 
     /// Finalize artifact (validate, move to final location)
-    async fn finalize_artifact(&self, artifact_id: &ArtifactId) -> Result<String, StorageError>;
+    async fn finalize_artifact(&self, artifact_id: &ArtifactId) -> Result<String>;
 
     /// Delete artifact from storage
-    async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<(), StorageError>;
+    async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<()>;
 }
 
 /// Artifact management errors
@@ -249,27 +242,27 @@ where
         checksum: &str,
         is_compressed: bool,
         compression_type: Option<&str>,
-    ) -> Result<UploadId, ArtifactError> {
+    ) -> Result<UploadId> {
         info!("Initiating upload for artifact: {}", artifact_id.as_str());
 
         // Validate inputs
         if checksum.is_empty() {
-            return Err(ArtifactError::InvalidState(
-                "Checksum is required".to_string(),
-            ));
+            return Err(ArtifactError::InvalidState("Checksum is required".to_string()).into());
         }
 
         if total_size == 0 {
             return Err(ArtifactError::InvalidState(
                 "Total size must be greater than 0".to_string(),
-            ));
+            )
+            .into());
         }
 
         if total_size > self.config.max_artifact_size_mb * 1024 * 1024 {
             return Err(ArtifactError::InvalidState(format!(
                 "Artifact size {} exceeds maximum allowed {} MB",
                 total_size, self.config.max_artifact_size_mb
-            )));
+            ))
+            .into());
         }
 
         // Generate upload ID
@@ -299,7 +292,12 @@ where
         self.storage_provider
             .initialize_storage(artifact_id, &metadata)
             .await
-            .map_err(ArtifactError::Storage)?;
+            .map_err(|e| {
+                ArtifactError::Storage(StorageError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                )))
+            })?;
 
         // Save metadata
         self.artifact_repo
@@ -328,7 +326,7 @@ where
         sequence_number: u32,
         data: &[u8],
         checksum: Option<&str>,
-    ) -> Result<u64, ArtifactError> {
+    ) -> Result<u64> {
         // Get artifact from cache or repository
         let metadata = {
             let active_uploads = self.active_uploads.read().await;
@@ -346,22 +344,22 @@ where
 
         // Validate upload state
         if metadata.status == UploadStatus::Completed {
-            return Err(ArtifactError::InvalidState(
-                "Upload already completed".to_string(),
-            ));
+            return Err(ArtifactError::InvalidState("Upload already completed".to_string()).into());
         }
 
         if metadata.status == UploadStatus::Failed || metadata.status == UploadStatus::Cancelled {
             return Err(ArtifactError::InvalidState(
                 "Upload has failed or was cancelled".to_string(),
-            ));
+            )
+            .into());
         }
 
         // Validate sequence number
         if sequence_number >= self.config.max_chunks_per_upload {
             return Err(ArtifactError::InvalidState(
                 "Sequence number exceeds maximum allowed".to_string(),
-            ));
+            )
+            .into());
         }
 
         // Check if chunk already exists
@@ -388,7 +386,12 @@ where
         self.storage_provider
             .store_chunk(&metadata.artifact_id, sequence_number, data)
             .await
-            .map_err(ArtifactError::Storage)?;
+            .map_err(|e| {
+                ArtifactError::Storage(StorageError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                )))
+            })?;
 
         // Record chunk
         let chunk_info = ChunkInfo {
@@ -430,7 +433,7 @@ where
     }
 
     /// Resume an interrupted upload
-    pub async fn resume_upload(&self, upload_id: &UploadId) -> Result<u32, ArtifactError> {
+    pub async fn resume_upload(&self, upload_id: &UploadId) -> Result<u32> {
         // Get artifact from repository
         let metadata = self
             .artifact_repo
@@ -480,7 +483,7 @@ where
         &self,
         upload_id: &UploadId,
         final_checksum: &str,
-    ) -> Result<String, ArtifactError> {
+    ) -> Result<String> {
         // Get artifact from repository
         let metadata = self
             .artifact_repo
@@ -491,7 +494,7 @@ where
 
         // Validate checksum
         if metadata.checksum != final_checksum {
-            return Err(ArtifactError::ChecksumMismatch);
+            return Err(ArtifactError::ChecksumMismatch.into());
         }
 
         // Finalize in storage
@@ -499,7 +502,12 @@ where
             .storage_provider
             .finalize_artifact(&metadata.artifact_id)
             .await
-            .map_err(ArtifactError::Storage)?;
+            .map_err(|e| {
+                ArtifactError::Storage(StorageError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                )))
+            })?;
 
         // Update status to Completed
         self.artifact_repo
@@ -523,7 +531,7 @@ where
     }
 
     /// Cancel an upload
-    pub async fn cancel_upload(&self, upload_id: &UploadId) -> Result<(), ArtifactError> {
+    pub async fn cancel_upload(&self, upload_id: &UploadId) -> Result<()> {
         // Get artifact from repository
         let metadata = self
             .artifact_repo
@@ -536,7 +544,12 @@ where
         self.storage_provider
             .delete_artifact(&metadata.artifact_id)
             .await
-            .map_err(ArtifactError::Storage)?;
+            .map_err(|e| {
+                ArtifactError::Storage(StorageError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                )))
+            })?;
 
         // Delete from repository
         self.artifact_repo
@@ -597,16 +610,13 @@ mod tests {
 
     #[async_trait::async_trait]
     impl ArtifactRepository for MockArtifactRepository {
-        async fn save_artifact(&self, artifact: &ArtifactMetadata) -> Result<(), ArtifactError> {
+        async fn save_artifact(&self, artifact: &ArtifactMetadata) -> Result<()> {
             let mut artifacts = self.artifacts.write().await;
             artifacts.insert(artifact.artifact_id.clone(), artifact.clone());
             Ok(())
         }
 
-        async fn get_artifact(
-            &self,
-            artifact_id: &ArtifactId,
-        ) -> Result<Option<ArtifactMetadata>, ArtifactError> {
+        async fn get_artifact(&self, artifact_id: &ArtifactId) -> Result<Option<ArtifactMetadata>> {
             let artifacts = self.artifacts.read().await;
             Ok(artifacts.get(artifact_id).cloned())
         }
@@ -615,7 +625,7 @@ mod tests {
             &self,
             artifact_id: &ArtifactId,
             status: UploadStatus,
-        ) -> Result<(), ArtifactError> {
+        ) -> Result<()> {
             let mut artifacts = self.artifacts.write().await;
             if let Some(artifact) = artifacts.get_mut(artifact_id) {
                 artifact.status = status;
@@ -625,11 +635,7 @@ mod tests {
             }
         }
 
-        async fn record_chunk(
-            &self,
-            artifact_id: &ArtifactId,
-            chunk: &ChunkInfo,
-        ) -> Result<(), ArtifactError> {
+        async fn record_chunk(&self, artifact_id: &ArtifactId, chunk: &ChunkInfo) -> Result<()> {
             let mut chunks = self.chunks.write().await;
             chunks
                 .entry(artifact_id.clone())
@@ -638,15 +644,12 @@ mod tests {
             Ok(())
         }
 
-        async fn get_chunks(
-            &self,
-            artifact_id: &ArtifactId,
-        ) -> Result<Vec<ChunkInfo>, ArtifactError> {
+        async fn get_chunks(&self, artifact_id: &ArtifactId) -> Result<Vec<ChunkInfo>> {
             let chunks = self.chunks.read().await;
             Ok(chunks.get(artifact_id).cloned().unwrap_or_default())
         }
 
-        async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<(), ArtifactError> {
+        async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<()> {
             let mut artifacts = self.artifacts.write().await;
             let mut chunks = self.chunks.write().await;
             artifacts.remove(artifact_id);
@@ -657,7 +660,7 @@ mod tests {
         async fn get_artifact_by_upload_id(
             &self,
             upload_id: &UploadId,
-        ) -> Result<Option<ArtifactMetadata>, ArtifactError> {
+        ) -> Result<Option<ArtifactMetadata>> {
             let artifacts = self.artifacts.read().await;
             Ok(artifacts
                 .values()
@@ -677,7 +680,7 @@ mod tests {
             &self,
             artifact_id: &ArtifactId,
             _metadata: &ArtifactMetadata,
-        ) -> Result<(), StorageError> {
+        ) -> Result<()> {
             let mut stored_chunks = self.stored_chunks.write().await;
             stored_chunks.insert(artifact_id.clone(), HashMap::new());
             Ok(())
@@ -688,7 +691,7 @@ mod tests {
             artifact_id: &ArtifactId,
             sequence_number: u32,
             data: &[u8],
-        ) -> Result<(), StorageError> {
+        ) -> Result<()> {
             let mut stored_chunks = self.stored_chunks.write().await;
             if let Some(chunks) = stored_chunks.get_mut(artifact_id) {
                 chunks.insert(sequence_number, data.to_vec());
@@ -696,10 +699,7 @@ mod tests {
             Ok(())
         }
 
-        async fn finalize_artifact(
-            &self,
-            artifact_id: &ArtifactId,
-        ) -> Result<String, StorageError> {
+        async fn finalize_artifact(&self, artifact_id: &ArtifactId) -> Result<String> {
             let stored_chunks = self.stored_chunks.read().await;
             if let Some(chunks) = stored_chunks.get(artifact_id) {
                 let total_bytes: usize = chunks.values().map(|v| v.len()).sum();
@@ -713,7 +713,7 @@ mod tests {
             }
         }
 
-        async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<(), StorageError> {
+        async fn delete_artifact(&self, artifact_id: &ArtifactId) -> Result<()> {
             let mut stored_chunks = self.stored_chunks.write().await;
             stored_chunks.remove(artifact_id);
             Ok(())
@@ -904,5 +904,27 @@ mod tests {
         let result = service.cancel_upload(&upload_id).await;
 
         assert!(result.is_ok());
+    }
+}
+
+// Implement From trait for error conversions
+impl From<ArtifactError> for DomainError {
+    fn from(error: ArtifactError) -> Self {
+        match error {
+            ArtifactError::NotFound(_) => DomainError::NotFound("Artifact not found".to_string()),
+            ArtifactError::InvalidState(msg) => DomainError::Validation(msg),
+            ArtifactError::ChecksumMismatch => {
+                DomainError::Validation("Checksum mismatch".to_string())
+            }
+            ArtifactError::Storage(err) => DomainError::Infrastructure(err.to_string()),
+            ArtifactError::Database(msg) => DomainError::Infrastructure(msg),
+            ArtifactError::Internal(msg) => DomainError::Infrastructure(msg),
+        }
+    }
+}
+
+impl From<StorageError> for DomainError {
+    fn from(error: StorageError) -> Self {
+        DomainError::Infrastructure(error.to_string())
     }
 }

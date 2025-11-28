@@ -5,8 +5,12 @@
 # =============================================================================
 # Description: Extracts all source code from 'crates' and 'server' directories
 #              into a single consolidated text file for analysis.
+#              Excludes test files and test directories.
 #
-# Usage: ./scripts/extract-codebase.sh [output_file]
+# Usage: ./scripts/extract-codebase.sh [opciones] [output_file]
+#
+# Opciones:
+#   --ports-adapters, -pa    Solo procesar crates de adapters y ports (Infraestructura)
 #
 # Arguments:
 #   output_file    (optional) Path to the output file
@@ -20,6 +24,8 @@
 # Example:
 #   ./scripts/extract-codebase.sh
 #   ./scripts/extract-codebase.sh /tmp/my_codebase.txt
+#   ./scripts/extract-codebase.sh --ports-adapters
+#   ./scripts/extract-codebase.sh -pa infra.txt
 #
 # =============================================================================
 
@@ -28,8 +34,39 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-OUTPUT_FILE="${1:-${PROJECT_ROOT}/codebase_complete.txt}"
+PORTS_ADAPTERS_ONLY=0
+OUTPUT_FILE=""
 TEMP_DIR="/tmp/code_extract_$$"
+
+# Parseo de opciones
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --ports-adapters|-pa)
+            PORTS_ADAPTERS_ONLY=1
+            shift
+            ;;
+        -h|--help)
+            echo "Uso: $0 [opciones] [output_file]"
+            echo ""
+            echo "Opciones:"
+            echo "  --ports-adapters, -pa    Solo procesar crates de adapters y ports (Infraestructura)"
+            echo ""
+            echo "Ejemplos:"
+            echo "  $0                       # Extraer todo el codebase"
+            echo "  $0 output.txt            # Extraer a archivo personalizado"
+            echo "  $0 --ports-adapters      # Solo adapters y ports"
+            echo "  $0 -pa infra.txt         # Solo adapters y ports, archivo personalizado"
+            exit 0
+            ;;
+        *)
+            OUTPUT_FILE="$1"
+            shift
+            ;;
+    esac
+done
+
+# Parámetros por defecto
+OUTPUT_FILE="${OUTPUT_FILE:-${PROJECT_ROOT}/codebase_complete.txt}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -63,7 +100,15 @@ process_files() {
     info "Processing directory: $dir"
     
     # Find all .rs, .toml, and .md files, sort them, and process
-    find "$dir" -type f \( -name "*.rs" -o -name "*.toml" -o -name "*.md" \) | sort | while read -r file; do
+    # Exclude test files and test directories
+    find "$dir" -type f \( -name "*.rs" -o -name "*.toml" -o -name "*.md" \) \
+        -not -path "*/tests/*" \
+        -not -path "*/test/*" \
+        -not -name "*_test.rs" \
+        -not -name "*_tests.rs" \
+        -not -name "functional_tests.rs" \
+        -not -name "integration_tests.rs" \
+        | sort | while read -r file; do
         # Calculate relative path
         rel_path="${file#./}"
         
@@ -85,20 +130,35 @@ process_files() {
 main() {
     info "Starting codebase extraction..."
     info "Output file: $OUTPUT_FILE"
-    
+
+    if [ $PORTS_ADAPTERS_ONLY -eq 1 ]; then
+        info "Mode: Only adapters and ports crates"
+    fi
+
     # Change to project root
     cd "$PROJECT_ROOT"
-    
+
     # Create output file with header
-    echo "=== EXTRACCIÓN DE CÓDIGO: crates y server ===" > "$OUTPUT_FILE"
+    if [ $PORTS_ADAPTERS_ONLY -eq 1 ]; then
+        echo "=== EXTRACCIÓN DE CÓDIGO: Solo adapters y ports ===" > "$OUTPUT_FILE"
+    else
+        echo "=== EXTRACCIÓN DE CÓDIGO: crates y server ===" > "$OUTPUT_FILE"
+    fi
     echo "Fecha: $(date)" >> "$OUTPUT_FILE"
     echo "Proyecto: Hodei Jobs" >> "$OUTPUT_FILE"
     echo "Directorio raíz: $(pwd)" >> "$OUTPUT_FILE"
     echo "" >> "$OUTPUT_FILE"
-    
+
     # Process directories
-    process_files "crates" "crates"
-    process_files "server" "server"
+    if [ $PORTS_ADAPTERS_ONLY -eq 1 ]; then
+        # Solo adapters y ports
+        process_files "crates/adapters" "adapters"
+        process_files "crates/ports" "ports"
+    else
+        # Todo el codebase
+        process_files "crates" "crates"
+        process_files "server" "server"
+    fi
     
     # Generate statistics
     local total_files=$(grep -c "^Archivo:" "$OUTPUT_FILE" 2>/dev/null || echo "0")

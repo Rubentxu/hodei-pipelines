@@ -370,8 +370,8 @@ impl ProductionCertificateValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustls::pki_types::{CertificateDer, UnixTime};
-    use std::time::Duration;
+    use rustls::pki_types::CertificateDer;
+    
 
     fn create_test_config() -> MtlsConfig {
         MtlsConfig {

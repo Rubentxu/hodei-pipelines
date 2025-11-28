@@ -178,8 +178,8 @@ impl HeartbeatSender {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
-    use tokio::sync::Mutex;
+    
+    
 
     #[test]
     fn test_heartbeat_config_default() {

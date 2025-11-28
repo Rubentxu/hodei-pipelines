@@ -4,7 +4,7 @@ mod us_01_1_tests {
     use chrono::{TimeZone, Utc};
     use rustls_pemfile::certs;
     use std::io::BufReader;
-    use std::net::IpAddr;
+    
     use x509_parser::prelude::*;
 
     fn load_test_cert(cert_name: &str) -> Vec<u8> {

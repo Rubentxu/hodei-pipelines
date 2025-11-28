@@ -162,7 +162,7 @@ pub enum StreamingError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempfile;
+    
 
     #[tokio::test]
     async fn test_log_streamer_creation() {

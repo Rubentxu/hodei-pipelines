@@ -12,11 +12,26 @@ use hodei_core::{
     },
 };
 use hodei_ports::PipelineExecutionRepository;
-use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
-use tracing::{debug, error, info, warn};
-use uuid::Uuid;
+use tracing::{debug, info};
+
+/// Log separator for step execution logs
+const LOG_SEPARATOR: &str = "\n";
+
+/// Execution status constants
+const EXECUTION_STATUS_PENDING: &str = "PENDING";
+const EXECUTION_STATUS_RUNNING: &str = "RUNNING";
+const EXECUTION_STATUS_COMPLETED: &str = "COMPLETED";
+const EXECUTION_STATUS_FAILED: &str = "FAILED";
+const EXECUTION_STATUS_CANCELLED: &str = "CANCELLED";
+
+/// Step execution status constants
+const STEP_STATUS_PENDING: &str = "PENDING";
+const STEP_STATUS_RUNNING: &str = "RUNNING";
+const STEP_STATUS_COMPLETED: &str = "COMPLETED";
+const STEP_STATUS_FAILED: &str = "FAILED";
+const STEP_STATUS_SKIPPED: &str = "SKIPPED";
 
 /// PostgreSQL Pipeline Execution Repository
 #[derive(Debug)]
@@ -114,6 +129,84 @@ impl PostgreSqlPipelineExecutionRepository {
         info!("Pipeline execution schema initialized successfully");
         Ok(())
     }
+
+    /// Deserialize StepExecution from a SQL row
+    ///
+    /// This method can handle both regular queries and JOIN queries with column aliases
+    fn deserialize_step_from_row(&self, row: &sqlx::postgres::PgRow) -> Result<StepExecution> {
+        let logs_str: String = row.get("logs");
+        let logs = if logs_str.is_empty() {
+            Vec::new()
+        } else {
+            logs_str
+                .split(LOG_SEPARATOR)
+                .map(|s| s.to_string())
+                .collect()
+        };
+
+        // Handle both "status" (regular query) and "step_status" (JOIN query) column names
+        let status_str = row
+            .try_get::<String, _>("step_status")
+            .unwrap_or_else(|_| row.get::<String, _>("status"));
+        let status = StepExecutionStatus::from_str(&status_str).map_err(|_| {
+            DomainError::Validation(format!("Invalid step execution status: {}", status_str))
+        })?;
+
+        // Handle both column name variations for started_at and completed_at
+        // Database fields are nullable, so SQLx returns Option<DateTime>
+        let started_at = row
+            .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("step_started_at")
+            .unwrap_or_else(|_| row.get("started_at"));
+        let completed_at = row
+            .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("step_completed_at")
+            .unwrap_or_else(|_| row.get("completed_at"));
+
+        Ok(StepExecution {
+            step_execution_id: StepExecutionId::from_uuid(row.get("step_execution_id")),
+            step_id: PipelineStepId::from_uuid(row.get("step_id")),
+            status,
+            started_at,
+            completed_at,
+            retry_count: row.get::<i32, _>("retry_count") as u8,
+            error_message: row.get("error_message"),
+            logs,
+        })
+    }
+
+    /// Deserialize PipelineExecution from SQL rows (main query + step executions)
+    fn deserialize_execution_from_rows(
+        &self,
+        exec_row: &sqlx::postgres::PgRow,
+        step_rows: Vec<sqlx::postgres::PgRow>,
+    ) -> Result<PipelineExecution> {
+        let steps = step_rows
+            .into_iter()
+            .map(|row| self.deserialize_step_from_row(&row))
+            .collect::<Result<Vec<_>>>()?;
+
+        let variables_json: serde_json::Value = exec_row.get("variables");
+        let variables =
+            serde_json::from_value::<HashMap<String, String>>(variables_json).map_err(|e| {
+                DomainError::Validation(format!("Failed to deserialize variables: {}", e))
+            })?;
+
+        let status_str = exec_row.get::<String, _>("status");
+        let status = ExecutionStatus::from_str(&status_str).map_err(|_| {
+            DomainError::Validation(format!("Invalid execution status: {}", status_str))
+        })?;
+
+        Ok(PipelineExecution {
+            id: ExecutionId::from_uuid(exec_row.get("execution_id")),
+            pipeline_id: hodei_core::PipelineId::from_uuid(exec_row.get("pipeline_id")),
+            status,
+            started_at: exec_row.get("started_at"),
+            completed_at: exec_row.get("completed_at"),
+            steps,
+            variables: variables.into_iter().map(|(k, v)| (k, v)).collect(),
+            tenant_id: exec_row.get("tenant_id"),
+            correlation_id: exec_row.get("correlation_id"),
+        })
+    }
 }
 
 #[async_trait]
@@ -175,7 +268,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             .bind(step.completed_at)
             .bind(step.retry_count as i32)
             .bind(step.error_message.as_deref())
-            .bind(step.logs.join("\n"))
+            .bind(step.logs.join(LOG_SEPARATOR))
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -224,44 +317,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
                 DomainError::Infrastructure(format!("Failed to get step executions: {}", e))
             })?;
 
-            let steps = step_rows
-                .into_iter()
-                .map(|row| {
-                    let logs_str: String = row.get("logs");
-                    Ok(StepExecution {
-                        step_execution_id: StepExecutionId::from_uuid(row.get("step_execution_id")),
-                        step_id: PipelineStepId::from_uuid(row.get("step_id")),
-                        status: StepExecutionStatus::from_str(row.get("status"))
-                            .unwrap_or(StepExecutionStatus::PENDING),
-                        started_at: row.get("started_at"),
-                        completed_at: row.get("completed_at"),
-                        retry_count: row.get::<i32, _>("retry_count") as u8,
-                        error_message: row.get("error_message"),
-                        logs: if logs_str.is_empty() {
-                            Vec::new()
-                        } else {
-                            logs_str.split('\n').map(|s| s.to_string()).collect()
-                        },
-                    })
-                })
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-
-            let variables_json: serde_json::Value = row.get("variables");
-            let variables = serde_json::from_value::<HashMap<String, String>>(variables_json)
-                .unwrap_or_default();
-            let execution = PipelineExecution {
-                id: ExecutionId::from_uuid(row.get("execution_id")),
-                pipeline_id: hodei_core::PipelineId::from_uuid(row.get("pipeline_id")),
-                status: ExecutionStatus::from_str(row.get::<String, _>("status").as_str())
-                    .unwrap_or_else(|_| ExecutionStatus::PENDING),
-                started_at: row.get("started_at"),
-                completed_at: row.get("completed_at"),
-                steps,
-                variables: variables.into_iter().map(|(k, v)| (k, v)).collect(),
-                tenant_id: row.get("tenant_id"),
-                correlation_id: row.get("correlation_id"),
-            };
-
+            let execution = self.deserialize_execution_from_rows(&row, step_rows)?;
             Ok(Some(execution))
         } else {
             Ok(None)
@@ -274,12 +330,18 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
     ) -> Result<Vec<PipelineExecution>> {
         debug!("Getting pipeline executions for pipeline: {}", pipeline_id);
 
+        // Get all pipeline executions with their step executions in a single query
         let exec_rows = sqlx::query(
             r#"
-            SELECT execution_id
-            FROM pipeline_executions
-            WHERE pipeline_id = $1
-            ORDER BY started_at DESC
+            SELECT pe.execution_id, pe.pipeline_id, pe.status, pe.started_at, pe.completed_at,
+                   pe.variables, pe.tenant_id, pe.correlation_id,
+                   se.step_execution_id, se.step_id, se.status as step_status,
+                   se.started_at as step_started_at, se.completed_at as step_completed_at,
+                   se.retry_count, se.error_message, se.logs
+            FROM pipeline_executions pe
+            LEFT JOIN step_executions se ON pe.execution_id = se.execution_id
+            WHERE pe.pipeline_id = $1
+            ORDER BY pe.started_at DESC, se.created_at
         "#,
         )
         .bind(pipeline_id.as_uuid())
@@ -289,12 +351,29 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             DomainError::Infrastructure(format!("Failed to get pipeline executions: {}", e))
         })?;
 
-        let mut executions = Vec::new();
+        // Group step executions by execution_id
+        let mut executions_map: std::collections::HashMap<
+            ExecutionId,
+            (sqlx::postgres::PgRow, Vec<sqlx::postgres::PgRow>),
+        > = std::collections::HashMap::new();
+
         for row in exec_rows {
             let execution_id = ExecutionId::from_uuid(row.get("execution_id"));
-            if let Some(execution) = self.get_execution(&execution_id).await? {
-                executions.push(execution);
+            if let Some((_, step_rows)) = executions_map.get_mut(&execution_id) {
+                step_rows.push(row);
+            } else {
+                executions_map.insert(execution_id, (row, Vec::new()));
             }
+        }
+
+        // Deserialize each execution
+        let mut executions = Vec::new();
+        for (execution_id, (exec_row, step_rows)) in executions_map {
+            // Re-order step_rows to ensure correct sorting
+            let step_rows_sorted = step_rows;
+
+            let execution = self.deserialize_execution_from_rows(&exec_row, step_rows_sorted)?;
+            executions.push(execution);
         }
 
         Ok(executions)
@@ -310,19 +389,30 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             execution_id, status
         );
 
-        sqlx::query(r#"
+        let terminal_statuses = vec![
+            EXECUTION_STATUS_COMPLETED,
+            EXECUTION_STATUS_FAILED,
+            EXECUTION_STATUS_CANCELLED,
+        ];
+
+        sqlx::query(
+            r#"
             UPDATE pipeline_executions
             SET status = $1,
-                completed_at = CASE WHEN $2 IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN NOW() ELSE completed_at END,
+                completed_at = CASE WHEN $2 = ANY($3) THEN NOW() ELSE completed_at END,
                 updated_at = NOW()
-            WHERE execution_id = $3
-        "#)
+            WHERE execution_id = $4
+        "#,
+        )
         .bind(status.as_str())
         .bind(status.as_str())
+        .bind(terminal_statuses)
         .bind(execution_id.as_uuid())
         .execute(&self.pool)
         .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to update execution status: {}", e)))?;
+        .map_err(|e| {
+            DomainError::Infrastructure(format!("Failed to update execution status: {}", e))
+        })?;
 
         Ok(())
     }
@@ -338,17 +428,27 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             step_id, execution_id
         );
 
-        sqlx::query(r#"
+        let terminal_statuses = vec![
+            STEP_STATUS_COMPLETED,
+            STEP_STATUS_FAILED,
+            STEP_STATUS_SKIPPED,
+        ];
+
+        sqlx::query(
+            r#"
             UPDATE step_executions
             SET status = $1,
-                started_at = CASE WHEN $1 = 'RUNNING' THEN NOW() ELSE started_at END,
-                completed_at = CASE WHEN $1 IN ('COMPLETED', 'FAILED', 'SKIPPED') THEN NOW() ELSE completed_at END,
+                started_at = CASE WHEN $1 = $4 THEN NOW() ELSE started_at END,
+                completed_at = CASE WHEN $1 = ANY($5) THEN NOW() ELSE completed_at END,
                 updated_at = NOW()
             WHERE execution_id = $2 AND step_id = $3
-        "#)
+        "#,
+        )
         .bind(status.as_str())
         .bind(execution_id.as_uuid())
         .bind(step_id.as_uuid())
+        .bind(STEP_STATUS_RUNNING)
+        .bind(terminal_statuses)
         .execute(&self.pool)
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to update step status: {}", e)))?;
@@ -380,7 +480,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
         .bind(step.completed_at)
         .bind(step.retry_count as i32)
         .bind(step.error_message.as_deref())
-        .bind(step.logs.join("\n"))
+        .bind(step.logs.join(LOG_SEPARATOR))
         .bind(step.step_execution_id.as_uuid())
         .execute(&self.pool)
         .await
@@ -410,26 +510,49 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
     async fn get_active_executions(&self) -> Result<Vec<PipelineExecution>> {
         debug!("Getting active pipeline executions");
 
+        // Get all active pipeline executions with their step executions in a single query
         let exec_rows = sqlx::query(
             r#"
-            SELECT execution_id
-            FROM pipeline_executions
-            WHERE status IN ('PENDING', 'RUNNING')
-            ORDER BY started_at
+            SELECT pe.execution_id, pe.pipeline_id, pe.status, pe.started_at, pe.completed_at,
+                   pe.variables, pe.tenant_id, pe.correlation_id,
+                   se.step_execution_id, se.step_id, se.status as step_status,
+                   se.started_at as step_started_at, se.completed_at as step_completed_at,
+                   se.retry_count, se.error_message, se.logs
+            FROM pipeline_executions pe
+            LEFT JOIN step_executions se ON pe.execution_id = se.execution_id
+            WHERE pe.status IN ($1, $2)
+            ORDER BY pe.started_at, se.created_at
         "#,
         )
+        .bind(EXECUTION_STATUS_PENDING)
+        .bind(EXECUTION_STATUS_RUNNING)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {
             DomainError::Infrastructure(format!("Failed to get active executions: {}", e))
         })?;
 
-        let mut executions = Vec::new();
+        // Group step executions by execution_id
+        let mut executions_map: std::collections::HashMap<
+            ExecutionId,
+            (sqlx::postgres::PgRow, Vec<sqlx::postgres::PgRow>),
+        > = std::collections::HashMap::new();
+
         for row in exec_rows {
             let execution_id = ExecutionId::from_uuid(row.get("execution_id"));
-            if let Some(execution) = self.get_execution(&execution_id).await? {
-                executions.push(execution);
+            if let Some((_, step_rows)) = executions_map.get_mut(&execution_id) {
+                step_rows.push(row);
+            } else {
+                executions_map.insert(execution_id, (row, Vec::new()));
             }
+        }
+
+        // Deserialize each execution
+        let mut executions = Vec::new();
+        for (_, (exec_row, step_rows)) in executions_map {
+            let step_rows_sorted = step_rows;
+            let execution = self.deserialize_execution_from_rows(&exec_row, step_rows_sorted)?;
+            executions.push(execution);
         }
 
         Ok(executions)
@@ -439,7 +562,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sqlx::{Connection, Executor, PgConnection};
+    use sqlx::Connection;
 
     #[tokio::test]
     async fn test_repository_creation() {

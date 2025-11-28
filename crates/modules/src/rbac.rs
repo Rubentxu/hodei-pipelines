@@ -4,7 +4,7 @@
 //! Implements use cases for managing roles, permissions, and role-permission assignments.
 
 use hodei_core::{
-    DomainError,
+    DomainError, Result,
     security::{
         Permission as LegacyPermission, PermissionEntity, PermissionId, Role as LegacyRole,
         RoleEntity, RoleId,
@@ -35,10 +35,10 @@ impl Default for RbacConfig {
     }
 }
 
-
 // ========== Service ==========
 
 /// RBAC Service - Application layer use cases
+
 pub struct RoleBasedAccessControlService<R, P, E>
 where
     R: RoleRepository,
@@ -73,17 +73,15 @@ where
     }
 
     /// Create a new role
-    pub async fn create_role(&self, request: CreateRoleRequest) -> Result<RoleEntity, RbacError> {
+    pub async fn create_role(&self, request: CreateRoleRequest) -> Result<RoleEntity> {
         info!("Creating role: {}", request.name);
 
         // Validate name length
         if request.name.trim().is_empty() {
-            return Err(RbacError::Validation(
-                "Role name cannot be empty".to_string(),
-            ));
+            return Err(RbacError::Validation("Role name cannot be empty".to_string()).into());
         }
         if request.name.len() > 255 {
-            return Err(RbacError::Validation("Role name too long".to_string()));
+            return Err(RbacError::Validation("Role name too long".to_string()).into());
         }
 
         // Check if role already exists
@@ -93,7 +91,7 @@ where
             .await
             .map_err(RbacError::Repository)?
         {
-            return Err(RbacError::RoleAlreadyExists(existing.id));
+            return Err(RbacError::RoleAlreadyExists(existing.id).into());
         }
 
         // Validate permission count
@@ -101,7 +99,8 @@ where
             return Err(RbacError::Validation(format!(
                 "Role cannot have more than {} permissions",
                 self.config.max_permissions_per_role
-            )));
+            ))
+            .into());
         }
 
         // Validate permissions exist
@@ -112,7 +111,7 @@ where
                 .await
                 .map_err(RbacError::Repository)?;
             if !exists {
-                return Err(RbacError::PermissionNotFound(perm_id.clone()));
+                return Err(RbacError::PermissionNotFound(perm_id.clone()).into());
             }
         }
 
@@ -135,7 +134,7 @@ where
     }
 
     /// Get role by ID
-    pub async fn get_role(&self, id: &RoleId) -> Result<Option<RoleEntity>, RbacError> {
+    pub async fn get_role(&self, id: &RoleId) -> Result<Option<RoleEntity>> {
         let role = self
             .role_repo
             .get_role(id)
@@ -146,7 +145,7 @@ where
     }
 
     /// List all roles
-    pub async fn list_roles(&self) -> Result<Vec<RoleEntity>, RbacError> {
+    pub async fn list_roles(&self) -> Result<Vec<RoleEntity>> {
         let roles = self
             .role_repo
             .list_all_roles()
@@ -157,11 +156,7 @@ where
     }
 
     /// Update role
-    pub async fn update_role(
-        &self,
-        id: &RoleId,
-        request: UpdateRoleRequest,
-    ) -> Result<RoleEntity, RbacError> {
+    pub async fn update_role(&self, id: &RoleId, request: UpdateRoleRequest) -> Result<RoleEntity> {
         info!("Updating role: {}", id);
 
         let mut role = self
@@ -174,12 +169,10 @@ where
         // Update name if provided
         if let Some(ref new_name) = request.name {
             if new_name.trim().is_empty() {
-                return Err(RbacError::Validation(
-                    "Role name cannot be empty".to_string(),
-                ));
+                return Err(RbacError::Validation("Role name cannot be empty".to_string()).into());
             }
             if new_name.len() > 255 {
-                return Err(RbacError::Validation("Role name too long".to_string()));
+                return Err(RbacError::Validation("Role name too long".to_string()).into());
             }
 
             // Check if name is already taken by another role
@@ -190,7 +183,7 @@ where
                 .map_err(RbacError::Repository)?
             {
                 if existing.id != *id {
-                    return Err(RbacError::RoleAlreadyExists(existing.id));
+                    return Err(RbacError::RoleAlreadyExists(existing.id).into());
                 }
             }
         }
@@ -211,7 +204,7 @@ where
     }
 
     /// Delete role
-    pub async fn delete_role(&self, id: &RoleId) -> Result<(), RbacError> {
+    pub async fn delete_role(&self, id: &RoleId) -> Result<()> {
         info!("Deleting role: {}", id);
 
         // Check if role exists
@@ -238,7 +231,7 @@ where
         &self,
         role_id: &RoleId,
         permission_id: &PermissionId,
-    ) -> Result<(), RbacError> {
+    ) -> Result<()> {
         let mut role = self
             .role_repo
             .get_role(role_id)
@@ -253,7 +246,7 @@ where
             .await
             .map_err(RbacError::Repository)?;
         if !permission_exists {
-            return Err(RbacError::PermissionNotFound(permission_id.clone()));
+            return Err(RbacError::PermissionNotFound(permission_id.clone()).into());
         }
 
         // Add permission
@@ -274,7 +267,7 @@ where
         &self,
         role_id: &RoleId,
         permission_id: &PermissionId,
-    ) -> Result<(), RbacError> {
+    ) -> Result<()> {
         let mut role = self
             .role_repo
             .get_role(role_id)
@@ -302,7 +295,7 @@ where
     pub async fn create_permission(
         &self,
         request: CreatePermissionRequest,
-    ) -> Result<PermissionEntity, RbacError> {
+    ) -> Result<PermissionEntity> {
         info!(
             "Creating permission: {}:{}",
             request.resource, request.action
@@ -310,19 +303,19 @@ where
 
         // Validate
         if request.name.trim().is_empty() {
-            return Err(RbacError::Validation(
-                "Permission name cannot be empty".to_string(),
-            ));
+            return Err(
+                RbacError::Validation("Permission name cannot be empty".to_string()).into(),
+            );
         }
         if request.resource.trim().is_empty() {
-            return Err(RbacError::Validation(
-                "Permission resource cannot be empty".to_string(),
-            ));
+            return Err(
+                RbacError::Validation("Permission resource cannot be empty".to_string()).into(),
+            );
         }
         if request.action.trim().is_empty() {
-            return Err(RbacError::Validation(
-                "Permission action cannot be empty".to_string(),
-            ));
+            return Err(
+                RbacError::Validation("Permission action cannot be empty".to_string()).into(),
+            );
         }
 
         // Check if permission already exists
@@ -332,7 +325,7 @@ where
             .await
             .map_err(RbacError::Repository)?
         {
-            return Err(RbacError::PermissionAlreadyExists(existing.id));
+            return Err(RbacError::PermissionAlreadyExists(existing.id).into());
         }
 
         let permission = PermissionEntity::new(
@@ -355,7 +348,7 @@ where
     }
 
     /// List all permissions
-    pub async fn list_permissions(&self) -> Result<Vec<PermissionEntity>, RbacError> {
+    pub async fn list_permissions(&self) -> Result<Vec<PermissionEntity>> {
         let permissions = self
             .permission_repo
             .list_all_permissions()
@@ -366,10 +359,7 @@ where
     }
 
     /// Get permissions for a role
-    pub async fn get_role_permissions(
-        &self,
-        role_id: &RoleId,
-    ) -> Result<Vec<PermissionEntity>, RbacError> {
+    pub async fn get_role_permissions(&self, role_id: &RoleId) -> Result<Vec<PermissionEntity>> {
         let role = self
             .role_repo
             .get_role(role_id)
@@ -518,7 +508,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl RoleRepository for MockRoleRepository {
-        async fn save_role(&self, role: &RoleEntity) -> StdResult<(), DomainError> {
+        async fn save_role(&self, role: &RoleEntity) -> Result<()> {
             let mut roles = self.roles.write().await;
             if let Some(pos) = roles.iter().position(|r| r.id == role.id) {
                 roles[pos] = role.clone();
@@ -528,28 +518,28 @@ mod tests {
             Ok(())
         }
 
-        async fn get_role(&self, id: &RoleId) -> StdResult<Option<RoleEntity>, DomainError> {
+        async fn get_role(&self, id: &RoleId) -> Result<Option<RoleEntity>> {
             let roles = self.roles.read().await;
             Ok(roles.iter().find(|r| r.id == *id).cloned())
         }
 
-        async fn get_role_by_name(&self, name: &str) -> StdResult<Option<RoleEntity>, DomainError> {
+        async fn get_role_by_name(&self, name: &str) -> Result<Option<RoleEntity>> {
             let roles = self.roles.read().await;
             Ok(roles.iter().find(|r| r.name == name).cloned())
         }
 
-        async fn list_all_roles(&self) -> StdResult<Vec<RoleEntity>, DomainError> {
+        async fn list_all_roles(&self) -> Result<Vec<RoleEntity>> {
             let roles = self.roles.read().await;
             Ok(roles.clone())
         }
 
-        async fn delete_role(&self, id: &RoleId) -> StdResult<(), DomainError> {
+        async fn delete_role(&self, id: &RoleId) -> Result<()> {
             let mut roles = self.roles.write().await;
             roles.retain(|r| r.id != *id);
             Ok(())
         }
 
-        async fn exists(&self, id: &RoleId) -> StdResult<bool, DomainError> {
+        async fn exists(&self, id: &RoleId) -> Result<bool> {
             let roles = self.roles.read().await;
             Ok(roles.iter().any(|r| r.id == *id))
         }
@@ -570,10 +560,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl PermissionRepository for MockPermissionRepository {
-        async fn save_permission(
-            &self,
-            permission: &PermissionEntity,
-        ) -> StdResult<(), DomainError> {
+        async fn save_permission(&self, permission: &PermissionEntity) -> Result<()> {
             let mut permissions = self.permissions.write().await;
             if let Some(pos) = permissions.iter().position(|p| p.id == permission.id) {
                 permissions[pos] = permission.clone();
@@ -583,10 +570,7 @@ mod tests {
             Ok(())
         }
 
-        async fn get_permission(
-            &self,
-            id: &PermissionId,
-        ) -> StdResult<Option<PermissionEntity>, DomainError> {
+        async fn get_permission(&self, id: &PermissionId) -> Result<Option<PermissionEntity>> {
             let permissions = self.permissions.read().await;
             Ok(permissions.iter().find(|p| p.id == *id).cloned())
         }
@@ -595,7 +579,7 @@ mod tests {
             &self,
             resource: &str,
             action: &str,
-        ) -> StdResult<Option<PermissionEntity>, DomainError> {
+        ) -> Result<Option<PermissionEntity>> {
             let permissions = self.permissions.read().await;
             Ok(permissions
                 .iter()
@@ -603,18 +587,18 @@ mod tests {
                 .cloned())
         }
 
-        async fn list_all_permissions(&self) -> StdResult<Vec<PermissionEntity>, DomainError> {
+        async fn list_all_permissions(&self) -> Result<Vec<PermissionEntity>> {
             let permissions = self.permissions.read().await;
             Ok(permissions.clone())
         }
 
-        async fn delete_permission(&self, id: &PermissionId) -> StdResult<(), DomainError> {
+        async fn delete_permission(&self, id: &PermissionId) -> Result<()> {
             let mut permissions = self.permissions.write().await;
             permissions.retain(|p| p.id != *id);
             Ok(())
         }
 
-        async fn exists(&self, id: &PermissionId) -> StdResult<bool, DomainError> {
+        async fn exists(&self, id: &PermissionId) -> Result<bool> {
             let permissions = self.permissions.read().await;
             Ok(permissions.iter().any(|p| p.id == *id))
         }
@@ -881,5 +865,12 @@ mod tests {
         // List all permissions
         let permissions = service.list_permissions().await.unwrap();
         assert_eq!(permissions.len(), 3);
+    }
+}
+
+// Error conversion to DomainError
+impl From<RbacError> for hodei_core::DomainError {
+    fn from(err: RbacError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

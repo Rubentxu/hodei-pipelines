@@ -12,6 +12,7 @@ use tracing::error;
 
 pub use crate::auto_scaling_engine::ScaleDirection;
 use crate::metrics_collection::{MetricType, RealTimeSnapshot};
+use crate::scaling_policies::ScalingError;
 
 /// Time-based scaling trigger
 #[derive(Debug, Clone)]
@@ -169,7 +170,7 @@ impl TriggerEvaluationEngine {
         &self,
         trigger: &Trigger,
         metrics: &RealTimeSnapshot,
-    ) -> Result<TriggerEvaluationResult, TriggerError> {
+    ) -> Result<TriggerEvaluationResult, ScalingError> {
         // Check if trigger is enabled
         if !trigger.enabled {
             return Ok(TriggerEvaluationResult {
@@ -188,7 +189,7 @@ impl TriggerEvaluationEngine {
         if let Some(cooldown) = trigger.cooldown {
             if let Some(last_triggered) = trigger.last_triggered {
                 let cooldown_duration = chrono::Duration::from_std(cooldown)
-                    .map_err(|e| TriggerError::ConfigurationError(e.to_string()))?;
+                    .map_err(|e| ScalingError::ConfigurationError(e.to_string()))?;
                 if Utc::now().signed_duration_since(last_triggered) < cooldown_duration {
                     return Ok(TriggerEvaluationResult {
                         trigger_id: trigger.id.clone(),
@@ -248,22 +249,24 @@ impl TriggerEvaluationEngine {
         &self,
         metric_trigger: &MetricTrigger,
         metrics: &RealTimeSnapshot,
-    ) -> Result<(bool, f64), TriggerError> {
+    ) -> Result<(bool, f64), ScalingError> {
         // Get metric value
         let current_value = metrics
             .metrics
             .get(&metric_trigger.metric_type)
             .copied()
             .ok_or_else(|| {
-                TriggerError::MetricNotFound(format!("{:?}", metric_trigger.metric_type))
+                ScalingError::MetricNotFound(format!("{:?}", metric_trigger.metric_type))
             })?;
 
         // Evaluate condition
-        let triggered = self.compare_values(
-            current_value,
-            &metric_trigger.operator,
-            metric_trigger.threshold,
-        )?;
+        let triggered = self
+            .compare_values(
+                current_value,
+                &metric_trigger.operator,
+                metric_trigger.threshold,
+            )
+            .map_err(|e| ScalingError::EvaluationError(e.to_string()))?;
 
         Ok((triggered, current_value))
     }
@@ -272,7 +275,7 @@ impl TriggerEvaluationEngine {
     fn evaluate_time_trigger(
         &self,
         _time_trigger: &TimeBasedTrigger,
-    ) -> Result<(bool, f64), TriggerError> {
+    ) -> Result<(bool, f64), ScalingError> {
         // Time-based triggers are evaluated by a scheduler
         // For now, return false
         Ok((false, 0.0))
@@ -282,7 +285,7 @@ impl TriggerEvaluationEngine {
     async fn evaluate_event_trigger(
         &self,
         _event_trigger: &EventBasedTrigger,
-    ) -> Result<(bool, f64), TriggerError> {
+    ) -> Result<(bool, f64), ScalingError> {
         // Event-based triggers would be evaluated based on events
         // For now, return false
         Ok((false, 0.0))
@@ -292,7 +295,7 @@ impl TriggerEvaluationEngine {
     async fn evaluate_custom_trigger(
         &self,
         _custom_trigger: &CustomTrigger,
-    ) -> Result<(bool, f64), TriggerError> {
+    ) -> Result<(bool, f64), ScalingError> {
         // Custom triggers would be handled by custom evaluation logic
         // For now, return false
         Ok((false, 0.0))
@@ -304,7 +307,7 @@ impl TriggerEvaluationEngine {
         left: f64,
         operator: &ComparisonOperator,
         right: f64,
-    ) -> Result<bool, TriggerError> {
+    ) -> Result<bool, ScalingError> {
         match operator {
             ComparisonOperator::GreaterThan => Ok(left > right),
             ComparisonOperator::LessThan => Ok(left < right),

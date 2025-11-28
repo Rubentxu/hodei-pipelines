@@ -521,7 +521,7 @@ fn build_dependency_graph(pipeline: &Pipeline) -> HashMap<PipelineStepId, Vec<Pi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_core::job::JobState;
+    use hodei_core::{Result, job::JobState};
     use std::sync::Mutex;
 
     // Mock implementations for testing
@@ -552,7 +552,7 @@ mod tests {
         async fn get_executions_by_pipeline(
             &self,
             _pipeline_id: &hodei_core::PipelineId,
-        ) -> Result<Vec<PipelineExecution>, DomainError> {
+        ) -> Result<Vec<PipelineExecution>> {
             unimplemented!()
         }
 
@@ -585,7 +585,7 @@ mod tests {
             Ok(())
         }
 
-        async fn get_active_executions(&self) -> Result<Vec<PipelineExecution>, DomainError> {
+        async fn get_active_executions(&self) -> Result<Vec<PipelineExecution>> {
             unimplemented!()
         }
     }
@@ -595,14 +595,14 @@ mod tests {
         async fn create_job(
             &self,
             _job_spec: hodei_core::job::JobSpec,
-        ) -> Result<hodei_core::JobId, DomainError> {
+        ) -> Result<hodei_core::JobId> {
             Ok(hodei_core::JobId::new())
         }
 
         async fn get_job(
             &self,
             _job_id: &hodei_core::JobId,
-        ) -> Result<Option<hodei_core::job::Job>, DomainError> {
+        ) -> Result<Option<hodei_core::job::Job>> {
             Ok(None)
         }
 
@@ -618,17 +618,68 @@ mod tests {
             Ok(())
         }
 
-        async fn list_jobs(
-            &self,
-            _filter: Option<&hodei_ports::JobFilter>,
-        ) -> Result<Vec<hodei_core::job::Job>, DomainError> {
+        async fn list_jobs(&self) -> Result<Vec<hodei_core::job::Job>> {
             Ok(vec![])
+        }
+
+        // Default implementations for other required methods
+        async fn save_job(&self, _job: &hodei_core::job::Job) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_pending_jobs(&self) -> Result<Vec<hodei_core::job::Job>> {
+            Ok(vec![])
+        }
+
+        async fn get_running_jobs(&self) -> Result<Vec<hodei_core::job::Job>> {
+            Ok(vec![])
+        }
+
+        async fn compare_and_swap_status(
+            &self,
+            _id: &hodei_core::JobId,
+            _expected_state: &str,
+            _new_state: &str,
+        ) -> Result<bool> {
+            Ok(false)
+        }
+
+        async fn assign_worker(
+            &self,
+            _job_id: &hodei_core::JobId,
+            _worker_id: &hodei_core::WorkerId,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn set_job_start_time(
+            &self,
+            _job_id: &hodei_core::JobId,
+            _start_time: chrono::DateTime<chrono::Utc>,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn set_job_finish_time(
+            &self,
+            _job_id: &hodei_core::JobId,
+            _finish_time: chrono::DateTime<chrono::Utc>,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn set_job_duration(
+            &self,
+            _job_id: &hodei_core::JobId,
+            _duration_ms: i64,
+        ) -> Result<()> {
+            Ok(())
         }
     }
 
     #[tokio::test]
     async fn test_dependency_graph_building() {
-        use hodei_core::{JobSpec, ResourceQuota};
+        use hodei_core::{JobSpec, ResourceQuota, Result};
         use std::collections::HashMap;
 
         // Create a pipeline with dependencies
@@ -678,7 +729,7 @@ mod tests {
         let graph = build_dependency_graph(&pipeline);
 
         assert!(graph.contains_key(&step2.id));
-        assert_eq!(graph.get(&step2.id).unwrap(), &vec![step1.id]);
+        assert_eq!(graph.get(&step2.id).unwrap(), &vec![step1.id.clone()]);
         assert!(!graph.contains_key(&step1.id));
     }
 }

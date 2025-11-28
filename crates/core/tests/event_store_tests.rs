@@ -1,8 +1,6 @@
 use chrono::{DateTime, Utc};
 use hodei_core::events::*;
 use serde_json::Value;
-use sqlx::PgPool;
-use std::sync::Arc;
 use uuid::Uuid;
 
 // Tests are gated behind event-store-tests feature

@@ -4,6 +4,7 @@
 //! based on resource pool metrics and tenant usage patterns.
 
 use chrono::{DateTime, Utc};
+use hodei_core::Result;
 use std::collections::HashMap;
 
 /// Cost optimization recommendation types
@@ -114,6 +115,7 @@ pub struct OptimizationReport {
 }
 
 /// Cost optimization engine
+#[derive(Clone)]
 pub struct CostOptimizationEngine {
     cost_history: HashMap<String, Vec<CostSnapshot>>,
     utilization_history: HashMap<String, Vec<UtilizationSnapshot>>,
@@ -160,10 +162,7 @@ impl CostOptimizationEngine {
     }
 
     /// Generate optimization report for a period
-    pub fn generate_report(
-        &self,
-        period: CostAnalysisPeriod,
-    ) -> Result<OptimizationReport, CostOptimizationError> {
+    pub fn generate_report(&self, period: CostAnalysisPeriod) -> Result<OptimizationReport> {
         // Calculate period bounds
         let (start, end) = self.get_period_bounds(&period)?;
 
@@ -228,7 +227,7 @@ impl CostOptimizationEngine {
         &self,
         pool_id: &str,
         period: &CostAnalysisPeriod,
-    ) -> Result<CostBreakdown, CostOptimizationError> {
+    ) -> Result<CostBreakdown> {
         let _period = period; // Use the period
 
         // Return sample cost breakdown
@@ -247,7 +246,7 @@ impl CostOptimizationEngine {
         &self,
         pool_id: &str,
         period: &CostAnalysisPeriod,
-    ) -> Result<UtilizationAnalysis, CostOptimizationError> {
+    ) -> Result<UtilizationAnalysis> {
         let _period = period; // Use the period
 
         Ok(UtilizationAnalysis {
@@ -267,7 +266,7 @@ impl CostOptimizationEngine {
     pub fn get_cost_efficiency(
         &self,
         period: &CostAnalysisPeriod,
-    ) -> Result<CostEfficiencyMetrics, CostOptimizationError> {
+    ) -> Result<CostEfficiencyMetrics> {
         let _period = period; // Use the period
 
         Ok(CostEfficiencyMetrics {
@@ -283,7 +282,7 @@ impl CostOptimizationEngine {
     pub fn identify_opportunities(
         &self,
         period: &CostAnalysisPeriod,
-    ) -> Result<Vec<OptimizationRecommendation>, CostOptimizationError> {
+    ) -> Result<Vec<OptimizationRecommendation>> {
         let _period = period; // Use the period
 
         Ok(vec![
@@ -310,7 +309,7 @@ impl CostOptimizationEngine {
     fn get_period_bounds(
         &self,
         period: &CostAnalysisPeriod,
-    ) -> Result<(DateTime<Utc>, DateTime<Utc>), CostOptimizationError> {
+    ) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
         let now = Utc::now();
         let (start, end) = match period {
             CostAnalysisPeriod::LastHour => (now - chrono::Duration::hours(1), now),
@@ -550,5 +549,12 @@ mod tests {
 
         let result = engine.generate_report(period);
         assert!(result.is_ok());
+    }
+}
+
+// Error conversion to DomainError
+impl From<CostOptimizationError> for hodei_core::DomainError {
+    fn from(err: CostOptimizationError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

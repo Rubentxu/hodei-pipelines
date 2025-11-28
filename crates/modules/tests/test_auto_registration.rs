@@ -13,12 +13,12 @@ mod auto_registration_tests {
     use hodei_core::{Worker, WorkerId};
     use hodei_core::{WorkerCapabilities, WorkerStatus};
     use hodei_modules::worker_management::{WorkerManagementConfig, WorkerManagementService};
-    use hodei_ports::ProviderFactoryTrait;
+    
     use hodei_ports::WorkerRegistrationPort;
     use hodei_ports::scheduler_port::{SchedulerError, SchedulerPort};
     use hodei_ports::worker_provider::{ProviderCapabilities, ProviderError, WorkerProvider};
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+    
+    use std::sync::Arc;
     use std::time::{Duration, Instant};
     use tokio::sync::Mutex as TokioMutex;
 
@@ -513,10 +513,9 @@ mod auto_registration_tests {
             .await;
 
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            hodei_modules::worker_management::WorkerManagementError::Provider(_)
-        ));
+        let error = result.unwrap_err();
+        // Verify that the error is properly converted to DomainError
+        assert!(matches!(error, hodei_core::DomainError::Infrastructure(_)));
     }
 
     #[tokio::test]

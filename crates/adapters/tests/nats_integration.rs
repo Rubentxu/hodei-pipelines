@@ -3,11 +3,9 @@
 //! These tests verify NATS JetStream integration with a real server.
 
 use hodei_adapters::bus::config::{EventBusConfig, EventBusType, NatsConfig};
-use hodei_adapters::bus::{EventBusFactory, InMemoryBus};
+use hodei_adapters::bus::InMemoryBus;
 use hodei_core::{JobSpec, ResourceQuota, WorkerId};
 use hodei_ports::event_bus::{EventPublisher, EventSubscriber, SystemEvent};
-use std::time::Duration;
-use tokio::time::timeout;
 
 #[tokio::test]
 async fn test_inmemory_bus_basic() {

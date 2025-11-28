@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use hodei_adapters::DefaultProviderFactory;
-use hodei_core::WorkerId;
+use hodei_core::{DomainError, ResourceQuota, Result, Worker, WorkerId};
 use hodei_ports::{
     ProviderFactoryTrait,
     resource_pool::{
@@ -14,7 +14,6 @@ use hodei_ports::{
     },
     worker_provider::{ProviderConfig, ProviderError, WorkerProvider},
 };
-use hodei_core::ResourceQuota;
 use std::collections::{HashMap, VecDeque};
 use tracing::{error, info, warn};
 
@@ -48,7 +47,7 @@ impl ResourcePoolService {
     }
 
     /// Process pending queue and allocate if capacity available
-    async fn process_queue(&mut self) -> Result<(), ResourcePoolServiceError> {
+    async fn process_queue(&mut self) -> Result<()> {
         if self.pending_queue.is_empty() {
             return Ok(());
         }
@@ -83,7 +82,7 @@ impl ResourcePoolService {
                         request_id,
                         worker_id: WorkerId::new(),
                         allocation_id: format!("failed-{}", uuid::Uuid::new_v4()),
-                        status: AllocationStatus::Failed(e),
+                        status: AllocationStatus::Failed(e.to_string()),
                     };
                     self.allocations
                         .insert(failed_allocation.allocation_id.clone(), failed_allocation);
@@ -98,7 +97,7 @@ impl ResourcePoolService {
     async fn allocate_internal(
         &self,
         request: &ResourceAllocationRequest,
-    ) -> Result<ResourceAllocation, String> {
+    ) -> Result<ResourceAllocation> {
         // Create worker with requested resources
         let worker_id = WorkerId::new();
         let mut config = ProviderConfig::docker(format!("pool-worker-{}", worker_id));
@@ -116,16 +115,19 @@ impl ResourcePoolService {
                     container_id: None,
                 },
             }),
-            Err(e) => Err(format!("Provider error: {}", e)),
+            Err(e) => Err(DomainError::Infrastructure(format!(
+                "Provider error: {}",
+                e
+            ))),
         }
     }
 
     /// Get available capacity
-    async fn get_available_capacity(&self) -> Result<u32, ResourcePoolServiceError> {
+    async fn get_available_capacity(&self) -> Result<u32> {
         let status = self
             .status()
             .await
-            .map_err(|e| ResourcePoolServiceError::Internal(e))?;
+            .map_err(|e| DomainError::Infrastructure(format!("Internal error: {}", e)))?;
         Ok(status
             .available_capacity
             .saturating_sub(self.allocations.len() as u32))
@@ -138,7 +140,7 @@ impl ResourcePool for ResourcePoolService {
         &self.config
     }
 
-    async fn status(&self) -> Result<ResourcePoolStatus, String> {
+    async fn status(&self) -> std::result::Result<ResourcePoolStatus, String> {
         let worker_count = self.provider.list_workers().await.unwrap_or_default().len();
         let available = self.config.max_size.saturating_sub(worker_count as u32);
 
@@ -155,7 +157,7 @@ impl ResourcePool for ResourcePoolService {
     async fn allocate_resources(
         &mut self,
         request: ResourceAllocationRequest,
-    ) -> Result<ResourceAllocation, String> {
+    ) -> std::result::Result<ResourceAllocation, String> {
         info!(
             pool_name = %self.config.name,
             request_id = %request.request_id,
@@ -169,7 +171,7 @@ impl ResourcePool for ResourcePoolService {
             let allocation = self
                 .allocate_internal(&request)
                 .await
-                .map_err(|e| ResourcePoolServiceError::Internal(e).to_string())?;
+                .map_err(|e| ResourcePoolServiceError::Internal(e.to_string()).to_string())?;
             self.allocations
                 .insert(allocation.allocation_id.clone(), allocation.clone());
 
@@ -198,7 +200,7 @@ impl ResourcePool for ResourcePoolService {
         }
     }
 
-    async fn release_resources(&mut self, allocation_id: &str) -> Result<(), String> {
+    async fn release_resources(&mut self, allocation_id: &str) -> std::result::Result<(), String> {
         if let Some(allocation) = self.allocations.remove(allocation_id) {
             if let AllocationStatus::Allocated { ref worker, .. } = allocation.status {
                 // Stop and delete worker
@@ -223,11 +225,11 @@ impl ResourcePool for ResourcePoolService {
         }
     }
 
-    async fn list_allocations(&self) -> Result<Vec<ResourceAllocation>, String> {
+    async fn list_allocations(&self) -> std::result::Result<Vec<ResourceAllocation>, String> {
         Ok(self.allocations.values().cloned().collect())
     }
 
-    async fn scale_to(&mut self, target_size: u32) -> Result<(), String> {
+    async fn scale_to(&mut self, target_size: u32) -> std::result::Result<(), String> {
         info!(
             pool_name = %self.config.name,
             target_size = target_size,
@@ -241,7 +243,7 @@ impl ResourcePool for ResourcePoolService {
         Ok(())
     }
 
-    async fn list_workers(&self) -> Result<Vec<WorkerId>, String> {
+    async fn list_workers(&self) -> std::result::Result<Vec<WorkerId>, String> {
         self.provider
             .list_workers()
             .await
@@ -270,7 +272,7 @@ pub async fn create_docker_resource_pool(
     name: String,
     min_size: u32,
     max_size: u32,
-) -> Result<ResourcePoolService, ResourcePoolServiceError> {
+) -> Result<ResourcePoolService> {
     let config = ResourcePoolConfig {
         pool_type: ResourcePoolType::Docker,
         name,
@@ -287,7 +289,10 @@ pub async fn create_docker_resource_pool(
 
     let provider_config = ProviderConfig::docker("docker-pool".to_string());
     let factory = DefaultProviderFactory::new();
-    let provider = factory.create_provider(provider_config).await?;
+    let provider = factory
+        .create_provider(provider_config)
+        .await
+        .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
     Ok(ResourcePoolService::new(config, provider))
 }
@@ -298,7 +303,7 @@ pub async fn create_kubernetes_resource_pool(
     namespace: String,
     min_size: u32,
     max_size: u32,
-) -> Result<ResourcePoolService, ResourcePoolServiceError> {
+) -> Result<ResourcePoolService> {
     let config = ResourcePoolConfig {
         pool_type: ResourcePoolType::Kubernetes,
         name,
@@ -315,7 +320,10 @@ pub async fn create_kubernetes_resource_pool(
 
     let provider_config = ProviderConfig::kubernetes("k8s-pool".to_string());
     let factory = DefaultProviderFactory::new();
-    let provider = factory.create_provider(provider_config).await?;
+    let provider = factory
+        .create_provider(provider_config)
+        .await
+        .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
 
     Ok(ResourcePoolService::new(config, provider))
 }

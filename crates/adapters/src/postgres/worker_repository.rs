@@ -4,11 +4,14 @@
 
 use async_trait::async_trait;
 use hodei_core::{DomainError, Result, Worker, WorkerCapabilities, WorkerId, WorkerStatus};
-use hodei_ports::{WorkerRepository, WorkerRepositoryError};
-use serde::{Deserialize, Serialize};
+use hodei_ports::WorkerRepository;
 use sqlx::{PgPool, Row};
-use tracing::{error, info};
+use std::collections::HashMap;
+use tracing::info;
 use uuid::Uuid;
+
+/// Default worker capabilities for new workers
+const DEFAULT_WORKER_CAPABILITIES: (u32, u64) = (4, 8192);
 
 /// PostgreSQL Worker Repository
 #[derive(Debug)]
@@ -63,6 +66,49 @@ impl PostgreSqlWorkerRepository {
         info!("Worker schema initialized successfully");
         Ok(())
     }
+
+    /// Deserialize a Worker from a SQL row
+    fn deserialize_worker_from_row(&self, row: &sqlx::postgres::PgRow) -> Result<Worker> {
+        let capabilities_json: serde_json::Value = row.get("capabilities");
+        let capabilities = serde_json::from_value::<WorkerCapabilities>(capabilities_json)
+            .map_err(|e| {
+                DomainError::Validation(format!("Failed to deserialize capabilities: {}", e))
+            })
+            .unwrap_or_else(|_| {
+                WorkerCapabilities::new(
+                    DEFAULT_WORKER_CAPABILITIES.0,
+                    DEFAULT_WORKER_CAPABILITIES.1,
+                )
+            });
+
+        let metadata_json: serde_json::Value = row.get("metadata");
+        let metadata = serde_json::from_value::<HashMap<String, String>>(metadata_json)
+            .map_err(|e| DomainError::Validation(format!("Failed to deserialize metadata: {}", e)))
+            .unwrap_or_default();
+
+        let current_jobs_json: serde_json::Value = row.get("current_jobs");
+        let current_jobs = serde_json::from_value::<Vec<Uuid>>(current_jobs_json)
+            .map_err(|e| {
+                DomainError::Validation(format!("Failed to deserialize current jobs: {}", e))
+            })
+            .unwrap_or_default();
+
+        let status_str = row.get::<String, _>("status");
+        let status = WorkerStatus::create_with_status(status_str);
+
+        Ok(Worker {
+            id: WorkerId::from_uuid(row.get("worker_id")),
+            name: row.get("name"),
+            status,
+            capabilities,
+            metadata,
+            current_jobs,
+            last_heartbeat: row.get("last_heartbeat"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+            tenant_id: row.get("tenant_id"),
+        })
+    }
 }
 
 #[async_trait]
@@ -115,34 +161,7 @@ impl WorkerRepository for PostgreSqlWorkerRepository {
         .map_err(|e| DomainError::Infrastructure(format!("Failed to get worker: {}", e)))?;
 
         if let Some(row) = row {
-            let capabilities_json: serde_json::Value = row.get("capabilities");
-            let capabilities = serde_json::from_value::<WorkerCapabilities>(capabilities_json)
-                .unwrap_or_else(|_| WorkerCapabilities::new(4, 8192));
-
-            let metadata_json: serde_json::Value = row.get("metadata");
-            let metadata =
-                serde_json::from_value::<std::collections::HashMap<String, String>>(metadata_json)
-                    .unwrap_or_default();
-
-            let current_jobs_json: serde_json::Value = row.get("current_jobs");
-            let current_jobs =
-                serde_json::from_value::<Vec<Uuid>>(current_jobs_json).unwrap_or_default();
-
-            let status_str = row.get::<String, _>("status");
-            let status = WorkerStatus::create_with_status(status_str);
-
-            Ok(Some(Worker {
-                id: WorkerId::from_uuid(row.get("worker_id")),
-                name: row.get("name"),
-                status,
-                capabilities,
-                metadata,
-                current_jobs,
-                last_heartbeat: row.get("last_heartbeat"),
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
-                tenant_id: row.get("tenant_id"),
-            }))
+            Ok(Some(self.deserialize_worker_from_row(&row)?))
         } else {
             Ok(None)
         }
@@ -151,7 +170,8 @@ impl WorkerRepository for PostgreSqlWorkerRepository {
     async fn get_all_workers(&self) -> Result<Vec<Worker>> {
         let rows = sqlx::query(
             r#"
-            SELECT worker_id
+            SELECT worker_id, name, status, capabilities, metadata,
+                   current_jobs, last_heartbeat, tenant_id, created_at, updated_at
             FROM workers
             ORDER BY created_at DESC
             LIMIT 1000
@@ -163,10 +183,7 @@ impl WorkerRepository for PostgreSqlWorkerRepository {
 
         let mut workers = Vec::new();
         for row in rows {
-            let worker_id = WorkerId::from_uuid(row.get("worker_id"));
-            if let Some(worker) = self.get_worker(&worker_id).await? {
-                workers.push(worker);
-            }
+            workers.push(self.deserialize_worker_from_row(&row)?);
         }
 
         Ok(workers)
@@ -226,35 +243,7 @@ impl WorkerRepository for PostgreSqlWorkerRepository {
 
         let mut workers = Vec::new();
         for row in rows {
-            let capabilities_json: serde_json::Value = row.get("capabilities");
-            let capabilities = serde_json::from_value::<WorkerCapabilities>(capabilities_json)
-                .unwrap_or_else(|_| WorkerCapabilities::new(4, 8192));
-
-            let metadata_json: serde_json::Value = row.get("metadata");
-            let metadata =
-                serde_json::from_value::<std::collections::HashMap<String, String>>(metadata_json)
-                    .unwrap_or_default();
-
-            let current_jobs_json: serde_json::Value = row.get("current_jobs");
-            let current_jobs =
-                serde_json::from_value::<Vec<Uuid>>(current_jobs_json).unwrap_or_default();
-
-            let status_str = row.get::<String, _>("status");
-            let status = WorkerStatus::create_with_status(status_str);
-
-            let worker = Worker {
-                id: WorkerId::from_uuid(row.get("worker_id")),
-                name: row.get("name"),
-                status,
-                capabilities,
-                metadata,
-                current_jobs,
-                last_heartbeat: row.get("last_heartbeat"),
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
-                tenant_id: row.get("tenant_id"),
-            };
-            workers.push(worker);
+            workers.push(self.deserialize_worker_from_row(&row)?);
         }
 
         Ok(workers)

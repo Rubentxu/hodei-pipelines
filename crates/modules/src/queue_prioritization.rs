@@ -7,7 +7,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 
-use hodei_core::JobId;
+use hodei_core::{DomainError, JobId, Result};
 use tokio::sync::RwLock;
 use tracing::info;
 
@@ -203,7 +203,6 @@ impl QueuePrioritizationEngine {
             PrioritizationStrategy::FairShare | PrioritizationStrategy::WeightedFair => 0.7,
             PrioritizationStrategy::Hybrid => 0.1,
             PrioritizationStrategy::SLAFirst | PrioritizationStrategy::PriorityFirst => 0.0,
-            _ => 0.1,
         };
 
         // SLA component (higher SLA level = higher score)
@@ -347,7 +346,7 @@ impl QueuePrioritizationEngine {
     }
 
     /// Execute preemption
-    pub async fn execute_preemption(&self, candidate: &PreemptionCandidate) -> Result<(), String> {
+    pub async fn execute_preemption(&self, candidate: &PreemptionCandidate) -> Result<()> {
         info!(
             preempting_job = %candidate.current_job_id,
             with_job = %candidate.job_id,
@@ -372,7 +371,7 @@ impl QueuePrioritizationEngine {
         *queue = new_queue;
 
         if !preempted {
-            return Err("Preempted job not found".to_string());
+            return Err(DomainError::NotFound("Preempted job not found".to_string()));
         }
 
         Ok(())

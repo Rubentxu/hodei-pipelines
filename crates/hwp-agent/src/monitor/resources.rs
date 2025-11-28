@@ -2,9 +2,8 @@
 //!
 //! This module monitors CPU, memory, and I/O usage using sysinfo crate.
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use sysinfo::{Pid, Process, System};
+use sysinfo::{Pid, System};
 use tokio::time::{Duration, interval};
 use tracing::{debug, error};
 

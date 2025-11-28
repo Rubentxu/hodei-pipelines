@@ -82,29 +82,33 @@ mod tests {
         struct DummyRepo;
         #[async_trait::async_trait]
         impl WorkerRepository for DummyRepo {
-            async fn save_worker(&self, _worker: &Worker) -> Result<(), WorkerRepositoryError> {
+            async fn save_worker(&self, _worker: &Worker) -> Result<()> {
                 Ok(())
             }
-            async fn get_worker(
-                &self,
-                _id: &WorkerId,
-            ) -> Result<Option<Worker>, WorkerRepositoryError> {
+            async fn get_worker(&self, _id: &WorkerId) -> Result<Option<Worker>> {
                 Ok(None)
             }
-            async fn get_all_workers(&self) -> Result<Vec<Worker>, WorkerRepositoryError> {
+            async fn get_all_workers(&self) -> Result<Vec<Worker>> {
                 Ok(Vec::new())
             }
-            async fn delete_worker(&self, _id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+            async fn delete_worker(&self, _id: &WorkerId) -> Result<()> {
                 Ok(())
             }
-            async fn update_last_seen(&self, _id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+            async fn update_last_seen(&self, _id: &WorkerId) -> Result<()> {
                 Ok(())
             }
             async fn find_stale_workers(
                 &self,
                 _threshold_duration: std::time::Duration,
-            ) -> Result<Vec<Worker>, WorkerRepositoryError> {
+            ) -> Result<Vec<Worker>> {
                 Ok(Vec::new())
+            }
+            async fn update_worker_status(
+                &self,
+                _worker_id: &WorkerId,
+                _status: hodei_core::WorkerStatus,
+            ) -> Result<()> {
+                Ok(())
             }
         }
 
@@ -119,29 +123,33 @@ mod tests {
         struct DummyRepo;
         #[async_trait::async_trait]
         impl WorkerRepository for DummyRepo {
-            async fn save_worker(&self, _worker: &Worker) -> Result<(), WorkerRepositoryError> {
+            async fn save_worker(&self, _worker: &Worker) -> Result<()> {
                 Ok(())
             }
-            async fn get_worker(
-                &self,
-                _id: &WorkerId,
-            ) -> Result<Option<Worker>, WorkerRepositoryError> {
+            async fn get_worker(&self, _id: &WorkerId) -> Result<Option<Worker>> {
                 Ok(None)
             }
-            async fn get_all_workers(&self) -> Result<Vec<Worker>, WorkerRepositoryError> {
+            async fn get_all_workers(&self) -> Result<Vec<Worker>> {
                 Ok(Vec::new())
             }
-            async fn delete_worker(&self, _id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+            async fn delete_worker(&self, _id: &WorkerId) -> Result<()> {
                 Ok(())
             }
-            async fn update_last_seen(&self, _id: &WorkerId) -> Result<(), WorkerRepositoryError> {
+            async fn update_last_seen(&self, _id: &WorkerId) -> Result<()> {
                 Ok(())
             }
             async fn find_stale_workers(
                 &self,
                 _threshold_duration: std::time::Duration,
-            ) -> Result<Vec<Worker>, WorkerRepositoryError> {
+            ) -> Result<Vec<Worker>> {
                 Ok(Vec::new())
+            }
+            async fn update_worker_status(
+                &self,
+                _worker_id: &WorkerId,
+                _status: hodei_core::WorkerStatus,
+            ) -> Result<()> {
+                Ok(())
             }
         }
 

@@ -102,7 +102,7 @@ impl RowExtractor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
 
     #[test]
     fn test_extract_job_from_row_basic() {

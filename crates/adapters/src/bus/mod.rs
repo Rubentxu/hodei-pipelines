@@ -167,8 +167,8 @@ impl Default for InMemoryBusBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_core::{JobId, JobSpec, WorkerId};
-    use std::sync::Arc;
+    use hodei_core::WorkerId;
+    
 
     #[tokio::test]
     async fn test_bus_creation() {

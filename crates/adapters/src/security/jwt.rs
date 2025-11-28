@@ -80,7 +80,7 @@ impl TokenService for JwtTokenService {
 mod tests {
     use super::*;
     use hodei_core::security::{Permission, Role};
-    use jsonwebtoken::errors::ErrorKind;
+    
 
     fn create_test_config() -> JwtConfig {
         JwtConfig {

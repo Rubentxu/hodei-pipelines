@@ -4,7 +4,7 @@
 //! Implements use cases for managing users, roles, and permissions.
 
 use hodei_core::{
-    DomainError,
+    DomainError, Result,
     security::{Email, Permission, Role, User, UserId, UserStatus},
 };
 use hodei_ports::{EventPublisher, SystemEvent};
@@ -117,12 +117,12 @@ impl From<DomainError> for SecurityManagementError {
 /// User Repository Port
 #[async_trait::async_trait]
 pub trait UserRepository: Send + Sync {
-    async fn save(&self, user: &User) -> StdResult<(), String>;
-    async fn find_by_id(&self, id: &UserId) -> StdResult<Option<User>, String>;
-    async fn find_by_email(&self, email: &Email) -> StdResult<Option<User>, String>;
-    async fn list_all(&self) -> StdResult<Vec<User>, String>;
-    async fn delete(&self, id: &UserId) -> StdResult<(), String>;
-    async fn exists(&self, id: &UserId) -> StdResult<bool, String>;
+    async fn save(&self, user: &User) -> StdResult<()>;
+    async fn find_by_id(&self, id: &UserId) -> StdResult<Option<User>>;
+    async fn find_by_email(&self, email: &Email) -> StdResult<Option<User>>;
+    async fn list_all(&self) -> StdResult<Vec<User>>;
+    async fn delete(&self, id: &UserId) -> StdResult<()>;
+    async fn exists(&self, id: &UserId) -> StdResult<bool>;
 }
 
 /// Security Management Service - Application layer use cases
@@ -150,10 +150,7 @@ where
     }
 
     /// Create a new user
-    pub async fn create_user(
-        &self,
-        request: CreateUserRequest,
-    ) -> Result<UserResponse, SecurityManagementError> {
+    pub async fn create_user(&self, request: CreateUserRequest) -> Result<UserResponse> {
         info!("Creating user with email: {}", request.email);
 
         // Validate email
@@ -214,7 +211,7 @@ where
     }
 
     /// Get user by ID
-    pub async fn get_user(&self, id: String) -> Result<UserResponse, SecurityManagementError> {
+    pub async fn get_user(&self, id: String) -> Result<UserResponse> {
         let user_id = UserId::from_uuid(
             uuid::Uuid::parse_str(&id)
                 .map_err(|_| SecurityManagementError::Validation("Invalid UUID".to_string()))?,
@@ -235,7 +232,7 @@ where
         &self,
         id: String,
         request: UpdateUserRequest,
-    ) -> Result<UserResponse, SecurityManagementError> {
+    ) -> Result<UserResponse> {
         let user_id = UserId::from_uuid(
             uuid::Uuid::parse_str(&id)
                 .map_err(|_| SecurityManagementError::Validation("Invalid UUID".to_string()))?,
@@ -303,7 +300,7 @@ where
     }
 
     /// Delete user
-    pub async fn delete_user(&self, id: String) -> Result<(), SecurityManagementError> {
+    pub async fn delete_user(&self, id: String) -> Result<()> {
         let user_id = UserId::from_uuid(
             uuid::Uuid::parse_str(&id)
                 .map_err(|_| SecurityManagementError::Validation("Invalid UUID".to_string()))?,
@@ -340,10 +337,7 @@ where
     }
 
     /// List users with filtering and pagination
-    pub async fn list_users(
-        &self,
-        filter: ListUsersFilter,
-    ) -> Result<ListUsersResponse, SecurityManagementError> {
+    pub async fn list_users(&self, filter: ListUsersFilter) -> Result<ListUsersResponse> {
         let page = filter.page.unwrap_or(1);
         let per_page = filter.per_page.unwrap_or(10);
         let offset = (page - 1) * per_page;
@@ -402,7 +396,7 @@ where
     }
 
     /// Activate user
-    pub async fn activate_user(&self, id: String) -> Result<UserResponse, SecurityManagementError> {
+    pub async fn activate_user(&self, id: String) -> Result<UserResponse> {
         let user_id = UserId::from_uuid(
             uuid::Uuid::parse_str(&id)
                 .map_err(|_| SecurityManagementError::Validation("Invalid UUID".to_string()))?,
@@ -433,10 +427,7 @@ where
     }
 
     /// Deactivate user
-    pub async fn deactivate_user(
-        &self,
-        id: String,
-    ) -> Result<UserResponse, SecurityManagementError> {
+    pub async fn deactivate_user(&self, id: String) -> Result<UserResponse> {
         let user_id = UserId::from_uuid(
             uuid::Uuid::parse_str(&id)
                 .map_err(|_| SecurityManagementError::Validation("Invalid UUID".to_string()))?,
@@ -467,7 +458,7 @@ where
     }
 
     /// Suspend user
-    pub async fn suspend_user(&self, id: String) -> Result<UserResponse, SecurityManagementError> {
+    pub async fn suspend_user(&self, id: String) -> Result<UserResponse> {
         let user_id = UserId::from_uuid(
             uuid::Uuid::parse_str(&id)
                 .map_err(|_| SecurityManagementError::Validation("Invalid UUID".to_string()))?,
@@ -498,11 +489,7 @@ where
     }
 
     /// Add role to user
-    pub async fn add_role_to_user(
-        &self,
-        id: String,
-        role: String,
-    ) -> Result<UserResponse, SecurityManagementError> {
+    pub async fn add_role_to_user(&self, id: String, role: String) -> Result<UserResponse> {
         let user_id = UserId::from_uuid(
             uuid::Uuid::parse_str(&id)
                 .map_err(|_| SecurityManagementError::Validation("Invalid UUID".to_string()))?,
@@ -539,11 +526,7 @@ where
     }
 
     /// Remove role from user
-    pub async fn remove_role_from_user(
-        &self,
-        id: String,
-        role: String,
-    ) -> Result<UserResponse, SecurityManagementError> {
+    pub async fn remove_role_from_user(&self, id: String, role: String) -> Result<UserResponse> {
         let user_id = UserId::from_uuid(
             uuid::Uuid::parse_str(&id)
                 .map_err(|_| SecurityManagementError::Validation("Invalid UUID".to_string()))?,
@@ -671,34 +654,34 @@ mod tests {
 
     #[async_trait::async_trait]
     impl UserRepository for MockUserRepository {
-        async fn save(&self, user: &User) -> StdResult<(), String> {
+        async fn save(&self, user: &User) -> StdResult<()> {
             let mut users = self.users.write().await;
             users.insert(user.id.clone(), user.clone());
             Ok(())
         }
 
-        async fn find_by_id(&self, id: &UserId) -> StdResult<Option<User>, String> {
+        async fn find_by_id(&self, id: &UserId) -> StdResult<Option<User>> {
             let users = self.users.read().await;
             Ok(users.get(id).cloned())
         }
 
-        async fn find_by_email(&self, email: &Email) -> StdResult<Option<User>, String> {
+        async fn find_by_email(&self, email: &Email) -> StdResult<Option<User>> {
             let users = self.users.read().await;
             Ok(users.values().find(|u| &u.email == email).cloned())
         }
 
-        async fn list_all(&self) -> StdResult<Vec<User>, String> {
+        async fn list_all(&self) -> StdResult<Vec<User>> {
             let users = self.users.read().await;
             Ok(users.values().cloned().collect())
         }
 
-        async fn delete(&self, id: &UserId) -> StdResult<(), String> {
+        async fn delete(&self, id: &UserId) -> StdResult<()> {
             let mut users = self.users.write().await;
             users.remove(id);
             Ok(())
         }
 
-        async fn exists(&self, id: &UserId) -> StdResult<bool, String> {
+        async fn exists(&self, id: &UserId) -> StdResult<bool> {
             let users = self.users.read().await;
             Ok(users.contains_key(id))
         }
@@ -708,10 +691,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl EventPublisher for MockEventBus {
-        async fn publish(
-            &self,
-            _event: SystemEvent,
-        ) -> StdResult<(), hodei_ports::event_bus::EventBusError> {
+        async fn publish(&self, _event: SystemEvent) -> StdResult<()> {
             Ok(())
         }
     }
@@ -802,5 +782,12 @@ mod tests {
         // Verify user is deleted
         let result = service.get_user(user.id).await;
         assert!(result.is_err());
+    }
+}
+
+// Error conversion to DomainError
+impl From<Securitymanagement> for hodei_core::DomainError {
+    fn from(err: Securitymanagement) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

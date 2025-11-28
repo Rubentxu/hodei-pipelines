@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use chrono::Utc;
-use hodei_core::{JobId, Worker, WorkerId};
+use hodei_core::{JobId, Result, Worker, WorkerId};
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
@@ -167,7 +167,7 @@ impl JobQueue {
     }
 
     /// Enqueue a job (returns false if queue is full)
-    pub async fn enqueue(&self, job: QueuedJob) -> Result<bool, QueueError> {
+    pub async fn enqueue(&self, job: QueuedJob) -> Result<bool> {
         let mut jobs = self.jobs.write().await;
 
         // Check queue size limit
@@ -326,6 +326,7 @@ pub enum SchedulingPolicy {
 }
 
 /// Assignment engine
+#[derive(Clone)]
 pub struct QueueAssignmentEngine {
     queues: HashMap<String, JobQueue>,
     pools: HashMap<String, Arc<dyn ResourcePool>>,
@@ -346,11 +347,8 @@ impl std::fmt::Debug for QueueAssignmentEngine {
 
 /// Resource pool trait
 #[async_trait]
-pub trait ResourcePool {
-    async fn allocate_worker(
-        &self,
-        requirements: &JobRequirements,
-    ) -> Result<(WorkerId, Worker), ResourcePoolError>;
+pub trait ResourcePool: Send + Sync {
+    async fn allocate_worker(&self, requirements: &JobRequirements) -> Result<Worker>;
     async fn get_status(&self) -> PoolStatus;
     fn pool_id(&self) -> &str;
 }
@@ -366,6 +364,12 @@ pub enum ResourcePoolError {
 
     #[error("Pool error: {0}")]
     PoolError(String),
+}
+
+impl From<ResourcePoolError> for hodei_core::DomainError {
+    fn from(error: ResourcePoolError) -> Self {
+        hodei_core::DomainError::Infrastructure(error.to_string())
+    }
 }
 
 /// Pool status
@@ -511,10 +515,7 @@ impl QueueAssignmentEngine {
     }
 
     /// Submit a job for assignment
-    pub async fn submit_job(
-        &self,
-        request: AssignmentRequest,
-    ) -> Result<AssignmentResult, QueueError> {
+    pub async fn submit_job(&self, request: AssignmentRequest) -> Result<AssignmentResult> {
         let start_time = Instant::now();
         self.stats
             .total_assignments
@@ -524,7 +525,8 @@ impl QueueAssignmentEngine {
         if request.priority < 1 || request.priority > 10 {
             return Err(QueueError::InvalidPriority {
                 priority: request.priority,
-            });
+            }
+            .into());
         }
 
         // Determine queue ID based on queue type
@@ -566,7 +568,7 @@ impl QueueAssignmentEngine {
     async fn try_assign_immediate(
         &self,
         request: &AssignmentRequest,
-    ) -> Result<Option<AssignmentResult>, QueueError> {
+    ) -> Result<Option<AssignmentResult>> {
         if self.pools.is_empty() {
             return Ok(None);
         }
@@ -574,9 +576,9 @@ impl QueueAssignmentEngine {
         // Try each pool to find a suitable worker
         for (_pool_id, pool) in &self.pools {
             match pool.allocate_worker(&request.requirements).await {
-                Ok((worker_id, _worker)) => {
+                Ok(worker) => {
                     return Ok(Some(AssignmentResult::Assigned {
-                        worker_id,
+                        worker_id: worker.id,
                         pool_id: pool.pool_id().to_string(),
                         assignment_time: Duration::from_millis(1),
                     }));
@@ -597,13 +599,10 @@ impl QueueAssignmentEngine {
         &self,
         request: AssignmentRequest,
         queue_id: &str,
-    ) -> Result<AssignmentResult, QueueError> {
-        let queue = self
-            .queues
-            .get(queue_id)
-            .ok_or_else(|| QueueError::QueueNotFound {
-                queue_id: queue_id.to_string(),
-            })?;
+    ) -> Result<AssignmentResult> {
+        let queue = self.queues.get(queue_id).ok_or_else(|| {
+            hodei_core::DomainError::NotFound(format!("Queue not found: {}", queue_id))
+        })?;
 
         let queued_job = QueuedJob {
             job_id: request.job_id,
@@ -632,14 +631,15 @@ impl QueueAssignmentEngine {
                 // Queue overflow
                 Err(QueueError::QueueOverflow {
                     queue_id: queue_id.to_string(),
-                })
+                }
+                .into())
             }
             Err(e) => Err(e),
         }
     }
 
     /// Process queued jobs (assign when workers become available)
-    pub async fn process_queues(&self) -> Result<u32, QueueError> {
+    pub async fn process_queues(&self) -> Result<u32> {
         let mut processed = 0;
 
         for (queue_id, queue) in &self.queues {
@@ -737,7 +737,7 @@ impl DeadLetterQueue {
     }
 
     /// Add a failed job to the dead letter queue
-    pub async fn add_failed_job(&self, job: QueuedJob) -> Result<(), QueueError> {
+    pub async fn add_failed_job(&self, job: QueuedJob) -> Result<()> {
         let mut jobs = self.failed_jobs.write().await;
 
         // Check capacity
@@ -793,7 +793,7 @@ impl FIFOStandardQueue {
     }
 
     /// Enqueue a job (FIFO ordering)
-    pub async fn enqueue(&self, job: QueuedJob) -> Result<(), QueueError> {
+    pub async fn enqueue(&self, job: QueuedJob) -> Result<()> {
         let mut queue = self.fifo_queue.write().await;
 
         // Check capacity
@@ -801,7 +801,8 @@ impl FIFOStandardQueue {
             return Err(QueueError::QueueFull {
                 queue_id: self.queue_id.clone(),
                 capacity: self.capacity,
-            });
+            }
+            .into());
         }
 
         // Add job with timestamp for FIFO ordering
@@ -843,7 +844,7 @@ impl FIFOStandardQueue {
     }
 
     /// Check for timed-out jobs and move them to dead letter queue
-    pub async fn check_timeouts(&self) -> Result<u32, QueueError> {
+    pub async fn check_timeouts(&self) -> Result<u32> {
         let mut timed_out_count = 0;
         let mut queue = self.fifo_queue.write().await;
         let mut dead_letter_jobs = Vec::new();
@@ -1021,10 +1022,7 @@ mod tests {
 
     #[async_trait]
     impl ResourcePool for MockResourcePool {
-        async fn allocate_worker(
-            &self,
-            _requirements: &JobRequirements,
-        ) -> Result<(WorkerId, Worker), ResourcePoolError> {
+        async fn allocate_worker(&self, _requirements: &JobRequirements) -> Result<Worker> {
             if self.available {
                 let worker_id = WorkerId::new();
                 let worker = Worker::new(
@@ -1032,9 +1030,9 @@ mod tests {
                     format!("{}-worker", self.pool_id),
                     hodei_core::WorkerCapabilities::new(4, 8192),
                 );
-                Ok((worker_id, worker))
+                Ok(worker)
             } else {
-                Err(ResourcePoolError::NoWorkerAvailable)
+                Err(ResourcePoolError::NoWorkerAvailable.into())
             }
         }
 
@@ -1256,7 +1254,10 @@ mod tests {
 
         let result = engine.submit_job(request).await;
 
-        assert!(matches!(result, Err(QueueError::InvalidPriority { .. })));
+        assert!(matches!(
+            result,
+            Err(hodei_core::DomainError::Validation(_))
+        ));
     }
 
     #[tokio::test]
@@ -1548,5 +1549,12 @@ mod tests {
         // Try to dequeue from empty queue
         let result = queue.dequeue().await;
         assert!(result.is_none());
+    }
+}
+
+// Error conversion to DomainError
+impl From<QueueError> for hodei_core::DomainError {
+    fn from(err: QueueError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

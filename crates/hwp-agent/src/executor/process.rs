@@ -109,7 +109,7 @@ impl ProcessManager {
             child.env(key, value);
         }
 
-        let mut child = match child.spawn() {
+        let child = match child.spawn() {
             Ok(child) => {
                 info!("Job {} spawned with PID: {:?}", job_id, child.id());
                 child

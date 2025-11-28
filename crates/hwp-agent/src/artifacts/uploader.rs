@@ -2,16 +2,13 @@
 //!
 //! This module handles uploading job artifacts to the server via gRPC.
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::fs;
-use tokio_stream::Stream;
-use tonic::{Request, Status};
-use tracing::{error, info, warn};
+use tonic::Request;
+use tracing::{error, info};
 
 use hwp_proto::{
-    ArtifactChunk, FinalizeUploadRequest, FinalizeUploadResponse, InitiateUploadRequest,
-    InitiateUploadResponse, UploadArtifactRequest, UploadArtifactResponse, WorkerServiceClient,
+    ArtifactChunk, FinalizeUploadRequest, InitiateUploadRequest, WorkerServiceClient,
 };
 
 use super::{CompressionType, Compressor};
@@ -437,7 +434,7 @@ mod tests {
         let result = ArtifactUploader::new_with_grpc(config, "http://localhost:8080").await;
 
         match result {
-            Ok(mut uploader) => {
+            Ok(uploader) => {
                 // Si hay servidor, testearíamos el upload con chunking
                 println!("Large file upload test ready (requires gRPC server)");
                 // En test real: let result = uploader.upload_file_grpc(temp_file.path().to_path_buf(), "test-job").await;

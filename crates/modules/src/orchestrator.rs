@@ -1,6 +1,6 @@
 //! Orchestrator Module
 
-use hodei_core::{Job, JobId, JobSpec, Pipeline, PipelineId};
+use hodei_core::{Job, JobId, JobSpec, Pipeline, PipelineId, Result};
 use hodei_ports::{EventPublisher, JobRepository, PipelineRepository};
 use std::sync::Arc;
 use tracing::info;
@@ -43,7 +43,7 @@ where
         }
     }
 
-    pub async fn create_job(&self, spec: JobSpec) -> Result<Job, OrchestratorError> {
+    pub async fn create_job(&self, spec: JobSpec) -> Result<Job> {
         info!("Creating job: {}", spec.name);
 
         spec.validate()
@@ -65,14 +65,14 @@ where
         Ok(job)
     }
 
-    pub async fn get_job(&self, id: &JobId) -> Result<Option<Job>, OrchestratorError> {
+    pub async fn get_job(&self, id: &JobId) -> Result<Option<Job>> {
         self.job_repo
             .get_job(id)
             .await
-            .map_err(|e| OrchestratorError::DomainError(e.to_string()))
+            .map_err(|e| OrchestratorError::DomainError(e.to_string()).into())
     }
 
-    pub async fn cancel_job(&self, id: &JobId) -> Result<(), OrchestratorError> {
+    pub async fn cancel_job(&self, id: &JobId) -> Result<()> {
         info!("Canceling job: {}", id);
 
         let job = self
@@ -98,7 +98,7 @@ where
         &self,
         name: String,
         steps: Vec<hodei_core::pipeline::PipelineStep>,
-    ) -> Result<Pipeline, OrchestratorError> {
+    ) -> Result<Pipeline> {
         info!("Creating pipeline: {}", name);
 
         let pipeline = Pipeline::new(PipelineId::new(), name, steps)
@@ -117,7 +117,7 @@ where
         Ok(pipeline)
     }
 
-    pub async fn start_pipeline(&self, id: &PipelineId) -> Result<(), OrchestratorError> {
+    pub async fn start_pipeline(&self, id: &PipelineId) -> Result<()> {
         info!("Starting pipeline: {}", id);
 
         let mut pipeline = self
@@ -185,4 +185,11 @@ pub enum OrchestratorError {
 
     #[error("Event bus error: {0}")]
     EventBus(hodei_ports::EventBusError),
+}
+
+// Error conversion to DomainError
+impl From<OrchestratorError> for hodei_core::DomainError {
+    fn from(err: OrchestratorError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
+    }
 }

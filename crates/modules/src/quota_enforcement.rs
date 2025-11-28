@@ -10,7 +10,7 @@ use std::time::Duration;
 use tracing::{error, info};
 
 use crate::multi_tenancy_quota_manager::{
-    MultiTenancyQuotaManager, QuotaDecision, ResourceRequest, TenantId,
+    MultiTenancyQuotaManager, QuotaDecision, QuotaError, ResourceRequest, TenantId,
 };
 
 /// Enforcement policy configuration
@@ -81,7 +81,7 @@ pub struct PreemptionCandidate {
 }
 
 /// Quota enforcement engine
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QuotaEnforcementEngine {
     quota_manager: Arc<MultiTenancyQuotaManager>,
     policy: EnforcementPolicy,
@@ -133,18 +133,14 @@ impl QuotaEnforcementEngine {
     pub async fn evaluate_admission(
         &mut self,
         request: ResourceRequest,
-    ) -> Result<AdmissionDecision, EnforcementError> {
+    ) -> Result<AdmissionDecision, QuotaError> {
         let start_time = std::time::Instant::now();
 
         self.stats.total_requests += 1;
         let tenant_id = request.tenant_id.clone();
 
         // First, check basic quota eligibility
-        let quota_decision = self
-            .quota_manager
-            .check_quota(&tenant_id, &request)
-            .await
-            .map_err(|e| EnforcementError::TenantNotFound(tenant_id.clone()))?;
+        let quota_decision = self.quota_manager.check_quota(&tenant_id, &request).await?;
 
         // Process based on quota decision
         let admission_decision = match quota_decision {
@@ -245,18 +241,11 @@ impl QuotaEnforcementEngine {
     }
 
     /// Admit a resource request (after evaluation)
-    pub async fn admit_request(
-        &mut self,
-        request: &ResourceRequest,
-    ) -> Result<(), EnforcementError> {
+    pub async fn admit_request(&mut self, request: &ResourceRequest) -> Result<(), QuotaError> {
         let tenant_id = &request.tenant_id;
 
         // Double-check quota before admitting
-        let quota_decision = self
-            .quota_manager
-            .check_quota(tenant_id, request)
-            .await
-            .map_err(|_| EnforcementError::TenantNotFound(tenant_id.clone()))?;
+        let quota_decision = self.quota_manager.check_quota(tenant_id, request).await?;
 
         match quota_decision {
             QuotaDecision::Allow { .. } => {
@@ -268,7 +257,7 @@ impl QuotaEnforcementEngine {
                 info!("Admitted request for tenant {}", tenant_id);
                 Ok(())
             }
-            _ => Err(EnforcementError::InvalidPolicy(
+            _ => Err(QuotaError::EnforcementError(
                 "Cannot admit request that was not allowed".to_string(),
             )),
         }
@@ -308,7 +297,7 @@ impl QuotaEnforcementEngine {
     async fn execute_preemption(
         &mut self,
         candidate: &PreemptionCandidate,
-    ) -> Result<(), EnforcementError> {
+    ) -> Result<(), QuotaError> {
         info!(
             "Preempting job {} for tenant {}",
             candidate.job_id, candidate.tenant_id
@@ -323,16 +312,15 @@ impl QuotaEnforcementEngine {
     }
 
     /// Queue a request for later processing
-    async fn queue_request(
-        &mut self,
-        request: ResourceRequest,
-    ) -> Result<Duration, EnforcementError> {
+    async fn queue_request(&mut self, request: ResourceRequest) -> Result<Duration, QuotaError> {
         let tenant_id = request.tenant_id.clone();
 
         // Check queue size
         if let Some(queue) = self.queued_requests.get(&tenant_id) {
             if queue.len() >= self.policy.max_queue_size {
-                return Err(EnforcementError::QueueOverflow(tenant_id.clone()));
+                return Err(QuotaError::EnforcementError(
+                    "Preemption candidate not found".to_string(),
+                ));
             }
         }
 
@@ -369,7 +357,7 @@ impl QuotaEnforcementEngine {
     }
 
     /// Process queued requests
-    pub async fn process_queued_requests(&mut self) -> Result<(), EnforcementError> {
+    pub async fn process_queued_requests(&mut self) -> Result<(), QuotaError> {
         let mut processed = Vec::new();
 
         for (tenant_id, queue) in self.queued_requests.iter_mut() {
@@ -724,5 +712,12 @@ mod tests {
 
         let queue = engine.get_queued_requests("tenant-1");
         assert!(queue.is_none() || queue.unwrap().is_empty());
+    }
+}
+
+// Error conversion to DomainError
+impl From<EnforcementError> for hodei_core::DomainError {
+    fn from(err: EnforcementError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

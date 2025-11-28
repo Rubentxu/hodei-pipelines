@@ -4,11 +4,12 @@
 
 use async_trait::async_trait;
 use hodei_core::{DomainError, Job, JobId, Result, WorkerId};
-use hodei_ports::{JobRepository, JobRepositoryError};
-use serde::{Deserialize, Serialize};
+use hodei_ports::JobRepository;
 use sqlx::{PgPool, Row};
-use tracing::{debug, error, info, warn};
-use uuid::Uuid;
+use tracing::info;
+
+/// Default pagination limit for database queries
+const DEFAULT_PAGE_SIZE: i64 = 1000;
 
 /// PostgreSQL Job Repository
 #[derive(Debug)]
@@ -62,6 +63,34 @@ impl PostgreSqlJobRepository {
         info!("Job schema initialized successfully");
         Ok(())
     }
+
+    /// Deserialize a Job from a SQL row
+    ///
+    /// This helper method centralizes the deserialization logic to avoid code duplication
+    fn deserialize_job_from_row(&self, row: &sqlx::postgres::PgRow, job_id: JobId) -> Result<Job> {
+        let spec: hodei_core::job::JobSpec =
+            serde_json::from_value(row.get("spec")).map_err(|e| {
+                DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
+            })?;
+
+        let state_str = row.get::<String, _>("state");
+        let state = hodei_core::job::JobState::new(state_str.clone())
+            .map_err(|_| DomainError::Validation(format!("Invalid job state: {}", state_str)))?;
+
+        Ok(Job {
+            id: job_id,
+            name: row.get("name"),
+            description: row.get("description"),
+            spec,
+            state,
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+            started_at: row.get("started_at"),
+            completed_at: row.get("completed_at"),
+            tenant_id: row.get("tenant_id"),
+            result: row.get("result"),
+        })
+    }
 }
 
 #[async_trait]
@@ -111,29 +140,7 @@ impl JobRepository for PostgreSqlJobRepository {
         .map_err(|e| DomainError::Infrastructure(format!("Failed to get job: {}", e)))?;
 
         if let Some(row) = row {
-            let spec: hodei_core::job::JobSpec =
-                serde_json::from_value(row.get("spec")).map_err(|e| {
-                    DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
-                })?;
-            let state = hodei_core::job::JobState::new(row.get::<String, _>("state").to_string())
-                .unwrap_or_else(|_| {
-                    hodei_core::job::JobState::new(hodei_core::job::JobState::PENDING.to_string())
-                        .unwrap()
-                });
-
-            Ok(Some(Job {
-                id: job_id.clone(),
-                name: row.get("name"),
-                description: row.get("description"),
-                spec,
-                state,
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
-                started_at: row.get("started_at"),
-                completed_at: row.get("completed_at"),
-                tenant_id: row.get("tenant_id"),
-                result: row.get("result"),
-            }))
+            Ok(Some(self.deserialize_job_from_row(&row, job_id.clone())?))
         } else {
             Ok(None)
         }
@@ -145,38 +152,17 @@ impl JobRepository for PostgreSqlJobRepository {
             FROM jobs
             WHERE state = 'PENDING'
             ORDER BY created_at
-            LIMIT 1000
+            LIMIT $1
         "#)
+        .bind(DEFAULT_PAGE_SIZE)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to get pending jobs: {}", e)))?;
 
         let mut jobs = Vec::new();
         for row in rows {
-            let spec: hodei_core::job::JobSpec =
-                serde_json::from_value(row.get("spec")).map_err(|e| {
-                    DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
-                })?;
-            let state = hodei_core::job::JobState::new(row.get::<String, _>("state").to_string())
-                .unwrap_or_else(|_| {
-                    hodei_core::job::JobState::new(hodei_core::job::JobState::PENDING.to_string())
-                        .unwrap()
-                });
             let job_id = JobId::from_uuid(row.get("job_id"));
-
-            jobs.push(Job {
-                id: job_id,
-                name: row.get("name"),
-                description: row.get("description"),
-                spec,
-                state,
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
-                started_at: row.get("started_at"),
-                completed_at: row.get("completed_at"),
-                tenant_id: row.get("tenant_id"),
-                result: row.get("result"),
-            });
+            jobs.push(self.deserialize_job_from_row(&row, job_id)?);
         }
 
         Ok(jobs)
@@ -188,38 +174,17 @@ impl JobRepository for PostgreSqlJobRepository {
             FROM jobs
             WHERE state = 'RUNNING'
             ORDER BY created_at
-            LIMIT 1000
+            LIMIT $1
         "#)
+        .bind(DEFAULT_PAGE_SIZE)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to get running jobs: {}", e)))?;
 
         let mut jobs = Vec::new();
         for row in rows {
-            let spec: hodei_core::job::JobSpec =
-                serde_json::from_value(row.get("spec")).map_err(|e| {
-                    DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
-                })?;
-            let state = hodei_core::job::JobState::new(row.get::<String, _>("state").to_string())
-                .unwrap_or_else(|_| {
-                    hodei_core::job::JobState::new(hodei_core::job::JobState::PENDING.to_string())
-                        .unwrap()
-                });
             let job_id = JobId::from_uuid(row.get("job_id"));
-
-            jobs.push(Job {
-                id: job_id,
-                name: row.get("name"),
-                description: row.get("description"),
-                spec,
-                state,
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
-                started_at: row.get("started_at"),
-                completed_at: row.get("completed_at"),
-                tenant_id: row.get("tenant_id"),
-                result: row.get("result"),
-            });
+            jobs.push(self.deserialize_job_from_row(&row, job_id)?);
         }
 
         Ok(jobs)
@@ -359,38 +324,17 @@ impl JobRepository for PostgreSqlJobRepository {
             SELECT job_id, name, description, spec, state, created_at, updated_at, started_at, completed_at, tenant_id, result
             FROM jobs
             ORDER BY created_at DESC
-            LIMIT 1000
+            LIMIT $1
         "#)
+        .bind(DEFAULT_PAGE_SIZE)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to list jobs: {}", e)))?;
 
         let mut jobs = Vec::new();
         for row in rows {
-            let spec: hodei_core::job::JobSpec =
-                serde_json::from_value(row.get("spec")).map_err(|e| {
-                    DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
-                })?;
-            let state = hodei_core::job::JobState::new(row.get::<String, _>("state").to_string())
-                .unwrap_or_else(|_| {
-                    hodei_core::job::JobState::new(hodei_core::job::JobState::PENDING.to_string())
-                        .unwrap()
-                });
             let job_id = JobId::from_uuid(row.get("job_id"));
-
-            jobs.push(Job {
-                id: job_id,
-                name: row.get("name"),
-                description: row.get("description"),
-                spec,
-                state,
-                created_at: row.get("created_at"),
-                updated_at: row.get("updated_at"),
-                started_at: row.get("started_at"),
-                completed_at: row.get("completed_at"),
-                tenant_id: row.get("tenant_id"),
-                result: row.get("result"),
-            });
+            jobs.push(self.deserialize_job_from_row(&row, job_id)?);
         }
 
         Ok(jobs)

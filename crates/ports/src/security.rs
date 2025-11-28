@@ -75,7 +75,7 @@ pub trait AuditLogger: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_core::security::{JwtClaims, Permission, Role, SecurityContext};
+    
 
     #[tokio::test]
     async fn test_token_service_trait_exists() {

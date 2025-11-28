@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 use crate::auto_scaling_engine::ScaleDirection;
+use hodei_core::{DomainError, Result};
 
 /// Cooldown type for different scaling scenarios
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -76,7 +77,7 @@ pub struct CooldownStats {
 }
 
 /// Advanced cooldown manager
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AdvancedCooldownManager {
     config: CooldownConfig,
     override_config: OverrideConfig,
@@ -153,13 +154,14 @@ impl AdvancedCooldownManager {
         pool_id: &str,
         direction: &ScaleDirection,
         cooldown_type: CooldownType,
-    ) -> Result<(), CooldownError> {
+    ) -> Result<()> {
         // Check if in cooldown (unless explicitly overridden)
         if self.is_in_cooldown(pool_id, direction, cooldown_type).await {
             return Err(CooldownError::CooldownViolation(format!(
                 "Pool {} is in cooldown for {:?} direction",
                 pool_id, direction
-            )));
+            ))
+            .into());
         }
 
         let now = Utc::now();
@@ -215,19 +217,20 @@ impl AdvancedCooldownManager {
         pool_id: &str,
         direction: &ScaleDirection,
         reason: OverrideReason,
-    ) -> Result<(), CooldownError> {
+    ) -> Result<()> {
         // Check if override is allowed
         if !self.override_config.enabled {
-            return Err(CooldownError::OverrideNotAllowed(
-                "Overrides are disabled".to_string(),
-            ));
+            return Err(
+                CooldownError::OverrideNotAllowed("Overrides are disabled".to_string()).into(),
+            );
         }
 
         if !self.override_config.allowed_reasons.contains(&reason) {
             return Err(CooldownError::OverrideNotAllowed(format!(
                 "Override reason {:?} is not allowed",
                 reason
-            )));
+            ))
+            .into());
         }
 
         // Check override rate limit
@@ -237,7 +240,8 @@ impl AdvancedCooldownManager {
         if recent_overrides >= self.override_config.max_overrides_per_hour {
             return Err(CooldownError::OverrideNotAllowed(
                 "Maximum override rate exceeded".to_string(),
-            ));
+            )
+            .into());
         }
 
         let now = Utc::now();
@@ -335,7 +339,7 @@ impl AdvancedCooldownManager {
     }
 
     /// Cleanup old events
-    pub async fn cleanup(&self, retention_period: Duration) -> Result<u64, CooldownError> {
+    pub async fn cleanup(&self, retention_period: Duration) -> Result<u64> {
         let cutoff = Utc::now()
             - chrono::Duration::from_std(retention_period)
                 .map_err(|e| CooldownError::InvalidConfiguration(e.to_string()))?;
@@ -680,5 +684,12 @@ mod tests {
         // History should be empty
         let history = manager.get_history("pool-1").await;
         assert!(history.is_empty());
+    }
+}
+
+// Error conversion to DomainError
+impl From<CooldownError> for DomainError {
+    fn from(err: CooldownError) -> Self {
+        DomainError::Infrastructure(err.to_string())
     }
 }

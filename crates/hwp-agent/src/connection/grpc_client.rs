@@ -126,7 +126,7 @@ impl Client {
             .await
             .map_err(|e| AgentError::Connection(e.to_string()))?;
 
-        let mut inbound = response.into_inner();
+        let inbound = response.into_inner();
         info!("Bidirectional stream established");
 
         // Send initial registration

@@ -12,7 +12,6 @@ pub mod postgres;
 pub mod provider_factory;
 pub mod rbac_repositories;
 pub mod redb;
-pub mod repositories;
 pub mod security;
 pub mod worker_client;
 pub mod worker_registration;
@@ -22,11 +21,6 @@ pub use crate::bus::{EventBusFactory, InMemoryBus, InMemoryBusBuilder};
 pub use crate::docker_provider::DockerProvider;
 pub use crate::kubernetes_provider::KubernetesProvider;
 pub use crate::provider_factory::DefaultProviderFactory;
-// Temporarily disabled - need update to match new trait signatures
-// These were replaced with PostgreSQL implementations
-// pub use crate::repositories::{
-//     InMemoryJobRepository, InMemoryPipelineRepository, InMemoryWorkerRepository,
-// };
 pub use crate::worker_client::{GrpcWorkerClient, HttpWorkerClient};
 pub use crate::worker_registration::{RegistrationConfig, WorkerRegistrationAdapter};
 
@@ -38,9 +32,6 @@ pub use crate::postgres::{
     PostgreSqlJobRepository, PostgreSqlPipelineExecutionRepository, PostgreSqlPipelineRepository,
     PostgreSqlWorkerRepository, functional_tests,
 };
-
-// Redb (embedded) implementations - temporarily commented out
-// pub use crate::redb::{RedbJobRepository, RedbPipelineRepository, RedbWorkerRepository};
 
 // RBAC repositories
 pub use crate::rbac_repositories::{InMemoryPermissionRepository, InMemoryRoleRepository};

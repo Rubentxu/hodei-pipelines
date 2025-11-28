@@ -83,7 +83,7 @@ pub struct MetricsConfig {
 }
 
 /// Metrics collector for resource pools
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MetricsCollector {
     config: MetricsConfig,
     metrics_store: Arc<RwLock<MetricsStore>>,
@@ -491,5 +491,12 @@ mod tests {
         assert!(p50 < p95);
         assert!(p95 < p99);
         assert!(p99 > 90.0);
+    }
+}
+
+// Error conversion to DomainError
+impl From<MetricsError> for hodei_core::DomainError {
+    fn from(err: MetricsError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

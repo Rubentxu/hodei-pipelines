@@ -247,6 +247,9 @@ pub enum QuotaError {
     #[error("Usage tracking error: {0}")]
     UsageTrackingError(String),
 
+    #[error("Enforcement error: {0}")]
+    EnforcementError(String),
+
     #[error("Fair share calculation error: {0}")]
     FairShareError(String),
 }
@@ -916,5 +919,12 @@ mod tests {
         // 4 cores * $0.05/hour * 1 hour + 0.5 GB * $0.01/hour * 1 hour
         assert!(cost > 0.0);
         assert!(cost < 1.0);
+    }
+}
+
+// Error conversion to DomainError
+impl From<QuotaError> for hodei_core::DomainError {
+    fn from(err: QuotaError) -> Self {
+        hodei_core::DomainError::Infrastructure(err.to_string())
     }
 }

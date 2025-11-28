@@ -13,8 +13,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use crate::multi_tenancy_quota_manager::{
-    BillingTier, ResourceRequest, TenantId, TenantQuota,
-    TenantUsage,
+    BillingTier, ResourceRequest, TenantId, TenantQuota, TenantUsage,
 };
 
 /// Tenant weight configuration
