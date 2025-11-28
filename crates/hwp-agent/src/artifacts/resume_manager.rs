@@ -15,15 +15,22 @@ use crate::artifacts::uploader::ArtifactUploader;
 /// Upload session tracking information
 #[derive(Debug, Clone)]
 struct UploadSession {
+    #[allow(dead_code)]
     artifact_id: String,
+    #[allow(dead_code)]
     file_path: PathBuf,
+    #[allow(dead_code)]
     total_size: u64,
     total_chunks: u32,
     uploaded_chunks: HashMap<u32, Vec<u8>>, // chunk_index -> chunk_data
+    #[allow(dead_code)]
     job_id: String,
     upload_url: String,
+    #[allow(dead_code)]
     compression_type: String,
+    #[allow(dead_code)]
     is_compressed: bool,
+    #[allow(dead_code)]
     checksum: String,
 }
 
@@ -31,6 +38,7 @@ struct UploadSession {
 #[derive(Debug)]
 pub struct ResumeManager {
     active_sessions: Arc<Mutex<HashMap<String, UploadSession>>>,
+    #[allow(dead_code)]
     cleanup_interval_ms: u64,
 }
 

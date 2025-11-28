@@ -11,7 +11,6 @@ use hodei_core::WorkerId;
 use hwp_proto::ServerMessage;
 use tokio::sync::mpsc;
 
-
 /// Scheduler port error
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[error("Scheduler error: {0}")]
@@ -268,6 +267,7 @@ mod tests {
         >,
         pub should_fail: bool,
         pub fail_with: SchedulerError,
+        #[allow(dead_code)]
         pub sent_messages: Vec<(WorkerId, ServerMessage)>,
     }
 
@@ -305,14 +305,14 @@ mod tests {
 
     #[async_trait]
     impl SchedulerPort for MockSchedulerPort {
-        async fn register_worker(&self, worker: &Worker) -> Result<(), SchedulerError> {
+        async fn register_worker(&self, _worker: &Worker) -> Result<(), SchedulerError> {
             if self.should_fail {
                 return Err(self.fail_with.clone());
             }
             Ok(())
         }
 
-        async fn unregister_worker(&self, worker_id: &WorkerId) -> Result<(), SchedulerError> {
+        async fn unregister_worker(&self, _worker_id: &WorkerId) -> Result<(), SchedulerError> {
             if self.should_fail {
                 return Err(self.fail_with.clone());
             }

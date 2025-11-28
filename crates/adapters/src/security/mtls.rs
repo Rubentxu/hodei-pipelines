@@ -1,11 +1,8 @@
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use hodei_ports::security::{CertificateValidator, Result, SecurityError};
 use rustls::RootCertStore;
 use rustls::pki_types::CertificateDer;
 use rustls_pemfile::certs;
 use serde::Deserialize;
-use std::fs;
 use std::io::BufReader;
 use std::net::IpAddr;
 use x509_parser::prelude::*;
@@ -208,6 +205,7 @@ pub enum CertificateValidationError {
 }
 
 pub struct ProductionCertificateValidator {
+    #[allow(dead_code)]
     root_store: RootCertStore,
     config: CertificateValidationConfig,
 }

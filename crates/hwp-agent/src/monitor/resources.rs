@@ -129,7 +129,7 @@ impl ResourceMonitor {
             total_memory: system.total_memory(),
             available_memory: system.available_memory(),
             used_memory: system.used_memory(),
-            cpu_count: system.physical_core_count().unwrap_or(0),
+            cpu_count: sysinfo::System::physical_core_count().unwrap_or(0),
             up_time: sysinfo::System::uptime(),
         }
     }

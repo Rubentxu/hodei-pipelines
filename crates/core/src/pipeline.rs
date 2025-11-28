@@ -253,6 +253,7 @@ impl PipelineStatus {
     }
 
     /// Create from string (for backward compatibility)
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(status: &str) -> Result<Self> {
         match status {
             "PENDING" => Ok(Self::PENDING),
@@ -403,9 +404,10 @@ fn has_cycle(steps: &[PipelineStep]) -> std::result::Result<bool, DomainError> {
     // For each step, check if it's part of a cycle (O(n))
     for step_id in step_lookup.keys() {
         if !visited.contains_key(step_id)
-            && has_cycle_dfs(step_id, steps, &step_lookup, &mut visited, &mut rec_stack)? {
-                return Ok(true);
-            }
+            && has_cycle_dfs(step_id, steps, &step_lookup, &mut visited, &mut rec_stack)?
+        {
+            return Ok(true);
+        }
     }
 
     Ok(false)
@@ -514,7 +516,6 @@ fn topological_sort(
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_pipeline_creation() {
@@ -768,7 +769,7 @@ mod tests {
             secret_refs: vec![],
         };
 
-        let step1_id = PipelineStepId::new();
+        let _step1_id = PipelineStepId::new();
 
         // Create a pipeline with both steps
         let step1 = PipelineStepBuilder::new()

@@ -6,7 +6,7 @@
 
 use hodei_adapters::config::AppConfig;
 use thiserror::Error;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// Bootstrap error types
 #[derive(Debug, Error)]
@@ -23,10 +23,12 @@ pub type Result<T> = std::result::Result<T, BootstrapError>;
 /// Server components initialized during bootstrap
 pub struct ServerComponents {
     pub config: AppConfig,
+    #[allow(dead_code)]
     pub status: &'static str,
 }
 
 /// Health checker for monitoring server components
+#[allow(dead_code)]
 pub struct HealthChecker {
     pub config_loaded: bool,
     pub status: &'static str,
@@ -34,11 +36,13 @@ pub struct HealthChecker {
 
 impl HealthChecker {
     /// Check health of all components
+    #[allow(dead_code)]
     pub fn check_health(&self) -> bool {
         self.config_loaded
     }
 
     /// Get health status as string
+    #[allow(dead_code)]
     pub fn status(&self) -> &'static str {
         if self.check_health() {
             "healthy"

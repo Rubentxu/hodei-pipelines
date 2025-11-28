@@ -117,7 +117,7 @@ impl Client {
             WorkerServiceClient::with_interceptor(channel.clone(), self.interceptor.clone());
 
         // Create the outgoing channel for messages from agent to server
-        let (tx, rx) = mpsc::channel(100);
+        let (_tx, rx) = mpsc::channel(100);
         let outbound = ReceiverStream::new(rx);
 
         // Connect to the server with the bidirectional stream
@@ -126,7 +126,7 @@ impl Client {
             .await
             .map_err(|e| AgentError::Connection(e.to_string()))?;
 
-        let inbound = response.into_inner();
+        let _inbound = response.into_inner();
         info!("Bidirectional stream established");
 
         // Send initial registration

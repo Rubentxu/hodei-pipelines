@@ -16,11 +16,10 @@ use hodei_core::{
         Pipeline, PipelineId, PipelineStatus, PipelineStep, PipelineStepBuilder, PipelineStepId,
     },
 };
-use hodei_ports::{EventPublisher, JobRepository, PipelineRepository};
+use hodei_ports::PipelineRepository;
 use sqlx::{Pool, Postgres};
 use std::time::Duration;
 use tracing::{info, warn};
-use uuid::Uuid;
 
 #[cfg(test)]
 mod tests {
@@ -28,8 +27,11 @@ mod tests {
 
     /// Test setup with PostgreSQL and NATS
     struct TestSetup {
+        #[allow(dead_code)]
         db_pool: Pool<Postgres>,
+        #[allow(dead_code)]
         nats_bus: NatsBus,
+        #[allow(dead_code)]
         job_repo: PostgreSqlJobRepository,
         pipeline_repo: PostgreSqlPipelineRepository,
     }
@@ -323,7 +325,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pipeline_dag_cycle_detection() {
-        let setup = TestSetup::new().await;
+        let _setup = TestSetup::new().await;
 
         info!("✅ Test Setup Complete");
         info!("🚀 Running: DAG Cycle Detection");
@@ -375,7 +377,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pipeline_self_dependency_detection() {
-        let setup = TestSetup::new().await;
+        let _setup = TestSetup::new().await;
 
         info!("✅ Test Setup Complete");
         info!("🚀 Running: Self Dependency Detection");
@@ -384,7 +386,7 @@ mod tests {
         let step_id = PipelineStepId::new();
         let job_spec = create_test_job_spec("self-dependent-step");
 
-        let mut step_with_self_dep = PipelineStep {
+        let step_with_self_dep = PipelineStep {
             id: step_id.clone(),
             name: "Self-Dependent Step".to_string(),
             job_spec,
@@ -408,7 +410,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pipeline_invalid_dependency_detection() {
-        let setup = TestSetup::new().await;
+        let _setup = TestSetup::new().await;
 
         info!("✅ Test Setup Complete");
         info!("🚀 Running: Invalid Dependency Detection");
@@ -424,7 +426,7 @@ mod tests {
 
         // Create a step with dependency on non-existent step
         let invalid_dep_id = PipelineStepId::new();
-        let mut invalid_step = PipelineStepBuilder::new()
+        let invalid_step = PipelineStepBuilder::new()
             .name("Invalid Step")
             .job_spec(create_test_job_spec("invalid-step"))
             .depends_on(invalid_dep_id) // This ID doesn't exist in the pipeline
@@ -450,7 +452,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pipeline_dag_topological_sort() {
-        let setup = TestSetup::new().await;
+        let _setup = TestSetup::new().await;
 
         info!("✅ Test Setup Complete");
         info!("🚀 Running: DAG Topological Sort");
@@ -620,7 +622,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pipeline_status_transitions() {
-        let setup = TestSetup::new().await;
+        let _setup = TestSetup::new().await;
 
         info!("✅ Test Setup Complete");
         info!("🚀 Running: Pipeline Status Transitions");

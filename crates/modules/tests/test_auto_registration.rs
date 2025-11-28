@@ -13,11 +13,11 @@ mod auto_registration_tests {
     use hodei_core::{Worker, WorkerId};
     use hodei_core::{WorkerCapabilities, WorkerStatus};
     use hodei_modules::worker_management::{WorkerManagementConfig, WorkerManagementService};
-    
+
     use hodei_ports::WorkerRegistrationPort;
     use hodei_ports::scheduler_port::{SchedulerError, SchedulerPort};
     use hodei_ports::worker_provider::{ProviderCapabilities, ProviderError, WorkerProvider};
-    
+
     use std::sync::Arc;
     use std::time::{Duration, Instant};
     use tokio::sync::Mutex as TokioMutex;
@@ -50,11 +50,13 @@ mod auto_registration_tests {
             self
         }
 
+        #[allow(dead_code)]
         pub fn with_delayed_success(mut self, delay: Duration) -> Self {
             self.delay = Some(delay);
             self
         }
 
+        #[allow(dead_code)]
         pub async fn get_call_count(&self) -> usize {
             *self.call_count.lock().await
         }
@@ -306,7 +308,7 @@ mod auto_registration_tests {
         let worker = create_test_worker();
         let start = Instant::now();
         let result = adapter.register_worker(&worker).await;
-        let elapsed = start.elapsed();
+        let _elapsed = start.elapsed();
 
         assert!(
             result.is_ok(),

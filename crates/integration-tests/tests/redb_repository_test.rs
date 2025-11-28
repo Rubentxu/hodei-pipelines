@@ -4,7 +4,7 @@
 //! temporary directories (Redb is embedded, not a server-based database).
 
 use std::collections::HashMap;
-use tracing::{info, warn};
+use tracing::info;
 
 use hodei_adapters::redb::RedbJobRepository;
 use hodei_core::job::{Job, JobId, JobSpec, ResourceQuota};

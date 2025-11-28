@@ -7,9 +7,7 @@ use tokio::fs;
 use tonic::Request;
 use tracing::{error, info};
 
-use hwp_proto::{
-    ArtifactChunk, FinalizeUploadRequest, InitiateUploadRequest, WorkerServiceClient,
-};
+use hwp_proto::{ArtifactChunk, FinalizeUploadRequest, InitiateUploadRequest, WorkerServiceClient};
 
 use super::{CompressionType, Compressor};
 use crate::{AgentError, Result};
@@ -434,7 +432,7 @@ mod tests {
         let result = ArtifactUploader::new_with_grpc(config, "http://localhost:8080").await;
 
         match result {
-            Ok(uploader) => {
+            Ok(_uploader) => {
                 // Si hay servidor, testearíamos el upload con chunking
                 println!("Large file upload test ready (requires gRPC server)");
                 // En test real: let result = uploader.upload_file_grpc(temp_file.path().to_path_buf(), "test-job").await;
@@ -454,7 +452,7 @@ mod tests {
         temp_file.write_all(&repetitive_data).unwrap();
         temp_file.flush().unwrap();
 
-        let config = ArtifactConfig {
+        let _config = ArtifactConfig {
             upload_url: "http://localhost:8080".to_string(),
             compression: CompressionType::Gzip,
             max_file_size_mb: 100,

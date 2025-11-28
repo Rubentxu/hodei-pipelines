@@ -161,7 +161,7 @@ impl HeartbeatSender {
     }
 
     /// Send heartbeat via gRPC client
-    async fn send_heartbeat(&mut self, usage: &ResourceUsage) -> Result<()> {
+    async fn send_heartbeat(&mut self, _usage: &ResourceUsage) -> Result<()> {
         // Send heartbeat using the WorkerClient
         self.worker_client
             .send_heartbeat(&self.worker_id)
@@ -178,8 +178,6 @@ impl HeartbeatSender {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    
 
     #[test]
     fn test_heartbeat_config_default() {

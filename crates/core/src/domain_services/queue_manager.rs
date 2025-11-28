@@ -103,7 +103,7 @@ impl QueueManager {
         let tenant_weight = self.wfq_policy.get_tenant_weight(&tenant_id);
 
         // Calculate priority based on job weight and tenant weight
-        let priority = ((job_weight * tenant_weight) * 10.0).min(10.0).max(1.0) as u8;
+        let priority = ((job_weight * tenant_weight) * 10.0).clamp(1.0, 10.0) as u8;
 
         // Calculate virtual finish time for WFQ
         let virtual_finish_time = self.global_virtual_time + (job_weight / tenant_weight);

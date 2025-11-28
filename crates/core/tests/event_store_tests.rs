@@ -1,3 +1,4 @@
+#![cfg(feature = "event-store-tests")]
 use chrono::{DateTime, Utc};
 use hodei_core::events::*;
 use serde_json::Value;
@@ -122,6 +123,7 @@ async fn test_event_store_load_by_type(pool: PgPool) -> Result<(), Box<dyn std::
 }
 
 // Test events - available for both unit and integration tests
+#[cfg(feature = "event-store-tests")]
 #[derive(Debug, Clone, serde::Serialize)]
 struct TestEvent {
     event_id: Uuid,
@@ -131,6 +133,7 @@ struct TestEvent {
     data: String,
 }
 
+#[cfg(feature = "event-store-tests")]
 impl TestEvent {
     fn new(aggregate_id: Uuid, version: u64, data: String) -> Self {
         Self {
@@ -143,6 +146,7 @@ impl TestEvent {
     }
 }
 
+#[cfg(feature = "event-store-tests")]
 impl DomainEvent for TestEvent {
     fn event_id(&self) -> Uuid {
         self.event_id
@@ -179,6 +183,7 @@ impl DomainEvent for TestEvent {
     }
 }
 
+#[cfg(feature = "event-store-tests")]
 #[derive(Debug, Clone, serde::Serialize)]
 struct OtherEvent {
     event_id: Uuid,
@@ -188,6 +193,7 @@ struct OtherEvent {
     value: i32,
 }
 
+#[cfg(feature = "event-store-tests")]
 impl OtherEvent {
     fn new(aggregate_id: Uuid, version: u64, value: i32) -> Self {
         Self {
@@ -200,6 +206,7 @@ impl OtherEvent {
     }
 }
 
+#[cfg(feature = "event-store-tests")]
 impl DomainEvent for OtherEvent {
     fn event_id(&self) -> Uuid {
         self.event_id

@@ -6,7 +6,6 @@
 use crate::{Job, JobId, JobSpec, JobState};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use std::collections::HashMap;
 
 /// Database row representation for Job entity
 #[derive(Debug, Clone)]
@@ -144,6 +143,7 @@ impl JobMapper for SqlxJobMapper {
 mod tests {
     use super::*;
     use crate::{Job, JobId, JobState, ResourceQuota};
+    use std::collections::HashMap;
 
     fn create_test_job() -> Job {
         Job {

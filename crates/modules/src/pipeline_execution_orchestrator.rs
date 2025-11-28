@@ -460,7 +460,7 @@ where
         })??;
 
         // Update step execution status based on job result
-        let step_status = if job_result.as_str() == JobState::SUCCESS {
+        let step_status = if job_result.as_str() == "SUCCESS" {
             StepExecutionStatus::COMPLETED
         } else {
             StepExecutionStatus::FAILED
@@ -513,4 +513,3 @@ fn build_dependency_graph(pipeline: &Pipeline) -> HashMap<PipelineStepId, Vec<Pi
 
     graph
 }
-

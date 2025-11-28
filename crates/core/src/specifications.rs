@@ -48,6 +48,7 @@ impl Default for SpecificationResult {
 
 /// Helper struct to build and evaluate composite specifications
 pub struct SpecificationResultBuilder<'a, T> {
+    #[allow(dead_code)]
     candidate: &'a T,
     errors: Vec<String>,
 }

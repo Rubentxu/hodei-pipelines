@@ -399,7 +399,7 @@ mod tests {
     #[tokio::test]
     async fn test_production_config() {
         let config = BufferConfig::production();
-        let buffer = LogBuffer::new(config.clone());
+        let _buffer = LogBuffer::new(config.clone());
 
         assert_eq!(config.max_size_bytes, 16384);
         assert_eq!(config.flush_interval_ms, 50);

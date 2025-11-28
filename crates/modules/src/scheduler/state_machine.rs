@@ -183,8 +183,8 @@ impl SchedulingStateMachine {
                     .job_repo
                     .compare_and_swap_status(
                         &job.id,
-                        hodei_core::JobState::PENDING,
-                        hodei_core::JobState::SCHEDULED,
+                        &hodei_core::JobState::Pending.as_str(),
+                        &hodei_core::JobState::Scheduled.as_str(),
                     )
                     .await
                     .map_err(|e| hodei_core::DomainError::Infrastructure(e.to_string()))?;
@@ -304,4 +304,3 @@ impl Default for SchedulingStateMachine {
         Self::new()
     }
 }
-

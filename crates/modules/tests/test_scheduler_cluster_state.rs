@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod cluster_state_tests {
-    use hodei_modules::scheduler::{ClusterState, ResourceUsage};
     use hodei_core::{WorkerCapabilities, WorkerId};
+    use hodei_modules::scheduler::{ClusterState, ResourceUsage};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
@@ -73,7 +73,7 @@ mod cluster_state_tests {
         let cluster = Arc::new(ClusterState::new());
 
         let handles: Vec<_> = (0..100)
-            .map(|i| {
+            .map(|_i| {
                 let cluster = cluster.clone();
                 let worker_id = WorkerId::new();
                 let capabilities = WorkerCapabilities {

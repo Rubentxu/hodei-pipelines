@@ -2,8 +2,8 @@
 //!
 //! These tests verify NATS JetStream integration with a real server.
 
-use hodei_adapters::bus::config::{EventBusConfig, EventBusType, NatsConfig};
 use hodei_adapters::bus::InMemoryBus;
+use hodei_adapters::bus::config::{EventBusConfig, EventBusType, NatsConfig};
 use hodei_core::{JobSpec, ResourceQuota, WorkerId};
 use hodei_ports::event_bus::{EventPublisher, EventSubscriber, SystemEvent};
 
@@ -118,7 +118,7 @@ async fn test_inmemory_bus_batch_publish() {
 
 #[tokio::test]
 async fn test_event_bus_factory_inmemory() {
-    let config = EventBusConfig {
+    let _config = EventBusConfig {
         bus_type: EventBusType::InMemory,
         inmemory_capacity: 5000,
         nats_config: NatsConfig::default(),

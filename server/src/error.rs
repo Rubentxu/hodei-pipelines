@@ -63,7 +63,7 @@ impl GrpcError {
             GrpcError::Scheduler(e) => {
                 error!(error_type = "scheduler_error", scheduler_error = %e, "Scheduler error occurred");
                 match e {
-                    SchedulerError::WorkerNotFound(worker_id) => {
+                    SchedulerError::WorkerNotFound(_worker_id) => {
                         Status::not_found("Worker not found")
                     }
                     SchedulerError::Validation(msg) | SchedulerError::Config(msg) => {

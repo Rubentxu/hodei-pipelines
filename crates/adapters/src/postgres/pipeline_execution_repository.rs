@@ -369,7 +369,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
 
         // Deserialize each execution
         let mut executions = Vec::new();
-        for (execution_id, (exec_row, step_rows)) in executions_map {
+        for (_execution_id, (exec_row, step_rows)) in executions_map {
             // Re-order step_rows to ensure correct sorting
             let step_rows_sorted = step_rows;
 
@@ -559,4 +559,3 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
         Ok(executions)
     }
 }
-

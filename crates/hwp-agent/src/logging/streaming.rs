@@ -70,7 +70,8 @@ impl LogStreamer {
                     let data = buf[..n].to_vec();
 
                     // Add to buffer
-                    self.buffer
+                    let _ = self
+                        .buffer
                         .add_chunk(self.job_id.clone(), self.stream_type.clone(), data)
                         .await;
 
@@ -162,7 +163,6 @@ pub enum StreamingError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[tokio::test]
     async fn test_log_streamer_creation() {

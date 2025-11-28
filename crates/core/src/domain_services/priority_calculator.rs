@@ -1,7 +1,7 @@
 //! PriorityCalculator Domain Service
 //! Calculates worker scores for optimal job scheduling using Bin Packing + Load Balancing
 
-use crate::domain_services::{ResourceUsage, WorkerNode};
+use crate::domain_services::WorkerNode;
 use crate::{Job, Worker};
 use std::time::Duration;
 
@@ -263,6 +263,7 @@ impl Default for PriorityCalculator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain_services::ResourceUsage;
     use crate::{Job, JobId, JobSpec, ResourceQuota, Worker, WorkerCapabilities, WorkerId};
     use std::collections::HashMap;
 
@@ -480,8 +481,8 @@ mod tests {
             w
         };
 
-        let job = create_test_job(1000, 2048);
-        let cluster_workers = vec![create_cluster_worker(1, 50.0, 4096.0)];
+        let _job = create_test_job(1000, 2048);
+        let _cluster_workers = vec![create_cluster_worker(1, 50.0, 4096.0)];
 
         let load_score = calculator.calculate_load_score(&worker);
 
@@ -531,7 +532,7 @@ mod tests {
         let worker = create_test_worker(1, 4, 8, 10);
         let job = create_test_job(2000, 4096);
 
-        let cluster_workers = vec![create_cluster_worker(1, 50.0, 4096.0)];
+        let _cluster_workers = vec![create_cluster_worker(1, 50.0, 4096.0)];
 
         let capability_score = calculator.calculate_capability_score(&worker, &job);
 

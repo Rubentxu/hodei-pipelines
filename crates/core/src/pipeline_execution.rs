@@ -101,6 +101,7 @@ impl ExecutionStatus {
     }
 
     /// Create from string (for backward compatibility)
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(status: &str) -> Result<Self> {
         match status {
             "PENDING" => Ok(Self::PENDING),
@@ -164,6 +165,7 @@ impl StepExecutionStatus {
     }
 
     /// Create from string (for backward compatibility)
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(status: &str) -> Result<Self> {
         match status {
             "PENDING" => Ok(Self::PENDING),
@@ -301,10 +303,7 @@ impl PipelineExecution {
         tenant_id: Option<String>,
         correlation_id: Option<String>,
     ) -> Self {
-        let step_executions = steps
-            .into_iter()
-            .map(StepExecution::new)
-            .collect();
+        let step_executions = steps.into_iter().map(StepExecution::new).collect();
 
         Self {
             id: ExecutionId::new(),

@@ -637,7 +637,7 @@ mod tests {
 
     #[test]
     fn from_string_list_rejects_equals_and_colon_together() {
-        let result = WorkerCapabilities::from_string_list("cpu=4,memory:8192");
+        let _result = WorkerCapabilities::from_string_list("cpu=4,memory:8192");
         // This should work (uses the first separator found)
         // Actually no, it should use whichever separator is present
         // This test might not be needed as the logic handles it

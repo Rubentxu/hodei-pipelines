@@ -2,40 +2,22 @@ use chrono;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tokio_stream::{
-    Stream, StreamExt,
-    wrappers::{UnboundedReceiverStream},
-};
+use tokio_stream::{Stream, StreamExt, wrappers::UnboundedReceiverStream};
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, info, warn};
 
 use hwp_proto::{
-    AgentMessage,
-    AgentPayload,
-    ArtifactChunk,
-    AssignJobRequest,
-    CancelJobRequest,
-    Empty,
-    FinalizeUploadRequest,
-    FinalizeUploadResponse,
-    InitiateUploadRequest,
-    InitiateUploadResponse,
-    JobAccepted,
-    LogEntry,
-    ResumeUploadRequest,
-    ResumeUploadResponse,
-    ServerMessage,
-    UploadArtifactResponse,
-    WorkerRegistration,
-    WorkerService,
-    WorkerStatus,
+    AgentMessage, AgentPayload, ArtifactChunk, AssignJobRequest, CancelJobRequest, Empty,
+    FinalizeUploadRequest, FinalizeUploadResponse, InitiateUploadRequest, InitiateUploadResponse,
+    JobAccepted, LogEntry, ResumeUploadRequest, ResumeUploadResponse, ServerMessage,
+    UploadArtifactResponse, WorkerRegistration, WorkerService, WorkerStatus,
 };
 
 use hodei_core::WorkerCapabilities;
 use hodei_core::{Worker, WorkerId};
 use hodei_ports::scheduler_port::SchedulerError;
 
-use crate::error::{GrpcError};
+use crate::error::GrpcError;
 
 pub struct HwpService {
     scheduler: Arc<dyn hodei_ports::scheduler_port::SchedulerPort + Send + Sync>,
@@ -183,21 +165,12 @@ impl WorkerService for HwpService {
                                     );
                                 }
                                 AgentPayload::LogEntry(log) => {
-                                    info!(
-                                        "Log from worker {} job {}",
-                                        worker_id_clone, log.job_id
-                                    );
+                                    info!("Log from worker {} job {}", worker_id_clone, log.job_id);
                                 }
                                 AgentPayload::JobResult(res) => {
                                     info!(
                                         "Job result from worker {} for job {}: exit_code={}",
                                         worker_id_clone, res.job_id, res.exit_code
-                                    );
-                                }
-                                _ => {
-                                    info!(
-                                        "Received unhandled payload type from worker {}",
-                                        worker_id_clone
                                     );
                                 }
                             }
@@ -223,22 +196,20 @@ impl WorkerService for HwpService {
         });
 
         let output_stream = UnboundedReceiverStream::new(rx).map(|result| {
-            result.map_err(|e| {
-                match e {
-                    SchedulerError::WorkerNotFound(_) => Status::not_found("Worker not found"),
-                    SchedulerError::Validation(msg) => Status::invalid_argument(msg),
-                    SchedulerError::Config(msg) => Status::failed_precondition(msg),
-                    SchedulerError::NoEligibleWorkers => {
-                        Status::resource_exhausted("No eligible workers")
-                    }
-                    SchedulerError::Internal(msg)
-                    | SchedulerError::RegistrationFailed(msg)
-                    | SchedulerError::JobRepository(msg)
-                    | SchedulerError::WorkerRepository(msg)
-                    | SchedulerError::WorkerClient(msg)
-                    | SchedulerError::EventBus(msg)
-                    | SchedulerError::ClusterState(msg) => Status::internal(msg),
+            result.map_err(|e| match e {
+                SchedulerError::WorkerNotFound(_) => Status::not_found("Worker not found"),
+                SchedulerError::Validation(msg) => Status::invalid_argument(msg),
+                SchedulerError::Config(msg) => Status::failed_precondition(msg),
+                SchedulerError::NoEligibleWorkers => {
+                    Status::resource_exhausted("No eligible workers")
                 }
+                SchedulerError::Internal(msg)
+                | SchedulerError::RegistrationFailed(msg)
+                | SchedulerError::JobRepository(msg)
+                | SchedulerError::WorkerRepository(msg)
+                | SchedulerError::WorkerClient(msg)
+                | SchedulerError::EventBus(msg)
+                | SchedulerError::ClusterState(msg) => Status::internal(msg),
             })
         });
         Ok(Response::new(

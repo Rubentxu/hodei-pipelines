@@ -176,7 +176,7 @@ mod tests {
     #[tokio::test]
     async fn test_nats_bus_event_receiver_receives_events() {
         // Test: EventReceiver should be able to receive SystemEvent from NATS
-        let nats_bus = match NatsBus::new("nats://localhost:4222").await {
+        let _nats_bus = match NatsBus::new("nats://localhost:4222").await {
             Ok(bus) => bus,
             Err(e) => {
                 println!("⚠️  Cannot connect to NATS in test environment: {:?}", e);

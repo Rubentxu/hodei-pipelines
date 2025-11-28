@@ -12,14 +12,12 @@
 use async_trait::async_trait;
 use hodei_core::{DomainError, Job, JobId, Result, WorkerId};
 use hodei_ports::JobRepository;
-use prometheus::Registry;
 use sqlx::{Row, postgres::PgPool};
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-use crate::metrics::{CacheMetrics, SharedCacheMetrics};
+use crate::metrics::SharedCacheMetrics;
 
 /// Hybrid Cached Job Repository
 ///
@@ -273,7 +271,7 @@ impl JobRepository for CachedJobRepository {
         debug!("CACHE MISS for job {}, loading from database", job_id);
 
         match self.load_from_db(job_id).await {
-            Ok(Some(mut job)) => {
+            Ok(Some(job)) => {
                 // Populate cache
                 let cache = self.cache.write().await;
                 let _ = cache.save_job(&job).await;

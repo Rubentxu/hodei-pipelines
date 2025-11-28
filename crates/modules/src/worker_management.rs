@@ -79,7 +79,7 @@ where
         &self,
         image: String,
         cpu_cores: u32,
-        memory_mb: u64,
+        _memory_mb: u64,
     ) -> Result<Worker> {
         let worker_id = WorkerId::new();
         let config = ProviderConfig::docker(format!("worker-{}", worker_id));
@@ -1067,6 +1067,7 @@ where
 {
     config: CleanupConfig,
     worker_repo: Arc<R>,
+    #[allow(dead_code)]
     job_repo: Arc<J>,
 }
 
@@ -3411,6 +3412,7 @@ where
 {
     policies: Vec<RemediationPolicy>,
     worker_repo: Arc<R>,
+    #[allow(dead_code)]
     job_manager: Arc<J>,
     action_executor: Arc<dyn ActionExecutor + Send + Sync>,
     audit_log: Arc<dyn AuditLogger + Send + Sync>,
@@ -3744,4 +3746,3 @@ where
         Ok(0)
     }
 }
-

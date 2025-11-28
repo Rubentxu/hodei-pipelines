@@ -521,7 +521,11 @@ where
                     // Update job state
                     if let Err(e) = self
                         .job_repo
-                        .compare_and_swap_status(&job.id, JobState::PENDING, JobState::SCHEDULED)
+                        .compare_and_swap_status(
+                            &job.id,
+                            &JobState::Pending.as_str(),
+                            &JobState::Scheduled.as_str(),
+                        )
                         .await
                     {
                         error!("Failed to update job state: {}", e);
@@ -656,12 +660,8 @@ where
         let capability_score_weighted = capability_score * 10.0;
 
         // Combined score
-        
 
-        resource_score
-            + load_balancing_score
-            + health_score_weighted
-            + capability_score_weighted
+        resource_score + load_balancing_score + health_score_weighted + capability_score_weighted
     }
 
     /// Calculate how well resources fit (Bin Packing approach)
@@ -756,7 +756,9 @@ where
                 job.spec.env.keys().map(|s| s.as_str()).collect();
             let worker_labels: std::collections::HashSet<&str> = worker
                 .capabilities
-                .labels.keys().map(|k| k.as_str())
+                .labels
+                .keys()
+                .map(|k| k.as_str())
                 .collect();
 
             let matching_labels = env_labels.intersection(&worker_labels).count();
@@ -1321,7 +1323,6 @@ impl Default for ClusterState {
         Self::new()
     }
 }
-
 
 #[async_trait::async_trait]
 impl<R, E, W, WR> SchedulerPort for SchedulerModule<R, E, W, WR>

@@ -4,7 +4,7 @@ use crate::Uuid;
 use crate::error::DomainError;
 use crate::specifications::Specification;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Job identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -626,7 +626,7 @@ mod tests {
             return true;
         }
 
-        let mut visited = HashSet::new();
+        let mut visited = std::collections::HashSet::new();
         let mut stack = vec![from];
 
         while let Some(current) = stack.pop() {

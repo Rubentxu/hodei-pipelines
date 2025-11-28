@@ -3,7 +3,7 @@
 //! This module implements Prometheus metrics for monitoring cache performance
 //! including hits, misses, evictions, and latency measurements.
 
-use prometheus::{Counter, Histogram, IntGauge, Registry, TextEncoder};
+use prometheus::{Counter, Histogram, IntGauge, Registry};
 use std::sync::Arc;
 
 /// Cache performance metrics

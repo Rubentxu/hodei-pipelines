@@ -70,7 +70,9 @@ pub enum MetricsError {
 /// Metrics collector for a specific worker
 #[derive(Debug)]
 pub struct MetricsCollector {
+    #[allow(dead_code)]
     worker_id: WorkerId,
+    #[allow(dead_code)]
     interval: Duration,
     previous_cpu_times: Option<CpuTimes>,
 }
@@ -261,10 +263,11 @@ impl MetricsCollector {
                 && let (Ok(rx_bytes), Ok(tx_bytes)) = (
                     metrics[0].parse::<u64>(), // bytes received
                     metrics[8].parse::<u64>(), // bytes transmitted
-                ) {
-                    total_rx_bytes += rx_bytes;
-                    total_tx_bytes += tx_bytes;
-                }
+                )
+            {
+                total_rx_bytes += rx_bytes;
+                total_tx_bytes += tx_bytes;
+            }
         }
 
         // Convert bytes to MB
@@ -351,15 +354,17 @@ impl MetricsCollector {
                 .to_str()
                 .ok_or(MetricsError::Other("Invalid path".to_string()))
                 .map(|s| s.to_string())
-                && path.contains("card") {
-                    // Check if it's an AMD GPU by looking for vendor file
-                    let vendor_path = format!("{}/device/vendor", path);
-                    if let Ok(vendor) = tokio::fs::read_to_string(&vendor_path).await
-                        && vendor.trim() == "0x1002" {
-                            // AMD vendor ID
-                            amdgpu_paths.push(path);
-                        }
+                && path.contains("card")
+            {
+                // Check if it's an AMD GPU by looking for vendor file
+                let vendor_path = format!("{}/device/vendor", path);
+                if let Ok(vendor) = tokio::fs::read_to_string(&vendor_path).await
+                    && vendor.trim() == "0x1002"
+                {
+                    // AMD vendor ID
+                    amdgpu_paths.push(path);
                 }
+            }
         }
 
         if amdgpu_paths.is_empty() {
@@ -377,6 +382,7 @@ impl MetricsCollector {
 #[derive(Debug)]
 pub struct WorkerMetricsExporter {
     collectors: Arc<RwLock<HashMap<WorkerId, Arc<RwLock<MetricsCollector>>>>>,
+    #[allow(dead_code)]
     prometheus_registry: Option<prometheus::Registry>,
 }
 
@@ -996,4 +1002,3 @@ impl WorkerClientFactory {
         ResilientWorkerClient::new_with_config(Box::new(http_client), circuit_breaker_config)
     }
 }
-

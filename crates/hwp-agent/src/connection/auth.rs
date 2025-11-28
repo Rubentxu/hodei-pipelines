@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn test_auth_interceptor_creation() {
-        let interceptor = AuthInterceptor::new();
+        let _interceptor = AuthInterceptor::new();
         // Default token should be None (not empty string) unless env var is set
         // We can't guarantee env var state here easily without serial tests,
         // but we assume it's unset in clean env
