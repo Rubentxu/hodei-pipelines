@@ -12,6 +12,7 @@ pub use crate::error::DomainError;
 pub use crate::job_definitions::{ExecResult, JobId, JobSpec, JobState, ResourceQuota};
 
 use crate::Result;
+use serde::{Deserialize, Serialize};
 
 /// Extension trait for serde_json::Value to estimate memory size
 trait JsonSize {

@@ -77,6 +77,8 @@ integration = ["testcontainers", "sqlx/runtime-tokio-rustls", "hodei-core/sqlx"]
 docker-provider = []
 kubernetes-provider = []
 default = []
+# Ensure serde is always available for tests
+test = ["hodei-core/serde"]
 
 # Perfiles de test
 [profile.integration]
