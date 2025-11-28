@@ -112,8 +112,6 @@ hodei-modules = { path = "crates/modules" }
 hodei-adapters = { path = "crates/adapters" }
 hwp-proto = { path = "crates/hwp-proto" }
 
-[workspace.build-dependencies]
-
 [profile.release]
 opt-level = 3
 debug = false
