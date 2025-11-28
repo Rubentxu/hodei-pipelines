@@ -23,7 +23,10 @@ pub mod specifications;
 pub mod worker;
 pub mod worker_messages;
 
-pub use crate::error::DomainError;
+pub use crate::error::{
+    DatabaseError, DomainError, EventBusError, JobError, PipelineError, RepositoryError,
+    WorkerError,
+};
 pub use chrono::{DateTime, Utc};
 pub use serde::{Deserialize, Serialize};
 pub use uuid::{Uuid, uuid};
