@@ -62,6 +62,37 @@ pub struct Job {
 }
 
 impl Job {
+    /// Reconstruct Job aggregate from persisted data
+    ///
+    /// This is used by repositories to rebuild Jobs from database records
+    pub fn reconstruct(
+        id: JobId,
+        name: String,
+        spec: JobSpec,
+        state: JobState,
+        description: Option<String>,
+        tenant_id: Option<String>,
+        created_at: chrono::DateTime<chrono::Utc>,
+        updated_at: chrono::DateTime<chrono::Utc>,
+        started_at: Option<chrono::DateTime<chrono::Utc>>,
+        completed_at: Option<chrono::DateTime<chrono::Utc>>,
+        result: serde_json::Value,
+    ) -> Result<Self> {
+        Ok(Self {
+            id,
+            name,
+            description,
+            spec,
+            state,
+            created_at,
+            updated_at,
+            started_at,
+            completed_at,
+            tenant_id,
+            result,
+        })
+    }
+
     /// Create a new job with PENDING state (constructor básico)
     ///
     /// # Errors
@@ -75,7 +106,7 @@ impl Job {
             name: spec.name.clone(),
             description: None,
             spec,
-            state: JobState::new(JobState::PENDING.to_string())?,
+            state: JobState::Pending,
             created_at: now,
             updated_at: now,
             started_at: None,
@@ -109,7 +140,7 @@ impl Job {
             name: spec.name.clone(),
             description,
             spec,
-            state: JobState::new(JobState::PENDING.to_string())?,
+            state: JobState::Pending,
             created_at: now,
             updated_at: now,
             started_at: None,
@@ -153,7 +184,7 @@ impl Job {
     /// # Errors
     /// Returns `DomainError::InvalidStateTransition` if transition is invalid
     pub fn schedule(&mut self) -> Result<()> {
-        let new_state = JobState::new(JobState::SCHEDULED.to_string())?;
+        let new_state = JobState::Scheduled;
 
         if !self.state.can_transition_to(&new_state) {
             return Err(DomainError::InvalidStateTransition {
@@ -172,7 +203,7 @@ impl Job {
     /// # Errors
     /// Returns `DomainError::InvalidStateTransition` if transition is invalid
     pub fn start(&mut self) -> Result<()> {
-        let new_state = JobState::new(JobState::RUNNING.to_string())?;
+        let new_state = JobState::Running;
 
         if !self.state.can_transition_to(&new_state) {
             return Err(DomainError::InvalidStateTransition {
@@ -192,7 +223,7 @@ impl Job {
     /// # Errors
     /// Returns `DomainError::InvalidStateTransition` if transition is invalid
     pub fn complete(&mut self) -> Result<()> {
-        let new_state = JobState::new(JobState::SUCCESS.to_string())?;
+        let new_state = JobState::Success;
 
         if !self.state.can_transition_to(&new_state) {
             return Err(DomainError::InvalidStateTransition {
@@ -212,7 +243,7 @@ impl Job {
     /// # Errors
     /// Returns `DomainError::InvalidStateTransition` if transition is invalid
     pub fn fail(&mut self) -> Result<()> {
-        let new_state = JobState::new(JobState::FAILED.to_string())?;
+        let new_state = JobState::Failed;
 
         if !self.state.can_transition_to(&new_state) {
             return Err(DomainError::InvalidStateTransition {
@@ -232,7 +263,7 @@ impl Job {
     /// # Errors
     /// Returns `DomainError::InvalidStateTransition` if transition is invalid
     pub fn cancel(&mut self) -> Result<()> {
-        let new_state = JobState::new(JobState::CANCELLED.to_string())?;
+        let new_state = JobState::Cancelled;
 
         if !self.state.can_transition_to(&new_state) {
             return Err(DomainError::InvalidStateTransition {
@@ -249,12 +280,12 @@ impl Job {
 
     /// Check if job is in PENDING state
     pub fn is_pending(&self) -> bool {
-        self.state.as_str() == JobState::PENDING
+        matches!(self.state, JobState::Pending)
     }
 
     /// Check if job is in RUNNING state
     pub fn is_running(&self) -> bool {
-        self.state.as_str() == JobState::RUNNING
+        matches!(self.state, JobState::Running)
     }
 
     /// Check if job is in a terminal state (SUCCESS, FAILED, or CANCELLED)
@@ -267,14 +298,14 @@ impl Job {
     /// # Errors
     /// Returns `DomainError::InvalidStateTransition` if job is not in FAILED state
     pub fn retry(&mut self) -> Result<()> {
-        if self.state.as_str() != JobState::FAILED {
+        if !matches!(self.state, JobState::Failed) {
             return Err(DomainError::InvalidStateTransition {
                 from: self.state.as_str().to_string(),
-                to: JobState::PENDING.to_string(),
+                to: JobState::Pending.as_str().to_string(),
             });
         }
 
-        let new_state = JobState::new(JobState::PENDING.to_string())?;
+        let new_state = JobState::Pending;
         self.state = new_state;
         self.updated_at = chrono::Utc::now();
         Ok(())
@@ -292,37 +323,51 @@ impl Job {
     /// * `Err(DomainError::InvalidStateTransition)` - Transition is invalid
     pub fn compare_and_swap_status(
         &mut self,
-        expected_state: &str,
-        new_state: &str,
+        expected_state: JobState,
+        new_state: JobState,
     ) -> Result<bool> {
         // Check if current state matches expected
-        if self.state.as_str() != expected_state {
+        if self.state != expected_state {
             return Ok(false);
         }
 
-        // Parse and validate new state
-        let new_state_obj = JobState::new(new_state.to_string())?;
-
         // Validate transition is allowed
-        if !self.state.can_transition_to(&new_state_obj) {
+        if !self.state.can_transition_to(&new_state) {
             return Err(DomainError::InvalidStateTransition {
                 from: self.state.as_str().to_string(),
-                to: new_state.to_string(),
+                to: new_state.as_str().to_string(),
             });
         }
 
         // Apply transition
-        self.state = new_state_obj;
+        self.state = new_state;
         self.updated_at = chrono::Utc::now();
 
         // Update timestamps based on new state
-        if self.state.as_str() == JobState::RUNNING {
+        if matches!(self.state, JobState::Running) {
             self.started_at = Some(chrono::Utc::now());
         } else if self.state.is_terminal() {
             self.completed_at = Some(chrono::Utc::now());
         }
 
         Ok(true)
+    }
+
+    /// Legacy method for string-based state comparison (deprecated, use compare_and_swap_status with JobState instead)
+    pub fn compare_and_swap_status_str(
+        &mut self,
+        expected_state: &str,
+        new_state: &str,
+    ) -> Result<bool> {
+        // Parse and validate expected state
+        let expected_state = JobState::try_from_str(expected_state)
+            .map_err(|e| DomainError::Validation(e.to_string()))?;
+
+        // Parse and validate new state
+        let new_state = JobState::try_from_str(new_state)
+            .map_err(|e| DomainError::Validation(e.to_string()))?;
+
+        self.compare_and_swap_status(expected_state, new_state)
     }
 
     /// Get estimated memory size of the job (for monitoring)
@@ -507,15 +552,10 @@ mod tests {
 
     #[test]
     fn test_job_state_transition() {
-        let pending = JobState::new(JobState::PENDING.to_string()).unwrap();
-        let scheduled = JobState::new(JobState::SCHEDULED.to_string()).unwrap();
-        let running = JobState::new(JobState::RUNNING.to_string()).unwrap();
-        let success = JobState::new(JobState::SUCCESS.to_string()).unwrap();
-
-        assert!(pending.can_transition_to(&scheduled));
-        assert!(scheduled.can_transition_to(&running));
-        assert!(running.can_transition_to(&success));
-        assert!(!pending.can_transition_to(&running));
+        assert!(JobState::Pending.can_transition_to(&JobState::Scheduled));
+        assert!(JobState::Scheduled.can_transition_to(&JobState::Running));
+        assert!(JobState::Running.can_transition_to(&JobState::Success));
+        assert!(!JobState::Pending.can_transition_to(&JobState::Running));
     }
 
     #[test]
@@ -523,7 +563,7 @@ mod tests {
         let spec = create_valid_job_spec();
         let job = Job::new(JobId::new(), spec).unwrap();
 
-        assert_eq!(job.state.as_str(), JobState::PENDING);
+        assert_eq!(job.state, JobState::Pending);
         assert!(job.is_pending());
         assert!(!job.is_running());
         assert!(!job.is_terminal());
@@ -537,13 +577,13 @@ mod tests {
         let mut job = Job::new(JobId::new(), spec).unwrap();
 
         // Full lifecycle: PENDING -> SCHEDULED -> RUNNING -> SUCCESS
-        assert_eq!(job.state.as_str(), JobState::PENDING);
+        assert_eq!(job.state, JobState::Pending);
         assert!(job.schedule().is_ok());
-        assert_eq!(job.state.as_str(), JobState::SCHEDULED);
+        assert_eq!(job.state, JobState::Scheduled);
         assert!(job.start().is_ok());
-        assert_eq!(job.state.as_str(), JobState::RUNNING);
+        assert_eq!(job.state, JobState::Running);
         assert!(job.complete().is_ok());
-        assert_eq!(job.state.as_str(), JobState::SUCCESS);
+        assert_eq!(job.state, JobState::Success);
         assert!(job.is_terminal());
     }
 
@@ -557,7 +597,7 @@ mod tests {
 
         // Can retry from failed state
         assert!(job.retry().is_ok());
-        assert_eq!(job.state.as_str(), JobState::PENDING);
+        assert_eq!(job.state, JobState::Pending);
         assert!(job.is_pending());
         assert!(!job.is_terminal());
     }
@@ -600,7 +640,7 @@ mod tests {
         // Job es inmutable después de la creación - no hay setters públicos
         // El aggregate mantiene su encapsulación
         assert!(job.is_pending());
-        assert_eq!(job.state.as_str(), JobState::PENDING);
+        assert_eq!(job.state, JobState::Pending);
     }
 
     #[test]
@@ -646,10 +686,10 @@ mod tests {
         let mut job = Job::new(JobId::new(), spec).unwrap();
 
         // Valid transition PENDING -> SCHEDULED
-        let result = job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED);
+        let result = job.compare_and_swap_status(JobState::Pending, JobState::Scheduled);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), true);
-        assert_eq!(job.state.as_str(), JobState::SCHEDULED);
+        assert_eq!(job.state, JobState::Scheduled);
     }
 
     #[test]
@@ -659,10 +699,10 @@ mod tests {
         job.schedule().unwrap(); // Now in SCHEDULED state
 
         // Try to transition from PENDING (doesn't match current SCHEDULED state)
-        let result = job.compare_and_swap_status(JobState::PENDING, JobState::RUNNING);
+        let result = job.compare_and_swap_status(JobState::Pending, JobState::Running);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), false);
-        assert_eq!(job.state.as_str(), JobState::SCHEDULED); // State unchanged
+        assert_eq!(job.state, JobState::Scheduled); // State unchanged
     }
 
     #[test]
@@ -671,9 +711,9 @@ mod tests {
         let mut job = Job::new(JobId::new(), spec).unwrap();
 
         // Invalid transition PENDING -> RUNNING (must go through SCHEDULED)
-        let result = job.compare_and_swap_status(JobState::PENDING, JobState::RUNNING);
+        let result = job.compare_and_swap_status(JobState::Pending, JobState::Running);
         assert!(result.is_err());
-        assert_eq!(job.state.as_str(), JobState::PENDING); // State unchanged
+        assert_eq!(job.state, JobState::Pending); // State unchanged
     }
 
     #[test]
@@ -681,17 +721,17 @@ mod tests {
         let spec = create_valid_job_spec();
         let mut job = Job::new(JobId::new(), spec).unwrap();
 
-        // Transition to RUNNING should set started_at
-        let result = job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED);
+        // Transition to SCHEDULED should not set started_at
+        let result = job.compare_and_swap_status(JobState::Pending, JobState::Scheduled);
         assert!(result.is_ok());
         assert!(job.started_at.is_none()); // SCHEDULED doesn't set started_at
 
-        job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING)
+        job.compare_and_swap_status(JobState::Scheduled, JobState::Running)
             .unwrap();
         assert!(job.started_at.is_some()); // RUNNING sets started_at
 
         // Transition to terminal state should set completed_at
-        job.compare_and_swap_status(JobState::RUNNING, JobState::SUCCESS)
+        job.compare_and_swap_status(JobState::Running, JobState::Success)
             .unwrap();
         assert!(job.completed_at.is_some()); // SUCCESS sets completed_at
     }
@@ -718,7 +758,7 @@ mod tests {
             let handle = tokio::spawn(async move {
                 let _permit = permit.acquire().await.unwrap();
                 let mut job = job_clone.lock().unwrap();
-                job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED)
+                job.compare_and_swap_status(JobState::Pending, JobState::Scheduled)
             });
             handles.push(handle);
         }
@@ -745,7 +785,7 @@ mod tests {
 
         // Verify final state
         let job = job.lock().unwrap();
-        assert_eq!(job.state.as_str(), JobState::SCHEDULED);
+        assert_eq!(job.state, JobState::Scheduled);
     }
 
     #[tokio::test]
@@ -762,7 +802,7 @@ mod tests {
         let job1 = Arc::clone(&job);
         handles.push(tokio::spawn(async move {
             let mut job = job1.lock().unwrap();
-            job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED)
+            job.compare_and_swap_status(JobState::Pending, JobState::Scheduled)
         }));
 
         // Second thread: Try the same transition (should fail)
@@ -771,7 +811,7 @@ mod tests {
             // Small delay to ensure race condition
             tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
             let mut job = job2.lock().unwrap();
-            job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED)
+            job.compare_and_swap_status(JobState::Pending, JobState::Scheduled)
         }));
 
         let results = futures::future::join_all(handles).await;
@@ -785,7 +825,7 @@ mod tests {
 
         // Verify final state is SCHEDULED
         let job = job.lock().unwrap();
-        assert_eq!(job.state.as_str(), JobState::SCHEDULED);
+        assert_eq!(job.state, JobState::Scheduled);
     }
 
     #[tokio::test]
@@ -808,14 +848,14 @@ mod tests {
         let job1 = Arc::clone(&job);
         handles.push(tokio::spawn(async move {
             let mut job = job1.lock().unwrap();
-            job.compare_and_swap_status(JobState::PENDING, JobState::RUNNING)
+            job.compare_and_swap_status(JobState::Pending, JobState::Running)
         }));
 
         // Thread 2: expects SCHEDULED (should succeed)
         let job2 = Arc::clone(&job);
         handles.push(tokio::spawn(async move {
             let mut job = job2.lock().unwrap();
-            job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING)
+            job.compare_and_swap_status(JobState::Scheduled, JobState::Running)
         }));
 
         let results = futures::future::join_all(handles).await;
@@ -826,7 +866,7 @@ mod tests {
 
         // Verify final state is RUNNING
         let job = job.lock().unwrap();
-        assert_eq!(job.state.as_str(), JobState::RUNNING);
+        assert_eq!(job.state, JobState::Running);
     }
 
     #[tokio::test]
@@ -849,7 +889,7 @@ mod tests {
             let job_clone = Arc::clone(&job);
             handles.push(tokio::spawn(async move {
                 let mut job = job_clone.lock().unwrap();
-                job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING)
+                job.compare_and_swap_status(JobState::Scheduled, JobState::Running)
             }));
         }
 
@@ -872,7 +912,7 @@ mod tests {
         // Verify started_at was set exactly once
         let job = job.lock().unwrap();
         assert!(job.started_at.is_some(), "started_at should be set");
-        assert_eq!(job.state.as_str(), JobState::RUNNING);
+        assert_eq!(job.state, JobState::Running);
     }
 
     #[tokio::test]
@@ -886,7 +926,7 @@ mod tests {
         {
             let mut job = job.lock().unwrap();
             job.schedule().unwrap();
-            job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING)
+            job.compare_and_swap_status(JobState::Scheduled, JobState::Running)
                 .unwrap();
         }
 
@@ -897,7 +937,7 @@ mod tests {
             let job_clone = Arc::clone(&job);
             handles.push(tokio::spawn(async move {
                 let mut job = job_clone.lock().unwrap();
-                job.compare_and_swap_status(JobState::RUNNING, JobState::SUCCESS)
+                job.compare_and_swap_status(JobState::Running, JobState::Success)
             }));
         }
 
@@ -919,7 +959,7 @@ mod tests {
 
         // Verify terminal state and completed_at
         let job = job.lock().unwrap();
-        assert_eq!(job.state.as_str(), JobState::SUCCESS);
+        assert_eq!(job.state, JobState::Success);
         assert!(
             job.completed_at.is_some(),
             "completed_at should be set for terminal state"
@@ -944,11 +984,11 @@ mod tests {
                 handles.push(tokio::spawn(async move {
                     let mut job = job_clone.lock().unwrap();
                     match i {
-                        0 => job.compare_and_swap_status(JobState::PENDING, JobState::SCHEDULED),
-                        1 => job.compare_and_swap_status(JobState::SCHEDULED, JobState::RUNNING),
-                        2 => job.compare_and_swap_status(JobState::RUNNING, JobState::FAILED),
-                        3 => job.compare_and_swap_status(JobState::FAILED, JobState::PENDING),
-                        _ => job.compare_and_swap_status(JobState::PENDING, JobState::CANCELLED),
+                        0 => job.compare_and_swap_status(JobState::Pending, JobState::Scheduled),
+                        1 => job.compare_and_swap_status(JobState::Scheduled, JobState::Running),
+                        2 => job.compare_and_swap_status(JobState::Running, JobState::Failed),
+                        3 => job.compare_and_swap_status(JobState::Failed, JobState::Pending),
+                        _ => job.compare_and_swap_status(JobState::Pending, JobState::Cancelled),
                     }
                 }));
             }
@@ -976,6 +1016,6 @@ mod tests {
 
         // Verify final state after sequence
         let job = job.lock().unwrap();
-        assert_eq!(job.state.as_str(), JobState::CANCELLED);
+        assert_eq!(job.state, JobState::Cancelled);
     }
 }

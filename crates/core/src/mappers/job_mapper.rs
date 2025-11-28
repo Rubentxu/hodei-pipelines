@@ -72,8 +72,8 @@ impl JobMapper for SqlxJobMapper {
         let job_spec = serde_json::from_value::<JobSpec>(row.spec_json.clone())
             .map_err(|e| format!("Failed to parse job spec: {}", e))?;
 
-        let job_state =
-            JobState::new(row.state).map_err(|e| format!("Invalid job state: {}", e))?;
+        let job_state = JobState::try_from_str(row.state.as_str())
+            .map_err(|e| format!("Invalid job state: {}", e))?;
 
         Ok(Job {
             id: row.id,
@@ -160,7 +160,7 @@ mod tests {
                 env: HashMap::new(),
                 secret_refs: Vec::new(),
             },
-            state: JobState::new("PENDING".to_string()).unwrap(),
+            state: JobState::Pending,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             started_at: None,

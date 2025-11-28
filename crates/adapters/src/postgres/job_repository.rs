@@ -74,7 +74,7 @@ impl PostgreSqlJobRepository {
             })?;
 
         let state_str = row.get::<String, _>("state");
-        let state = hodei_core::job::JobState::new(state_str.clone())
+        let state = hodei_core::job::JobState::try_from_str(&state_str)
             .map_err(|_| DomainError::Validation(format!("Invalid job state: {}", state_str)))?;
 
         Ok(Job {

@@ -321,34 +321,47 @@ impl std::fmt::Display for JobState {
 
 impl From<String> for JobState {
     fn from(s: String) -> Self {
-        JobState::try_from_str(&s).expect("Invalid job state in From<String> conversion")
+        JobState::try_from(s).expect("invalid job state string")
     }
 }
 
 impl<'a> From<&'a str> for JobState {
     fn from(s: &'a str) -> Self {
-        JobState::try_from_str(s).expect("Invalid job state in From<&str> conversion")
+        JobState::try_from(s).expect("invalid job state string")
     }
 }
 
-/// Try to convert a string to JobState, returning an error if invalid
-pub fn parse_job_state(s: &str) -> Result<JobState, String> {
-    match s {
-        "PENDING" => Ok(JobState::Pending),
-        "SCHEDULED" => Ok(JobState::Scheduled),
-        "RUNNING" => Ok(JobState::Running),
-        "SUCCESS" => Ok(JobState::Success),
-        "FAILED" => Ok(JobState::Failed),
-        "CANCELLED" => Ok(JobState::Cancelled),
-        "TIMEOUT" => Ok(JobState::Timeout),
-        _ => Err(format!("invalid job state: {}", s)),
+impl TryFrom<String> for JobState {
+    type Error = DomainError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        match s.as_str() {
+            "PENDING" => Ok(JobState::Pending),
+            "SCHEDULED" => Ok(JobState::Scheduled),
+            "RUNNING" => Ok(JobState::Running),
+            "SUCCESS" => Ok(JobState::Success),
+            "FAILED" => Ok(JobState::Failed),
+            "CANCELLED" => Ok(JobState::Cancelled),
+            "TIMEOUT" => Ok(JobState::Timeout),
+            _ => Err(DomainError::Validation(format!("invalid job state: {}", s))),
+        }
     }
 }
 
-impl JobState {
-    /// Try to convert from string with proper error handling
-    pub fn try_from_str(s: &str) -> Result<Self, String> {
-        parse_job_state(s)
+impl<'a> TryFrom<&'a str> for JobState {
+    type Error = DomainError;
+
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
+        match s {
+            "PENDING" => Ok(JobState::Pending),
+            "SCHEDULED" => Ok(JobState::Scheduled),
+            "RUNNING" => Ok(JobState::Running),
+            "SUCCESS" => Ok(JobState::Success),
+            "FAILED" => Ok(JobState::Failed),
+            "CANCELLED" => Ok(JobState::Cancelled),
+            "TIMEOUT" => Ok(JobState::Timeout),
+            _ => Err(DomainError::Validation(format!("invalid job state: {}", s))),
+        }
     }
 }
 
@@ -370,13 +383,13 @@ mod tests {
     #[test]
     fn job_state_valid_states_can_be_constructed() {
         let valid_states = vec![
-            JobState::Pending,
-            JobState::Scheduled,
-            JobState::Running,
-            JobState::Success,
-            JobState::Failed,
-            JobState::Cancelled,
-            JobState::Timeout,
+            JobState::from("PENDING").unwrap(),
+            JobState::from("SCHEDULED").unwrap(),
+            JobState::from("RUNNING").unwrap(),
+            JobState::from("SUCCESS").unwrap(),
+            JobState::from("FAILED").unwrap(),
+            JobState::from("CANCELLED").unwrap(),
+            JobState::from("TIMEOUT").unwrap(),
         ];
 
         for state in valid_states {
@@ -399,7 +412,7 @@ mod tests {
         ];
 
         for state_str in invalid_states {
-            let result = JobState::try_from_str(state_str);
+            let result = JobState::from(state_str.to_string());
             assert!(result.is_err(), "State '{}' should be rejected", state_str);
         }
     }
@@ -637,12 +650,12 @@ mod tests {
             if visited.contains(&current) {
                 continue;
             }
-            visited.insert(current.clone());
+            visited.insert(current);
 
             if let Some(neighbors) = transitions.get(&current) {
                 for neighbor in neighbors {
                     if !visited.contains(neighbor) {
-                        stack.push(neighbor.clone());
+                        stack.push(*neighbor);
                     }
                 }
             }
@@ -777,8 +790,8 @@ mod property_based_tests {
                 "TIMEOUT",
             ])
         ) {
-            let state1 = JobState::from(state_str.to_string());
-            let state2 = JobState::from(state_str.to_string());
+            let state1 = JobState::from(state_str.to_string()).unwrap();
+            let state2 = JobState::from(state_str.to_string()).unwrap();
 
             // Property: Construction of same state should produce equal states
             assert_eq!(state1, state2);
@@ -792,7 +805,7 @@ mod property_based_tests {
             invalid_state in "[A-Z]{10,20}" // Invalid: uppercase random strings
         ) {
             // Property: Invalid states should fail validation
-            let result = JobState::try_from_str(&invalid_state);
+            let result = JobState::from(invalid_state);
             assert!(result.is_err(), "Invalid state should be rejected");
         }
     }

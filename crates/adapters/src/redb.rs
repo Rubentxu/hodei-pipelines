@@ -285,7 +285,7 @@ impl JobRepository for RedbJobRepository {
 
         // Update state
         let updated_job = Job {
-            state: hodei_core::job::JobState::new(new_state.to_string()).map_err(|_| {
+            state: hodei_core::job::JobState::try_from_str(new_state).map_err(|_| {
                 DomainError::Validation(format!("Invalid job state: {}", new_state))
             })?,
             ..job
@@ -758,7 +758,7 @@ mod tests {
 
         // Create running job
         let mut job2 = Job::new(JobId::new(), job_spec).unwrap();
-        job2.state = hodei_core::job::JobState::new("RUNNING".to_string()).unwrap();
+        job2.state = hodei_core::job::JobState::Running;
         repo.save_job(&job2).await.unwrap();
 
         let pending = repo.get_pending_jobs().await.unwrap();
@@ -791,7 +791,7 @@ mod tests {
 
         // Create running job
         let mut job2 = Job::new(JobId::new(), job_spec).unwrap();
-        job2.state = hodei_core::job::JobState::new("RUNNING".to_string()).unwrap();
+        job2.state = hodei_core::job::JobState::Running;
         repo.save_job(&job2).await.unwrap();
 
         let running = repo.get_running_jobs().await.unwrap();
