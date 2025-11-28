@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use hodei_adapters::DefaultProviderFactory;
-use hodei_core::{DomainError, ResourceQuota, Result, Worker, WorkerId};
+use hodei_core::{DomainError, ResourceQuota, Result, WorkerId};
 use hodei_ports::{
     ProviderFactoryTrait,
     resource_pool::{

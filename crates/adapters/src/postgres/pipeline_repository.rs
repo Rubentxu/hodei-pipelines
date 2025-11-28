@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use tracing::info;
 
 /// Default timeout for pipeline steps (5 minutes in milliseconds)
+#[allow(dead_code)]
 const DEFAULT_TIMEOUT_MS: u64 = 300000;
 
 /// PostgreSQL Pipeline Repository

@@ -3,24 +3,19 @@
 //! Provides complete CRUD operations for Pipeline entities following DDD principles.
 //! Implements use cases for creating, reading, updating, and deleting pipelines.
 
-use hodei_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository;
 use hodei_core::{
-    DomainError, Result,
+    Result,
     job::JobSpec,
     pipeline::{
         Pipeline, PipelineId, PipelineStatus, PipelineStep, PipelineStepBuilder, PipelineStepId,
     },
-    pipeline_execution::{
-        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionId,
-        StepExecutionStatus,
-    },
+    pipeline_execution::PipelineExecution,
 };
 use hodei_ports::{EventBusError, EventPublisher, PipelineRepository, SystemEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, info, warn};
-use uuid::Uuid;
 
 /// Configuration for Pipeline CRUD operations
 #[derive(Debug, Clone)]

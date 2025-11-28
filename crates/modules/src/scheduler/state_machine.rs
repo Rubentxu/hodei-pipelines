@@ -4,8 +4,8 @@
 //! transitions explicit and validated, allowing for better testability and
 //! flexibility in the scheduling process.
 
-use crate::scheduler::{SchedulerError, SchedulerModule, Worker, WorkerNode};
-use hodei_core::{Job, JobState, Result};
+use crate::scheduler::{SchedulerModule, Worker, WorkerNode};
+use hodei_core::{Job, Result};
 
 /// Scheduling state to eliminate temporal coupling
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -6,16 +6,14 @@
 use hodei_core::{
     DomainError, Result,
     security::{
-        Permission as LegacyPermission, PermissionEntity, PermissionId, Role as LegacyRole,
+        PermissionEntity, PermissionId,
         RoleEntity, RoleId,
     },
 };
-use hodei_ports::{EventPublisher, PermissionRepository, RoleRepository, SystemEvent};
+use hodei_ports::{EventPublisher, PermissionRepository, RoleRepository};
 use serde::{Deserialize, Serialize};
-use std::result::Result as StdResult;
 use std::sync::Arc;
-use tracing::{error, info, warn};
-use uuid::Uuid;
+use tracing::{error, info};
 
 /// Configuration for RBAC operations
 #[derive(Debug, Clone)]

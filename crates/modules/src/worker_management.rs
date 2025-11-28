@@ -4,10 +4,7 @@
 //! dynamic workers across different infrastructure providers.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
@@ -7988,19 +7985,6 @@ impl From<hodei_ports::worker_repository::WorkerRepositoryError> for WorkerManag
 
 impl From<hodei_ports::job_repository::JobRepositoryError> for WorkerManagementError {
     fn from(error: hodei_ports::job_repository::JobRepositoryError) -> Self {
-        WorkerManagementError::Internal(error.to_string())
-    }
-}
-
-// Implement From for all ports errors
-impl From<hodei_ports::job_repository::JobRepositoryError> for WorkerManagementError {
-    fn from(error: hodei_ports::job_repository::JobRepositoryError) -> Self {
-        WorkerManagementError::Internal(error.to_string())
-    }
-}
-
-impl From<hodei_ports::worker_repository::WorkerRepositoryError> for WorkerManagementError {
-    fn from(error: hodei_ports::worker_repository::WorkerRepositoryError) -> Self {
         WorkerManagementError::Internal(error.to_string())
     }
 }

@@ -3,18 +3,18 @@
 //! Embedded storage using Redb - perfect for edge devices, development, and testing.
 
 use dashmap::DashMap;
-use hodei_core::{
-    DomainError, Job, JobId, Result, WorkerId,
-};
+use hodei_core::{DomainError, Job, JobId, Result, WorkerId};
 use hodei_ports::JobRepository;
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, TableDefinition};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
 
 // Table definitions
 const JOBS_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("jobs");
+#[allow(dead_code)]
 const WORKERS_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("workers");
+#[allow(dead_code)]
 const PIPELINES_TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("pipelines");
 
 /// Redb-backed job repository with performance optimizations
@@ -73,11 +73,11 @@ impl RedbJobRepository {
 
 #[async_trait::async_trait]
 impl JobRepository for RedbJobRepository {
-    async fn save_job(&self, job: &Job) -> Result<()> {
+    async fn save_job(&self, _job: &Job) -> Result<()> {
         unimplemented!()
     }
 
-    async fn get_job(&self, id: &JobId) -> Result<Option<Job>> {
+    async fn get_job(&self, _id: &JobId) -> Result<Option<Job>> {
         unimplemented!()
     }
 
@@ -89,7 +89,7 @@ impl JobRepository for RedbJobRepository {
         unimplemented!()
     }
 
-    async fn delete_job(&self, id: &JobId) -> Result<()> {
+    async fn delete_job(&self, _id: &JobId) -> Result<()> {
         unimplemented!()
     }
 
@@ -130,7 +130,11 @@ impl JobRepository for RedbJobRepository {
         unimplemented!()
     }
 
-    async fn update_job_state(&self, _job_id: &JobId, _state: hodei_core::job::JobState) -> Result<()> {
+    async fn update_job_state(
+        &self,
+        _job_id: &JobId,
+        _state: hodei_core::job::JobState,
+    ) -> Result<()> {
         unimplemented!()
     }
 
@@ -142,10 +146,10 @@ impl JobRepository for RedbJobRepository {
 mod tests {
     use super::*;
     use hodei_core::ResourceQuota;
-    
+
     use hodei_core::{Job, JobId, JobSpec};
     use std::collections::HashMap;
-    
+
     use tempfile::tempdir;
     use tokio::test;
 

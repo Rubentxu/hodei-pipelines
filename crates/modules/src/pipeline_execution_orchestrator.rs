@@ -3,23 +3,20 @@
 //! Production-ready implementation for orchestrating pipeline step execution
 //! with dependency management and fault tolerance.
 
-use async_trait::async_trait;
 use hodei_core::{
     DomainError, Result,
     job::JobState,
-    pipeline::{Pipeline, PipelineId, PipelineStep, PipelineStepId},
+    pipeline::{Pipeline, PipelineId, PipelineStepId},
     pipeline_execution::{
-        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionId,
+        ExecutionId, ExecutionStatus, PipelineExecution,
         StepExecutionStatus,
     },
 };
 use hodei_ports::{EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository};
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{Semaphore, mpsc};
 use tracing::{Instrument, Span, error, info, warn};
-use uuid::Uuid;
 
 /// Configuration for pipeline execution orchestrator
 #[derive(Debug, Clone)]

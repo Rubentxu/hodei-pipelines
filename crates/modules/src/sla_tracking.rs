@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use hodei_core::{JobId, Result};
+use hodei_core::JobId;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 

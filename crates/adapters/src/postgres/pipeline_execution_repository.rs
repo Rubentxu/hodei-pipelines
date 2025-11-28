@@ -27,6 +27,7 @@ const EXECUTION_STATUS_FAILED: &str = "FAILED";
 const EXECUTION_STATUS_CANCELLED: &str = "CANCELLED";
 
 /// Step execution status constants
+#[allow(dead_code)]
 const STEP_STATUS_PENDING: &str = "PENDING";
 const STEP_STATUS_RUNNING: &str = "RUNNING";
 const STEP_STATUS_COMPLETED: &str = "COMPLETED";
