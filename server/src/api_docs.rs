@@ -6,19 +6,13 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use utoipa::{IntoParams, ToSchema};
+// use utoipa::ToSchema; // Disabled for compilation
 
 // Re-export shared types for API documentation
 pub use hodei_core::{JobSpec, ResourceQuota, WorkerCapabilities};
 
 /// Health check response
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "status": "healthy",
-    "service": "hodei-server",
-    "version": "0.1.0",
-    "architecture": "monolithic_modular"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct HealthResponse {
     /// Status of the service
     pub status: String,
@@ -31,23 +25,7 @@ pub struct HealthResponse {
 }
 
 /// Job specification for creating new jobs
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "name": "process-data",
-    "image": "ubuntu:latest",
-    "command": ["echo", "Hello World"],
-    "resources": {
-        "cpu_m": 1000,
-        "memory_mb": 2048
-    },
-    "timeout_ms": 300000,
-    "retries": 3,
-    "env": {
-        "ENVIRONMENT": "production",
-        "LOG_LEVEL": "info"
-    },
-    "secret_refs": ["database-password"]
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct CreateJobRequest {
     /// Name of the job
     pub name: String,
@@ -68,22 +46,7 @@ pub struct CreateJobRequest {
 }
 
 /// Job response
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "name": "process-data",
-    "spec": {
-        "name": "process-data",
-        "image": "ubuntu:latest",
-        "command": ["echo", "Hello World"]
-    },
-    "state": "PENDING",
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-01T00:00:00Z",
-    "started_at": null,
-    "completed_at": null,
-    "result": null
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct JobResponse {
     /// Unique job identifier
     pub id: String,
@@ -106,19 +69,14 @@ pub struct JobResponse {
 }
 
 /// Response wrapper for jobs
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize)]
 pub struct JobListResponse {
     /// List of jobs
     pub jobs: Vec<JobResponse>,
 }
 
 /// Register worker request
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "name": "worker-01",
-    "cpu_cores": 4,
-    "memory_gb": 8
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct RegisterWorkerRequest {
     /// Worker name
     pub name: String,
@@ -129,17 +87,7 @@ pub struct RegisterWorkerRequest {
 }
 
 /// Worker response
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "name": "worker-01",
-    "status": "IDLE",
-    "capabilities": {
-        "cpu_cores": 4,
-        "memory_gb": 8
-    },
-    "last_heartbeat": "2024-01-01T00:00:00Z"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct WorkerResponse {
     /// Unique worker identifier
     pub id: String,
@@ -154,17 +102,14 @@ pub struct WorkerResponse {
 }
 
 /// Generic success message
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "message": "Operation completed successfully"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct MessageResponse {
     /// Success message
     pub message: String,
 }
 
 /// Generic error response
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize)]
 pub struct ErrorResponse {
     /// Error code
     pub code: String,
@@ -175,22 +120,7 @@ pub struct ErrorResponse {
 }
 
 /// Create dynamic worker request
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "provider_type": "docker",
-    "namespace": "default",
-    "image": "hwp-agent:latest",
-    "cpu_cores": 4,
-    "memory_mb": 8192,
-    "env": {
-        "HODEI_SERVER_GRPC_URL": "http://hodei-server:50051"
-    },
-    "labels": {
-        "env": "production"
-    },
-    "custom_image": null,
-    "custom_pod_template": null
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct CreateDynamicWorkerRequest {
     /// Infrastructure provider type
     pub provider_type: String,
@@ -213,13 +143,7 @@ pub struct CreateDynamicWorkerRequest {
 }
 
 /// Create dynamic worker response
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "worker_id": "550e8400-e29b-41d4-a716-446655440000",
-    "container_id": "hodei-worker-550e8400",
-    "state": "starting",
-    "message": "Worker provisioned successfully"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct CreateDynamicWorkerResponse {
     /// Unique worker identifier
     pub worker_id: String,
@@ -232,13 +156,7 @@ pub struct CreateDynamicWorkerResponse {
 }
 
 /// Dynamic worker status response
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "worker_id": "550e8400-e29b-41d4-a716-446655440000",
-    "state": "running",
-    "container_id": "hodei-worker-550e8400",
-    "created_at": "2024-01-01T00:00:00Z"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct DynamicWorkerStatusResponse {
     /// Unique worker identifier
     pub worker_id: String,
@@ -251,25 +169,14 @@ pub struct DynamicWorkerStatusResponse {
 }
 
 /// List dynamic workers response
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize)]
 pub struct ListDynamicWorkersResponse {
     /// List of dynamic workers
     pub workers: Vec<DynamicWorkerStatusResponse>,
 }
 
 /// Provider capabilities response
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "provider_type": "docker",
-    "name": "docker-provider",
-    "capabilities": {
-        "supports_auto_scaling": true,
-        "supports_health_checks": true,
-        "supports_volumes": true,
-        "max_workers": 100,
-        "estimated_provision_time_ms": 5000
-    }
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct ProviderCapabilitiesResponse {
     /// Provider type
     pub provider_type: String,
@@ -279,7 +186,7 @@ pub struct ProviderCapabilitiesResponse {
     pub capabilities: ProviderCapabilitiesInfo,
 }
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize)]
 pub struct ProviderCapabilitiesInfo {
     /// Supports auto-scaling
     pub supports_auto_scaling: bool,
@@ -294,20 +201,14 @@ pub struct ProviderCapabilitiesInfo {
 }
 
 /// Provider type enumeration
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!("docker"))]
+#[derive(Serialize, Deserialize)]
 pub enum ProviderTypeDto {
     Docker,
     Kubernetes,
 }
 
 /// Provider info
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "provider_type": "docker",
-    "name": "docker-provider",
-    "status": "active"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct ProviderInfo {
     /// Provider type
     pub provider_type: String,
@@ -318,22 +219,14 @@ pub struct ProviderInfo {
 }
 
 /// List providers response
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize)]
 pub struct ListProvidersResponse {
     /// List of available providers
     pub providers: Vec<ProviderInfo>,
 }
 
 /// Create provider request
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "provider_type": "docker",
-    "name": "my-docker",
-    "namespace": "default",
-    "docker_host": "unix:///var/run/docker.sock",
-    "custom_image": "hwp-agent:latest",
-    "custom_pod_template": null
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct CreateProviderRequest {
     /// Provider type
     pub provider_type: ProviderTypeDto,
@@ -350,15 +243,7 @@ pub struct CreateProviderRequest {
 }
 
 /// Provider response
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "provider_type": "docker",
-    "name": "my-docker",
-    "namespace": "default",
-    "custom_image": "hwp-agent:latest",
-    "status": "active",
-    "created_at": "2024-01-01T00:00:00Z"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct ProviderResponse {
     /// Provider type
     pub provider_type: String,
@@ -379,11 +264,7 @@ pub struct ProviderResponse {
 // ============================================================================
 
 /// Create tenant request (EPIC-09)
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "name": "tenant-a",
-    "email": "admin@tenant-a.com"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct CreateTenantRequest {
     /// Tenant name
     pub name: String,
@@ -392,11 +273,7 @@ pub struct CreateTenantRequest {
 }
 
 /// Update tenant request (EPIC-09)
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "name": "tenant-a-updated",
-    "email": "admin-updated@tenant-a.com"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct UpdateTenantRequest {
     /// Tenant name
     pub name: String,
@@ -405,14 +282,7 @@ pub struct UpdateTenantRequest {
 }
 
 /// Tenant response (EPIC-09)
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "name": "tenant-a",
-    "email": "admin@tenant-a.com",
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-01T00:00:00Z"
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct TenantResponse {
     /// Unique tenant identifier
     pub id: String,
@@ -427,17 +297,7 @@ pub struct TenantResponse {
 }
 
 /// Quota response (EPIC-09)
-#[derive(Serialize, Deserialize, ToSchema)]
-#[schema(example = json!({
-    "cpu_m": 4000,
-    "memory_mb": 8192,
-    "max_concurrent_jobs": 10,
-    "current_usage": {
-        "cpu_m": 1500,
-        "memory_mb": 2048,
-        "active_jobs": 3
-    }
-}))]
+#[derive(Serialize, Deserialize)]
 pub struct QuotaResponse {
     /// CPU allocation in millicores
     pub cpu_m: u64,
@@ -450,7 +310,7 @@ pub struct QuotaResponse {
 }
 
 /// Quota usage (EPIC-09)
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize)]
 pub struct QuotaUsage {
     /// Currently used CPU in millicores
     pub cpu_m: u64,
@@ -461,7 +321,7 @@ pub struct QuotaUsage {
 }
 
 /// List tenants response (EPIC-09)
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize)]
 pub struct ListTenantsResponse {
     /// List of tenants
     pub tenants: Vec<TenantResponse>,

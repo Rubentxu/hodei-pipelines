@@ -22,7 +22,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+axum-test = "14.7"
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
@@ -31,7 +32,11 @@ sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chron
 hodei-core = { path = "../core" }
 hodei-ports = { path = "../ports" }
 hodei-adapters = { path = "../adapters" }
+hodei-server = { path = "../../server" }
 
 [dev-dependencies]
 uuid = { version = "1.11", features = ["v4"] }
 anyhow = "1.0"
+axum = { workspace = true }
+hyper = { workspace = true }
+portable-pty = { workspace = true }

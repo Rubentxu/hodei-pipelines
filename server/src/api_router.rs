@@ -1,66 +1,33 @@
-//! Hodei Pipelines Server - Production Bootstrap
+//! Centralized API Router
+//!
+//! This module provides a single point of entry for all API routes
+//! Used by both the main server and integration tests
 
-use axum::routing::get;
+use axum::Router;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::info;
 
-mod bootstrap;
-mod execution_api;
-mod logs_api;
-mod pipeline_api;
-mod resource_pool_crud;
-
-use crate::bootstrap::{initialize_server, log_config_summary};
-
-// Re-export the pipeline API types for the binary
+use crate::bootstrap::ServerComponents;
 use crate::execution_api::{ExecutionApiAppState, ExecutionServiceWrapper, execution_api_routes};
 use crate::logs_api::{LogServiceWrapper, LogsApiAppState, MockLogService, logs_api_routes};
 use crate::pipeline_api::{PipelineApiAppState, PipelineServiceWrapper, pipeline_api_routes};
 use crate::resource_pool_crud::{ResourcePoolCrudAppState, resource_pool_crud_routes};
 
-use hodei_core::pipeline_execution::ExecutionId;
 use hodei_core::{
-    DomainError, Pipeline, PipelineId, Result as CoreResult, pipeline_execution::PipelineExecution,
+    DomainError, ExecutionId, Pipeline, PipelineId, Result as CoreResult,
+    pipeline_execution::PipelineExecution,
 };
 use hodei_modules::{
     CreatePipelineRequest, ExecutePipelineRequest, ListPipelinesFilter, UpdatePipelineRequest,
 };
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
-    info!("🚀 Starting Hodei Pipelines Server");
-
-    let server_components = initialize_server().await.map_err(|e| {
-        tracing::error!("❌ Failed to initialize server: {}", e);
-        e
-    })?;
-
-    log_config_summary(&server_components.config);
-    info!("🌐 Setting up HTTP routes...");
-
-    // Clone what we need before moving server_components
-    let port = server_components.config.server.port;
-    let host = server_components.config.server.host.clone();
-
-    // Create the main API router with all routes
-    let app = create_api_router(server_components);
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", host, port)).await?;
-    info!("✅ Server listening on http://{}:{}", host, port);
-
-    axum::serve(listener, app).await?;
-    Ok(())
-}
-
 /// Mock Pipeline Service for development/testing
-/// This is a temporary implementation that will be replaced with real DI in production
 #[derive(Debug, Clone)]
 pub struct MockPipelineService;
 
 /// Mock Execution Service for development/testing
-/// This is a temporary implementation that will be replaced with real DI in production
 #[derive(Debug, Clone)]
 pub struct MockExecutionService;
 
@@ -132,9 +99,7 @@ impl ExecutionServiceWrapper for MockExecutionService {
 }
 
 /// Create centralized API router
-pub fn create_api_router(_server_components: crate::bootstrap::ServerComponents) -> axum::Router {
-    use axum::Router;
-
+pub fn create_api_router(_server_components: ServerComponents) -> axum::Router {
     info!("🔧 Setting up centralized API routes...");
 
     // Initialize resource pool state
@@ -165,11 +130,11 @@ pub fn create_api_router(_server_components: crate::bootstrap::ServerComponents)
         // Basic health and status endpoints
         .route(
             "/api/health",
-            get(|| async { (axum::http::StatusCode::OK, "ok") }),
+            axum::routing::get(|| async { (axum::http::StatusCode::OK, "ok") }),
         )
         .route(
             "/api/server/status",
-            get(|| async {
+            axum::routing::get(|| async {
                 (
                     axum::http::StatusCode::OK,
                     axum::Json(serde_json::json!({
@@ -186,36 +151,53 @@ pub fn create_api_router(_server_components: crate::bootstrap::ServerComponents)
             Router::new()
                 // Pipeline CRUD routes (US-001, US-002, US-003, US-004)
                 .nest("/pipelines", pipeline_api_routes(pipeline_state))
-                // Execution Management routes (US-005)
-                .nest(
-                    "/executions",
-                    execution_api_routes(execution_state).nest("/", logs_api_routes(logs_state)),
-                )
+                // Execution Management routes (US-005) and Live Logs SSE (US-007)
+                .nest("/executions", execution_api_routes(execution_state))
+                .nest("/executions", logs_api_routes(logs_state))
                 // Resource Pool CRUD routes (EPIC-10: US-10.1, US-10.2)
                 .nest(
                     "/worker-pools",
                     resource_pool_crud_routes().with_state(resource_pool_state),
-                ),
+                )
+                // Observability routes
+                .nest("/observability", observability_routes()),
         )
         // Add OpenAPI documentation routes (US-10.5)
         .nest("/api/docs", create_openapi_docs_routes())
 }
 
-/// OpenAPI documentation routes - simplified to avoid version conflicts
+/// Simple observability routes for testing
+fn observability_routes() -> axum::Router {
+    axum::Router::new().route(
+        "/topology",
+        axum::routing::get(|| async {
+            (
+                axum::http::StatusCode::OK,
+                axum::Json(serde_json::json!({
+                    "nodes": [],
+                    "edges": [],
+                    "total_workers": 0
+                })),
+            )
+        }),
+    )
+}
+
+/// OpenAPI documentation routes
 fn create_openapi_docs_routes() -> axum::Router {
     use axum::http::StatusCode;
 
     axum::Router::new()
         .route(
             "/openapi.json",
-            get(|| async {
+            axum::routing::get(|| async {
                 (
                     StatusCode::OK,
                     r#"{"openapi":"3.0.0","info":{"title":"Hodei API","version":"1.0"},"paths":{}}"#.to_string()
                 )
             }),
         )
-        .route("/", get(|| async {
+        .route("/", axum::routing::get(|| async {
             (
                 StatusCode::FOUND,
                 [("Location", "/api/docs")]

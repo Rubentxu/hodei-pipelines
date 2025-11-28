@@ -103,8 +103,26 @@ impl AppConfig {
     }
 }
 
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            database: DatabaseConfig::default(),
+            cache: CacheConfig::default(),
+            event_bus: EventBusConfig::default(),
+            kubernetes: K8sGlobalConfig::default(),
+            nats: NatsConfig::default(),
+            worker: WorkerConfig::default(),
+            scaling: ScalingConfig::default(),
+            agent: AgentConfig::default(),
+            server: ServerConfig::default(),
+            logging: LoggingConfig::default(),
+            tls: TlsConfig::default(),
+        }
+    }
+}
+
 /// Database configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct DatabaseConfig {
     /// PostgreSQL connection URL
     pub url: String,
@@ -154,7 +172,7 @@ impl DatabaseConfig {
 }
 
 /// Cache configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct CacheConfig {
     /// Redb cache file path
     pub path: String,
@@ -199,7 +217,7 @@ impl CacheConfig {
 }
 
 /// Kubernetes global configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct K8sGlobalConfig {
     /// Whether to skip TLS verification (for development only)
     pub insecure_skip_verify: bool,
@@ -237,7 +255,7 @@ impl K8sGlobalConfig {
 }
 
 /// NATS configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct NatsConfig {
     /// NATS server URL
     pub url: String,
@@ -271,7 +289,7 @@ impl NatsConfig {
 }
 
 /// Worker configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct WorkerConfig {
     /// Worker timeout in seconds
     pub timeout_seconds: u64,
@@ -332,7 +350,7 @@ impl WorkerConfig {
 }
 
 /// Scaling configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ScalingConfig {
     /// Scale cooldown period in seconds
     pub cooldown_period_seconds: u64,
@@ -386,7 +404,7 @@ impl ScalingConfig {
 }
 
 /// Worker agent configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct AgentConfig {
     /// Default agent image
     pub image: String,
@@ -408,7 +426,7 @@ impl AgentConfig {
 }
 
 /// Server configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ServerConfig {
     /// Server port
     pub port: u16,
@@ -431,7 +449,7 @@ impl ServerConfig {
 }
 
 /// Logging configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct LoggingConfig {
     /// Log level
     pub level: String,
@@ -451,7 +469,7 @@ impl LoggingConfig {
 }
 
 /// TLS/mTLS configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct TlsConfig {
     /// Enable TLS
     pub enabled: bool,
@@ -493,7 +511,7 @@ impl TlsConfig {
 }
 
 /// Event bus configuration (compatibility with existing EventBusConfig)
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct EventBusConfig {
     /// Bus type (default: nats)
     pub bus_type: String,

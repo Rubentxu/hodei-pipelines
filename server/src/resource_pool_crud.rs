@@ -8,13 +8,13 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use hodei_ports::resource_pool::{ResourcePoolConfig, ResourcePoolStatus, ResourcePoolType};
 
@@ -275,8 +275,8 @@ pub async fn create_pool_handler(
     }
 }
 
-/// Update a resource pool
-pub async fn update_pool_handler(
+/// Update a resource pool (PUT - full update)
+pub async fn update_pool_put_handler(
     State(app_state): State<ResourcePoolCrudAppState>,
     Path(pool_id): Path<String>,
     Json(payload): Json<UpdatePoolRequest>,
@@ -343,16 +343,49 @@ pub async fn get_pool_status_handler(
     }
 }
 
+/// Update a resource pool (PATCH - partial update) - US-10.4
+pub async fn update_pool_patch_handler(
+    State(app_state): State<ResourcePoolCrudAppState>,
+    Path(pool_id): Path<String>,
+    Json(payload): Json<UpdatePoolRequest>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    // Same validation and update logic as PUT
+    // The difference is semantic: PATCH is for partial updates
+    if let (Some(min_size), Some(max_size)) = (payload.min_size, payload.max_size) {
+        if min_size > max_size {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "min_size cannot be greater than max_size".to_string(),
+            ));
+        }
+    }
+
+    let service = ResourcePoolCrudService::new(app_state.pools, app_state.pool_statuses);
+    match service.update_pool(&pool_id, payload).await {
+        Ok(pool) => Ok(Json(pool)),
+        Err(e) => {
+            if e == "Pool not found" {
+                Err((StatusCode::NOT_FOUND, e))
+            } else {
+                error!("Failed to update pool: {}", e);
+                Err((StatusCode::INTERNAL_SERVER_ERROR, e))
+            }
+        }
+    }
+}
+
 /// Create resource pool CRUD router
+/// Routes use "worker-pools" for consistency with frontend (US-10.2)
 pub fn resource_pool_crud_routes() -> Router<ResourcePoolCrudAppState> {
     Router::new()
-        .route("/resource-pools", get(list_pools_handler))
-        .route("/resource-pools", post(create_pool_handler))
-        .route("/resource-pools/{pool_id}", get(get_pool_handler))
-        .route("/resource-pools/{pool_id}", put(update_pool_handler))
-        .route("/resource-pools/{pool_id}", delete(delete_pool_handler))
+        .route("/worker-pools", get(list_pools_handler))
+        .route("/worker-pools", post(create_pool_handler))
+        .route("/worker-pools/{pool_id}", get(get_pool_handler))
+        .route("/worker-pools/{pool_id}", put(update_pool_put_handler))
+        .route("/worker-pools/{pool_id}", patch(update_pool_patch_handler))
+        .route("/worker-pools/{pool_id}", delete(delete_pool_handler))
         .route(
-            "/resource-pools/{pool_id}/status",
+            "/worker-pools/{pool_id}/status",
             get(get_pool_status_handler),
         )
 }

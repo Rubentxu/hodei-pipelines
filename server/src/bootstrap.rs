@@ -21,6 +21,7 @@ pub enum BootstrapError {
 pub type Result<T> = std::result::Result<T, BootstrapError>;
 
 /// Server components initialized during bootstrap
+#[derive(Clone)]
 pub struct ServerComponents {
     pub config: AppConfig,
     #[allow(dead_code)]

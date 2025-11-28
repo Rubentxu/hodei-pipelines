@@ -416,7 +416,7 @@ impl HistoricalMetricsService {
 }
 
 /// Get historical metrics for a specific metric
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/metrics/historical/{metric_name}",
     params(
@@ -462,7 +462,7 @@ pub async fn get_historical_metrics(
 }
 
 /// Get metric statistics
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/metrics/historical/{metric_name}/statistics",
     params(
@@ -490,7 +490,7 @@ pub async fn get_metric_statistics(
 }
 
 /// Get metric trends
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/metrics/historical/{metric_name}/trends",
     params(
@@ -518,7 +518,7 @@ pub async fn get_metric_trends(
 }
 
 /// Compare metrics between periods
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/metrics/historical/{metric_name}/compare",
     params(

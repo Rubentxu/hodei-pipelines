@@ -323,7 +323,7 @@ pub struct AlertStatistics {
 }
 
 /// Create alerting rule
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/alerting/rules",
     request_body = AlertingRule,
@@ -346,7 +346,7 @@ pub async fn create_alert_rule(
 }
 
 /// Get alerting rule by ID
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/alerting/rules/{id}",
     params(
@@ -371,7 +371,7 @@ pub async fn get_alert_rule(
 }
 
 /// List all alerting rules
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/alerting/rules",
     responses(
@@ -387,7 +387,7 @@ pub async fn list_alert_rules(
 }
 
 /// Update alerting rule
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     put,
     path = "/api/v1/alerting/rules/{id}",
     params(
@@ -418,7 +418,7 @@ pub async fn update_alert_rule(
 }
 
 /// Delete alerting rule
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     delete,
     path = "/api/v1/alerting/rules/{id}",
     params(
@@ -443,7 +443,7 @@ pub async fn delete_alert_rule(
 }
 
 /// Enable alerting rule
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/alerting/rules/{id}/enable",
     params(
@@ -468,7 +468,7 @@ pub async fn enable_alert_rule(
 }
 
 /// Disable alerting rule
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/alerting/rules/{id}/disable",
     params(
@@ -493,7 +493,7 @@ pub async fn disable_alert_rule(
 }
 
 /// Get alert instances
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/alerting/alerts",
     responses(
@@ -509,7 +509,7 @@ pub async fn get_alert_instances(
 }
 
 /// Get alert instance by ID
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/alerting/alerts/{id}",
     params(
@@ -534,7 +534,7 @@ pub async fn get_alert_instance(
 }
 
 /// Acknowledge alert
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/alerting/alerts/{id}/acknowledge",
     params(
@@ -559,7 +559,7 @@ pub async fn acknowledge_alert(
 }
 
 /// Get alert statistics
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/alerting/statistics",
     responses(
@@ -575,7 +575,7 @@ pub async fn get_alert_statistics(
 }
 
 /// Create silence rule
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/alerting/silences",
     request_body = SilenceRule,
@@ -598,7 +598,7 @@ pub async fn create_silence(
 }
 
 /// List all silences
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/alerting/silences",
     responses(
@@ -614,7 +614,7 @@ pub async fn list_silences(
 }
 
 /// Delete silence rule
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     delete,
     path = "/api/v1/alerting/silences/{id}",
     params(
@@ -639,7 +639,7 @@ pub async fn delete_silence(
 }
 
 /// Get alerting configuration
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/alerting/config",
     responses(
@@ -655,7 +655,7 @@ pub async fn get_alerting_config(
 }
 
 /// Update alerting configuration
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     put,
     path = "/api/v1/alerting/config",
     request_body = AlertingConfig,

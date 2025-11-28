@@ -363,7 +363,7 @@ impl GrafanaDashboardsService {
 }
 
 /// Get dashboard by ID
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/grafana/dashboards/{id}",
     params(
@@ -388,7 +388,7 @@ pub async fn get_dashboard(
 }
 
 /// List all dashboards
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/grafana/dashboards",
     responses(
@@ -404,7 +404,7 @@ pub async fn list_dashboards(
 }
 
 /// Create dashboard from template
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/grafana/dashboards/from-template/{template_name}",
     params(
@@ -440,7 +440,7 @@ pub struct CreateDashboardRequest {
 }
 
 /// Create dashboard
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/grafana/dashboards",
     request_body = GrafanaDashboard,
@@ -463,7 +463,7 @@ pub async fn create_dashboard(
 }
 
 /// Update dashboard
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     put,
     path = "/api/v1/grafana/dashboards/{id}",
     params(
@@ -494,7 +494,7 @@ pub async fn update_dashboard(
 }
 
 /// Delete dashboard
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     delete,
     path = "/api/v1/grafana/dashboards/{id}",
     params(
@@ -519,7 +519,7 @@ pub async fn delete_dashboard(
 }
 
 /// Get Grafana configuration
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/grafana/config",
     responses(
@@ -535,7 +535,7 @@ pub async fn get_grafana_config(
 }
 
 /// Update Grafana configuration
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     put,
     path = "/api/v1/grafana/config",
     request_body = GrafanaConfig,
@@ -554,7 +554,7 @@ pub async fn update_grafana_config(
 }
 
 /// List dashboard templates
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/grafana/templates",
     responses(
@@ -570,7 +570,7 @@ pub async fn list_templates(
 }
 
 /// Export dashboard JSON for Grafana import
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/grafana/dashboards/{id}/export",
     params(

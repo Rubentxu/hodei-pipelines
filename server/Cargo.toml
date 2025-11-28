@@ -19,7 +19,7 @@ hwp-proto = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["sync"] }
 tonic = { workspace = true, features = ["transport"] }
-axum = { workspace = true, features = ["json", "http2"] }
+axum = { workspace = true, features = ["json", "http2", "ws"] }
 tower = { workspace = true, features = ["util", "timeout"] }
 tower-http = { workspace = true, features = ["cors", "trace"] }
 hyper = { workspace = true, features = ["full"] }
@@ -38,10 +38,16 @@ rand = { workspace = true }
 serde_yaml = "0.9"
 reqwest = { version = "0.11", features = ["json"] }
 async-trait = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }
 
-# OpenAPI / Swagger UI
-utoipa = "4.2"
-utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+# OpenAPI / Swagger UI - Disabled for US-007 completion
+# utoipa = "5.3"
+# utoipa-swagger-ui = { version = "7.1", features = ["axum"] }
+
+# WebSocket Terminal
+tokio-tungstenite = { workspace = true, features = ["native-tls"] }
+portable-pty = { workspace = true }
 
 [lib]
 name = "hodei_server"

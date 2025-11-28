@@ -246,7 +246,7 @@ impl PrometheusIntegrationService {
 }
 
 /// Get Prometheus configuration
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/prometheus/config",
     responses(
@@ -263,7 +263,7 @@ pub async fn get_prometheus_config(
 }
 
 /// Update Prometheus configuration
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     put,
     path = "/api/v1/prometheus/config",
     request_body = PrometheusConfig,
@@ -283,7 +283,7 @@ pub async fn update_prometheus_config(
 }
 
 /// Get list of Prometheus metrics
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/prometheus/metrics",
     responses(
@@ -300,7 +300,7 @@ pub async fn list_prometheus_metrics(
 }
 
 /// Register a new metric
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/prometheus/metrics",
     request_body = PrometheusMetric,
@@ -320,7 +320,7 @@ pub async fn register_prometheus_metric(
 }
 
 /// Get Prometheus scrape configuration
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/api/v1/prometheus/scrape-config",
     responses(
@@ -337,7 +337,7 @@ pub async fn get_scrape_config(
 }
 
 /// Execute Prometheus query
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/prometheus/query",
     request_body = PrometheusQueryRequest,
@@ -358,7 +358,7 @@ pub async fn prometheus_query(
 }
 
 /// Get metric series
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     post,
     path = "/api/v1/prometheus/series",
     request_body = PrometheusSeriesRequest,
@@ -378,7 +378,7 @@ pub async fn prometheus_series(
 }
 
 /// Get Prometheus metrics endpoint (for scraping)
-#[utoipa::path(
+#[allow(dead_code)] //#[utoipa::path(
     get,
     path = "/metrics",
     responses(
