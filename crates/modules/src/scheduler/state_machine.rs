@@ -5,7 +5,7 @@
 //! flexibility in the scheduling process.
 
 use crate::scheduler::{SchedulerModule, Worker, WorkerNode};
-use hodei_core::{Job, Result};
+use hodei_core::{Job, Result, job::JobState};
 
 /// Scheduling state to eliminate temporal coupling
 #[derive(Debug, Clone, PartialEq, Eq)]
