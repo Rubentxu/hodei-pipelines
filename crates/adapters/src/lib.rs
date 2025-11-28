@@ -4,6 +4,7 @@
 
 pub mod bus;
 pub mod cached_repository;
+pub mod config;
 pub mod docker_provider;
 pub mod event_bus;
 pub mod extractors;

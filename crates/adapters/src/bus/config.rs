@@ -10,7 +10,7 @@
 //!
 //! Example:
 //! ```rust
-//! use hodei_adapters::bus::config::{EventBusConfig, EventBusType};
+//! use hodei_adapters::bus::config::{EventBusConfig, EventBusType, NatsConfig};
 //!
 //! // For production (NATS JetStream - default)
 //! let config = EventBusConfig::default(); // Uses Nats
