@@ -5,11 +5,8 @@
 
 use hodei_core::{
     DomainError, Result,
-    job::JobState,
-    pipeline::{Pipeline, PipelineId, PipelineStep, PipelineStepId},
-    pipeline_execution::{
-        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionStatus,
-    },
+    pipeline::{Pipeline, PipelineId, PipelineStepId},
+    pipeline_execution::{ExecutionId, ExecutionStatus, PipelineExecution, StepExecutionStatus},
 };
 use hodei_ports::{EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository};
 use std::collections::{HashMap, HashSet};
@@ -409,9 +406,9 @@ where
 
     /// Execute a single step
     async fn execute_step<Rep, JobRepo, EventBus>(
-        execution_repo: &Arc<Rep>,
+        _execution_repo: &Arc<Rep>,
         job_repo: &Arc<JobRepo>,
-        event_bus: &Arc<EventBus>,
+        _event_bus: &Arc<EventBus>,
         execution: &PipelineExecution,
         pipeline: &Pipeline,
         step_id: &PipelineStepId,

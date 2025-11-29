@@ -117,12 +117,13 @@ pub struct OptimizationReport {
 /// Cost optimization engine
 #[derive(Clone)]
 pub struct CostOptimizationEngine {
-    cost_history: HashMap<String, Vec<CostSnapshot>>,
-    utilization_history: HashMap<String, Vec<UtilizationSnapshot>>,
+    _cost_history: HashMap<String, Vec<CostSnapshot>>,
+    _utilization_history: HashMap<String, Vec<UtilizationSnapshot>>,
 }
 
 /// Historical cost snapshot
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct CostSnapshot {
     timestamp: DateTime<Utc>,
     pool_id: String,
@@ -132,6 +133,7 @@ struct CostSnapshot {
 
 /// Historical utilization snapshot
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct UtilizationSnapshot {
     timestamp: DateTime<Utc>,
     pool_id: String,
@@ -156,15 +158,15 @@ pub enum CostOptimizationError {
 impl CostOptimizationEngine {
     pub fn new() -> Self {
         Self {
-            cost_history: HashMap::new(),
-            utilization_history: HashMap::new(),
+            _cost_history: HashMap::new(),
+            _utilization_history: HashMap::new(),
         }
     }
 
     /// Generate optimization report for a period
     pub fn generate_report(&self, period: CostAnalysisPeriod) -> Result<OptimizationReport> {
         // Calculate period bounds
-        let (start, end) = self.get_period_bounds(&period)?;
+        let (_start, _end) = self.get_period_bounds(&period)?;
 
         // Generate sample recommendations
         let recommendations = vec![
@@ -225,7 +227,7 @@ impl CostOptimizationEngine {
     /// Get cost breakdown for a period
     pub fn get_cost_breakdown(
         &self,
-        pool_id: &str,
+        _pool_id: &str,
         period: &CostAnalysisPeriod,
     ) -> Result<CostBreakdown> {
         let _period = period; // Use the period
@@ -328,4 +330,3 @@ impl Default for CostOptimizationEngine {
         Self::new()
     }
 }
-

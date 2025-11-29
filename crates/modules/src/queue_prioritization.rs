@@ -220,8 +220,6 @@ impl QueuePrioritizationEngine {
         // Fairness component
         let fairness_score = self.calculate_fairness_score(tenant_id).await;
 
-        
-
         (sla_score * sla_weight)
             + (priority_score * priority_weight)
             + (fairness_score * fairness_weight * 100.0)
@@ -301,7 +299,9 @@ impl QueuePrioritizationEngine {
 
     /// Check for preemption candidates
     pub async fn check_preemption_candidates(&self, new_job_id: JobId) -> Vec<PreemptionCandidate> {
-        if let PreemptionPolicy::Never = self.preemption_policy { return Vec::new() }
+        if let PreemptionPolicy::Never = self.preemption_policy {
+            return Vec::new();
+        }
 
         let protected = self.protected_tenants.read().await;
         let mut candidates = Vec::new();
@@ -310,7 +310,7 @@ impl QueuePrioritizationEngine {
         let new_job = queue.iter().find(|j| j.job_id == new_job_id);
 
         if let Some(new_job) = new_job {
-            for (index, current_job) in queue.iter().enumerate() {
+            for (_index, current_job) in queue.iter().enumerate() {
                 // Skip if same tenant (we don't preempt our own jobs)
                 if current_job.tenant_id == new_job.tenant_id {
                     continue;
@@ -390,7 +390,7 @@ impl QueuePrioritizationEngine {
         let fairness_variance = if !allocations.is_empty() {
             let scores: Vec<f64> = allocations.values().map(|a| a.fairness_score).collect();
             let mean: f64 = scores.iter().sum::<f64>() / scores.len() as f64;
-            
+
             scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / scores.len() as f64
         } else {
             0.0
@@ -435,4 +435,3 @@ impl QueuePrioritizationEngine {
         removed
     }
 }
-

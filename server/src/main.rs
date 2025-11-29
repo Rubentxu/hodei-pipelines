@@ -16,7 +16,7 @@ use crate::bootstrap::{initialize_server, log_config_summary};
 
 // Re-export the pipeline API types for the binary
 use crate::execution_api::{ExecutionApiAppState, ExecutionServiceWrapper, execution_api_routes};
-use crate::logs_api::{LogServiceWrapper, LogsApiAppState, MockLogService, logs_api_routes};
+use crate::logs_api::{LogsApiAppState, MockLogService, logs_api_routes};
 use crate::pipeline_api::{PipelineApiAppState, PipelineServiceWrapper, pipeline_api_routes};
 use crate::resource_pool_crud::{ResourcePoolCrudAppState, resource_pool_crud_routes};
 
@@ -132,8 +132,9 @@ impl ExecutionServiceWrapper for MockExecutionService {
 }
 
 /// Create centralized API router
-pub fn create_api_router(_server_components: crate::bootstrap::ServerComponents) -> axum::Router {
+pub fn create_api_router(server_components: crate::bootstrap::ServerComponents) -> axum::Router {
     use axum::Router;
+    use hodei_adapters::websocket_handler;
 
     info!("🔧 Setting up centralized API routes...");
 
@@ -179,6 +180,11 @@ pub fn create_api_router(_server_components: crate::bootstrap::ServerComponents)
                     })),
                 )
             }),
+        )
+        // WebSocket route
+        .route(
+            "/ws",
+            get(websocket_handler).with_state(server_components.event_subscriber),
         )
         // API v1 routes
         .nest(

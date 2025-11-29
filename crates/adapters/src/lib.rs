@@ -16,6 +16,7 @@ pub mod provider_factory;
 pub mod rbac_repositories;
 pub mod redb;
 pub mod security;
+pub mod websocket;
 pub mod worker_client;
 pub mod worker_registration;
 
@@ -25,6 +26,7 @@ pub use crate::cached_repository::{CacheStats, CachedJobRepository};
 pub use crate::docker_provider::DockerProvider;
 pub use crate::kubernetes_provider::KubernetesProvider;
 pub use crate::provider_factory::DefaultProviderFactory;
+pub use crate::websocket::websocket_handler;
 pub use crate::worker_client::{GrpcWorkerClient, HttpWorkerClient};
 pub use crate::worker_registration::{RegistrationConfig, WorkerRegistrationAdapter};
 

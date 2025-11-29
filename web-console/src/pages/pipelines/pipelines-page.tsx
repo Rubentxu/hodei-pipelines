@@ -1,17 +1,38 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { StatusBadge } from '@/components/ui/status-badge';
+import { Card } from '@/components/ui/card';
 import { PipelineBuilder } from '@/components/ui/pipeline/pipeline-builder';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { usePipelines } from '@/hooks/usePipelines';
+import { SystemEvent, useWebSocket } from '@/hooks/useWebSocket';
 import { PipelineTask } from '@/types';
-import { PlusIcon, PlayIcon, TrashIcon } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { PlayIcon, PlusIcon, TrashIcon } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export function PipelinesPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { pipelines, isLoading, isError, error, deletePipeline, executePipeline } = usePipelines();
   const [showBuilder, setShowBuilder] = useState(false);
+
+  // WebSocket integration for real-time updates
+  const handleWebSocketMessage = useCallback((event: SystemEvent) => {
+    console.log('WS Event:', event);
+    // Invalidate pipelines query on relevant events
+    if (
+      event.type === 'PipelineCreated' ||
+      event.type === 'PipelineStarted' ||
+      event.type === 'PipelineCompleted' ||
+      event.type === 'PipelineExecutionStarted'
+    ) {
+      queryClient.invalidateQueries({ queryKey: ['pipelines'] });
+    }
+  }, [queryClient]);
+
+  const { status: wsStatus } = useWebSocket({
+    onMessage: handleWebSocketMessage
+  });
 
   const handleSavePipeline = (tasks: PipelineTask[]) => {
     console.log('Pipeline saved with tasks:', tasks);
@@ -65,7 +86,15 @@ export function PipelinesPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-nebula-text-primary">Pipelines</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-nebula-text-primary">Pipelines</h1>
+          <div className="flex items-center gap-2 text-xs text-nebula-text-secondary bg-nebula-surface-secondary px-2 py-1 rounded-full">
+            <div className={`w-2 h-2 rounded-full ${wsStatus === 'connected' ? 'bg-green-500' :
+                wsStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
+              }`} />
+            <span>{wsStatus === 'connected' ? 'Live' : wsStatus}</span>
+          </div>
+        </div>
         <Button
           onClick={() => setShowBuilder(true)}
           className="bg-nebula-accent-blue hover:bg-nebula-accent-blue/80"
@@ -101,8 +130,8 @@ export function PipelinesPage() {
                     <StatusBadge
                       status={
                         pipeline.status === 'active' ? 'success' :
-                        pipeline.status === 'paused' ? 'pending' :
-                        pipeline.status === 'error' ? 'error' : 'warning'
+                          pipeline.status === 'paused' ? 'pending' :
+                            pipeline.status === 'error' ? 'error' : 'warning'
                       }
                       label={pipeline.status}
                     />

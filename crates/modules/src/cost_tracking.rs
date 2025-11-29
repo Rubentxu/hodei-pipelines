@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use hodei_core::{DomainError, Result};
+use hodei_core::Result;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tracing::{error, info};

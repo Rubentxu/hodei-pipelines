@@ -609,7 +609,6 @@ pub fn pipeline_api_routes(state: PipelineApiAppState) -> Router {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_create_pipeline_handler() {

@@ -5,7 +5,7 @@
 //! flexibility in the scheduling process.
 
 use crate::scheduler::{SchedulerModule, Worker, WorkerNode};
-use hodei_core::{Job, Result, job::JobState};
+use hodei_core::{Job, Result};
 
 /// Scheduling state to eliminate temporal coupling
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -135,7 +135,7 @@ impl SchedulingStateMachine {
     /// Transition to Optimizing state
     pub async fn optimize<R, E, W, WR>(
         &mut self,
-        scheduler: &SchedulerModule<R, E, W, WR>,
+        _scheduler: &SchedulerModule<R, E, W, WR>,
     ) -> Result<()>
     where
         R: hodei_ports::JobRepository

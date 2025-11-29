@@ -327,12 +327,15 @@ pub fn execution_api_routes(state: ExecutionApiAppState) -> Router {
         .route("/{id}", get(get_execution_details_handler))
         .route("/{id}/cancel", post(cancel_execution_handler))
         .route("/{id}/retry", post(retry_execution_handler))
+        .route(
+            "/pipeline/{pipeline_id}",
+            get(get_execution_history_handler),
+        )
         .with_state(state)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_get_execution_details_handler() {

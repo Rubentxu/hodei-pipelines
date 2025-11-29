@@ -28,7 +28,7 @@ pub struct ResourcePoolService {
     allocations: HashMap<String, ResourceAllocation>,
     pending_queue: VecDeque<ResourceAllocationRequest>,
     active_workers: HashMap<WorkerId, String>, // worker_id -> allocation_id
-    auto_scaling_enabled: bool,
+    _auto_scaling_enabled: bool,
 }
 
 impl ResourcePoolService {
@@ -42,7 +42,7 @@ impl ResourcePoolService {
             allocations: HashMap::new(),
             pending_queue: VecDeque::new(),
             active_workers: HashMap::new(),
-            auto_scaling_enabled: true,
+            _auto_scaling_enabled: true,
         }
     }
 
@@ -300,7 +300,7 @@ pub async fn create_docker_resource_pool(
 /// Create a Kubernetes resource pool
 pub async fn create_kubernetes_resource_pool(
     name: String,
-    namespace: String,
+    _namespace: String,
     min_size: u32,
     max_size: u32,
 ) -> Result<ResourcePoolService> {

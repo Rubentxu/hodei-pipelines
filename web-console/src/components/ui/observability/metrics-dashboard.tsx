@@ -1,8 +1,7 @@
-import { Card } from '../card';
-import { KpiCard } from '../kpi-card';
-import { useObservabilityMetrics } from '../../../hooks/useObservability';
 import * as echarts from 'echarts';
 import { useEffect, useRef } from 'react';
+import { useObservabilityMetrics } from '../../../hooks/useObservability';
+import { Card } from '../card';
 
 export function MetricsDashboard() {
   const { data, isLoading } = useObservabilityMetrics();
@@ -148,34 +147,33 @@ export function MetricsDashboard() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
+        <KPICard
           title="CPU Usage"
           value={metrics.cpuUsage}
           format="percentage"
-          trend="stable"
-          trendPercentage={0}
+          trend="neutral"
+          trendValue="0%"
         />
-        <KpiCard
+        <KPICard
           title="Memory Usage"
           value={metrics.memoryUsage}
           format="percentage"
-          trend="stable"
-          trendPercentage={0}
+          trend="neutral"
+          trendValue="0%"
         />
-        <KpiCard
+        <KPICard
           title="Request Rate"
           value={metrics.requestRate}
           format="number"
-          suffix=" req/s"
           trend="up"
-          trendPercentage={5.2}
+          trendValue="5.2%"
         />
-        <KpiCard
+        <KPICard
           title="Error Rate"
           value={metrics.errorRate}
           format="percentage"
           trend="down"
-          trendPercentage={-2.1}
+          trendValue="-2.1%"
         />
       </div>
 

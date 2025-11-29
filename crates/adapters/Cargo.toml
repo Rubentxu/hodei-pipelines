@@ -18,6 +18,7 @@ async-trait = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["codec"] }
 futures = { workspace = true }
+axum = { workspace = true, features = ["ws"] }
 
 # Workspace serialization
 serde = { workspace = true }

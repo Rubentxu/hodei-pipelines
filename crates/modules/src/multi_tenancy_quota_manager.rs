@@ -318,7 +318,7 @@ impl MultiTenancyQuotaManager {
         tenant_id: &str,
         resource_request: &ResourceRequest,
     ) -> Result<QuotaDecision, QuotaError> {
-        let start_time = Instant::now();
+        let _start_time = Instant::now();
 
         let quotas = self.quotas.read().await;
         let quota = quotas
@@ -335,11 +335,12 @@ impl MultiTenancyQuotaManager {
 
         // Check pool access
         if !quota.pool_access.is_empty()
-            && !quota.pool_access.contains_key(&resource_request.pool_id) {
-                return Ok(QuotaDecision::Deny {
-                    reason: QuotaViolationReason::PoolAccessDenied,
-                });
-            }
+            && !quota.pool_access.contains_key(&resource_request.pool_id)
+        {
+            return Ok(QuotaDecision::Deny {
+                reason: QuotaViolationReason::PoolAccessDenied,
+            });
+        }
 
         // Check hard limits for CPU
         let projected_cpu = tenant_usage.current_cpu_cores + resource_request.cpu_cores;
@@ -547,14 +548,14 @@ impl MultiTenancyQuotaManager {
     /// Check if burst capacity is available
     async fn check_burst_capacity(
         &self,
-        tenant_id: &str,
+        _tenant_id: &str,
         quota: &TenantQuota,
         usage: &TenantUsage,
     ) -> Result<BurstCapacityDecision, QuotaError> {
         if !self.config.enable_burst || !quota.burst_policy.allowed {
             return Ok(BurstCapacityDecision {
                 allowed: false,
-                reason: "Burst not enabled".to_string(),
+                _reason: "Burst not enabled".to_string(),
             });
         }
 
@@ -562,7 +563,7 @@ impl MultiTenancyQuotaManager {
         if usage.burst_count_today >= quota.burst_policy.max_bursts_per_day {
             return Ok(BurstCapacityDecision {
                 allowed: false,
-                reason: "Maximum bursts per day reached".to_string(),
+                _reason: "Maximum bursts per day reached".to_string(),
             });
         }
 
@@ -571,17 +572,18 @@ impl MultiTenancyQuotaManager {
             let elapsed = Utc::now().signed_duration_since(last_burst);
             if let Ok(cooldown_duration) =
                 chrono::Duration::from_std(quota.burst_policy.cooldown_period)
-                && elapsed < cooldown_duration {
-                    return Ok(BurstCapacityDecision {
-                        allowed: false,
-                        reason: "Burst cooldown period active".to_string(),
-                    });
-                }
+                && elapsed < cooldown_duration
+            {
+                return Ok(BurstCapacityDecision {
+                    allowed: false,
+                    _reason: "Burst cooldown period active".to_string(),
+                });
+            }
         }
 
         Ok(BurstCapacityDecision {
             allowed: true,
-            reason: "Burst capacity available".to_string(),
+            _reason: "Burst capacity available".to_string(),
         })
     }
 
@@ -661,7 +663,7 @@ impl MultiTenancyQuotaManager {
 #[derive(Debug, Clone)]
 struct BurstCapacityDecision {
     pub allowed: bool,
-    pub reason: String,
+    pub _reason: String,
 }
 
 /// Create default quota manager configuration
@@ -676,4 +678,3 @@ impl Default for QuotaManagerConfig {
         }
     }
 }
-

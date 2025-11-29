@@ -4,7 +4,9 @@
 //! configuration loading, event bus setup, repository initialization,
 //! and dependency injection for production deployments.
 
-use hodei_adapters::config::AppConfig;
+use hodei_adapters::{InMemoryBus, config::AppConfig};
+use hodei_ports::EventSubscriber;
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info};
 
@@ -24,6 +26,7 @@ pub type Result<T> = std::result::Result<T, BootstrapError>;
 #[derive(Clone)]
 pub struct ServerComponents {
     pub config: AppConfig,
+    pub event_subscriber: Arc<dyn EventSubscriber>,
     #[allow(dead_code)]
     pub status: &'static str,
 }
@@ -70,6 +73,13 @@ pub async fn initialize_server() -> Result<ServerComponents> {
         info!("🔒 TLS/mTLS enabled - Production security mode");
     }
 
+    // Initialize Event Bus
+    info!("📡 Initializing Event Bus...");
+    // TODO: Use NatsEventBus if configured, for now defaulting to InMemory
+    let event_bus = Arc::new(InMemoryBus::new(1000));
+    let event_subscriber: Arc<dyn EventSubscriber> = event_bus;
+    info!("✅ Event Bus initialized");
+
     // Log configuration summary
     log_config_summary(&config);
 
@@ -82,6 +92,7 @@ pub async fn initialize_server() -> Result<ServerComponents> {
 
     Ok(ServerComponents {
         config,
+        event_subscriber,
         status: "ready",
     })
 }

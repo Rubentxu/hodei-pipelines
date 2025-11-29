@@ -6,12 +6,12 @@
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 use crate::auto_scaling_engine::ScaleDirection;
-use hodei_core::{DomainError, Result};
+use hodei_core::Result;
 
 /// Cooldown type for different scaling scenarios
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -88,7 +88,7 @@ pub struct AdvancedCooldownManager {
 /// Per-pool cooldown state
 #[derive(Debug, Clone)]
 struct PoolCooldownState {
-    pub pool_id: String,
+    pub _pool_id: String,
     pub last_scale_up: Option<DateTime<Utc>>,
     pub last_scale_down: Option<DateTime<Utc>>,
     pub last_any: Option<DateTime<Utc>>,
@@ -282,7 +282,7 @@ impl AdvancedCooldownManager {
     /// Get cooldown statistics for a pool
     pub async fn get_stats(&self, pool_id: &str) -> Option<CooldownStats> {
         let tracking = self.cooldown_tracking.read().await;
-        let state = tracking.get(pool_id)?;
+        let _state = tracking.get(pool_id)?;
 
         let history = self.event_history.read().await;
         let pool_events: Vec<_> = history.iter().filter(|e| e.pool_id == pool_id).collect();
@@ -340,12 +340,12 @@ impl AdvancedCooldownManager {
 
     /// Cleanup old events
     pub async fn cleanup(&self, retention_period: Duration) -> Result<u64> {
-        let cutoff = Utc::now()
+        let _cutoff = Utc::now()
             - chrono::Duration::from_std(retention_period)
                 .map_err(|e| CooldownError::InvalidConfiguration(e.to_string()))?;
         let mut history = self.event_history.write().await;
         let before_len = history.len();
-        history.retain(|e| e.timestamp > cutoff);
+        history.retain(|e| e.timestamp > _cutoff);
         let removed = before_len - history.len();
         Ok(removed as u64)
     }
@@ -416,7 +416,7 @@ impl AdvancedCooldownManager {
     /// Internal: Count recent overrides
     async fn count_recent_overrides(&self, pool_id: &str, window: Duration) -> u32 {
         let history = self.event_history.read().await;
-        let cutoff = Instant::now() - window;
+
         history
             .iter()
             .filter(|e| {
@@ -431,7 +431,7 @@ impl AdvancedCooldownManager {
 impl PoolCooldownState {
     fn new(pool_id: String) -> Self {
         Self {
-            pool_id,
+            _pool_id: pool_id,
             last_scale_up: None,
             last_scale_down: None,
             last_any: None,

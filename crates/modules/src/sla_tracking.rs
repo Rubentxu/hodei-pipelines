@@ -179,7 +179,7 @@ impl SLATracker {
     }
 
     /// Calculate priority boost based on deadline urgency and queue position
-    fn calculate_priority_boost(&self, sla_info: &SLAInfo, queue_position: usize) -> u8 {
+    fn calculate_priority_boost(&self, sla_info: &SLAInfo, _queue_position: usize) -> u8 {
         let now = Utc::now();
         let total_duration = sla_info.deadline - sla_info.created_at;
         let elapsed = now - sla_info.created_at;
@@ -449,4 +449,3 @@ impl Default for SLATracker {
         Self::new()
     }
 }
-

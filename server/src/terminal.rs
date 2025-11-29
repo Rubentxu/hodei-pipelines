@@ -15,7 +15,7 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::api_docs::MessageResponse;
@@ -253,7 +253,7 @@ async fn send_input_handler(
     Path(id): Path<String>,
     axum::extract::Json(req): axum::extract::Json<SendInputRequest>,
 ) -> (StatusCode, Json<MessageResponse>) {
-    let service = TerminalService::new(state);
+    let _service = TerminalService::new(state);
     info!(
         "Received input for terminal session {}: {} bytes",
         id,
@@ -312,7 +312,7 @@ async fn handle_websocket_session(
     );
 
     // Spawn task to read from WebSocket and handle input
-    let mut recv_task = tokio::spawn(async move {
+    let recv_task = tokio::spawn(async move {
         while let Some(msg) = socket.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
@@ -423,7 +423,7 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use axum::{Router, http::StatusCode};
+    use axum::http::StatusCode;
     use tower::ServiceExt;
 
     #[tokio::test]

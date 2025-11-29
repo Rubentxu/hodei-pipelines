@@ -5,7 +5,7 @@
 //! with business logic in the domain layer.
 
 use async_trait::async_trait;
-use hodei_core::{DomainError, JobId, Result};
+use hodei_core::{JobId, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;

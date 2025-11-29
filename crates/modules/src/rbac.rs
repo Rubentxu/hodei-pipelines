@@ -5,10 +5,7 @@
 
 use hodei_core::{
     DomainError, Result,
-    security::{
-        PermissionEntity, PermissionId,
-        RoleEntity, RoleId,
-    },
+    security::{PermissionEntity, PermissionId, RoleEntity, RoleId},
 };
 use hodei_ports::{EventPublisher, PermissionRepository, RoleRepository};
 use serde::{Deserialize, Serialize};
@@ -179,9 +176,10 @@ where
                 .get_role_by_name(new_name)
                 .await
                 .map_err(RbacError::Repository)?
-                && existing.id != *id {
-                    return Err(RbacError::RoleAlreadyExists(existing.id).into());
-                }
+                && existing.id != *id
+            {
+                return Err(RbacError::RoleAlreadyExists(existing.id).into());
+            }
         }
 
         // Update role
@@ -204,7 +202,7 @@ where
         info!("Deleting role: {}", id);
 
         // Check if role exists
-        let role = self
+        let _role = self
             .role_repo
             .get_role(id)
             .await
@@ -482,7 +480,6 @@ pub enum RbacError {
 }
 
 // ========== Tests ==========
-
 
 // Convert RbacError to DomainError
 impl From<RbacError> for hodei_core::DomainError {

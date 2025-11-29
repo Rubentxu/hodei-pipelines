@@ -903,8 +903,8 @@ impl FIFOStandardQueue {
     /// Start timeout monitoring task
     pub async fn start_timeout_monitor(&self) {
         let is_running = self.is_running.clone();
-        let fifo_queue = self.fifo_queue.clone();
-        let dead_letter_queue = self.dead_letter_queue.clone();
+        let _fifo_queue = self.fifo_queue.clone();
+        let _dead_letter_queue = self.dead_letter_queue.clone();
         let queue_id = self.queue_id.clone();
         let check_interval = self.timeout_check_interval;
 
@@ -1026,7 +1026,6 @@ impl Clone for DeadLetterQueue {
         }
     }
 }
-
 
 // Convert QueueError to DomainError
 impl From<QueueError> for hodei_core::DomainError {

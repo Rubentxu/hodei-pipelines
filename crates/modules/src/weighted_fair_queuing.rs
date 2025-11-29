@@ -127,7 +127,7 @@ pub struct StarvationDetection {
 pub struct WeightedFairQueueingEngine {
     config: WFQConfig,
     tenant_weights: Arc<RwLock<HashMap<TenantId, TenantWeight>>>,
-    active_flows: Arc<RwLock<HashMap<TenantId, WFQAllocation>>>,
+    _active_flows: Arc<RwLock<HashMap<TenantId, WFQAllocation>>>,
     pending_queue: Arc<RwLock<VecDeque<WFQQueueEntry>>>,
     global_virtual_time: Arc<RwLock<f64>>,
     stats: Arc<RwLock<WFQStats>>,
@@ -162,7 +162,7 @@ impl WeightedFairQueueingEngine {
         Self {
             config,
             tenant_weights: Arc::new(RwLock::new(HashMap::new())),
-            active_flows: Arc::new(RwLock::new(HashMap::new())),
+            _active_flows: Arc::new(RwLock::new(HashMap::new())),
             pending_queue: Arc::new(RwLock::new(VecDeque::new())),
             global_virtual_time: Arc::new(RwLock::new(0.0)),
             stats: Arc::new(RwLock::new(WFQStats {
@@ -415,7 +415,7 @@ impl WeightedFairQueueingEngine {
             return 1.0;
         }
 
-        let jain_index = (sum * sum) / (values.len() as f64 * sum_squared);
+        let _jain_index = (sum * sum) / (values.len() as f64 * sum_squared);
         1.0 - variance / (mean * mean).max(0.001) // Normalized fairness
     }
 
@@ -423,7 +423,7 @@ impl WeightedFairQueueingEngine {
     pub async fn detect_and_handle_starvation(&mut self) -> Vec<TenantId> {
         let mut starving_tenants = Vec::new();
         let mut starvation = self.starvation_monitor.write().await;
-        let now = Utc::now();
+        let _now = Utc::now();
 
         for (tenant_id, detection) in starvation.iter_mut() {
             // Check if tenant has been waiting too long
@@ -602,4 +602,3 @@ impl Default for WFQConfig {
         }
     }
 }
-

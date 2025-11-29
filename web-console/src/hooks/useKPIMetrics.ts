@@ -1,7 +1,7 @@
+import { observabilityApi } from "@/services/observabilityApi";
+import { ObservabilityMetricsResponse } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { getKPIMetrics, subscribeToMetrics } from "@/services/observabilityApi";
-import { KPIMetrics } from "@/types";
 
 export function useKPIMetrics() {
   const queryClient = useQueryClient();
@@ -9,7 +9,7 @@ export function useKPIMetrics() {
 
   const query = useQuery({
     queryKey: ["kpi-metrics"],
-    queryFn: getKPIMetrics,
+    queryFn: () => observabilityApi.getMetrics(),
     refetchInterval: 5000, // Poll every 5 seconds
     staleTime: 30000,
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
@@ -18,13 +18,13 @@ export function useKPIMetrics() {
   useEffect(() => {
     let cleanup: (() => void) | undefined;
 
-    subscribeToMetrics((data) => {
-      queryClient.setQueryData<KPIMetrics>(["kpi-metrics"], (old) => {
-        return old ? { ...old, ...data } : ({ ...data } as KPIMetrics);
+    observabilityApi.streamMetrics((data) => {
+      queryClient.setQueryData<ObservabilityMetricsResponse>(["kpi-metrics"], (old) => {
+        return old ? { ...old, ...data } : ({ ...data } as ObservabilityMetricsResponse);
       });
       setIsConnected(true);
-    }).then((unsubscribeFn) => {
-      cleanup = unsubscribeFn;
+    }).then((eventSource) => {
+      cleanup = () => eventSource.close();
     });
 
     const connectionTimeout = setTimeout(() => {

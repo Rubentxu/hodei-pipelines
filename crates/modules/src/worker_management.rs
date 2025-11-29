@@ -4,15 +4,12 @@
 //! dynamic workers across different infrastructure providers.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use hodei_adapters::WorkerRegistrationAdapter;
-use hodei_core::{DomainError, JobId, Result, Worker, WorkerCapabilities, WorkerId};
+use hodei_core::{DomainError, JobId, Result, Worker, WorkerId};
 use hodei_ports::scheduler_port::SchedulerPort;
 use hodei_ports::worker_provider::{ProviderConfig, ProviderError, WorkerProvider};
 use hodei_ports::{WorkerRegistrationError, WorkerRegistrationPort};
@@ -78,7 +75,7 @@ where
     pub async fn provision_worker(
         &self,
         image: String,
-        cpu_cores: u32,
+        _cpu_cores: u32,
         _memory_mb: u64,
     ) -> Result<Worker> {
         let worker_id = WorkerId::new();
@@ -124,8 +121,8 @@ where
     pub async fn provision_worker_with_config(
         &self,
         config: ProviderConfig,
-        cpu_cores: u32,
-        memory_mb: u64,
+        _cpu_cores: u32,
+        _memory_mb: u64,
     ) -> Result<Worker> {
         let worker_id = WorkerId::new();
 
@@ -945,7 +942,7 @@ where
     /// Calculate health score for a specific worker
     pub async fn calculate_health_score(&self, worker_id: &WorkerId) -> Result<f64> {
         // Get worker
-        let worker = self
+        let _worker = self
             .worker_repo
             .get_worker(worker_id)
             .await
@@ -1183,7 +1180,7 @@ where
     }
 
     /// Check if a worker is reachable (ping or health check)
-    async fn is_worker_reachable(&self, worker: &Worker) -> Result<bool> {
+    async fn is_worker_reachable(&self, _worker: &Worker) -> Result<bool> {
         // TODO: Implement actual reachability check
         // For now, assume worker is not reachable if stale
         Ok(false)
@@ -1254,6 +1251,8 @@ where
 
         // Validate TCP check parameters
         if let HealthCheckType::Tcp { ref host, ref port } = check_type {
+            let _ = host;
+            let _ = port;
             // Validate that the port is parseable from metadata if provided
             if let Some(port_str) = worker.metadata.get("healthcheck_port")
                 && port_str.parse::<u16>().is_err()
@@ -1266,7 +1265,7 @@ where
         }
 
         // Execute health check
-        let check_type_clone = check_type.clone();
+        let _check_type_clone = check_type.clone();
         let result = match check_type {
             HealthCheckType::Tcp { host, port } => {
                 self.perform_tcp_check(&worker_id, &host, port).await
@@ -2226,7 +2225,7 @@ where
             let to_spawn = std::cmp::min(max_concurrent, count - provisioned);
 
             for _ in 0..to_spawn {
-                let worker_index = provisioned;
+                let _worker_index = provisioned;
                 let provider = self.worker_provider.clone();
                 let config =
                     ProviderConfig::docker(format!("{}-static-worker", self.config.pool_id));
@@ -2306,17 +2305,6 @@ where
             .await
             .map_err(|e| DomainError::Infrastructure(e.to_string()))?;
         Ok(())
-    }
-
-    async fn get_any_worker_id(&self) -> Result<WorkerId> {
-        let state = self.state.read().await;
-        if let Some(worker_id) = state.available_workers.first().cloned() {
-            Ok(worker_id)
-        } else if let Some(worker_id) = state.busy_workers.keys().next().cloned() {
-            Ok(worker_id)
-        } else {
-            Err(StaticPoolError::Internal("No workers found".to_string()).into())
-        }
     }
 }
 
@@ -2494,7 +2482,7 @@ where
     worker_provider: T,
     registration_adapter: Option<WorkerRegistrationAdapter<MockSchedulerPort>>,
     metrics: DynamicPoolMetrics,
-    reuse_metrics: WorkerReuseMetrics,
+    _reuse_metrics: WorkerReuseMetrics,
     cleanup_task: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -2569,7 +2557,7 @@ where
             worker_provider,
             registration_adapter: None,
             metrics,
-            reuse_metrics,
+            _reuse_metrics: reuse_metrics,
             cleanup_task: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
     }
@@ -2590,7 +2578,7 @@ where
             worker_provider,
             registration_adapter: Some(registration_adapter),
             metrics,
-            reuse_metrics,
+            _reuse_metrics: reuse_metrics,
             cleanup_task: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
     }
@@ -2616,13 +2604,16 @@ where
 
         // Scale down all workers
         let state = self.state.read().await;
-        let worker_count = state.available_workers.len() + state.busy_workers.len();
+        let all_workers: Vec<WorkerId> = state
+            .available_workers
+            .iter()
+            .chain(state.busy_workers.keys())
+            .cloned()
+            .collect();
         drop(state);
 
-        for _ in 0..worker_count {
-            if let Ok(worker_id) = self.get_any_worker_id().await {
-                self.terminate_worker(worker_id).await.ok();
-            }
+        for worker_id in all_workers {
+            self.terminate_worker(worker_id).await.ok();
         }
 
         info!(pool_id = %self.config.pool_id, "Dynamic pool manager stopped");
@@ -2716,7 +2707,7 @@ where
             self.terminate_worker(worker_id).await?;
         } else {
             // Return to available pool and track idle time
-            let now = Instant::now();
+            let _now = Instant::now();
             state.available_workers.push(worker_id.clone());
             drop(state);
         }
@@ -3074,7 +3065,7 @@ where
         let mut state = self.state.write().await;
 
         for _ in 0..count {
-            if let Some(worker_id) = state.available_workers.pop() {
+            if let Some(_worker_id) = state.available_workers.pop() {
                 state.total_terminated += 1;
             } else {
                 break;
@@ -3100,21 +3091,6 @@ where
     async fn get_current_size(&self) -> u32 {
         let state = self.state.read().await;
         (state.total_provisioned - state.total_terminated) as u32
-    }
-
-    async fn get_any_worker_id(&self) -> Result<WorkerId> {
-        let state = self.state.read().await;
-        if let Some(worker_id) = state.available_workers.first().cloned() {
-            Ok(worker_id)
-        } else if let Some(worker_id) = state.busy_workers.keys().next().cloned() {
-            Ok(worker_id)
-        } else {
-            Err(DynamicPoolError::PoolAtMinimum {
-                current: 0,
-                min: self.config.min_size,
-            }
-            .into())
-        }
     }
 
     async fn start_cleanup_task(&self) {
@@ -3740,7 +3716,7 @@ where
     }
 
     /// Get number of remediation attempts for a worker
-    async fn get_remediation_attempts(&self, worker_id: &WorkerId) -> Result<u32> {
+    async fn get_remediation_attempts(&self, _worker_id: &WorkerId) -> Result<u32> {
         // In a real implementation, would track attempts per worker
         // For now, return 0 (no limit)
         Ok(0)

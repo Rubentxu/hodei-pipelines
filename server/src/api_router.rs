@@ -11,10 +11,12 @@ use tracing::info;
 
 use crate::bootstrap::ServerComponents;
 use crate::execution_api::{ExecutionApiAppState, ExecutionServiceWrapper, execution_api_routes};
-use crate::logs_api::{LogServiceWrapper, LogsApiAppState, MockLogService, logs_api_routes};
+use crate::logs_api::{LogsApiAppState, MockLogService, logs_api_routes};
 use crate::pipeline_api::{PipelineApiAppState, PipelineServiceWrapper, pipeline_api_routes};
 use crate::resource_pool_crud::{ResourcePoolCrudAppState, resource_pool_crud_routes};
 use crate::terminal::{TerminalAppState, terminal_routes};
+use axum::routing::get;
+use hodei_adapters::websocket_handler;
 
 use hodei_core::{
     DomainError, ExecutionId, Pipeline, PipelineId, Result as CoreResult,
@@ -100,7 +102,7 @@ impl ExecutionServiceWrapper for MockExecutionService {
 }
 
 /// Create centralized API router
-pub fn create_api_router(_server_components: ServerComponents) -> axum::Router {
+pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
     info!("🔧 Setting up centralized API routes...");
 
     // Initialize resource pool state
@@ -171,6 +173,11 @@ pub fn create_api_router(_server_components: ServerComponents) -> axum::Router {
         )
         // Add OpenAPI documentation routes (US-10.5)
         .nest("/api/docs", create_openapi_docs_routes())
+        // WebSocket route (US-009)
+        .route(
+            "/ws",
+            get(websocket_handler).with_state(server_components.event_subscriber),
+        )
 }
 
 /// Simple observability routes for testing

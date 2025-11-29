@@ -86,7 +86,7 @@ pub enum CompositeOperator {
 /// Trigger evaluation engine
 #[derive(Debug)]
 pub struct TriggerEvaluationEngine {
-    config: TriggerEvaluationConfig,
+    _config: TriggerEvaluationConfig,
     evaluation_history: Arc<RwLock<HashMap<String, Vec<TriggerEvaluationResult>>>>,
 }
 
@@ -160,7 +160,7 @@ impl TriggerEvaluationEngine {
     /// Create a new trigger evaluation engine
     pub fn new(config: TriggerEvaluationConfig) -> Self {
         Self {
-            config,
+            _config: config,
             evaluation_history: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -187,22 +187,23 @@ impl TriggerEvaluationEngine {
 
         // Check cooldown period
         if let Some(cooldown) = trigger.cooldown
-            && let Some(last_triggered) = trigger.last_triggered {
-                let cooldown_duration = chrono::Duration::from_std(cooldown)
-                    .map_err(|e| ScalingError::ConfigurationError(e.to_string()))?;
-                if Utc::now().signed_duration_since(last_triggered) < cooldown_duration {
-                    return Ok(TriggerEvaluationResult {
-                        trigger_id: trigger.id.clone(),
-                        triggered: false,
-                        current_value: 0.0,
-                        threshold: trigger.threshold,
-                        direction: trigger.direction.clone(),
-                        scale_by: trigger.scale_by,
-                        reason: "Cooldown period active".to_string(),
-                        timestamp: Utc::now(),
-                    });
-                }
+            && let Some(last_triggered) = trigger.last_triggered
+        {
+            let cooldown_duration = chrono::Duration::from_std(cooldown)
+                .map_err(|e| ScalingError::ConfigurationError(e.to_string()))?;
+            if Utc::now().signed_duration_since(last_triggered) < cooldown_duration {
+                return Ok(TriggerEvaluationResult {
+                    trigger_id: trigger.id.clone(),
+                    triggered: false,
+                    current_value: 0.0,
+                    threshold: trigger.threshold,
+                    direction: trigger.direction.clone(),
+                    scale_by: trigger.scale_by,
+                    reason: "Cooldown period active".to_string(),
+                    timestamp: Utc::now(),
+                });
             }
+        }
 
         // Evaluate based on trigger type
         let (triggered, current_value) = match &trigger.trigger_type {
@@ -361,9 +362,10 @@ impl TriggerEvaluationEngine {
 
         // Keep only last 100 evaluations
         if let Some(evaluations) = history.get_mut(trigger_id)
-            && evaluations.len() > 100 {
-                evaluations.drain(0..evaluations.len() - 100);
-            }
+            && evaluations.len() > 100
+        {
+            evaluations.drain(0..evaluations.len() - 100);
+        }
     }
 
     /// Get evaluation history for a trigger
@@ -422,4 +424,3 @@ impl Default for TriggerEvaluationConfig {
         }
     }
 }
-

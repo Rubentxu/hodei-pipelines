@@ -470,7 +470,7 @@ impl ScalingEngine {
 
     pub async fn update_metrics(
         &self,
-        pool_id: &str,
+        _pool_id: &str,
         pending_jobs: u32,
         cpu_util: f64,
         mem_util: f64,
@@ -532,4 +532,3 @@ pub enum ScalingError {
     #[error("Configuration error: {0}")]
     ConfigurationError(String),
 }
-

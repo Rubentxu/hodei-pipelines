@@ -85,9 +85,9 @@ pub struct MetricsConfig {
 /// Metrics collector for resource pools
 #[derive(Debug, Clone)]
 pub struct MetricsCollector {
-    config: MetricsConfig,
+    _config: MetricsConfig,
     metrics_store: Arc<RwLock<MetricsStore>>,
-    aggregation_engine: Arc<RwLock<AggregationEngine>>,
+    _aggregation_engine: Arc<RwLock<AggregationEngine>>,
 }
 
 /// In-memory metrics storage
@@ -100,15 +100,15 @@ pub struct MetricsStore {
 /// Metrics aggregation engine
 #[derive(Debug)]
 pub struct AggregationEngine {
-    aggregators: HashMap<String, Aggregator>,
+    _aggregators: HashMap<String, Aggregator>,
 }
 
 /// Single metric aggregator
 #[derive(Debug)]
 struct Aggregator {
-    window: AggregationWindow,
-    values: Vec<MetricValue>,
-    last_aggregation: DateTime<Utc>,
+    _window: AggregationWindow,
+    _values: Vec<MetricValue>,
+    _last_aggregation: DateTime<Utc>,
 }
 
 /// Real-time metrics snapshot
@@ -134,9 +134,9 @@ impl MetricsCollector {
     /// Create a new metrics collector
     pub fn new(config: MetricsConfig) -> Self {
         Self {
-            config: config.clone(),
+            _config: config.clone(),
             metrics_store: Arc::new(RwLock::new(MetricsStore::new(config.retention_period))),
-            aggregation_engine: Arc::new(RwLock::new(AggregationEngine::new())),
+            _aggregation_engine: Arc::new(RwLock::new(AggregationEngine::new())),
         }
     }
 
@@ -180,10 +180,7 @@ impl MetricsStore {
 
     pub fn add_metric(&mut self, metric: MetricValue) -> Result<(), MetricsError> {
         let pool_id = metric.pool_id.clone();
-        self.metrics
-            .entry(pool_id)
-            .or_default()
-            .push(metric);
+        self.metrics.entry(pool_id).or_default().push(metric);
         Ok(())
     }
 
@@ -283,7 +280,7 @@ impl Default for AggregationEngine {
 impl AggregationEngine {
     pub fn new() -> Self {
         Self {
-            aggregators: HashMap::new(),
+            _aggregators: HashMap::new(),
         }
     }
 }
@@ -305,4 +302,3 @@ fn percentile(sorted_values: &[f64], p: f64) -> f64 {
         sorted_values[lower] * (1.0 - weight) + sorted_values[upper] * weight
     }
 }
-

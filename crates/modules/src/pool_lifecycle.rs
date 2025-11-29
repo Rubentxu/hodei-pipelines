@@ -437,7 +437,7 @@ impl ResourcePoolLifecycleManager {
         // Check if restart is required and update
         {
             let pool_read = pool.read().await;
-            let requires_restart = pool_read.requires_restart(&new_config);
+            let _requires_restart = pool_read.requires_restart(&new_config);
             drop(pool_read);
 
             // Update config
@@ -702,7 +702,6 @@ impl PoolEventHandler for LoggingEventHandler {
         }
     }
 }
-
 
 // Convert LifecycleError to DomainError
 impl From<LifecycleError> for hodei_core::DomainError {

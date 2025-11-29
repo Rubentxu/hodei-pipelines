@@ -72,20 +72,8 @@ pub enum LogLevel {
     Debug,
 }
 
-impl LogLevel {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            LogLevel::Info => "INFO",
-            LogLevel::Warning => "WARN",
-            LogLevel::Error => "ERROR",
-            LogLevel::Debug => "DEBUG",
-        }
-    }
-}
-
-/// SSE Stream Response Type
 pub struct SseStream {
-    execution_id: ExecutionId,
+    _execution_id: ExecutionId,
     stream: Pin<Box<dyn Stream<Item = LogEvent> + Send + Sync>>,
 }
 
@@ -95,7 +83,7 @@ impl SseStream {
         stream: Pin<Box<dyn Stream<Item = LogEvent> + Send + Sync>>,
     ) -> Self {
         Self {
-            execution_id,
+            _execution_id: execution_id,
             stream,
         }
     }
