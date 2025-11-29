@@ -597,39 +597,28 @@ impl WorkerClient for GrpcWorkerClient {
         Ok(worker_status)
     }
 
-    async fn send_heartbeat(&self, worker_id: &WorkerId) -> Result<(), WorkerClientError> {
-        // Collect resource metrics for this heartbeat
-        let mut metrics_collector =
-            MetricsCollector::new(worker_id.clone(), Duration::from_secs(10));
-        let resource_usage = match metrics_collector.collect().await {
-            Ok(usage) => {
-                // Convert our internal ResourceUsage to proto format
-                Some(hwp_proto::ResourceUsage {
-                    cpu_usage_m: usage.cpu_percent as u64,
-                    memory_usage_mb: usage.memory_rss_mb,
-                    active_jobs: 0, // TODO: Get from worker
-                    disk_read_mb: usage.disk_read_mb,
-                    disk_write_mb: usage.disk_write_mb,
-                    network_sent_mb: usage.network_sent_mb,
-                    network_received_mb: usage.network_received_mb,
-                    gpu_utilization_percent: usage.gpu_utilization_percent.unwrap_or(0.0),
-                    timestamp: usage.timestamp.timestamp_nanos_opt().unwrap_or(0),
-                })
-            }
-            Err(e) => {
-                // If metrics collection fails, log warning but continue without metrics
-                warn!(
-                    "Failed to collect resource metrics for worker {}: {}",
-                    worker_id, e
-                );
-                None
-            }
+    async fn send_heartbeat(
+        &self,
+        worker_id: &WorkerId,
+        resource_usage: &hodei_core::ResourceUsage,
+    ) -> Result<(), WorkerClientError> {
+        // Convert hodei_core::ResourceUsage to proto format
+        let proto_usage = hwp_proto::ResourceUsage {
+            cpu_usage_m: resource_usage.cpu_usage_m,
+            memory_usage_mb: resource_usage.memory_usage_mb,
+            active_jobs: resource_usage.active_jobs,
+            disk_read_mb: resource_usage.disk_read_mb,
+            disk_write_mb: resource_usage.disk_write_mb,
+            network_sent_mb: resource_usage.network_sent_mb,
+            network_received_mb: resource_usage.network_received_mb,
+            gpu_utilization_percent: resource_usage.gpu_utilization_percent,
+            timestamp: resource_usage.timestamp,
         };
 
         let request = hwp_proto::HeartbeatRequest {
             worker_id: worker_id.to_string(),
-            timestamp: chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0),
-            resource_usage,
+            timestamp: resource_usage.timestamp,
+            resource_usage: Some(proto_usage),
         };
 
         let _result = timeout(self.timeout, async {
@@ -806,12 +795,27 @@ impl WorkerClient for HttpWorkerClient {
         Ok(worker_status)
     }
 
-    async fn send_heartbeat(&self, worker_id: &WorkerId) -> Result<(), WorkerClientError> {
+    async fn send_heartbeat(
+        &self,
+        worker_id: &WorkerId,
+        resource_usage: &hodei_core::ResourceUsage,
+    ) -> Result<(), WorkerClientError> {
         let url = format!("{}/api/v1/workers/{}/heartbeat", self.base_url, worker_id);
 
         let payload = serde_json::json!({
             "worker_id": worker_id.to_string(),
-            "timestamp": chrono::Utc::now().timestamp()
+            "timestamp": resource_usage.timestamp,
+            "resource_usage": {
+                "cpu_usage_m": resource_usage.cpu_usage_m,
+                "memory_usage_mb": resource_usage.memory_usage_mb,
+                "active_jobs": resource_usage.active_jobs,
+                "disk_read_mb": resource_usage.disk_read_mb,
+                "disk_write_mb": resource_usage.disk_write_mb,
+                "network_sent_mb": resource_usage.network_sent_mb,
+                "network_received_mb": resource_usage.network_received_mb,
+                "gpu_utilization_percent": resource_usage.gpu_utilization_percent,
+                "timestamp": resource_usage.timestamp,
+            }
         });
 
         let _response = timeout(self.timeout, async {
@@ -949,8 +953,12 @@ impl WorkerClient for ResilientWorkerClient {
         }
     }
 
-    async fn send_heartbeat(&self, worker_id: &WorkerId) -> Result<(), WorkerClientError> {
-        self.inner.send_heartbeat(worker_id).await
+    async fn send_heartbeat(
+        &self,
+        worker_id: &WorkerId,
+        resource_usage: &hodei_core::ResourceUsage,
+    ) -> Result<(), WorkerClientError> {
+        self.inner.send_heartbeat(worker_id, resource_usage).await
     }
 }
 

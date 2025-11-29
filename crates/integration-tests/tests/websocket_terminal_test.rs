@@ -13,12 +13,15 @@ use std::sync::Arc;
 async fn test_websocket_terminal_endpoint() {
     println!("🧪 Testing WebSocket Terminal endpoint (US-008)...");
 
+    let event_bus = Arc::new(InMemoryBus::new(100));
+
     // Test 1: Verify terminal API is accessible
     println!("1️⃣  Verifying terminal API is configured...");
 
     let app = create_api_router(ServerComponents {
         config: AppConfig::default(),
-        event_subscriber: Arc::new(InMemoryBus::new(100)),
+        event_subscriber: event_bus.clone(),
+        event_publisher: event_bus,
         status: "running",
     });
 

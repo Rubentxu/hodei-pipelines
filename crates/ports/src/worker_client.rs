@@ -31,7 +31,11 @@ pub trait WorkerClient: Send + Sync {
     ) -> Result<WorkerStatus, WorkerClientError>;
 
     /// Send heartbeat to worker
-    async fn send_heartbeat(&self, worker_id: &WorkerId) -> Result<(), WorkerClientError>;
+    async fn send_heartbeat(
+        &self,
+        worker_id: &WorkerId,
+        resource_usage: &hodei_core::ResourceUsage,
+    ) -> Result<(), WorkerClientError>;
 }
 
 /// Worker client error

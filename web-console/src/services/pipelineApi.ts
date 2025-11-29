@@ -24,7 +24,7 @@ export interface UpdatePipelineRequest {
 }
 
 export async function getPipelines(): Promise<Pipeline[]> {
-  const response = await fetch('/api/pipelines');
+  const response = await fetch('/api/v1/pipelines');
 
   if (!response.ok) {
     throw new Error('Failed to fetch pipelines');
@@ -34,7 +34,7 @@ export async function getPipelines(): Promise<Pipeline[]> {
 }
 
 export async function getPipeline(id: string): Promise<Pipeline> {
-  const response = await fetch(`/api/pipelines/${id}`);
+  const response = await fetch(`/api/v1/pipelines/${id}`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch pipeline');
@@ -46,7 +46,7 @@ export async function getPipeline(id: string): Promise<Pipeline> {
 export async function createPipeline(
   data: CreatePipelineRequest
 ): Promise<Pipeline> {
-  const response = await fetch('/api/pipelines', {
+  const response = await fetch('/api/v1/pipelines', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -65,7 +65,7 @@ export async function updatePipeline(
   id: string,
   data: UpdatePipelineRequest
 ): Promise<Pipeline> {
-  const response = await fetch(`/api/pipelines/${id}`, {
+  const response = await fetch(`/api/v1/pipelines/${id}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -81,7 +81,7 @@ export async function updatePipeline(
 }
 
 export async function deletePipeline(id: string): Promise<void> {
-  const response = await fetch(`/api/pipelines/${id}`, {
+  const response = await fetch(`/api/v1/pipelines/${id}`, {
     method: 'DELETE',
   });
 
@@ -91,7 +91,7 @@ export async function deletePipeline(id: string): Promise<void> {
 }
 
 export async function executePipeline(id: string): Promise<{ executionId: string }> {
-  const response = await fetch(`/api/pipelines/${id}/execute`, {
+  const response = await fetch(`/api/v1/pipelines/${id}/execute`, {
     method: 'POST',
   });
 

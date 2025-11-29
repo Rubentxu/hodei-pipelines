@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SLAViolationTicker } from '../sla-violation-ticker';
 
 describe('SLAViolationTicker', () => {
   const mockViolations = [
-    { id: '1', message: 'Pipeline: data-processing exceeded SLA (2.5h > 2h)', severity: 'critical' },
-    { id: '2', message: 'Worker pool: batch-workers at 85% capacity', severity: 'warning' },
+    { id: '1', message: 'Pipeline: data-processing exceeded SLA (2.5h > 2h)', severity: 'critical' as const },
+    { id: '2', message: 'Worker pool: batch-workers at 85% capacity', severity: 'warning' as const },
   ];
 
   beforeEach(() => {
@@ -24,7 +24,7 @@ describe('SLAViolationTicker', () => {
   });
 
   it('shows severity badges', () => {
-    render(<SLAViolationTicker violations={mockViolations />);
+    render(<SLAViolationTicker violations={mockViolations} />);
     expect(screen.getByText('Crítico')).toBeInTheDocument();
     expect(screen.getByText('Advertencia')).toBeInTheDocument();
   });

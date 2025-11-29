@@ -51,6 +51,7 @@ pub enum SystemEvent {
     WorkerHeartbeat {
         worker_id: WorkerId,
         timestamp: chrono::DateTime<chrono::Utc>,
+        resource_usage: hodei_core::ResourceUsage,
     },
 
     /// Log chunk received event
@@ -135,7 +136,6 @@ mod tests {
     use chrono::Utc;
     use hodei_core::{JobId, JobSpec, ResourceQuota, WorkerId};
     use std::collections::HashMap;
-    
 
     #[tokio::test]
     async fn test_event_publisher_trait_exists() {
@@ -291,6 +291,17 @@ mod tests {
         let event = SystemEvent::WorkerHeartbeat {
             worker_id: WorkerId::new(),
             timestamp: chrono::Utc::now(),
+            resource_usage: hodei_core::ResourceUsage {
+                cpu_usage_m: 100,
+                memory_usage_mb: 1024,
+                active_jobs: 1,
+                disk_read_mb: 0.0,
+                disk_write_mb: 0.0,
+                network_sent_mb: 0.0,
+                network_received_mb: 0.0,
+                gpu_utilization_percent: 0.0,
+                timestamp: chrono::Utc::now().timestamp_millis(),
+            },
         };
 
         // Test: Should serialize to JSON

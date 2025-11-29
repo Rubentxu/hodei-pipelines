@@ -2,17 +2,29 @@
 //!
 //! This module contains the core server implementation for the Hodei job orchestration system.
 
+pub mod alerting_system;
 pub mod api_docs;
+pub mod audit_logs_compliance;
 pub mod bootstrap;
+pub mod budget_management;
+pub mod cost_optimization_recommendations;
+pub mod cost_tracking_aggregation;
 pub mod error;
 pub mod execution_api;
 pub mod grpc;
 pub mod handlers;
+pub mod live_metrics_api;
 pub mod logs_api;
+pub mod logs_explorer_ui;
+pub mod metrics_api;
 pub mod observability_api;
 pub mod pipeline_api;
+pub mod rbac;
+pub mod realtime_status_api;
 pub mod resource_pool_crud;
+pub mod security_vulnerability_tracking;
 pub mod terminal;
+pub mod traces_distributed_tracing;
 
 // API Router module for shared routes
 pub mod api_router;

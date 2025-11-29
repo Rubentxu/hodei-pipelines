@@ -47,6 +47,20 @@ pub use crate::worker_messages::{
     WorkerStatus,
 };
 
+/// Resource usage metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceUsage {
+    pub cpu_usage_m: u64,
+    pub memory_usage_mb: u64,
+    pub active_jobs: u32,
+    pub disk_read_mb: f64,
+    pub disk_write_mb: f64,
+    pub network_sent_mb: f64,
+    pub network_received_mb: f64,
+    pub gpu_utilization_percent: f64,
+    pub timestamp: i64,
+}
+
 /// Tenant identifier for multi-tenancy support
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TenantId(String);

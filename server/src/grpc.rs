@@ -21,13 +21,18 @@ use crate::error::GrpcError;
 
 pub struct HwpService {
     scheduler: Arc<dyn hodei_ports::scheduler_port::SchedulerPort + Send + Sync>,
+    event_publisher: Arc<dyn hodei_ports::EventPublisher>,
 }
 
 impl HwpService {
     pub fn new(
         scheduler: Arc<dyn hodei_ports::scheduler_port::SchedulerPort + Send + Sync>,
+        event_publisher: Arc<dyn hodei_ports::EventPublisher>,
     ) -> Self {
-        Self { scheduler }
+        Self {
+            scheduler,
+            event_publisher,
+        }
     }
 }
 
@@ -114,7 +119,39 @@ impl WorkerService for HwpService {
         request: Request<hwp_proto::HeartbeatRequest>,
     ) -> Result<Response<Empty>, Status> {
         let req = request.into_inner();
-        info!("Heartbeat from worker: {}", req.worker_id);
+        // info!("Heartbeat from worker: {}", req.worker_id);
+
+        if let Some(proto_usage) = req.resource_usage {
+            let resource_usage = hodei_core::ResourceUsage {
+                cpu_usage_m: proto_usage.cpu_usage_m,
+                memory_usage_mb: proto_usage.memory_usage_mb,
+                active_jobs: proto_usage.active_jobs,
+                disk_read_mb: proto_usage.disk_read_mb,
+                disk_write_mb: proto_usage.disk_write_mb,
+                network_sent_mb: proto_usage.network_sent_mb,
+                network_received_mb: proto_usage.network_received_mb,
+                gpu_utilization_percent: proto_usage.gpu_utilization_percent,
+                timestamp: proto_usage.timestamp,
+            };
+
+            let worker_id_str = req.worker_id.clone();
+            // Parse worker_id, if fails log warning and ignore
+            if let Ok(worker_uuid) = uuid::Uuid::parse_str(&worker_id_str) {
+                let worker_id = WorkerId::from_uuid(worker_uuid);
+
+                let event = hodei_ports::SystemEvent::WorkerHeartbeat {
+                    worker_id,
+                    timestamp: chrono::Utc::now(),
+                    resource_usage,
+                };
+
+                if let Err(e) = self.event_publisher.publish(event).await {
+                    warn!("Failed to publish heartbeat event: {}", e);
+                }
+            } else {
+                warn!("Invalid worker ID in heartbeat: {}", worker_id_str);
+            }
+        }
 
         Ok(Response::new(Empty {}))
     }
@@ -275,7 +312,8 @@ mod tests {
     #[tokio::test]
     async fn test_initiate_upload_generates_unique_upload_id() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = InitiateUploadRequest {
             artifact_id: "test-artifact".to_string(),
@@ -301,7 +339,8 @@ mod tests {
     #[tokio::test]
     async fn test_initiate_upload_rejects_when_checksum_missing() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = InitiateUploadRequest {
             artifact_id: "test-artifact".to_string(),
@@ -325,7 +364,8 @@ mod tests {
     #[tokio::test]
     async fn test_resume_upload_returns_next_expected_chunk() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = ResumeUploadRequest {
             upload_id: "test-upload-id".to_string(),
@@ -348,7 +388,8 @@ mod tests {
     #[tokio::test]
     async fn test_finalize_upload_validates_and_returns_checksum() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = FinalizeUploadRequest {
             upload_id: "test-upload-id".to_string(),
@@ -371,7 +412,8 @@ mod tests {
     #[tokio::test]
     async fn test_finalize_upload_with_mismatched_checksum() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = FinalizeUploadRequest {
             upload_id: "test-upload-id".to_string(),
@@ -392,7 +434,8 @@ mod tests {
     #[tokio::test]
     async fn test_worker_registration_with_empty_id_returns_error() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = WorkerRegistration {
             worker_id: "".to_string(),
@@ -410,7 +453,8 @@ mod tests {
     #[tokio::test]
     async fn test_worker_registration_with_valid_id_succeeds() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = WorkerRegistration {
             worker_id: "worker-1".to_string(),
@@ -428,7 +472,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_worker_status_returns_idle_state() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = hwp_proto::GetWorkerStatusRequest {
             worker_id: "worker-1".to_string(),
@@ -447,7 +492,8 @@ mod tests {
     #[tokio::test]
     async fn test_heartbeat_always_succeeds() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = hwp_proto::HeartbeatRequest {
             worker_id: "worker-1".to_string(),
@@ -463,7 +509,8 @@ mod tests {
     #[tokio::test]
     async fn test_assign_job_returns_unimplemented() {
         let scheduler = Arc::new(MockSchedulerPort);
-        let service = HwpService::new(scheduler);
+        let event_bus = Arc::new(hodei_adapters::InMemoryBus::new(10));
+        let service = HwpService::new(scheduler, event_bus);
 
         let req = AssignJobRequest {
             job_id: "job-1".to_string(),

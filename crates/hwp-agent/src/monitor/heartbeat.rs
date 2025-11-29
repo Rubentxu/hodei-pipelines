@@ -161,10 +161,23 @@ impl HeartbeatSender {
     }
 
     /// Send heartbeat via gRPC client
-    async fn send_heartbeat(&mut self, _usage: &ResourceUsage) -> Result<()> {
+    async fn send_heartbeat(&mut self, usage: &ResourceUsage) -> Result<()> {
+        // Map local ResourceUsage to hodei_core::ResourceUsage
+        let core_usage = hodei_core::ResourceUsage {
+            cpu_usage_m: (usage.cpu_percent * 10.0) as u64, // Convert % to millicores (approx)
+            memory_usage_mb: usage.memory_bytes / 1024 / 1024,
+            active_jobs: 0, // TODO: Get active jobs count
+            disk_read_mb: usage.disk_read_bytes as f64 / 1024.0 / 1024.0,
+            disk_write_mb: usage.disk_write_bytes as f64 / 1024.0 / 1024.0,
+            network_sent_mb: usage.network_tx_bytes as f64 / 1024.0 / 1024.0,
+            network_received_mb: usage.network_rx_bytes as f64 / 1024.0 / 1024.0,
+            gpu_utilization_percent: 0.0,
+            timestamp: chrono::Utc::now().timestamp_millis(),
+        };
+
         // Send heartbeat using the WorkerClient
         self.worker_client
-            .send_heartbeat(&self.worker_id)
+            .send_heartbeat(&self.worker_id, &core_usage)
             .await
             .map_err(|e| {
                 warn!("Heartbeat gRPC error: {}", e);
@@ -247,6 +260,7 @@ mod tests {
         async fn send_heartbeat(
             &self,
             _worker_id: &WorkerId,
+            _resource_usage: &hodei_core::ResourceUsage,
         ) -> std::result::Result<(), hodei_ports::WorkerClientError> {
             // Simulate successful heartbeat
             Ok(())

@@ -20,6 +20,7 @@ pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(event_subscriber): State<Arc<dyn EventSubscriber>>,
 ) -> impl IntoResponse {
+    info!("WebSocket upgrade request received");
     ws.on_upgrade(move |socket| handle_socket(socket, event_subscriber))
 }
 
@@ -99,6 +100,7 @@ fn serialize_event_for_client(event: &SystemEvent) -> Option<String> {
         | SystemEvent::JobStarted { .. }
         | SystemEvent::JobCompleted { .. }
         | SystemEvent::JobFailed { .. }
+        | SystemEvent::WorkerHeartbeat { .. }
         | SystemEvent::PipelineCreated(_)
         | SystemEvent::PipelineStarted { .. }
         | SystemEvent::PipelineCompleted { .. }

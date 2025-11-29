@@ -13,7 +13,21 @@ async fn main() -> Result<()> {
     info!("Starting HWP Agent...");
 
     // Load configuration
-    let config = load_config().await?;
+    let mut config = load_config().await?;
+
+    // Ensure worker_id is a UUID
+    if config.worker_id.parse::<hodei_core::Uuid>().is_err() {
+        let uuid = hodei_core::Uuid::new_v5(
+            &hodei_core::Uuid::NAMESPACE_DNS,
+            config.worker_id.as_bytes(),
+        );
+        info!(
+            "Converted worker_id '{}' to UUID '{}'",
+            config.worker_id, uuid
+        );
+        config.worker_id = uuid.to_string();
+    }
+
     info!(
         "Configuration loaded: server={}, tls={}",
         config.server_url, config.tls_enabled
@@ -75,15 +89,43 @@ async fn run_agent_loop(mut agent: hwp_agent::connection::Client, config: Config
     info!("Entering main agent loop");
 
     loop {
+        // Start heartbeat sender
+        let heartbeat_agent = agent.clone();
+        let heartbeat_config = hwp_agent::monitor::HeartbeatConfig {
+            interval_ms: config.resource_sampling_interval_ms,
+            max_failures: 3,
+            failure_timeout_ms: 30000,
+        };
+        // We know worker_id is a valid UUID string now
+        let worker_uuid = config.worker_id.parse::<hodei_core::Uuid>().unwrap();
+        let worker_id = hodei_core::WorkerId(worker_uuid);
+        let sampling_interval = config.resource_sampling_interval_ms;
+
+        let heartbeat_handle = tokio::spawn(async move {
+            let resource_monitor = hwp_agent::monitor::ResourceMonitor::new(sampling_interval);
+            let mut sender = hwp_agent::monitor::HeartbeatSender::new(
+                heartbeat_config,
+                resource_monitor,
+                worker_id,
+                Box::new(heartbeat_agent),
+            );
+            let pids = vec![std::process::id()];
+            if let Err(e) = sender.start(pids).await {
+                error!("Heartbeat sender failed: {}", e);
+            }
+        });
+
         match agent.handle_stream().await {
             Ok(_) => {
                 // Stream ended normally, will auto-reconnect
                 warn!("Stream ended, attempting to reconnect...");
+                heartbeat_handle.abort();
                 connect_with_retry(&mut agent, &config).await?;
             }
             Err(e) => {
                 error!("Stream error: {}", e);
                 // Attempt to reconnect on error
+                heartbeat_handle.abort();
                 connect_with_retry(&mut agent, &config).await?;
             }
         }

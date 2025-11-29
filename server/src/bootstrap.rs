@@ -27,6 +27,7 @@ pub type Result<T> = std::result::Result<T, BootstrapError>;
 pub struct ServerComponents {
     pub config: AppConfig,
     pub event_subscriber: Arc<dyn EventSubscriber>,
+    pub event_publisher: Arc<dyn hodei_ports::EventPublisher>,
     #[allow(dead_code)]
     pub status: &'static str,
 }
@@ -77,7 +78,8 @@ pub async fn initialize_server() -> Result<ServerComponents> {
     info!("📡 Initializing Event Bus...");
     // TODO: Use NatsEventBus if configured, for now defaulting to InMemory
     let event_bus = Arc::new(InMemoryBus::new(1000));
-    let event_subscriber: Arc<dyn EventSubscriber> = event_bus;
+    let event_subscriber: Arc<dyn EventSubscriber> = event_bus.clone();
+    let event_publisher: Arc<dyn hodei_ports::EventPublisher> = event_bus;
     info!("✅ Event Bus initialized");
 
     // Log configuration summary
@@ -93,6 +95,7 @@ pub async fn initialize_server() -> Result<ServerComponents> {
     Ok(ServerComponents {
         config,
         event_subscriber,
+        event_publisher,
         status: "ready",
     })
 }

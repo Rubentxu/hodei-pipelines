@@ -16,6 +16,7 @@ async fn test_websocket_status_updates() {
     let components = ServerComponents {
         config: hodei_adapters::config::AppConfig::default(),
         event_subscriber: event_bus.clone(),
+        event_publisher: event_bus.clone(),
         status: "ready",
     };
 

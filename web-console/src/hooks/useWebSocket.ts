@@ -10,7 +10,8 @@ export type SystemEvent =
     | { type: 'PipelineStarted'; payload: { pipeline_id: string } }
     | { type: 'PipelineCompleted'; payload: { pipeline_id: string } }
     | { type: 'PipelineExecutionStarted'; payload: { pipeline_id: string; execution_id: string } }
-    | { type: 'LogChunkReceived'; payload: any };
+    | { type: 'LogChunkReceived'; payload: any }
+    | { type: 'WorkerHeartbeat'; payload: { worker_id: string; timestamp: string; resource_usage: any } };
 
 type WebSocketStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -21,7 +22,7 @@ interface UseWebSocketOptions {
 }
 
 export const useWebSocket = ({
-    url = 'ws://localhost:3000/ws', // Default URL, should be configurable
+    url = 'ws://127.0.0.1:8080/ws', // Use IP to avoid potential localhost proxy issues
     onMessage,
     reconnectInterval = 3000,
 }: UseWebSocketOptions = {}) => {

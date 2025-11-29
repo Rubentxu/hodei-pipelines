@@ -28,7 +28,7 @@ use crate::{AgentError, Config, Result};
 use tonic::transport::{Certificate, Identity};
 
 /// gRPC client wrapper
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     config: Config,
     channel: Option<Channel>,
@@ -153,8 +153,13 @@ impl Client {
 
         // Create the bidirectional stream
         let request_stream = ReceiverStream::new(rx);
+        let mut request = Request::new(request_stream);
+        request
+            .metadata_mut()
+            .insert("worker-id", self.config.worker_id.parse().unwrap());
+
         let mut response_stream = client
-            .job_stream(Request::new(request_stream))
+            .job_stream(request)
             .await
             .map_err(|e| AgentError::Stream(format!("Failed to open JobStream: {}", e)))?
             .into_inner();
@@ -450,6 +455,75 @@ impl Client {
     /// Get process manager reference
     pub fn process_manager(&self) -> &ProcessManager {
         &self.process_manager
+    }
+}
+
+use async_trait::async_trait;
+use hodei_ports::{WorkerClient, WorkerClientError};
+
+#[async_trait]
+impl WorkerClient for Client {
+    async fn assign_job(
+        &self,
+        _worker_id: &hodei_core::WorkerId,
+        _job_id: &hodei_core::JobId,
+        _job_spec: &hodei_core::JobSpec,
+    ) -> std::result::Result<(), WorkerClientError> {
+        Err(WorkerClientError::NotAvailable)
+    }
+
+    async fn cancel_job(
+        &self,
+        _worker_id: &hodei_core::WorkerId,
+        _job_id: &hodei_core::JobId,
+    ) -> std::result::Result<(), WorkerClientError> {
+        Err(WorkerClientError::NotAvailable)
+    }
+
+    async fn get_worker_status(
+        &self,
+        _worker_id: &hodei_core::WorkerId,
+    ) -> std::result::Result<hodei_core::WorkerStatus, WorkerClientError> {
+        Err(WorkerClientError::NotAvailable)
+    }
+
+    async fn send_heartbeat(
+        &self,
+        worker_id: &hodei_core::WorkerId,
+        resource_usage: &hodei_core::ResourceUsage,
+    ) -> std::result::Result<(), WorkerClientError> {
+        let channel = self
+            .channel
+            .as_ref()
+            .ok_or_else(|| WorkerClientError::Connection("Not connected".to_string()))?;
+
+        let mut client =
+            WorkerServiceClient::with_interceptor(channel.clone(), self.interceptor.clone());
+
+        let proto_usage = hwp_proto::ResourceUsage {
+            cpu_usage_m: resource_usage.cpu_usage_m,
+            memory_usage_mb: resource_usage.memory_usage_mb,
+            active_jobs: resource_usage.active_jobs,
+            disk_read_mb: resource_usage.disk_read_mb,
+            disk_write_mb: resource_usage.disk_write_mb,
+            network_sent_mb: resource_usage.network_sent_mb,
+            network_received_mb: resource_usage.network_received_mb,
+            gpu_utilization_percent: resource_usage.gpu_utilization_percent,
+            timestamp: resource_usage.timestamp,
+        };
+
+        let request = hwp_proto::HeartbeatRequest {
+            worker_id: worker_id.to_string(),
+            timestamp: resource_usage.timestamp,
+            resource_usage: Some(proto_usage),
+        };
+
+        client
+            .heartbeat(Request::new(request))
+            .await
+            .map_err(|e| WorkerClientError::Communication(e.to_string()))?;
+
+        Ok(())
     }
 }
 
