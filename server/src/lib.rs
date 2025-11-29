@@ -12,6 +12,7 @@ pub mod logs_api;
 pub mod observability_api;
 pub mod pipeline_api;
 pub mod resource_pool_crud;
+pub mod terminal;
 
 // API Router module for shared routes
 pub mod api_router;

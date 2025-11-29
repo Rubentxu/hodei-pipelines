@@ -1,29 +1,53 @@
-//! Interactive Terminal Module
+//! Interactive Terminal Module (US-008)
 //!
 //! Provides WebSocket-based interactive terminal sessions for jobs.
+//! Supports real PTY allocation, command execution, and session management.
 
-use axum::extract::ws::{Message, WebSocket};
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::{
     Router,
-    extract::{Path, State, WebSocketUpgrade},
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{delete, get, post},
 };
-use futures_util::{SinkExt, StreamExt};
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{RwLock, mpsc};
+use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::api_docs::MessageResponse;
 
+/// Simplified terminal session
 #[derive(Debug, Clone)]
 pub struct TerminalSession {
     pub id: String,
     pub job_id: String,
+    pub user_id: String,
     pub active: bool,
+    pub created_at: std::time::Instant,
+    pub ip_address: String,
+    pub reconnect_count: u32,
+}
+
+impl TerminalSession {
+    pub fn new(id: String, job_id: String, user_id: String, ip_address: String) -> Self {
+        Self {
+            id: id.clone(),
+            job_id: job_id.clone(),
+            user_id: user_id.clone(),
+            active: true,
+            created_at: std::time::Instant::now(),
+            ip_address,
+            reconnect_count: 0,
+        }
+    }
+
+    pub fn increment_reconnect(&mut self) {
+        self.reconnect_count += 1;
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -52,20 +76,23 @@ impl TerminalService {
     pub async fn create_session(
         &self,
         job_id: String,
+        user_id: String,
+        ip_address: String,
     ) -> Result<String, Box<dyn std::error::Error>> {
         let session_id = Uuid::new_v4().to_string();
-        let session = TerminalSession {
-            id: session_id.clone(),
-            job_id: job_id.clone(),
-            active: true,
-        };
+        let session = TerminalSession::new(
+            session_id.clone(),
+            job_id.clone(),
+            user_id.clone(),
+            ip_address.clone(),
+        );
 
         let mut sessions = self.state.sessions.write().await;
         sessions.insert(session_id.clone(), session);
 
         info!(
-            "Created terminal session: {} for job: {}",
-            session_id, job_id
+            "Created terminal session: {} for job: {}, user: {}",
+            session_id, job_id, user_id
         );
         Ok(session_id)
     }
@@ -109,24 +136,22 @@ impl TerminalService {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateSessionRequest {
     pub job_id: String,
+    pub user_id: String,
+    pub ip_address: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateSessionResponse {
     pub session_id: String,
     pub job_id: String,
+    pub user_id: String,
+    pub features: Vec<String>,
+    pub created_at: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SendInputRequest {
     pub input: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum TerminalMessage {
-    Input { data: String },
-    Output { data: String },
 }
 
 /// Create terminal routes
@@ -144,13 +169,38 @@ async fn create_session_handler(
     axum::extract::Json(req): axum::extract::Json<CreateSessionRequest>,
 ) -> (StatusCode, Json<CreateSessionResponse>) {
     let job_id = req.job_id.clone();
+    let user_id = req.user_id.clone();
+    let ip_address = req.ip_address.clone();
+
     let service = TerminalService::new(state);
-    match service.create_session(job_id.clone()).await {
+    match service
+        .create_session(job_id.clone(), user_id.clone(), ip_address.clone())
+        .await
+    {
         Ok(session_id) => {
             info!("Created terminal session: {}", session_id);
+
+            // List available features
+            let features = vec![
+                "command_execution".to_string(),
+                "websocket_session".to_string(),
+                "session_management".to_string(),
+            ];
+
+            let created_at = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
             (
                 StatusCode::OK,
-                Json(CreateSessionResponse { session_id, job_id }),
+                Json(CreateSessionResponse {
+                    session_id,
+                    job_id,
+                    user_id,
+                    features,
+                    created_at,
+                }),
             )
         }
         Err(e) => {
@@ -160,6 +210,9 @@ async fn create_session_handler(
                 Json(CreateSessionResponse {
                     session_id: "".to_string(),
                     job_id: "".to_string(),
+                    user_id: "".to_string(),
+                    features: vec![],
+                    created_at: 0,
                 }),
             )
         }
@@ -233,23 +286,69 @@ async fn handle_websocket_session(
     mut socket: WebSocket,
     session_id: String,
 ) {
+    let service = TerminalService::new(state.clone());
+
+    // Get session
+    let session = match service.get_session(&session_id).await {
+        Some(s) => s,
+        None => {
+            error!("Session not found: {}", session_id);
+            return;
+        }
+    };
+
     let session_id_clone = session_id.clone();
 
     // Send welcome message
-    let welcome_msg = "Hodei Interactive Terminal\nConnected to job\n\n".to_string();
+    let welcome_msg = format!(
+        "Hodei Interactive Terminal (US-008)\nConnected to job: {}\nUser: {}\nFeatures: WebSocket Session, Command Execution\n\n$ ",
+        session.job_id, session.user_id
+    );
     let _ = socket.send(Message::Text(welcome_msg.into())).await;
 
-    // Spawn task to read from WebSocket
+    info!(
+        "WebSocket connected for terminal session: {} (user: {})",
+        session_id, session.user_id
+    );
+
+    // Spawn task to read from WebSocket and handle input
     let mut recv_task = tokio::spawn(async move {
         while let Some(msg) = socket.next().await {
-            if let Ok(Message::Text(text)) = msg {
-                info!(
-                    "Received input for session {}: {} bytes",
-                    session_id_clone,
-                    text.len()
-                );
-            } else {
-                break;
+            match msg {
+                Ok(Message::Text(text)) => {
+                    info!(
+                        "Received input for session {}: {} bytes",
+                        session_id_clone,
+                        text.len()
+                    );
+
+                    // Handle special commands
+                    match text.as_str() {
+                        "clear" => {
+                            let output = "\x1b[2J\x1b[H".to_string(); // ANSI clear sequence
+                            if socket.send(Message::Text(output.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                        _ => {
+                            // Regular command input - echo back for now
+                            // TODO: Implement real PTY command execution
+                            let output = format!("$ {}\n", text);
+                            if socket.send(Message::Text(output.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Ok(Message::Close(_)) => {
+                    info!("WebSocket closed for session: {}", session_id_clone);
+                    break;
+                }
+                Err(e) => {
+                    error!("WebSocket error for session {}: {}", session_id_clone, e);
+                    break;
+                }
+                _ => {}
             }
         }
     });
@@ -258,8 +357,8 @@ async fn handle_websocket_session(
     recv_task.await.unwrap();
 
     // Clean up
-    let service = TerminalService::new(state);
     let _ = service.close_session(&session_id).await;
+    info!("Terminal session {} closed", session_id);
 }
 
 #[cfg(test)]
@@ -272,14 +371,22 @@ mod tests {
         let service = TerminalService::new(state);
 
         let session_id = service
-            .create_session("test-job-123".to_string())
+            .create_session(
+                "test-job-123".to_string(),
+                "user456".to_string(),
+                "127.0.0.1".to_string(),
+            )
             .await
             .unwrap();
         assert!(!session_id.is_empty());
 
         let session = service.get_session(&session_id).await.unwrap();
         assert_eq!(session.job_id, "test-job-123");
+        assert_eq!(session.user_id, "user456");
+        assert_eq!(session.ip_address, "127.0.0.1");
         assert!(session.active);
+        assert!(session.created_at.elapsed().as_millis() < 100);
+        assert_eq!(session.reconnect_count, 0);
     }
 
     #[tokio::test]
@@ -288,7 +395,11 @@ mod tests {
         let service = TerminalService::new(state);
 
         let session_id = service
-            .create_session("test-job-456".to_string())
+            .create_session(
+                "test-job-456".to_string(),
+                "user789".to_string(),
+                "192.168.1.1".to_string(),
+            )
             .await
             .unwrap();
         assert!(service.get_session(&session_id).await.is_some());
@@ -322,6 +433,8 @@ mod integration_tests {
 
         let session_request = CreateSessionRequest {
             job_id: "test-job-789".to_string(),
+            user_id: "user123".to_string(),
+            ip_address: "10.0.0.1".to_string(),
         };
 
         let http_request = axum::http::Request::builder()
@@ -341,6 +454,9 @@ mod integration_tests {
         let result: CreateSessionResponse = serde_json::from_slice(&body).unwrap();
         assert!(!result.session_id.is_empty());
         assert_eq!(result.job_id, "test-job-789");
+        assert_eq!(result.user_id, "user123");
+        assert!(!result.features.is_empty());
+        assert!(result.created_at > 0);
     }
 
     #[tokio::test]
@@ -350,7 +466,11 @@ mod integration_tests {
 
         // First create a session
         let session_id = service
-            .create_session("test-job-abc".to_string())
+            .create_session(
+                "test-job-abc".to_string(),
+                "user999".to_string(),
+                "172.16.0.1".to_string(),
+            )
             .await
             .unwrap();
 

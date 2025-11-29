@@ -14,6 +14,7 @@ use crate::execution_api::{ExecutionApiAppState, ExecutionServiceWrapper, execut
 use crate::logs_api::{LogServiceWrapper, LogsApiAppState, MockLogService, logs_api_routes};
 use crate::pipeline_api::{PipelineApiAppState, PipelineServiceWrapper, pipeline_api_routes};
 use crate::resource_pool_crud::{ResourcePoolCrudAppState, resource_pool_crud_routes};
+use crate::terminal::{TerminalAppState, terminal_routes};
 
 use hodei_core::{
     DomainError, ExecutionId, Pipeline, PipelineId, Result as CoreResult,
@@ -120,10 +121,14 @@ pub fn create_api_router(_server_components: ServerComponents) -> axum::Router {
     let mock_log_service = Arc::new(MockLogService);
     let logs_state = LogsApiAppState::new(mock_log_service);
 
+    // Initialize terminal state
+    let terminal_state = TerminalAppState::default();
+
     info!("✅ Resource Pool CRUD routes initialized");
     info!("✅ Pipeline API routes initialized");
     info!("✅ Execution API routes initialized");
     info!("✅ Logs API routes initialized");
+    info!("✅ Terminal API routes initialized");
 
     // Create main router with all routes
     Router::new()
@@ -159,6 +164,8 @@ pub fn create_api_router(_server_components: ServerComponents) -> axum::Router {
                     "/worker-pools",
                     resource_pool_crud_routes().with_state(resource_pool_state),
                 )
+                // WebSocket Terminal Interactive (US-008)
+                .nest("/terminal", terminal_routes().with_state(terminal_state))
                 // Observability routes
                 .nest("/observability", observability_routes()),
         )
