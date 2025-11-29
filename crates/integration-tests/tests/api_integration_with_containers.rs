@@ -3,14 +3,17 @@
 //! Tests for API endpoints
 //! Validates production-ready functionality
 
+use hodei_adapters::bus::InMemoryBus;
 use hodei_adapters::config::AppConfig;
 use hodei_server::bootstrap::ServerComponents;
 use hodei_server::create_api_router;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_health_endpoint() {
     let _app = create_api_router(ServerComponents {
         config: AppConfig::default(),
+        event_subscriber: Arc::new(InMemoryBus::new(100)),
         status: "healthy",
     });
 
@@ -26,6 +29,7 @@ async fn test_live_logs_sse_endpoint() {
 
     let app = create_api_router(ServerComponents {
         config: AppConfig::default(),
+        event_subscriber: Arc::new(InMemoryBus::new(100)),
         status: "running",
     });
 
@@ -73,6 +77,7 @@ async fn test_live_logs_sse_endpoint() {
     // Just verify the app was created successfully
     let _app = create_api_router(ServerComponents {
         config: AppConfig::default(),
+        event_subscriber: Arc::new(InMemoryBus::new(100)),
         status: "running",
     });
 

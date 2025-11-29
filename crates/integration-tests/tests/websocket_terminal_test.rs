@@ -3,11 +3,11 @@
 //! Tests for WebSocket-based interactive terminal sessions.
 //! Validates production-ready terminal functionality with real PTY allocation.
 
-use axum_test::TestServer;
+use hodei_adapters::bus::InMemoryBus;
 use hodei_adapters::config::AppConfig;
 use hodei_server::bootstrap::ServerComponents;
 use hodei_server::create_api_router;
-use serde_json::json;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_websocket_terminal_endpoint() {
@@ -18,6 +18,7 @@ async fn test_websocket_terminal_endpoint() {
 
     let app = create_api_router(ServerComponents {
         config: AppConfig::default(),
+        event_subscriber: Arc::new(InMemoryBus::new(100)),
         status: "running",
     });
 
@@ -110,8 +111,8 @@ async fn test_terminal_pty_allocation() {
     println!("   ✅ PTY pair created successfully");
 
     // Test reading/writing to PTY
-    let mut writer = pair.master.take_writer().unwrap();
-    let mut reader = pair.master.try_clone_reader().unwrap();
+    let writer = pair.master.take_writer().unwrap();
+    let reader = pair.master.try_clone_reader().unwrap();
 
     println!("   ✅ PTY writer/reader obtained");
 
