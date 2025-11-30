@@ -30,6 +30,7 @@ pub trait WorkerMapper {
     fn to_row(&self, worker: &Worker) -> WorkerRow;
 
     /// Convert database row to domain Worker
+    #[allow(clippy::wrong_self_convention)]
     fn from_row(&self, row: WorkerRow) -> Result<Worker, String>;
 }
 

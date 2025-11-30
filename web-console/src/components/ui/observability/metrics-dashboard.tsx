@@ -223,3 +223,40 @@ export function MetricsDashboard() {
     </div>
   );
 }
+
+interface KPICardProps {
+  title: string;
+  value: number;
+  format: 'number' | 'percentage';
+  trend: 'up' | 'down' | 'neutral';
+  trendValue: string;
+}
+
+function KPICard({ title, value, format, trend, trendValue }: KPICardProps) {
+  const formattedValue = format === 'percentage' ? `${value}%` : value.toLocaleString();
+
+  const trendColor = {
+    up: 'text-green-400',
+    down: 'text-red-400',
+    neutral: 'text-gray-400',
+  }[trend];
+
+  const trendIcon = {
+    up: '↑',
+    down: '↓',
+    neutral: '•',
+  }[trend];
+
+  return (
+    <Card className="p-4">
+      <h4 className="text-sm font-medium text-gray-400 mb-2">{title}</h4>
+      <div className="flex items-end justify-between">
+        <div className="text-2xl font-semibold text-gray-100">{formattedValue}</div>
+        <div className={`flex items-center text-xs ${trendColor}`}>
+          <span className="mr-1">{trendIcon}</span>
+          {trendValue}
+        </div>
+      </div>
+    </Card>
+  );
+}

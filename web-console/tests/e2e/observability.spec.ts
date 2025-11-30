@@ -3,11 +3,37 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Observability Dashboard', () => {
     test.beforeEach(async ({ page }) => {
-        page.on('console', msg => console.log(`BROWSER LOG: ${msg.text()}`));
-        page.on('pageerror', err => console.log(`BROWSER ERROR: ${err.message}`));
+        // Mock Auth
+        await page.addInitScript(() => {
+            window.localStorage.setItem('token', 'fake-jwt-token');
+            window.localStorage.setItem('user', JSON.stringify({ id: 'user-1', name: 'Test User', email: 'test@example.com', role: 'admin' }));
+        });
+
+        // Mock Streams (hang to simulate open connection)
+        await page.route('**/api/observability/metrics/stream', async (route) => {
+            console.log('Intercepted metrics stream');
+            // Do not fulfill, let it hang or return a stream if possible. 
+            // For now, we just don't continue, effectively hanging it (which is fine for EventSource).
+            // Or better, fulfill with a stream header and keep open? Playwright fulfill doesn't support keeping open easily without a stream object.
+            // Let's just return a 200 OK with text/event-stream and a heartbeat.
+            await route.fulfill({
+                status: 200,
+                contentType: 'text/event-stream',
+                body: ': heartbeat\n\n'
+            });
+        });
+
+        await page.route('**/api/observability/logs/stream', async (route) => {
+            console.log('Intercepted logs stream');
+            await route.fulfill({
+                status: 200,
+                contentType: 'text/event-stream',
+                body: ': heartbeat\n\n'
+            });
+        });
 
         // Mock Metrics
-        await page.route('/api/observability/metrics*', async (route) => {
+        await page.route('**/api/observability/metrics*', async (route) => {
             console.log('Intercepted metrics request:', route.request().url());
             await route.fulfill({
                 status: 200,
@@ -33,7 +59,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Logs
-        await page.route('/api/observability/logs*', async (route) => {
+        await page.route('**/api/observability/logs*', async (route) => {
             await route.fulfill({
                 json: {
                     logs: [
@@ -46,7 +72,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Traces
-        await page.route('/api/observability/traces*', async (route) => {
+        await page.route('**/api/observability/traces*', async (route) => {
             await route.fulfill({
                 json: {
                     traces: [
@@ -59,7 +85,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Alerts
-        await page.route('/api/observability/alerts*', async (route) => {
+        await page.route('**/api/observability/alerts*', async (route) => {
             await route.fulfill({
                 json: {
                     alerts: [
@@ -71,7 +97,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Alert Rules
-        await page.route('/api/observability/alerts/rules*', async (route) => {
+        await page.route('**/api/observability/alerts/rules*', async (route) => {
             await route.fulfill({
                 json: [
                     { id: 'rule-1', name: 'High Error Rate', severity: 'critical', enabled: true }
@@ -80,7 +106,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Services
-        await page.route('/api/observability/services*', async (route) => {
+        await page.route('**/api/observability/services*', async (route) => {
             await route.fulfill({
                 json: {
                     services: [

@@ -14,7 +14,7 @@ async fn test_openapi_spec_generation() {
 
     // Verify basic info
     // Use the actual package version from Cargo.toml
-    assert_eq!(openapi.info.version, "0.15.0");
+    assert_eq!(openapi.info.version, env!("CARGO_PKG_VERSION"));
     // Title can be "Hodei API" or package name, so just verify it exists
     assert!(!openapi.info.title.is_empty());
 

@@ -1,9 +1,9 @@
 import {
-  LogEntry,
-  Trace,
-  ObservabilityMetricsResponse,
-  AlertRule,
   Alert,
+  AlertRule,
+  LogEntry,
+  ObservabilityMetricsResponse,
+  Trace,
 } from "../types";
 
 const API_BASE = "/api/observability";
@@ -39,7 +39,7 @@ export const observabilityApi = {
     return response.json();
   },
 
-  async streamLogs(onMessage: (log: LogEntry) => void): Promise<EventSource> {
+  streamLogs(onMessage: (log: LogEntry) => void): EventSource {
     const eventSource = new EventSource(`${API_BASE}/logs/stream`);
 
     eventSource.onmessage = (event) => {
@@ -107,9 +107,9 @@ export const observabilityApi = {
     return response.json();
   },
 
-  async streamMetrics(
+  streamMetrics(
     onMessage: (metrics: ObservabilityMetricsResponse) => void,
-  ): Promise<EventSource> {
+  ): EventSource {
     const eventSource = new EventSource(`${API_BASE}/metrics/stream`);
 
     eventSource.onmessage = (event) => {

@@ -7,6 +7,7 @@ import { ResourcePoolList } from "./components/ResourcePoolList";
 import { Layout } from "./components/shared/layout";
 import LoginPage from "./pages/auth/login-page";
 import { DashboardPage } from "./pages/dashboard-page";
+import { DevToolsPage } from "./pages/devtools/devtools-page";
 import { FinOpsPage } from "./pages/finops/finops-page";
 import { ObservabilityPage } from "./pages/observability/observability-page";
 import { ExecutionDetailsPage } from "./pages/pipelines/execution-details-page";
@@ -37,6 +38,7 @@ function App() {
         <Route path="/finops" element={<FinOpsPage />} />
         <Route path="/security" element={<SecurityPage />} />
         <Route path="/observability" element={<ObservabilityPage />} />
+        <Route path="/devtools" element={<DevToolsPage />} />
       </Routes>
     </Layout>
   );
