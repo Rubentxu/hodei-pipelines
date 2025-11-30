@@ -3,6 +3,9 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Observability Dashboard', () => {
     test.beforeEach(async ({ page }) => {
+        page.on('console', msg => console.log(`BROWSER LOG: ${msg.text()}`));
+        page.on('pageerror', err => console.log(`BROWSER ERROR: ${err.message}`));
+
         // Mock Metrics
         await page.route('/api/observability/metrics*', async (route) => {
             await route.fulfill({
