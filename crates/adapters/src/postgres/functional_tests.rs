@@ -10,16 +10,16 @@
 #[cfg(test)]
 #[cfg(feature = "integration")]
 mod tests {
-    use hodei_adapters::{
+    use hodei_modules::pipeline_execution_orchestrator::{
+        PipelineExecutionConfig, PipelineExecutionOrchestrator,
+    };
+    use hodei_pipelines_adapters::{
         PostgreSqlJobRepository, PostgreSqlPipelineExecutionRepository,
         PostgreSqlPipelineRepository, PostgreSqlWorkerRepository,
     };
     use hodei_pipelines_core::{
         JobSpec, JobState, Pipeline, PipelineId, PipelineState, PipelineStep, PipelineStepId,
         ResourceQuota,
-    };
-    use hodei_modules::pipeline_execution_orchestrator::{
-        PipelineExecutionConfig, PipelineExecutionOrchestrator,
     };
     use hodei_pipelines_ports::{
         EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository,
@@ -41,7 +41,10 @@ mod tests {
 
     #[async_trait::async_trait]
     impl EventPublisher for MockEventPublisher {
-        async fn publish(&self, event: hodei_pipelines_ports::SystemEvent) -> hodei_pipelines_core::Result<()> {
+        async fn publish(
+            &self,
+            event: hodei_pipelines_ports::SystemEvent,
+        ) -> hodei_pipelines_core::Result<()> {
             let mut events = self.published_events.lock().await;
             events.push(format!("{:?}", event));
             Ok(())

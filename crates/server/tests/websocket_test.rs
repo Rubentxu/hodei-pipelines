@@ -1,7 +1,7 @@
 use futures::StreamExt;
-use hodei_adapters::bus::InMemoryBus;
-use hodei_core::{JobId, WorkerId};
-use hodei_ports::event_bus::{EventPublisher, SystemEvent};
+use hodei_pipelines_adapters::bus::InMemoryBus;
+use hodei_pipelines_core::{JobId, WorkerId};
+use hodei_pipelines_ports::event_bus::{EventPublisher, SystemEvent};
 use hodei_server::{bootstrap::ServerComponents, create_api_router};
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,7 +14,7 @@ async fn test_websocket_status_updates() {
     // 1. Setup Server Components
     let event_bus = Arc::new(InMemoryBus::new(100));
     let components = ServerComponents {
-        config: hodei_adapters::config::AppConfig::default(),
+        config: hodei_pipelines_adapters::config::AppConfig::default(),
         event_subscriber: event_bus.clone(),
         event_publisher: event_bus.clone(),
         status: "ready",

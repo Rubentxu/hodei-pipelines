@@ -4,70 +4,14 @@
  */
 
 export interface paths {
-    "/pipelines": {
+    "/api/hello-openapi": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * List all pipelines
-         * @description Returns a paginated list of pipelines
-         */
-        get: operations["listPipelines"];
-        put?: never;
-        /**
-         * Create a new pipeline
-         * @description Creates a new pipeline with the provided configuration
-         */
-        post: operations["createPipeline"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/pipelines/{pipelineId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get pipeline by ID
-         * @description Returns a single pipeline by its ID
-         */
-        get: operations["getPipeline"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete pipeline
-         * @description Deletes a pipeline by its ID
-         */
-        delete: operations["deletePipeline"];
-        options?: never;
-        head?: never;
-        /**
-         * Update pipeline
-         * @description Updates an existing pipeline with partial data
-         */
-        patch: operations["updatePipeline"];
-        trace?: never;
-    };
-    "/worker-pools": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List worker pools
-         * @description Returns a list of all worker pools
-         */
-        get: operations["listWorkerPools"];
+        get: operations["hello_openapi"];
         put?: never;
         post?: never;
         delete?: never;
@@ -76,18 +20,767 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/worker-pools/{poolId}/status": {
+    "/api/v1/auth/check": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get worker pool status
-         * @description Returns the current status of a worker pool
-         */
-        get: operations["getWorkerPoolStatus"];
+        get?: never;
+        put?: never;
+        /** POST /api/v1/auth/check - Check permission */
+        post: operations["check_permission_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /api/v1/auth/login - Authenticate user */
+        post: operations["login_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/roles/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /api/v1/auth/roles/assign - Assign role to user */
+        post: operations["assign_role_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/roles/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /api/v1/auth/roles/revoke - Revoke role from user */
+        post: operations["revoke_role_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/auth/users - List users */
+        get: operations["list_users_handler"];
+        put?: never;
+        /** POST /api/v1/auth/users - Create user */
+        post: operations["create_user_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/auth/users/{id} - Get user by ID */
+        get: operations["get_user_handler"];
+        /** PUT /api/v1/auth/users/{id} - Update user */
+        put: operations["update_user_handler"];
+        post?: never;
+        /** DELETE /api/v1/auth/users/{id} - Delete user */
+        delete: operations["delete_user_handler"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/users/{id}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/auth/users/{id}/roles - Get user roles */
+        get: operations["get_user_roles_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/costs/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/costs/budgets - List budgets */
+        get: operations["list_budgets_handler"];
+        put?: never;
+        /** POST /api/v1/budgets - Create new budget */
+        post: operations["create_budget_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/costs/budgets/alerts/{tenant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/budgets/alerts/{tenant_id} - Get budget alerts */
+        get: operations["get_budget_alerts_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/costs/budgets/check-alerts/{tenant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /api/v1/budgets/check-alerts/{tenant_id} - Check and trigger budget alerts */
+        post: operations["check_budget_alerts_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/costs/budgets/usage/{tenant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/budgets/usage/{tenant_id} - Get budget usage */
+        get: operations["get_budget_usage_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/costs/budgets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/costs/budgets/{id} - Get budget by ID */
+        get: operations["get_budget_handler"];
+        /** PUT /api/v1/budgets/{id} - Update budget */
+        put: operations["update_budget_handler"];
+        post?: never;
+        /** DELETE /api/v1/budgets/{id} - Delete budget */
+        delete: operations["delete_budget_handler"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/costs/by-resource": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/costs/by-resource - Get cost breakdown by resource type */
+        get: operations["get_cost_by_resource_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/costs/by-tenant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/costs/by-tenant - Get cost breakdown by tenant */
+        get: operations["get_cost_by_tenant_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/costs/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/costs/summary - Get cost summary */
+        get: operations["get_cost_summary_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/costs/trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/costs/trends - Get cost trends */
+        get: operations["get_cost_trends_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/executions/{id}/logs/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["logs_stream_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/logs/statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/logs/statistics - Get log statistics */
+        get: operations["logs_statistics_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/metrics/dashboard - Get dashboard metrics */
+        get: operations["get_dashboard_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics/stream/{worker_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** WebSocket handler for live metrics */
+        get: operations["metrics_websocket_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observability/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get audit logs */
+        get: operations["get_audit_logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observability/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get observability configuration */
+        get: operations["get_observability_config"];
+        /** Update observability configuration */
+        put: operations["update_observability_config"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observability/errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get error events */
+        get: operations["get_error_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observability/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get service health */
+        get: operations["get_service_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observability/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get metrics */
+        get: operations["get_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observability/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get performance metrics */
+        get: operations["get_performance_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observability/topology": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get cluster topology (US-10.3) */
+        get: operations["get_cluster_topology"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/observability/traces/{trace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get trace spans */
+        get: operations["get_trace_spans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pipelines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_pipelines_handler"];
+        put?: never;
+        post: operations["create_pipeline_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pipelines/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_pipeline_handler"];
+        put: operations["update_pipeline_handler"];
+        post?: never;
+        delete: operations["delete_pipeline_handler"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pipelines/{id}/dag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_pipeline_dag_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pipelines/{id}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["execute_pipeline_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pipelines/{id}/executions/{execution_id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_execution_logs_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pipelines/{id}/steps/{step_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_step_details_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security/compliance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/security/compliance - List compliance checks */
+        get: operations["list_compliance_checks_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security/metrics/{tenant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/security/metrics/{tenant_id} - Get security metrics */
+        get: operations["get_security_metrics_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security/reports/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /api/v1/security/reports/generate - Generate security report */
+        post: operations["generate_security_report_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security/score/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/security/scores/{entity_id} - Get security score */
+        get: operations["get_security_score_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security/scores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/security/scores - List security scores */
+        get: operations["list_security_scores_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security/vulnerabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/security/vulnerabilities - List vulnerabilities */
+        get: operations["list_vulnerabilities_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/security/vulnerabilities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/security/vulnerabilities/{id} - Get vulnerability by ID */
+        get: operations["get_vulnerability_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/traces/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /api/v1/traces/:id - Get a specific trace by ID */
+        get: operations["get_trace_handler"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/worker-pools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get all resource pools */
+        get: operations["list_pools_handler"];
+        put?: never;
+        /** Create a new resource pool */
+        post: operations["create_pool_handler"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/worker-pools/{pool_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a specific resource pool */
+        get: operations["get_pool_handler"];
+        /** Update a resource pool (PUT - full update) */
+        put: operations["update_pool_put_handler"];
+        post?: never;
+        /** Delete a resource pool */
+        delete: operations["delete_pool_handler"];
+        options?: never;
+        head?: never;
+        /** Update a resource pool (PATCH - partial update) - US-10.4 */
+        patch: operations["update_pool_patch_handler"];
+        trace?: never;
+    };
+    "/api/v1/worker-pools/{pool_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get resource pool status */
+        get: operations["get_pool_status_handler"];
         put?: never;
         post?: never;
         delete?: never;
@@ -100,179 +793,1764 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        Pipeline: {
-            /**
-             * Format: uuid
-             * @description Unique identifier for the pipeline
-             */
-            id: string;
-            /** @description Name of the pipeline */
-            name: string;
-            /** @description Description of the pipeline */
-            description?: string;
-            /**
-             * @description Current status of the pipeline
-             * @enum {string}
-             */
-            status: "active" | "inactive" | "archived";
-            /** @description Cron expression for scheduled execution */
-            schedule?: string;
-            /** @description Tags associated with the pipeline */
-            tags?: string[];
-            /**
-             * Format: date-time
-             * @description When the pipeline was created
-             */
-            createdAt?: string;
-            /**
-             * Format: date-time
-             * @description When the pipeline was last updated
-             */
-            updatedAt?: string;
+        /** @description Access control decision */
+        AccessDecision: {
+            /** @description Whether access is granted */
+            allowed: boolean;
+            /** @description Effective permissions after evaluation */
+            effective_permissions: components["schemas"]["Permission"][];
+            /** @description Permission that was checked */
+            permission: components["schemas"]["Permission"];
+            /** @description Reason for decision */
+            reason: string;
+            /** @description Resource ID (if applicable) */
+            resource_id?: string | null;
+            /** @description Resource type */
+            resource_type: components["schemas"]["ResourceType"];
         };
-        CreatePipelineRequest: {
-            /** @description Name of the pipeline */
-            name: string;
-            /** @description Description of the pipeline */
-            description?: string;
-            /** @description Cron expression for scheduled execution */
-            schedule?: string;
-            /** @description Tags associated with the pipeline */
-            tags?: string[];
+        /** @description Alert threshold enum */
+        AlertThreshold: "FiftyPercent" | "SeventyFivePercent" | "NinetyPercent" | "HundredPercent" | {
+            /**
+             * Format: double
+             * @description Custom threshold percentage
+             */
+            Custom: number;
         };
-        UpdatePipelineRequest: {
-            name?: string;
-            description?: string;
-            /** @enum {string} */
-            status?: "active" | "inactive" | "archived";
-            schedule?: string;
-            tags?: string[];
-        };
-        WorkerPool: {
-            /** Format: uuid */
-            id?: string;
-            name?: string;
-            /** @enum {string} */
-            poolType?: "Docker" | "Kubernetes" | "Native";
-            providerName?: string;
-            minSize?: number;
-            maxSize?: number;
-            defaultResources?: {
-                /** @description CPU in millicores */
-                cpu_m?: number;
-                /** @description Memory in megabytes */
-                memory_mb?: number;
-                /** @description Number of GPUs */
-                gpu?: number;
+        /** @description Audit log entry */
+        AuditLog: {
+            action: string;
+            details: {
+                [key: string]: string;
             };
+            id: string;
+            ip_address: string;
+            outcome: components["schemas"]["AuditOutcome"];
+            resource: string;
+            /** Format: date-time */
+            timestamp: string;
+            user_agent?: string | null;
+            user_id: string;
+        };
+        /**
+         * @description Audit outcome
+         * @enum {string}
+         */
+        AuditOutcome: "success" | "failure" | "forbidden";
+        /** @description Authentication token structure */
+        AuthToken: {
+            /**
+             * Format: date-time
+             * @description Creation date
+             */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description Expiration date
+             */
+            expires_at: string;
+            /** @description Token ID */
+            id: string;
+            /**
+             * Format: date-time
+             * @description Last used date
+             */
+            last_used?: string | null;
+            /** @description Scopes (permissions included in token) */
+            scopes: components["schemas"]["Permission"][];
+            /** @description Token value (in production, this would be a JWT or similar) */
+            token: string;
+            /** @description Token type */
+            token_type: string;
+            /** @description User ID */
+            user_id: string;
+        };
+        /** @description Budget structure */
+        Budget: {
+            /** @description Alert thresholds configured */
+            alert_thresholds: components["schemas"]["AlertThreshold"][];
+            /** @description Whether alerts are enabled */
+            alerts_enabled: boolean;
+            /**
+             * Format: double
+             * @description Maximum budget amount
+             */
+            amount_limit: number;
+            /**
+             * Format: date-time
+             * @description Budget creation date
+             */
+            created_at: string;
+            /** @description Currency code (USD, EUR, etc.) */
+            currency: string;
+            /**
+             * Format: double
+             * @description Current spending amount
+             */
+            current_spend: number;
+            /** @description Unique budget ID */
+            id: string;
+            /** @description Whether budget is active */
+            is_active: boolean;
+            /** @description Budget name/description */
+            name: string;
+            /** @description Budget period (daily, weekly, monthly, etc.) */
+            period: components["schemas"]["BudgetPeriod"];
+            /**
+             * Format: date-time
+             * @description Period end date
+             */
+            period_end: string;
+            /**
+             * Format: date-time
+             * @description Period start date
+             */
+            period_start: string;
+            /** @description Tenant ID this budget belongs to */
+            tenant_id: string;
+            /**
+             * Format: date-time
+             * @description Budget last updated date
+             */
+            updated_at: string;
+        };
+        /** @description Budget alert structure */
+        BudgetAlert: {
+            /** @description Whether alert has been acknowledged */
+            acknowledged: boolean;
+            /**
+             * Format: date-time
+             * @description Date alert was acknowledged (if applicable)
+             */
+            acknowledged_at?: string | null;
+            /** @description Alert type */
+            alert_type: string;
+            /** @description Budget ID this alert belongs to */
+            budget_id: string;
+            /**
+             * Format: double
+             * @description Budget limit amount
+             */
+            budget_limit: number;
+            /**
+             * Format: double
+             * @description Current spending amount when alert triggered
+             */
+            current_spend: number;
+            /** @description Unique alert ID */
+            id: string;
+            /** @description Alert message */
+            message: string;
+            /** @description Alert severity (info, warning, critical) */
+            severity: string;
+            /** @description Tenant ID */
+            tenant_id: string;
+            /** @description Alert threshold that triggered */
+            threshold: components["schemas"]["AlertThreshold"];
+            /**
+             * Format: double
+             * @description Threshold percentage (0-100)
+             */
+            threshold_percentage: number;
+            /**
+             * Format: date-time
+             * @description Date alert was triggered
+             */
+            triggered_at: string;
+        };
+        /**
+         * @description Budget period enum
+         * @enum {string}
+         */
+        BudgetPeriod: "Daily" | "Weekly" | "Monthly" | "Quarterly" | "Yearly";
+        /** @description Budget usage structure */
+        BudgetUsage: {
+            /**
+             * Format: int32
+             * @description Number of alerts triggered
+             */
+            alerts_count: number;
+            /**
+             * Format: double
+             * @description Average daily spend
+             */
+            avg_daily_spend: number;
+            /** @description Budget ID */
+            budget_id: string;
+            /**
+             * Format: double
+             * @description Current spending
+             */
+            current_spend: number;
+            /**
+             * Format: int32
+             * @description Days remaining in period
+             */
+            days_remaining: number;
+            /** @description Whether over budget */
+            is_over_budget: boolean;
+            /**
+             * Format: double
+             * @description Budget limit
+             */
+            limit: number;
+            /**
+             * Format: double
+             * @description Percentage used (0-100)
+             */
+            percentage_used: number;
+            /**
+             * Format: double
+             * @description Projected end-of-period spend
+             */
+            projected_spend: number;
+            /**
+             * Format: double
+             * @description Remaining budget
+             */
+            remaining: number;
+            /** @description Tenant ID */
+            tenant_id: string;
+        };
+        /** @description Check permission request structure */
+        CheckPermissionRequest: {
+            permission: components["schemas"]["Permission"];
+            resource_id?: string | null;
+            resource_type: components["schemas"]["ResourceType"];
+            user_id: string;
+        };
+        /** @description Connection/relationship between nodes */
+        ClusterEdge: {
+            /** Format: int64 */
+            bandwidth_mbps: number;
+            edge_type: components["schemas"]["EdgeType"];
+            /** Format: double */
+            latency_ms: number;
+            source: string;
+            target: string;
+        };
+        /** @description Individual node in the cluster */
+        ClusterNode: {
+            capabilities: components["schemas"]["NodeCapabilities"];
+            id: string;
+            metadata: {
+                [key: string]: string;
+            };
+            name: string;
+            node_type: components["schemas"]["NodeType"];
+            status: components["schemas"]["HealthStatus"];
+        };
+        /** @description Cluster topology structures (US-10.3) */
+        ClusterTopology: {
+            /** Format: int32 */
+            active_workers: number;
+            edges: components["schemas"]["ClusterEdge"][];
+            nodes: components["schemas"]["ClusterNode"][];
+            /** Format: date-time */
+            timestamp: string;
+            /** Format: int32 */
+            total_workers: number;
+        };
+        /** @description Compliance check structure */
+        ComplianceCheck: {
+            /** @description Control description */
+            control_description: string;
+            /** @description Control ID */
+            control_id: string;
+            /** @description Control name */
+            control_name: string;
+            /** @description Evidence documents */
+            evidence: string[];
+            /** @description Compliance framework */
+            framework: components["schemas"]["ComplianceFramework"];
+            /** @description Check ID */
+            id: string;
+            /**
+             * Format: double
+             * @description Implementation percentage (0-100)
+             */
+            implementation_percentage: number;
+            /**
+             * Format: date-time
+             * @description Last assessment date
+             */
+            last_assessment: string;
+            /**
+             * Format: date-time
+             * @description Next assessment due
+             */
+            next_assessment: string;
+            /** @description Notes and comments */
+            notes?: string | null;
+            /** @description Resource ID (if applicable) */
+            resource_id?: string | null;
+            /** @description Implementation status */
+            status: components["schemas"]["ControlStatus"];
+            /** @description Tenant ID */
+            tenant_id: string;
+        };
+        /**
+         * @description Compliance framework enum
+         * @enum {string}
+         */
+        ComplianceFramework: "SOC2" | "ISO27001" | "GDPR" | "PCIDSS" | "HIPAA" | "NIST";
+        /**
+         * @description Security control status enum
+         * @enum {string}
+         */
+        ControlStatus: "Implemented" | "Partial" | "NotImplemented" | "NotApplicable";
+        /** @description Cost breakdown by resource type */
+        CostBreakdown: {
+            /**
+             * Format: double
+             * @description Total cost for this resource type
+             */
+            cost: number;
+            /**
+             * Format: double
+             * @description Cost per unit
+             */
+            cost_per_unit: number;
+            /**
+             * Format: date-time
+             * @description Period end timestamp
+             */
+            period_end: string;
+            /**
+             * Format: date-time
+             * @description Period start timestamp
+             */
+            period_start: string;
+            /** @description Resource type (compute, storage, network, etc.) */
+            resource_type: string;
+            /** @description Unit of measurement (GB, GB-hours, etc.) */
+            unit: string;
+            /**
+             * Format: double
+             * @description Usage quantity
+             */
+            usage_quantity: number;
+        };
+        /** @description Cost summary structure */
+        CostSummary: {
+            /** @description Cost breakdown by resource type */
+            breakdown_by_resource: {
+                [key: string]: number;
+            };
+            /** @description Cost breakdown by tenant */
+            breakdown_by_tenant: {
+                [key: string]: number;
+            };
+            /** @description Currency code (USD, EUR, etc.) */
+            currency: string;
+            /**
+             * Format: date-time
+             * @description Period end timestamp
+             */
+            period_end: string;
+            /**
+             * Format: date-time
+             * @description Period start timestamp
+             */
+            period_start: string;
+            /**
+             * Format: double
+             * @description Total cost for the period
+             */
+            total_cost: number;
+        };
+        /** @description Cost trend data point */
+        CostTrend: {
+            /**
+             * Format: double
+             * @description Compute cost for this date
+             */
+            compute_cost: number;
+            /**
+             * Format: date-time
+             * @description Date of the trend data
+             */
+            date: string;
+            /**
+             * Format: double
+             * @description Network cost for this date
+             */
+            network_cost: number;
+            /**
+             * Format: double
+             * @description Storage cost for this date
+             */
+            storage_cost: number;
+            /**
+             * Format: double
+             * @description Total cost for this date
+             */
+            total_cost: number;
+        };
+        /** @description Create dynamic worker request */
+        CreateDynamicWorkerRequest: {
+            /**
+             * Format: int32
+             * @description Number of CPU cores to allocate
+             */
+            cpu_cores: number;
+            /** @description Custom image (overrides default) */
+            custom_image?: string | null;
+            /** @description Custom Kubernetes Pod template (YAML or JSON as String, only for K8s) */
+            custom_pod_template?: string | null;
+            /** @description Environment variables */
+            env?: {
+                [key: string]: string;
+            } | null;
+            /** @description Docker image to use for the worker */
+            image: string;
+            /** @description Labels to attach to the worker */
+            labels?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Format: int64
+             * @description Memory in MB to allocate
+             */
+            memory_mb: number;
+            /** @description Kubernetes namespace (if using K8s provider) */
+            namespace?: string | null;
+            /** @description Infrastructure provider type */
+            provider_type: string;
+        };
+        /** @description Create dynamic worker response */
+        CreateDynamicWorkerResponse: {
+            /** @description Container ID (Docker) */
+            container_id?: string | null;
+            /** @description Status message */
+            message: string;
+            /** @description Current state */
+            state: string;
+            /** @description Unique worker identifier */
+            worker_id: string;
+        };
+        /** @description Job specification for creating new jobs */
+        CreateJobRequest: {
+            /** @description Command to execute */
+            command: string[];
+            /** @description Environment variables */
+            env: {
+                [key: string]: string;
+            };
+            /** @description Docker image to use */
+            image: string;
+            /** @description Name of the job */
+            name: string;
+            /** @description Resource requirements */
+            resources: components["schemas"]["ResourceQuota"];
+            /**
+             * Format: int32
+             * @description Number of retries on failure
+             */
+            retries: number;
+            /** @description References to secrets */
+            secret_refs: string[];
+            /**
+             * Format: int64
+             * @description Timeout in milliseconds
+             */
+            timeout_ms: number;
+        };
+        /** @description Create Pipeline Request DTO */
+        CreatePipelineRequestDto: {
+            description?: string | null;
+            name: string;
+            steps: components["schemas"]["CreatePipelineStepRequestDto"][];
+        };
+        /** @description Create Pipeline Step Request DTO */
+        CreatePipelineStepRequestDto: {
+            command: string[];
+            env?: {
+                [key: string]: string;
+            } | null;
+            image: string;
+            name: string;
+            /** Format: int32 */
+            retries?: number | null;
+            /** Format: int64 */
+            timeout_ms?: number | null;
+        };
+        /** @description Request to create a new resource pool */
+        CreatePoolRequest: {
+            default_resources: components["schemas"]["ResourceQuota"];
+            /** Format: int32 */
+            max_size: number;
+            /** Format: int32 */
+            min_size: number;
+            name: string;
+            pool_type: components["schemas"]["ResourcePoolType"];
+            provider_name: string;
             tags?: {
+                [key: string]: string;
+            } | null;
+        };
+        /** @description Create provider request */
+        CreateProviderRequest: {
+            /** @description Custom image (overrides default) */
+            custom_image?: string | null;
+            /** @description Custom K8s Pod template (for Kubernetes, YAML or JSON as String) */
+            custom_pod_template?: string | null;
+            /** @description Docker host (for Docker) */
+            docker_host?: string | null;
+            /** @description Provider name */
+            name: string;
+            /** @description Namespace (for Kubernetes) */
+            namespace?: string | null;
+            /** @description Provider type */
+            provider_type: components["schemas"]["ProviderTypeDto"];
+        };
+        /** @description Create tenant request (EPIC-09) */
+        CreateTenantRequest: {
+            /** @description Tenant admin email */
+            email: string;
+            /** @description Tenant name */
+            name: string;
+        };
+        /** @description DAG Edge DTO */
+        DagEdgeDto: {
+            source: components["schemas"]["PipelineStepId"];
+            target: components["schemas"]["PipelineStepId"];
+        };
+        /** @description DAG Node DTO */
+        DagNodeDto: {
+            id: components["schemas"]["PipelineStepId"];
+            name: string;
+            position?: null | components["schemas"]["DagPosition"];
+            status?: null | components["schemas"]["PipelineStatus"];
+        };
+        /** @description DAG Position */
+        DagPosition: {
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+        };
+        /** @description DAG Structure Response DTO */
+        DagStructureDto: {
+            edges: components["schemas"]["DagEdgeDto"][];
+            nodes: components["schemas"]["DagNodeDto"][];
+            pipeline_id: components["schemas"]["PipelineId"];
+        };
+        /**
+         * @description Dashboard metrics response
+         * @example {
+         *       "active_pipelines": 42,
+         *       "avg_duration": 125,
+         *       "cost_per_run": 0.45,
+         *       "queue_time": 12,
+         *       "success_rate": 94.5,
+         *       "total_executions_today": 128,
+         *       "total_pipelines": 50
+         *     }
+         */
+        DashboardMetrics: {
+            /**
+             * Format: int32
+             * @description Number of active pipelines
+             */
+            active_pipelines: number;
+            /**
+             * Format: int64
+             * @description Average execution duration in seconds
+             */
+            avg_duration: number;
+            /**
+             * Format: double
+             * @description Average cost per run in dollars
+             */
+            cost_per_run: number;
+            /**
+             * Format: int64
+             * @description Average queue time in seconds
+             */
+            queue_time: number;
+            /**
+             * Format: double
+             * @description Success rate percentage (0-100)
+             */
+            success_rate: number;
+            /**
+             * Format: date-time
+             * @description Timestamp of the metrics
+             */
+            timestamp: string;
+            /**
+             * Format: int32
+             * @description Total executions today
+             */
+            total_executions_today: number;
+            /**
+             * Format: int32
+             * @description Total number of pipelines
+             */
+            total_pipelines: number;
+        };
+        /** @description Request parameters for dashboard metrics */
+        DashboardMetricsRequest: {
+            /** @description Optional tenant ID filter */
+            tenant_id?: string | null;
+            /**
+             * Format: int32
+             * @description Optional time range filter (in hours)
+             */
+            time_range_hours?: number | null;
+        };
+        /** @description Dependency health */
+        DependencyHealth: {
+            /** Format: date-time */
+            last_success: string;
+            name: string;
+            /** Format: double */
+            response_time_ms: number;
+            status: components["schemas"]["HealthStatus"];
+        };
+        /** @description Dynamic worker status response */
+        DynamicWorkerStatusResponse: {
+            /** @description Container ID (if applicable) */
+            container_id?: string | null;
+            /**
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /** @description Current state */
+            state: string;
+            /** @description Unique worker identifier */
+            worker_id: string;
+        };
+        /**
+         * @description Type of relationship between nodes
+         * @enum {string}
+         */
+        EdgeType: "Network" | "Storage" | "Control";
+        /** @description Error tracking */
+        ErrorEvent: {
+            error_type: string;
+            id: string;
+            message: string;
+            request_id?: string | null;
+            service: string;
+            severity: components["schemas"]["ErrorSeverity"];
+            stack_trace?: string | null;
+            /** Format: date-time */
+            timestamp: string;
+            user_id?: string | null;
+        };
+        /** @description Generic error response */
+        ErrorResponse: {
+            /** @description Error code */
+            code: string;
+            /** @description Optional details */
+            details?: string | null;
+            /** @description Error message */
+            message: string;
+        };
+        /**
+         * @description Error severity
+         * @enum {string}
+         */
+        ErrorSeverity: "low" | "medium" | "high" | "critical";
+        /** @description Execute Pipeline Request DTO */
+        ExecutePipelineRequestDto: {
+            branch?: string | null;
+            environment?: string | null;
+            parameters?: {
+                [key: string]: string;
+            } | null;
+            tenant_id?: string | null;
+            variables?: {
+                [key: string]: string;
+            } | null;
+        };
+        /** @description Execute Pipeline Response DTO */
+        ExecutePipelineResponseDto: {
+            execution_id: components["schemas"]["ExecutionId"];
+            pipeline_id: components["schemas"]["PipelineId"];
+            status: string;
+        };
+        /** @description Execution identifier - Value Object */
+        ExecutionId: string;
+        /** @description Execution Logs Response DTO */
+        ExecutionLogsDto: {
+            execution_id: components["schemas"]["ExecutionId"];
+            step_executions: components["schemas"]["StepExecutionLogsDto"][];
+        };
+        /** @description Health check response */
+        HealthResponse: {
+            /** @description Architecture type */
+            architecture: string;
+            /** @description Name of the service */
+            service: string;
+            /** @description Status of the service */
+            status: string;
+            /** @description Version of the service */
+            version: string;
+        };
+        /**
+         * @description Health status
+         * @enum {string}
+         */
+        HealthStatus: "healthy" | "degraded" | "unhealthy" | "unknown";
+        /** @description Response wrapper for jobs */
+        JobListResponse: {
+            /** @description List of jobs */
+            jobs: components["schemas"]["JobResponse"][];
+        };
+        /** @description Job response */
+        JobResponse: {
+            /**
+             * Format: date-time
+             * @description Completion timestamp (null if not completed)
+             */
+            completed_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /** @description Unique job identifier */
+            id: string;
+            /** @description Job name */
+            name: string;
+            /** @description Job result (null if not completed) */
+            result?: unknown;
+            /** @description Job specification */
+            spec: components["schemas"]["JobSpec"];
+            /**
+             * Format: date-time
+             * @description Start timestamp (null if not started)
+             */
+            started_at?: string | null;
+            /** @description Current state */
+            state: string;
+            /**
+             * Format: date-time
+             * @description Last update timestamp
+             */
+            updated_at: string;
+        };
+        /** @description Job specification (immutable value object) */
+        JobSpec: {
+            command: string[];
+            env: {
+                [key: string]: string;
+            };
+            image: string;
+            name: string;
+            resources: components["schemas"]["ResourceQuota"];
+            /** Format: int32 */
+            retries: number;
+            secret_refs: string[];
+            /** Format: int64 */
+            timeout_ms: number;
+        };
+        /** @description List dynamic workers response */
+        ListDynamicWorkersResponse: {
+            /** @description List of dynamic workers */
+            workers: components["schemas"]["DynamicWorkerStatusResponse"][];
+        };
+        /** @description List Pipelines Response DTO */
+        ListPipelinesResponseDto: {
+            items: components["schemas"]["PipelineSummaryDto"][];
+            total: number;
+        };
+        /** @description List providers response */
+        ListProvidersResponse: {
+            /** @description List of available providers */
+            providers: components["schemas"]["ProviderInfo"][];
+        };
+        /** @description List tenants response (EPIC-09) */
+        ListTenantsResponse: {
+            /** @description List of tenants */
+            tenants: components["schemas"]["TenantResponse"][];
+        };
+        /** @description Live metric DTO */
+        LiveMetric: {
+            execution_id?: string | null;
+            metric_type: components["schemas"]["MetricType"];
+            threshold_status: components["schemas"]["ThresholdStatus"];
+            /** Format: date-time */
+            timestamp: string;
+            unit: string;
+            /** Format: double */
+            value: number;
+            worker_id: string;
+        };
+        /** @description Log Entry DTO */
+        LogEntryDto: {
+            content: string;
+            stream_type: string;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description Log Event DTO for SSE streaming */
+        LogEvent: {
+            execution_id: components["schemas"]["ExecutionId"];
+            level: components["schemas"]["LogLevel"];
+            message: string;
+            step: string;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description Log level
+         * @enum {string}
+         */
+        LogLevel: "debug" | "info" | "warn" | "error" | "fatal";
+        /** @description Log statistics structure */
+        LogStatistics: {
+            /** @description Logs by log level */
+            by_log_level: {
+                [key: string]: number;
+            };
+            /** @description Logs by time period */
+            by_time_period: {
+                [key: string]: number;
+            };
+            /**
+             * Format: double
+             * @description Error rate percentage
+             */
+            error_rate: number;
+            /**
+             * Format: date-time
+             * @description Timestamp of the statistics
+             */
+            timestamp: string;
+            /** @description Top search terms */
+            top_search_terms: string[];
+            /**
+             * Format: int64
+             * @description Total number of logs
+             */
+            total_logs: number;
+        };
+        /** @description Login request structure */
+        LoginRequest: {
+            password: string;
+            username: string;
+        };
+        /** @description Generic success message */
+        MessageResponse: {
+            /** @description Success message */
+            message: string;
+        };
+        /**
+         * @description Type of metric
+         * @enum {string}
+         */
+        MetricType: "cpu_usage" | "memory_usage" | "disk_io" | "network_io" | "load_average";
+        /** @description Node capabilities */
+        NodeCapabilities: {
+            /** Format: int32 */
+            cpu_cores: number;
+            /** Format: int32 */
+            gpu_count?: number | null;
+            /** Format: int64 */
+            memory_gb: number;
+            /** Format: int64 */
+            network_bandwidth_mbps: number;
+            /** Format: int64 */
+            storage_gb: number;
+        };
+        /**
+         * @description Type of cluster node
+         * @enum {string}
+         */
+        NodeType: "ControlPlane" | "Worker" | "Storage" | "LoadBalancer";
+        /** @description Observability configuration */
+        ObservabilityConfig: {
+            enable_audit_logging: boolean;
+            enable_error_tracking: boolean;
+            enable_performance_monitoring: boolean;
+            enabled: boolean;
+            external_metrics_endpoint?: string | null;
+            external_tracing_endpoint?: string | null;
+            /** Format: int32 */
+            logs_retention_days: number;
+            /** Format: int32 */
+            metrics_retention_days: number;
+            /** Format: double */
+            sampling_rate: number;
+            /** Format: int32 */
+            traces_retention_days: number;
+        };
+        /** @description Observability metric */
+        ObservabilityMetric: {
+            labels: {
+                [key: string]: string;
+            };
+            metric_name: string;
+            source: string;
+            /** Format: date-time */
+            timestamp: string;
+            /** Format: double */
+            value: number;
+        };
+        /**
+         * @description Optimization type enum
+         * @enum {string}
+         */
+        OptimizationType: "Rightsizing" | "ReservedInstances" | "StorageTiering" | "SpotInstances" | "DeleteUnused" | "ScheduleResources" | "DataTransferOptimization";
+        /** @description Performance metrics */
+        PerformanceMetrics: {
+            /** Format: int32 */
+            active_connections: number;
+            /** Format: double */
+            average_response_time_ms: number;
+            /** Format: double */
+            cpu_usage_percent: number;
+            /** Format: double */
+            disk_usage_percent: number;
+            /** Format: double */
+            error_rate_percent: number;
+            /** Format: int64 */
+            memory_usage_bytes: number;
+            /** Format: double */
+            memory_usage_percent: number;
+            /** Format: int64 */
+            network_io_bytes_per_sec: number;
+            /** Format: double */
+            request_rate_per_sec: number;
+        };
+        /**
+         * @description Permission enum
+         * @enum {string}
+         */
+        Permission: "Read" | "Write" | "Delete" | "Admin" | "Execute" | "Grant";
+        /** @description Permission grant structure */
+        PermissionGrant: {
+            /**
+             * Format: date-time
+             * @description Grant date
+             */
+            granted_at: string;
+            /** @description Grantor user ID */
+            granted_by: string;
+            /** @description User ID or Role */
+            grantee: string;
+            /** @description Grant type (user or role) */
+            grantee_type: string;
+            /** @description Grant ID */
+            id: string;
+            /** @description Permission */
+            permission: components["schemas"]["Permission"];
+            /** @description Resource ID (optional, for specific resources) */
+            resource_id?: string | null;
+            /** @description Resource type */
+            resource_type: components["schemas"]["ResourceType"];
+            /** @description Tenant ID */
+            tenant_id: string;
+        };
+        /** @description Pipeline identifier - Value Object */
+        PipelineId: string;
+        /** @description Pipeline Response DTO */
+        PipelineResponseDto: {
+            /** Format: date-time */
+            created_at: string;
+            description?: string | null;
+            id: components["schemas"]["PipelineId"];
+            name: string;
+            status: components["schemas"]["PipelineStatus"];
+            step_count: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /**
+         * @description Pipeline status - Value Object (Enum)
+         * @enum {string}
+         */
+        PipelineStatus: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+        /** @description Pipeline step identifier - Value Object */
+        PipelineStepId: string;
+        /** @description Pipeline Summary DTO */
+        PipelineSummaryDto: {
+            /** Format: date-time */
+            created_at: string;
+            description?: string | null;
+            id: components["schemas"]["PipelineId"];
+            name: string;
+            status: components["schemas"]["PipelineStatus"];
+            step_count: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ProviderCapabilitiesInfo: {
+            /**
+             * Format: int64
+             * @description Estimated provisioning time in milliseconds
+             */
+            estimated_provision_time_ms: number;
+            /**
+             * Format: int32
+             * @description Maximum number of workers (null if unlimited)
+             */
+            max_workers?: number | null;
+            /** @description Supports auto-scaling */
+            supports_auto_scaling: boolean;
+            /** @description Supports health checks */
+            supports_health_checks: boolean;
+            /** @description Supports volumes */
+            supports_volumes: boolean;
+        };
+        /** @description Provider capabilities response */
+        ProviderCapabilitiesResponse: {
+            /** @description Provider capabilities */
+            capabilities: components["schemas"]["ProviderCapabilitiesInfo"];
+            /** @description Provider name */
+            name: string;
+            /** @description Provider type */
+            provider_type: string;
+        };
+        /** @description Provider info */
+        ProviderInfo: {
+            /** @description Provider name */
+            name: string;
+            /** @description Provider type */
+            provider_type: string;
+            /** @description Provider status */
+            status: string;
+        };
+        /** @description Provider response */
+        ProviderResponse: {
+            /**
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /** @description Custom image */
+            custom_image?: string | null;
+            /** @description Provider name */
+            name: string;
+            /** @description Namespace */
+            namespace?: string | null;
+            /** @description Provider type */
+            provider_type: string;
+            /** @description Provider status */
+            status: string;
+        };
+        /**
+         * @description Provider type enumeration
+         * @enum {string}
+         */
+        ProviderTypeDto: "Docker" | "Kubernetes";
+        /** @description Quota response (EPIC-09) */
+        QuotaResponse: {
+            /**
+             * Format: int64
+             * @description CPU allocation in millicores
+             */
+            cpu_m: number;
+            /** @description Current resource usage */
+            current_usage: components["schemas"]["QuotaUsage"];
+            /**
+             * Format: int32
+             * @description Maximum concurrent jobs
+             */
+            max_concurrent_jobs: number;
+            /**
+             * Format: int64
+             * @description Memory allocation in MB
+             */
+            memory_mb: number;
+        };
+        /** @description Quota usage (EPIC-09) */
+        QuotaUsage: {
+            /**
+             * Format: int32
+             * @description Currently active jobs
+             */
+            active_jobs: number;
+            /**
+             * Format: int64
+             * @description Currently used CPU in millicores
+             */
+            cpu_m: number;
+            /**
+             * Format: int64
+             * @description Currently used memory in MB
+             */
+            memory_mb: number;
+        };
+        /** @description Recommendation structure */
+        Recommendation: {
+            /** @description Action items to take */
+            action_items: string[];
+            /** @description Resource identifiers affected */
+            affected_resources: string[];
+            /**
+             * Format: double
+             * @description Confidence level (0.0 to 1.0)
+             */
+            confidence: number;
+            /**
+             * Format: double
+             * @description Current cost for this resource
+             */
+            current_cost: number;
+            /** @description Detailed description */
+            description: string;
+            /**
+             * Format: double
+             * @description Estimated effort to implement (hours)
+             */
+            effort_hours: number;
+            /**
+             * Format: date-time
+             * @description Date recommendation was generated
+             */
+            generated_at: string;
+            /** @description Unique recommendation ID */
+            id: string;
+            /** @description Type of optimization */
+            optimization_type: components["schemas"]["OptimizationType"];
+            /**
+             * Format: double
+             * @description Potential monthly savings
+             */
+            potential_savings: number;
+            /**
+             * Format: int32
+             * @description Priority level (1-5, 5 being highest)
+             */
+            priority: number;
+            /** @description Resource type affected */
+            resource_type: components["schemas"]["ResourceType"];
+            /** @description Title of the recommendation */
+            title: string;
+            /**
+             * Format: date-time
+             * @description Valid until date
+             */
+            valid_until: string;
+        };
+        /** @description Register worker request */
+        RegisterWorkerRequest: {
+            /**
+             * Format: int32
+             * @description Number of CPU cores
+             */
+            cpu_cores: number;
+            /**
+             * Format: int64
+             * @description Memory in GB
+             */
+            memory_gb: number;
+            /** @description Worker name */
+            name: string;
+        };
+        /** @description Resource pool configuration */
+        ResourcePoolConfig: {
+            default_resources: components["schemas"]["ResourceQuota"];
+            /** Format: int32 */
+            max_size: number;
+            /** Format: int32 */
+            min_size: number;
+            name: string;
+            pool_type: components["schemas"]["ResourcePoolType"];
+            provider_name: string;
+            tags: {
                 [key: string]: string;
             };
         };
-        WorkerPoolStatus: {
-            name?: string;
-            poolType?: string;
-            totalCapacity?: number;
-            availableCapacity?: number;
-            activeWorkers?: number;
-            pendingRequests?: number;
+        /** @description Response for resource pool operations */
+        ResourcePoolResponse: {
+            config: components["schemas"]["ResourcePoolConfig"];
+            id: string;
         };
-        Error: {
-            /** @description Error code */
-            code: string;
-            /** @description Error message */
-            message: string;
-            /** @description Additional error details */
-            details?: Record<string, never>;
+        /** @description Resource pool status */
+        ResourcePoolStatus: {
+            /** Format: int32 */
+            active_workers: number;
+            /** Format: int32 */
+            available_capacity: number;
+            name: string;
+            /** Format: int32 */
+            pending_requests: number;
+            pool_type: components["schemas"]["ResourcePoolType"];
+            /** Format: int32 */
+            total_capacity: number;
+        };
+        /**
+         * @description Resource pool type
+         * @enum {string}
+         */
+        ResourcePoolType: "Docker" | "Kubernetes" | "Cloud" | "Static";
+        /** @description Resource requirements for a job */
+        ResourceQuota: {
+            /** Format: int64 */
+            cpu_m: number;
+            /** Format: int32 */
+            gpu?: number | null;
+            /** Format: int64 */
+            memory_mb: number;
+        };
+        /**
+         * @description Resource type enum
+         * @enum {string}
+         */
+        ResourceType: "Pipeline" | "Execution" | "Worker" | "ResourcePool" | "Metrics" | "Logs" | "Traces" | "Alerts" | "Cost" | "Security" | "Users" | "System";
+        /** @description Revoke role request structure */
+        RevokeRoleRequest: {
+            assignment_id: string;
+        };
+        /**
+         * @description Role enum
+         * @enum {string}
+         */
+        Role: "SuperAdmin" | "Admin" | "Manager" | "Developer" | "Viewer" | "Guest";
+        /** @description Role assignment structure */
+        RoleAssignment: {
             /**
              * Format: date-time
-             * @description When the error occurred
+             * @description Expiration date (optional)
              */
+            expires_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Grant date
+             */
+            granted_at: string;
+            /** @description Grantor user ID */
+            granted_by: string;
+            /** @description Assignment ID */
+            id: string;
+            /** @description Resource ID (optional, for resource-specific roles) */
+            resource_id?: string | null;
+            resource_type?: null | components["schemas"]["ResourceType"];
+            /** @description Role */
+            role: components["schemas"]["Role"];
+            /** @description Tenant ID */
+            tenant_id: string;
+            /** @description User ID */
+            user_id: string;
+        };
+        /** @description Security metrics structure */
+        SecurityMetrics: {
+            /**
+             * Format: date-time
+             * @description Assessment date
+             */
+            assessed_at: string;
+            /**
+             * Format: double
+             * @description Average time to remediate (in days)
+             */
+            avg_remediation_time: number;
+            /** @description Vulnerabilities by severity */
+            by_severity: {
+                [key: string]: number;
+            };
+            /** @description Vulnerabilities by status */
+            by_status: {
+                [key: string]: number;
+            };
+            /** @description Vulnerabilities by type */
+            by_type: {
+                [key: string]: number;
+            };
+            /**
+             * Format: double
+             * @description Compliance score
+             */
+            compliance_score: number;
+            /**
+             * Format: double
+             * @description Coverage percentage
+             */
+            coverage_percentage: number;
+            /**
+             * Format: int32
+             * @description Number of open issues
+             */
+            open_issues: number;
+            /**
+             * Format: int32
+             * @description Number of overdue items
+             */
+            overdue_items: number;
+            /** @description Security score trend */
+            score_trend: number[];
+            /** @description Tenant ID */
+            tenant_id: string;
+            /**
+             * Format: int32
+             * @description Total number of vulnerabilities
+             */
+            total_vulnerabilities: number;
+        };
+        /** @description Security report structure */
+        SecurityReport: {
+            /** @description Compliance status */
+            compliance_status: string;
+            /** @description Executive summary */
+            executive_summary: string;
+            /**
+             * Format: date-time
+             * @description Generated date
+             */
+            generated_at: string;
+            /** @description Report ID */
+            id: string;
+            /** @description Key findings */
+            key_findings: string[];
+            /** @description Metrics included */
+            metrics: components["schemas"]["SecurityMetrics"];
+            /**
+             * Format: date-time
+             * @description Report period end
+             */
+            period_end: string;
+            /**
+             * Format: date-time
+             * @description Report period start
+             */
+            period_start: string;
+            /** @description Recommendations */
+            recommendations: string[];
+            /** @description Report type */
+            report_type: string;
+            /** @description Overall risk rating */
+            risk_rating: string;
+            /** @description Tenant ID */
+            tenant_id: string;
+            /** @description Report title */
+            title: string;
+        };
+        /** @description Security report request structure */
+        SecurityReportRequest: {
+            /** Format: date-time */
+            period_end: string;
+            /** Format: date-time */
+            period_start: string;
+            report_type: string;
+            tenant_id: string;
+        };
+        /** @description Security score structure */
+        SecurityScore: {
+            /**
+             * Format: date-time
+             * @description Last calculation date
+             */
+            calculated_at: string;
+            /**
+             * Format: double
+             * @description Compliance score component
+             */
+            compliance_score: number;
+            /**
+             * Format: double
+             * @description Configuration score component
+             */
+            configuration_score: number;
+            /**
+             * Format: int32
+             * @description Number of critical vulnerabilities
+             */
+            critical_count: number;
+            /** @description Associated entity (tenant, resource, etc.) */
+            entity_id: string;
+            /** @description Entity type (tenant, resource, application) */
+            entity_type: string;
+            /**
+             * Format: int32
+             * @description Number of high vulnerabilities
+             */
+            high_count: number;
+            /** @description Score ID */
+            id: string;
+            /**
+             * Format: int32
+             * @description Number of low vulnerabilities
+             */
+            low_count: number;
+            /**
+             * Format: int32
+             * @description Number of medium vulnerabilities
+             */
+            medium_count: number;
+            /**
+             * Format: int32
+             * @description Number of open vulnerabilities
+             */
+            open_count: number;
+            /**
+             * Format: double
+             * @description Overall security score (0-100)
+             */
+            overall_score: number;
+            /**
+             * Format: int32
+             * @description Number of resolved vulnerabilities
+             */
+            resolved_count: number;
+            /** @description Score breakdown by category */
+            score_breakdown: {
+                [key: string]: number;
+            };
+            /** @description Tenant ID */
+            tenant_id: string;
+            /** @description Score trend (improving, declining, stable) */
+            trend: string;
+            /**
+             * Format: double
+             * @description Vulnerability score component
+             */
+            vulnerability_score: number;
+        };
+        /** @description Service health status */
+        ServiceHealth: {
+            dependencies: components["schemas"]["DependencyHealth"][];
+            /** Format: date-time */
+            last_check: string;
+            service_name: string;
+            status: components["schemas"]["HealthStatus"];
+            /** Format: int64 */
+            uptime: number;
+        };
+        /** @description Session information */
+        Session: {
+            /** @description Session ID */
+            id: string;
+            /** @description Session IP address */
+            ip_address: string;
+            /** @description Is active */
+            is_active: boolean;
+            /**
+             * Format: date-time
+             * @description Last activity timestamp
+             */
+            last_activity: string;
+            /**
+             * Format: date-time
+             * @description Login timestamp
+             */
+            login_at: string;
+            /** @description Tenant ID */
+            tenant_id: string;
+            /** @description User agent */
+            user_agent: string;
+            /** @description User ID */
+            user_id: string;
+        };
+        /** @description Span structure representing a single operation in a trace */
+        Span: {
+            /**
+             * Format: int64
+             * @description Duration in milliseconds
+             */
+            duration_ms: number;
+            /**
+             * Format: date-time
+             * @description End timestamp
+             */
+            end_time: string;
+            /** @description Structured logs for this span */
+            logs: components["schemas"]["SpanLog"][];
+            /** @description Operation name */
+            operation_name: string;
+            /** @description Parent span ID (optional, null for root spans) */
+            parent_span_id?: string | null;
+            /** @description Service name where the span originated */
+            service_name: string;
+            /** @description Unique span ID */
+            span_id: string;
+            /**
+             * Format: date-time
+             * @description Start timestamp
+             */
+            start_time: string;
+            /** @description Status code (OK, ERROR, TIMEOUT) */
+            status_code: string;
+            /** @description Key-value tags for additional span metadata */
+            tags: {
+                [key: string]: string;
+            };
+            /** @description Trace ID this span belongs to */
+            trace_id: string;
+        };
+        /** @description Span log entry */
+        SpanLog: {
+            fields: {
+                [key: string]: string;
+            };
+            level: components["schemas"]["LogLevel"];
+            message: string;
+            /** Format: date-time */
             timestamp: string;
         };
+        /** @description Step Details Response DTO */
+        StepDetailsDto: {
+            command: string[];
+            environment: {
+                [key: string]: string;
+            };
+            id: components["schemas"]["PipelineStepId"];
+            image: string;
+            name: string;
+            /** Format: int32 */
+            retries: number;
+            status?: string | null;
+            /** Format: int64 */
+            timeout_ms: number;
+        };
+        /** @description Step Execution Logs DTO */
+        StepExecutionLogsDto: {
+            logs: components["schemas"]["LogEntryDto"][];
+            status: string;
+            step_id: components["schemas"]["PipelineStepId"];
+            step_name: string;
+        };
+        /** @description Cost breakdown by tenant */
+        TenantCostBreakdown: {
+            /**
+             * Format: date-time
+             * @description Period end timestamp
+             */
+            period_end: string;
+            /**
+             * Format: date-time
+             * @description Period start timestamp
+             */
+            period_start: string;
+            /** @description Breakdown by resource type */
+            resource_breakdown: {
+                [key: string]: number;
+            };
+            /** @description Tenant ID */
+            tenant_id: string;
+            /**
+             * Format: double
+             * @description Total cost for this tenant
+             */
+            total_cost: number;
+        };
+        /** @description Tenant response (EPIC-09) */
+        TenantResponse: {
+            /**
+             * Format: date-time
+             * @description Creation timestamp
+             */
+            created_at: string;
+            /** @description Tenant admin email */
+            email: string;
+            /** @description Unique tenant identifier */
+            id: string;
+            /** @description Tenant name */
+            name: string;
+            /**
+             * Format: date-time
+             * @description Last update timestamp
+             */
+            updated_at: string;
+        };
+        /**
+         * @description Threshold status
+         * @enum {string}
+         */
+        ThresholdStatus: "normal" | "warning" | "critical";
+        /** @description Trace structure representing a distributed trace */
+        Trace: {
+            /**
+             * Format: int64
+             * @description Total duration in milliseconds
+             */
+            duration_ms: number;
+            /**
+             * Format: date-time
+             * @description End timestamp
+             */
+            end_time: string;
+            /** @description Error message (optional) */
+            error_message?: string | null;
+            /** @description Root operation name */
+            operation_name: string;
+            /** @description Service name where the trace originated */
+            service_name: string;
+            /** @description List of spans in this trace */
+            spans: components["schemas"]["Span"][];
+            /**
+             * Format: date-time
+             * @description Start timestamp
+             */
+            start_time: string;
+            /** @description Status (SUCCESS, ERROR, TIMEOUT) */
+            status: string;
+            /** @description Key-value tags for additional trace metadata */
+            tags: {
+                [key: string]: string;
+            };
+            /** @description Tenant ID */
+            tenant_id: string;
+            /** @description Unique trace ID */
+            trace_id: string;
+        };
+        /** @description Tracing span */
+        TraceSpan: {
+            /** Format: double */
+            duration_ms: number;
+            /** Format: date-time */
+            end_time: string;
+            logs: components["schemas"]["SpanLog"][];
+            operation_name: string;
+            parent_span_id?: string | null;
+            span_id: string;
+            /** Format: date-time */
+            start_time: string;
+            tags: {
+                [key: string]: string;
+            };
+            trace_id: string;
+        };
+        /** @description Request to update a resource pool */
+        UpdatePoolRequest: {
+            /** Format: int32 */
+            max_size?: number | null;
+            /** Format: int32 */
+            min_size?: number | null;
+            name?: string | null;
+            tags?: {
+                [key: string]: string;
+            } | null;
+        };
+        /** @description Update tenant request (EPIC-09) */
+        UpdateTenantRequest: {
+            /** @description Tenant admin email */
+            email: string;
+            /** @description Tenant name */
+            name: string;
+        };
+        /** @description User structure */
+        User: {
+            /**
+             * Format: date-time
+             * @description Creation date
+             */
+            created_at: string;
+            /** @description Display name */
+            display_name: string;
+            /** @description Email address */
+            email: string;
+            /** @description Unique user ID */
+            id: string;
+            /** @description User status */
+            is_active: boolean;
+            /**
+             * Format: date-time
+             * @description Last login date
+             */
+            last_login?: string | null;
+            /** @description User metadata */
+            metadata: {
+                [key: string]: string;
+            };
+            /** @description User permissions */
+            permissions: components["schemas"]["Permission"][];
+            /** @description User roles */
+            roles: components["schemas"]["Role"][];
+            /** @description Tenant ID */
+            tenant_id: string;
+            /** @description Username */
+            username: string;
+        };
+        /** @description Security vulnerability structure */
+        Vulnerability: {
+            /** @description Assigned user/team */
+            assigned_to?: string | null;
+            /** @description CVE identifier (if applicable) */
+            cve_id?: string | null;
+            /**
+             * Format: double
+             * @description CVSS score (0.0 - 10.0)
+             */
+            cvss_score: number;
+            /** @description Detailed description */
+            description: string;
+            /**
+             * Format: date-time
+             * @description Discovery date
+             */
+            discovered_at: string;
+            /**
+             * Format: date-time
+             * @description Due date for remediation
+             */
+            due_date?: string | null;
+            /** @description Evidence and proof */
+            evidence: string[];
+            /** @description Unique vulnerability ID */
+            id: string;
+            /** @description Related vulnerabilities */
+            related_vulnerabilities: string[];
+            /** @description Remediation steps */
+            remediation_steps: string[];
+            /** @description Affected resource ID */
+            resource_id: string;
+            /** @description Resource type */
+            resource_type: string;
+            /** @description Severity level */
+            severity: components["schemas"]["VulnerabilitySeverity"];
+            /** @description Current status */
+            status: components["schemas"]["VulnerabilityStatus"];
+            /** @description Tags for categorization */
+            tags: string[];
+            /** @description Tenant ID */
+            tenant_id: string;
+            /** @description Vulnerability title/description */
+            title: string;
+            /**
+             * Format: date-time
+             * @description Last updated
+             */
+            updated_at: string;
+        };
+        /**
+         * @description Vulnerability severity enum
+         * @enum {string}
+         */
+        VulnerabilitySeverity: "Critical" | "High" | "Medium" | "Low" | "Info";
+        /**
+         * @description Vulnerability status enum
+         * @enum {string}
+         */
+        VulnerabilityStatus: "Open" | "InProgress" | "Verified" | "Resolved" | "Accepted" | "FalsePositive";
+        /** @description Worker capabilities for matching */
+        WorkerCapabilities: {
+            /** Format: int32 */
+            cpu_cores: number;
+            features: string[];
+            /** Format: int32 */
+            gpu?: number | null;
+            labels: {
+                [key: string]: string;
+            };
+            /** Format: int32 */
+            max_concurrent_jobs: number;
+            /** Format: int64 */
+            memory_gb: number;
+        };
+        /** @description Worker response */
+        WorkerResponse: {
+            /** @description Worker capabilities */
+            capabilities: components["schemas"]["WorkerCapabilities"];
+            /** @description Unique worker identifier */
+            id: string;
+            /**
+             * Format: date-time
+             * @description Last heartbeat timestamp
+             */
+            last_heartbeat: string;
+            /** @description Worker name */
+            name: string;
+            /** @description Current status */
+            status: string;
+        };
     };
-    responses: {
-        /** @description Bad request */
-        BadRequest: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "BAD_REQUEST",
-                 *       "message": "Invalid request parameters",
-                 *       "timestamp": "2025-11-30T12:00:00Z"
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description Unauthorized */
-        Unauthorized: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "UNAUTHORIZED",
-                 *       "message": "Authentication required",
-                 *       "timestamp": "2025-11-30T12:00:00Z"
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description Not found */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "NOT_FOUND",
-                 *       "message": "Resource not found",
-                 *       "timestamp": "2025-11-30T12:00:00Z"
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description Conflict */
-        Conflict: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "CONFLICT",
-                 *       "message": "Resource already exists",
-                 *       "timestamp": "2025-11-30T12:00:00Z"
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description Internal server error */
-        InternalError: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "INTERNAL_ERROR",
-                 *       "message": "An unexpected error occurred",
-                 *       "timestamp": "2025-11-30T12:00:00Z"
-                 *     }
-                 */
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-    };
+    responses: never;
     parameters: never;
     requestBodies: never;
     headers: never;
@@ -280,15 +2558,998 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    listPipelines: {
+    hello_openapi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Hello OpenAPI */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    check_permission_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckPermissionRequest"];
+            };
+        };
+        responses: {
+            /** @description Permission checked successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessDecision"];
+                };
+            };
+        };
+    };
+    login_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Login successful */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthToken"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    assign_role_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleAssignment"];
+            };
+        };
+        responses: {
+            /** @description Role assigned successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAssignment"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revoke_role_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Role revoked successfully */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_users_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Users retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"][];
+                };
+            };
+        };
+    };
+    create_user_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["User"];
+            };
+        };
+        responses: {
+            /** @description User created successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_user_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description User not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_user_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["User"];
+            };
+        };
+        responses: {
+            /** @description User updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_user_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User deleted successfully */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_user_roles_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User roles retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAssignment"][];
+                };
+            };
+        };
+    };
+    list_budgets_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Budgets retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Budget"][];
+                };
+            };
+        };
+    };
+    create_budget_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Budget"];
+            };
+        };
+        responses: {
+            /** @description Budget created successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Budget"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_budget_alerts_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Budget alerts retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetAlert"][];
+                };
+            };
+        };
+    };
+    check_budget_alerts_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Budget alerts checked successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetAlert"][];
+                };
+            };
+        };
+    };
+    get_budget_usage_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Budget usage retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetUsage"];
+                };
+            };
+            /** @description Budget not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_budget_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Budget found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Budget"];
+                };
+            };
+            /** @description Budget not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_budget_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Budget"];
+            };
+        };
+        responses: {
+            /** @description Budget updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Budget"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_budget_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Budget deleted successfully */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_cost_by_resource_handler: {
         parameters: {
             query?: {
-                /** @description Maximum number of items to return */
+                /** @description Filter by tenant ID */
+                tenant_id?: string;
+                /** @description Start date (YYYY-MM-DD) */
+                start_date?: string;
+                /** @description End date (YYYY-MM-DD) */
+                end_date?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cost breakdown by resource */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostBreakdown"][];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_cost_by_tenant_handler: {
+        parameters: {
+            query?: {
+                /** @description Start date (YYYY-MM-DD) */
+                start_date?: string;
+                /** @description End date (YYYY-MM-DD) */
+                end_date?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cost breakdown by tenant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantCostBreakdown"][];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_cost_summary_handler: {
+        parameters: {
+            query?: {
+                /** @description Filter by tenant ID */
+                tenant_id?: string;
+                /** @description Start date (YYYY-MM-DD) */
+                start_date?: string;
+                /** @description End date (YYYY-MM-DD) */
+                end_date?: string;
+                /** @description Currency code (e.g., USD, EUR) */
+                currency?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cost summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostSummary"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_cost_trends_handler: {
+        parameters: {
+            query?: {
+                /** @description Filter by tenant ID */
+                tenant_id?: string;
+                /** @description Start date (YYYY-MM-DD) */
+                start_date?: string;
+                /** @description End date (YYYY-MM-DD) */
+                end_date?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cost trends */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostTrend"][];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    logs_stream_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Execution ID to stream logs for */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Log stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    logs_statistics_handler: {
+        parameters: {
+            query?: {
+                /** @description Filter by tenant ID */
+                tenant_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Log statistics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogStatistics"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_dashboard_metrics: {
+        parameters: {
+            query?: {
+                /** @description Filter by tenant ID */
+                tenant_id?: string;
+                /** @description Time range in hours (e.g., '24h', '168h') */
+                range?: string;
+                /** @description Alternative time range parameter */
+                time_range_hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dashboard metrics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardMetrics"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    metrics_websocket_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Worker ID to stream metrics for */
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description WebSocket upgrade successful */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_audit_logs: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of logs to return */
                 limit?: number;
-                /** @description Number of items to skip */
-                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit logs retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLog"][];
+                };
+            };
+        };
+    };
+    get_observability_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configuration retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservabilityConfig"];
+                };
+            };
+        };
+    };
+    update_observability_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ObservabilityConfig"];
+            };
+        };
+        responses: {
+            /** @description Configuration updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid configuration */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_error_events: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of errors to return */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Error events retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEvent"][];
+                };
+            };
+        };
+    };
+    get_service_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service health retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceHealth"];
+                };
+            };
+        };
+    };
+    get_metrics: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of metrics to return */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Metrics retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservabilityMetric"][];
+                };
+            };
+        };
+    };
+    get_performance_metrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Performance metrics retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceMetrics"];
+                };
+            };
+        };
+    };
+    get_cluster_topology: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cluster topology retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterTopology"];
+                };
+            };
+        };
+    };
+    get_trace_spans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trace ID */
+                trace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trace spans retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TraceSpan"][];
+                };
+            };
+        };
+    };
+    list_pipelines_handler: {
+        parameters: {
+            query?: {
                 /** @description Filter by pipeline status */
-                status?: "active" | "inactive" | "archived";
+                status?: string;
+                /** @description Filter by pipeline name */
+                name?: string;
+                /** @description Filter by creation date (ISO8601) */
+                created_after?: string;
+                /** @description Filter by creation date (ISO8601) */
+                created_before?: string;
             };
             header?: never;
             path?: never;
@@ -302,18 +3563,19 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items?: components["schemas"]["Pipeline"][];
-                        total?: number;
-                        hasMore?: boolean;
-                    };
+                    "application/json": components["schemas"]["ListPipelinesResponseDto"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
-    createPipeline: {
+    create_pipeline_handler: {
         parameters: {
             query?: never;
             header?: never;
@@ -322,42 +3584,35 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /**
-                 * @example {
-                 *       "name": "web-app-build",
-                 *       "description": "Build and deploy web application",
-                 *       "schedule": "0 0 * * *",
-                 *       "tags": [
-                 *         "build",
-                 *         "deploy"
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["CreatePipelineRequest"];
+                "application/json": components["schemas"]["CreatePipelineRequestDto"];
             };
         };
         responses: {
             /** @description Pipeline created successfully */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Pipeline"];
+                    "application/json": components["schemas"]["PipelineResponseDto"];
                 };
             };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            409: components["responses"]["Conflict"];
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
-    getPipeline: {
+    get_pipeline_handler: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description ID of the pipeline */
-                pipelineId: string;
+                /** @description Pipeline ID */
+                id: string;
             };
             cookie?: never;
         };
@@ -369,51 +3624,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Pipeline"];
+                    "application/json": components["schemas"]["PipelineResponseDto"];
                 };
             };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    deletePipeline: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description ID of the pipeline */
-                pipelineId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Pipeline deleted successfully */
-            204: {
+            /** @description Pipeline not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
-    updatePipeline: {
+    update_pipeline_handler: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description ID of the pipeline */
-                pipelineId: string;
+                /** @description Pipeline ID */
+                id: string;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdatePipelineRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Pipeline updated successfully */
             200: {
@@ -421,15 +3661,495 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Pipeline"];
+                    "application/json": components["schemas"]["PipelineResponseDto"];
                 };
             };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
-    listWorkerPools: {
+    delete_pipeline_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Pipeline ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pipeline deleted successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_pipeline_dag_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Pipeline ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description DAG structure */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DagStructureDto"];
+                };
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    execute_pipeline_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Pipeline ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutePipelineRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Pipeline execution started */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutePipelineResponseDto"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Pipeline not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_execution_logs_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Pipeline ID */
+                id: string;
+                /** @description Execution ID */
+                execution_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Execution logs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionLogsDto"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_step_details_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Pipeline ID */
+                id: string;
+                /** @description Step ID */
+                step_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Step details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepDetailsDto"];
+                };
+            };
+            /** @description Pipeline or step not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_compliance_checks_handler: {
+        parameters: {
+            query?: {
+                /** @description Filter by tenant ID */
+                tenant_id?: string;
+                /** @description Filter by compliance framework */
+                framework?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of compliance checks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceCheck"][];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_security_metrics_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tenant ID */
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Security metrics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityMetrics"];
+                };
+            };
+            /** @description Security metrics not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    generate_security_report_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecurityReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Security report generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityReport"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_security_score_handler: {
+        parameters: {
+            query?: {
+                /** @description Entity type (resource, tenant, application) */
+                type?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Entity ID (resource, tenant, etc.) */
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Security score */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityScore"];
+                };
+            };
+            /** @description Security score not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_security_scores_handler: {
+        parameters: {
+            query?: {
+                /** @description Filter by tenant ID */
+                tenant_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of security scores */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityScore"][];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_vulnerabilities_handler: {
+        parameters: {
+            query?: {
+                /** @description Filter by tenant ID */
+                tenant_id?: string;
+                /** @description Filter by severity */
+                severity?: string;
+                /** @description Filter by status */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of vulnerabilities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Vulnerability"][];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_vulnerability_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Vulnerability ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vulnerability details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Vulnerability"];
+                };
+            };
+            /** @description Vulnerability not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_trace_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trace ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trace details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trace"];
+                };
+            };
+            /** @description Trace not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_pools_handler: {
         parameters: {
             query?: never;
             header?: never;
@@ -438,39 +4158,272 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description List of worker pools */
+            /** @description List of resource pools */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WorkerPool"][];
+                    "application/json": components["schemas"]["ResourcePoolResponse"][];
                 };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
-    getWorkerPoolStatus: {
+    create_pool_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePoolRequest"];
+            };
+        };
+        responses: {
+            /** @description Resource pool created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePoolResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Pool already exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_pool_handler: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description ID of the worker pool */
-                poolId: string;
+                /** @description Pool ID */
+                pool_id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Worker pool status */
+            /** @description Resource pool details */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WorkerPoolStatus"];
+                    "application/json": components["schemas"]["ResourcePoolResponse"];
                 };
             };
-            404: components["responses"]["NotFound"];
+            /** @description Pool not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_pool_put_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Pool ID */
+                pool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePoolRequest"];
+            };
+        };
+        responses: {
+            /** @description Resource pool updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePoolResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Pool not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_pool_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Pool ID */
+                pool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resource pool deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Pool not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_pool_patch_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Pool ID */
+                pool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePoolRequest"];
+            };
+        };
+        responses: {
+            /** @description Resource pool updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePoolResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Pool not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_pool_status_handler: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Pool ID */
+                pool_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resource pool status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourcePoolStatus"];
+                };
+            };
+            /** @description Pool status not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }

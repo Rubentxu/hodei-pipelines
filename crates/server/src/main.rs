@@ -1,6 +1,5 @@
 //! Hodei Pipelines Server - Production Bootstrap
 
-use axum::routing::get;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -134,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::mpsc::channel::<()>(1);
 
     // Spawn task to listen for OS signals
-    let mut shutdown_tx_sig = shutdown_tx.clone();
+    let shutdown_tx_sig = shutdown_tx.clone();
     tokio::spawn(async move {
         match tokio::signal::ctrl_c().await {
             Ok(()) => {

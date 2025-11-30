@@ -9,6 +9,7 @@ pub mod bootstrap;
 pub mod budget_management;
 pub mod cost_optimization_recommendations;
 pub mod cost_tracking_aggregation;
+pub mod dtos;
 pub mod error;
 pub mod execution_api;
 pub mod grpc;

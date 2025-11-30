@@ -10,16 +10,14 @@
 //!
 //! Example:
 //! ```rust
-//! use hodei_adapters::bus::config::{EventBusConfig, EventBusType, NatsConfig};
-//!
 //! // For production (NATS JetStream - default)
-//! let config = EventBusConfig::default(); // Uses Nats
+//! let config = hodei_pipelines_adapters::bus::config::EventBusConfig::default();
 //!
 //! // For testing
-//! let test_config = EventBusConfig {
-//!     bus_type: EventBusType::InMemory,
+//! let test_config = hodei_pipelines_adapters::bus::config::EventBusConfig {
+//!     bus_type: hodei_pipelines_adapters::bus::config::EventBusType::InMemory,
 //!     inmemory_capacity: 1000,
-//!     nats_config: NatsConfig::default(),
+//!     nats_config: hodei_pipelines_adapters::bus::config::NatsConfig::default(),
 //! };
 //! ```
 

@@ -109,10 +109,10 @@ impl PostgreSqlPipelineRepository {
             .try_get::<String, _>("step_name")
             .unwrap_or_else(|_| step_row.get::<String, _>("name"));
 
-        let job_spec: hodei_pipelines_core::job::JobSpec = serde_json::from_value(step_row.get("job_spec"))
-            .map_err(|e| {
-            DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
-        })?;
+        let job_spec: hodei_pipelines_core::job::JobSpec =
+            serde_json::from_value(step_row.get("job_spec")).map_err(|e| {
+                DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
+            })?;
 
         let depends_on: Vec<hodei_pipelines_core::pipeline::PipelineStepId> =
             serde_json::from_value(step_row.get("depends_on")).map_err(|e| {
@@ -149,8 +149,10 @@ impl PostgreSqlPipelineRepository {
             id: PipelineId::from_uuid(pipeline_row.get("pipeline_id")),
             name: pipeline_row.get("name"),
             description: pipeline_row.get("description"),
-            status: hodei_pipelines_core::pipeline::PipelineStatus::from_str(pipeline_row.get("status"))
-                .map_err(|_| DomainError::Validation("Invalid pipeline status".to_string()))?,
+            status: hodei_pipelines_core::pipeline::PipelineStatus::from_str(
+                pipeline_row.get("status"),
+            )
+            .map_err(|_| DomainError::Validation("Invalid pipeline status".to_string()))?,
             steps,
             variables,
             created_at: pipeline_row.get("created_at"),
@@ -164,6 +166,7 @@ impl PostgreSqlPipelineRepository {
 #[async_trait]
 impl PipelineRepository for PostgreSqlPipelineRepository {
     async fn save_pipeline(&self, pipeline: &Pipeline) -> Result<()> {
+        // Save or update pipeline without transaction
         sqlx::query(
             r#"
             INSERT INTO pipelines (
@@ -191,19 +194,26 @@ impl PipelineRepository for PostgreSqlPipelineRepository {
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to save pipeline: {}", e)))?;
 
-        // Save pipeline steps
+        // Delete existing steps
+        sqlx::query(
+            r#"
+            DELETE FROM pipeline_steps WHERE pipeline_id = $1
+        "#,
+        )
+        .bind(pipeline.id.as_uuid())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Infrastructure(format!("Failed to delete existing pipeline steps: {}", e))
+        })?;
+
+        // Insert all pipeline steps one by one
         for step in &pipeline.steps {
             sqlx::query(
                 r#"
                 INSERT INTO pipeline_steps (
                     step_id, pipeline_id, name, job_spec, timeout_ms, depends_on, updated_at
                 ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ON CONFLICT (step_id) DO UPDATE SET
-                    name = EXCLUDED.name,
-                    job_spec = EXCLUDED.job_spec,
-                    timeout_ms = EXCLUDED.timeout_ms,
-                    depends_on = EXCLUDED.depends_on,
-                    updated_at = NOW()
             "#,
             )
             .bind(step.id.as_uuid())

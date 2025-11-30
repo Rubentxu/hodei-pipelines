@@ -1,6 +1,6 @@
 #![cfg(feature = "event-store-tests")]
 use chrono::{DateTime, Utc};
-use hodei_core::events::*;
+use hodei_pipelines_core::events::*;
 use serde_json::Value;
 use uuid::Uuid;
 

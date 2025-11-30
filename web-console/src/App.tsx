@@ -1,5 +1,11 @@
 import { Route, Routes } from "react-router-dom";
+import AlertManagement from "./components/AlertManagement";
+import { LogsExplorer } from "./components/LogsExplorer";
+import { ResourcePoolDetails } from "./components/ResourcePoolDetails";
+import { ResourcePoolForm } from "./components/ResourcePoolForm";
+import { ResourcePoolList } from "./components/ResourcePoolList";
 import { Layout } from "./components/shared/layout";
+import LoginPage from "./pages/auth/login-page";
 import { DashboardPage } from "./pages/dashboard-page";
 import { FinOpsPage } from "./pages/finops/finops-page";
 import { ObservabilityPage } from "./pages/observability/observability-page";
@@ -8,16 +14,12 @@ import { PipelinesPage } from "./pages/pipelines/pipelines-page";
 import { SecurityPage } from "./pages/security/security-page";
 import { TerminalPage } from "./pages/terminal/terminal-page";
 import { WorkersPage } from "./pages/workers/workers-page";
-import { ResourcePoolList } from "./components/ResourcePoolList";
-import { ResourcePoolForm } from "./components/ResourcePoolForm";
-import { ResourcePoolDetails } from "./components/ResourcePoolDetails";
-import LogsExplorer from "./components/LogsExplorer";
-import AlertManagement from "./components/AlertManagement";
 
 function App() {
   return (
     <Layout>
       <Routes>
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<DashboardPage />} />
         <Route path="/pipelines" element={<PipelinesPage />} />
         <Route

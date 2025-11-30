@@ -8,10 +8,9 @@ use hodei_pipelines_core::ResourceQuota;
 use hodei_pipelines_core::{Worker, WorkerId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use utoipa::ToSchema;
 
 /// Resource pool type
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ResourcePoolType {
     /// Docker-based pool using containers
     Docker,
@@ -24,7 +23,7 @@ pub enum ResourcePoolType {
 }
 
 /// Resource pool configuration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ResourcePoolConfig {
     pub pool_type: ResourcePoolType,
     pub name: String,
@@ -36,7 +35,7 @@ pub struct ResourcePoolConfig {
 }
 
 /// Resource pool status
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ResourcePoolStatus {
     pub name: String,
     pub pool_type: ResourcePoolType,

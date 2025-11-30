@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod cluster_state_tests {
-    use hodei_core::{WorkerCapabilities, WorkerId};
-    use hodei_modules::scheduler::{ClusterState, ResourceUsage};
+    use hodei_pipelines_core::{WorkerCapabilities, WorkerId};
+    use hodei_pipelines_modules::scheduler::{ClusterState, ResourceUsage};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;

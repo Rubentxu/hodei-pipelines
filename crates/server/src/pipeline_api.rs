@@ -12,17 +12,17 @@ use axum::{
 };
 use hodei_pipelines_core::{
     Result as CoreResult,
-    pipeline::{Pipeline, PipelineId, PipelineStatus, PipelineStepId},
+    pipeline::{Pipeline, PipelineId, PipelineStepId},
     pipeline_execution::ExecutionId,
 };
 use hodei_pipelines_modules::pipeline_crud::{
     CreatePipelineRequest, CreatePipelineStepRequest, ExecutePipelineRequest, ListPipelinesFilter,
     UpdatePipelineRequest,
 };
-use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tracing::{error, info, warn};
-use utoipa::ToSchema;
+
+use crate::dtos::*;
 
 // ===== Application State =====
 
@@ -63,196 +63,6 @@ pub trait PipelineServiceWrapper: Send + Sync {
     ) -> CoreResult<hodei_pipelines_core::pipeline_execution::PipelineExecution>;
 }
 
-// ===== DTOs =====
-
-/// Create Pipeline Request DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct CreatePipelineRequestDto {
-    pub name: String,
-    pub description: Option<String>,
-    pub steps: Vec<CreatePipelineStepRequestDto>,
-}
-
-/// Create Pipeline Step Request DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct CreatePipelineStepRequestDto {
-    pub name: String,
-    pub image: String,
-    pub command: Vec<String>,
-    pub timeout_ms: Option<u64>,
-    pub retries: Option<u32>,
-    pub env: Option<HashMap<String, String>>,
-}
-
-/// Pipeline Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct PipelineResponseDto {
-    pub id: PipelineId,
-    pub name: String,
-    pub description: Option<String>,
-    pub status: PipelineStatus,
-    pub step_count: usize,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-impl From<Pipeline> for PipelineResponseDto {
-    fn from(pipeline: Pipeline) -> Self {
-        Self {
-            id: pipeline.id,
-            name: pipeline.name,
-            description: pipeline.description,
-            status: pipeline.status,
-            step_count: pipeline.steps.len(),
-            created_at: pipeline.created_at,
-            updated_at: pipeline.updated_at,
-        }
-    }
-}
-
-/// List Pipelines Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ListPipelinesResponseDto {
-    #[serde(rename = "items")]
-    pub pipelines: Vec<PipelineSummaryDto>,
-    pub total: usize,
-}
-
-impl From<Vec<Pipeline>> for ListPipelinesResponseDto {
-    fn from(mut pipelines: Vec<Pipeline>) -> Self {
-        let total = pipelines.len();
-        let pipelines_summary = pipelines.drain(..).map(|p| p.into()).collect();
-        Self {
-            pipelines: pipelines_summary,
-            total,
-        }
-    }
-}
-
-/// Pipeline Summary DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct PipelineSummaryDto {
-    pub id: PipelineId,
-    pub name: String,
-    pub description: Option<String>,
-    pub status: PipelineStatus,
-    pub step_count: usize,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-impl From<Pipeline> for PipelineSummaryDto {
-    fn from(pipeline: Pipeline) -> Self {
-        Self {
-            id: pipeline.id,
-            name: pipeline.name,
-            description: pipeline.description,
-            status: pipeline.status,
-            step_count: pipeline.steps.len(),
-            created_at: pipeline.created_at,
-            updated_at: pipeline.updated_at,
-        }
-    }
-}
-
-/// Execute Pipeline Request DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ExecutePipelineRequestDto {
-    pub environment: Option<String>,
-    pub branch: Option<String>,
-    pub parameters: Option<HashMap<String, String>>,
-    pub variables: Option<HashMap<String, String>>,
-    pub tenant_id: Option<String>,
-}
-
-/// Execute Pipeline Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ExecutePipelineResponseDto {
-    pub execution_id: ExecutionId,
-    pub pipeline_id: PipelineId,
-    pub status: String,
-}
-
-impl From<hodei_pipelines_core::pipeline_execution::PipelineExecution> for ExecutePipelineResponseDto {
-    fn from(execution: hodei_pipelines_core::pipeline_execution::PipelineExecution) -> Self {
-        Self {
-            execution_id: execution.id,
-            pipeline_id: execution.pipeline_id,
-            status: execution.status.as_str().to_string(),
-        }
-    }
-}
-
-// ========== DAG Visualizer Endpoints (US-003) ==========
-
-/// DAG Node DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct DagNodeDto {
-    pub id: PipelineStepId,
-    pub name: String,
-    pub status: Option<PipelineStatus>,
-    pub position: Option<DagPosition>,
-}
-
-/// DAG Edge DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct DagEdgeDto {
-    pub source: PipelineStepId,
-    pub target: PipelineStepId,
-}
-
-/// DAG Position
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct DagPosition {
-    pub x: f64,
-    pub y: f64,
-}
-
-/// DAG Structure Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct DagStructureDto {
-    pub pipeline_id: PipelineId,
-    pub nodes: Vec<DagNodeDto>,
-    pub edges: Vec<DagEdgeDto>,
-}
-
-/// Step Details Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct StepDetailsDto {
-    pub id: PipelineStepId,
-    pub name: String,
-    pub image: String,
-    pub command: Vec<String>,
-    pub timeout_ms: u64,
-    pub retries: u32,
-    pub environment: HashMap<String, String>,
-    pub status: Option<String>,
-}
-
-/// Execution Logs Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct ExecutionLogsDto {
-    pub execution_id: ExecutionId,
-    pub step_executions: Vec<StepExecutionLogsDto>,
-}
-
-/// Step Execution Logs DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct StepExecutionLogsDto {
-    pub step_id: PipelineStepId,
-    pub step_name: String,
-    pub status: String,
-    pub logs: Vec<LogEntryDto>,
-}
-
-/// Log Entry DTO
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct LogEntryDto {
-    pub timestamp: chrono::DateTime<chrono::Utc>,
-    pub stream_type: String,
-    pub content: String,
-}
-
 // ===== API Handlers =====
 
 #[utoipa::path(
@@ -260,7 +70,7 @@ pub struct LogEntryDto {
     path = "/api/v1/pipelines",
     request_body = CreatePipelineRequestDto,
     responses(
-        (status = 200, description = "Pipeline created successfully", body = PipelineResponseDto),
+        (status = 200, description = "Pipeline created successfully", body = PipelineDto),
         (status = 500, description = "Internal server error")
     ),
     tag = "pipelines"
@@ -268,7 +78,7 @@ pub struct LogEntryDto {
 pub async fn create_pipeline_handler(
     State(state): State<PipelineApiAppState>,
     Json(request): Json<CreatePipelineRequestDto>,
-) -> Result<Json<PipelineResponseDto>, StatusCode> {
+) -> Result<Json<PipelineDto>, StatusCode> {
     info!("Creating pipeline: {}", request.name);
 
     let create_request = CreatePipelineRequest {
@@ -279,14 +89,23 @@ pub async fn create_pipeline_handler(
             .into_iter()
             .map(|s| CreatePipelineStepRequest {
                 name: s.name,
-                image: s.image,
-                command: s.command,
-                resources: None,
-                timeout_ms: s.timeout_ms,
-                retries: Some(s.retries.unwrap_or(0)),
-                env: Some(s.env.unwrap_or_default()),
-                secret_refs: None,
-                depends_on: None,
+                image: s.job_spec.image,
+                command: s.job_spec.command,
+                resources: Some(s.job_spec.resources.into()),
+                timeout_ms: Some(s.job_spec.timeout_ms),
+                retries: Some(s.job_spec.retries as u32),
+                env: Some(s.job_spec.env),
+                secret_refs: Some(s.job_spec.secret_refs),
+                depends_on: if s.dependencies.is_empty() {
+                    None
+                } else {
+                    Some(
+                        s.dependencies
+                            .into_iter()
+                            .map(|id| id.to_string())
+                            .collect(),
+                    )
+                },
             })
             .collect(),
         variables: Some(HashMap::new()), // Empty variables for new pipeline
@@ -348,7 +167,7 @@ pub async fn list_pipelines_handler(
         ("id" = String, Path, description = "Pipeline ID")
     ),
     responses(
-        (status = 200, description = "Pipeline details", body = PipelineResponseDto),
+        (status = 200, description = "Pipeline details", body = PipelineDto),
         (status = 404, description = "Pipeline not found"),
         (status = 500, description = "Internal server error")
     ),
@@ -357,7 +176,7 @@ pub async fn list_pipelines_handler(
 pub async fn get_pipeline_handler(
     State(state): State<PipelineApiAppState>,
     Path(id): Path<PipelineId>,
-) -> Result<Json<PipelineResponseDto>, StatusCode> {
+) -> Result<Json<PipelineDto>, StatusCode> {
     info!("Getting pipeline: {}", id);
 
     match state.pipeline_service.get_pipeline(&id).await {
@@ -383,7 +202,7 @@ pub async fn get_pipeline_handler(
         ("id" = String, Path, description = "Pipeline ID")
     ),
     responses(
-        (status = 200, description = "Pipeline updated successfully", body = PipelineResponseDto),
+        (status = 200, description = "Pipeline updated successfully", body = PipelineDto),
         (status = 404, description = "Pipeline not found"),
         (status = 500, description = "Internal server error")
     ),
@@ -392,7 +211,7 @@ pub async fn get_pipeline_handler(
 pub async fn update_pipeline_handler(
     State(state): State<PipelineApiAppState>,
     Path(id): Path<PipelineId>,
-) -> Result<Json<PipelineResponseDto>, StatusCode> {
+) -> Result<Json<PipelineDto>, StatusCode> {
     info!("Updating pipeline: {}", id);
 
     let update_request = UpdatePipelineRequest {
@@ -571,15 +390,15 @@ pub async fn get_pipeline_dag_handler(
 
             let mut nodes = Vec::new();
             for (index, step) in pipeline.steps.iter().enumerate() {
-                let position = DagPosition {
+                let position = DagPositionDto {
                     x: (index % 3) as f64 * 250.0,
                     y: (index / 3) as f64 * 150.0,
                 };
 
                 nodes.push(DagNodeDto {
-                    id: step.id.clone(),
+                    id: step.id.0,
                     name: step.name.clone(),
-                    status: Some(pipeline.status.clone()),
+                    status: Some(pipeline.status.as_str().to_string()),
                     position: Some(position),
                 });
             }
@@ -588,14 +407,14 @@ pub async fn get_pipeline_dag_handler(
             for step in &pipeline.steps {
                 for dependency in &step.depends_on {
                     edges.push(DagEdgeDto {
-                        source: dependency.clone(),
-                        target: step.id.clone(),
+                        source: dependency.0,
+                        target: step.id.0,
                     });
                 }
             }
 
             let dag = DagStructureDto {
-                pipeline_id: id,
+                pipeline_id: id.0,
                 nodes,
                 edges,
             };
@@ -645,7 +464,7 @@ pub async fn get_step_details_handler(
         Ok(Some(pipeline)) => {
             if let Some(step) = pipeline.steps.iter().find(|s| s.id == step_id) {
                 let step_details = StepDetailsDto {
-                    id: step.id.clone(),
+                    id: step.id.0,
                     name: step.name.clone(),
                     image: step.job_spec.image.clone(),
                     command: step.job_spec.command.clone(),
@@ -694,9 +513,9 @@ pub async fn get_execution_logs_handler(
     );
 
     let logs = ExecutionLogsDto {
-        execution_id: execution_id.clone(),
+        execution_id: execution_id.0,
         step_executions: vec![StepExecutionLogsDto {
-            step_id: PipelineStepId::new(),
+            step_id: uuid::Uuid::new_v4(), // Mock ID
             step_name: "checkout".to_string(),
             status: "COMPLETED".to_string(),
             logs: vec![LogEntryDto {

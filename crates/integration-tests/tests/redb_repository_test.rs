@@ -6,9 +6,9 @@
 use std::collections::HashMap;
 use tracing::info;
 
-use hodei_adapters::redb::RedbJobRepository;
-use hodei_core::job::{Job, JobId, JobSpec, ResourceQuota};
-use hodei_ports::JobRepository;
+use hodei_pipelines_adapters::redb::RedbJobRepository;
+use hodei_pipelines_core::job::{Job, JobId, JobSpec, ResourceQuota};
+use hodei_pipelines_ports::JobRepository;
 
 fn init_tracing() {
     let _ = tracing_subscriber::fmt::try_init();

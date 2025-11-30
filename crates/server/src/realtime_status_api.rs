@@ -7,19 +7,14 @@ use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::{
     Router,
     extract::{Path, State},
-    http::StatusCode,
     response::IntoResponse,
     routing::get,
 };
 use futures::StreamExt;
-use hodei_pipelines_core::{
-    Result as CoreResult,
-    pipeline_execution::{ExecutionId, ExecutionStatus},
-};
+use hodei_pipelines_core::pipeline_execution::{ExecutionId, ExecutionStatus};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, pin::Pin, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{RwLock, broadcast};
-use tokio_stream::{Stream, StreamMap};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 

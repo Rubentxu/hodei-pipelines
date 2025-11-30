@@ -1,480 +1,4542 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
-  title: Hodei Pipelines API
-  description: |
-    API specification for the Hodei Pipelines job orchestration platform.
-
-    ## Features
-    - Pipeline management
-    - Job execution
-    - Worker management
-    - Resource pools
-    - Logs and observability
-    - Alerts and notifications
-    - Security and compliance
-
-  version: 1.0.0
+  title: hodei-pipelines-server
+  description: Hodei Pipelines Server - Monolithic Modular Architecture
   contact:
-    name: Hodei Pipelines Team
-    email: support@hodei-pipelines.dev
+    name: Hodei Team
   license:
     name: MIT
-    url: https://opensource.org/licenses/MIT
-
-servers:
-  - url: https://api.hodei-pipelines.dev/v1
-    description: Production server
-  - url: https://staging-api.hodei-pipelines.dev/v1
-    description: Staging server
-  - url: http://localhost:8080/v1
-    description: Local development server
-
-security:
-  - BearerAuth: []
-
+    identifier: MIT
+  version: 0.15.0
 paths:
-  /pipelines:
+  /api/hello-openapi:
     get:
-      summary: List all pipelines
-      description: Returns a paginated list of pipelines
-      operationId: listPipelines
+      tags: []
+      operationId: hello_openapi
+      responses:
+        '200':
+          description: Hello OpenAPI
+  /api/v1/auth/check:
+    post:
       tags:
-        - Pipelines
+      - Authentication & RBAC
+      summary: POST /api/v1/auth/check - Check permission
+      operationId: check_permission_handler
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckPermissionRequest'
+        required: true
+      responses:
+        '200':
+          description: Permission checked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessDecision'
+  /api/v1/auth/login:
+    post:
+      tags:
+      - Authentication & RBAC
+      summary: POST /api/v1/auth/login - Authenticate user
+      operationId: login_handler
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+        '401':
+          description: Unauthorized
+  /api/v1/auth/roles/assign:
+    post:
+      tags:
+      - Authentication & RBAC
+      summary: POST /api/v1/auth/roles/assign - Assign role to user
+      operationId: assign_role_handler
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleAssignment'
+        required: true
+      responses:
+        '200':
+          description: Role assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleAssignment'
+        '500':
+          description: Internal server error
+  /api/v1/auth/roles/revoke:
+    post:
+      tags:
+      - Authentication & RBAC
+      summary: POST /api/v1/auth/roles/revoke - Revoke role from user
+      operationId: revoke_role_handler
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeRoleRequest'
+        required: true
+      responses:
+        '204':
+          description: Role revoked successfully
+        '500':
+          description: Internal server error
+  /api/v1/auth/users:
+    get:
+      tags:
+      - Authentication & RBAC
+      summary: GET /api/v1/auth/users - List users
+      operationId: list_users_handler
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+    post:
+      tags:
+      - Authentication & RBAC
+      summary: POST /api/v1/auth/users - Create user
+      operationId: create_user_handler
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      responses:
+        '200':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '500':
+          description: Internal server error
+  /api/v1/auth/users/{id}:
+    get:
+      tags:
+      - Authentication & RBAC
+      summary: GET /api/v1/auth/users/{id} - Get user by ID
+      operationId: get_user_handler
       parameters:
-        - name: limit
-          in: query
-          description: Maximum number of items to return
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 50
-        - name: offset
-          in: query
-          description: Number of items to skip
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
-        - name: status
-          in: query
-          description: Filter by pipeline status
-          required: false
-          schema:
-            type: string
-            enum: [active, inactive, archived]
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+    put:
+      tags:
+      - Authentication & RBAC
+      summary: PUT /api/v1/auth/users/{id} - Update user
+      operationId: update_user_handler
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '500':
+          description: Internal server error
+    delete:
+      tags:
+      - Authentication & RBAC
+      summary: DELETE /api/v1/auth/users/{id} - Delete user
+      operationId: delete_user_handler
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: User deleted successfully
+        '500':
+          description: Internal server error
+  /api/v1/auth/users/{id}/roles:
+    get:
+      tags:
+      - Authentication & RBAC
+      summary: GET /api/v1/auth/users/{id}/roles - Get user roles
+      operationId: get_user_roles_handler
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: User roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleAssignment'
+  /api/v1/costs/budgets:
+    get:
+      tags:
+      - cost-management
+      summary: GET /api/v1/costs/budgets - List budgets
+      operationId: list_budgets_handler
+      responses:
+        '200':
+          description: Budgets retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Budget'
+    post:
+      tags:
+      - cost-management
+      summary: POST /api/v1/budgets - Create new budget
+      operationId: create_budget_handler
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Budget'
+        required: true
+      responses:
+        '200':
+          description: Budget created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '500':
+          description: Internal server error
+  /api/v1/costs/budgets/alerts/{tenant_id}:
+    get:
+      tags:
+      - cost-management
+      summary: GET /api/v1/budgets/alerts/{tenant_id} - Get budget alerts
+      operationId: get_budget_alerts_handler
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Budget alerts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BudgetAlert'
+  /api/v1/costs/budgets/check-alerts/{tenant_id}:
+    post:
+      tags:
+      - cost-management
+      summary: POST /api/v1/budgets/check-alerts/{tenant_id} - Check and trigger budget alerts
+      operationId: check_budget_alerts_handler
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Budget alerts checked successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BudgetAlert'
+  /api/v1/costs/budgets/usage/{tenant_id}:
+    get:
+      tags:
+      - cost-management
+      summary: GET /api/v1/budgets/usage/{tenant_id} - Get budget usage
+      operationId: get_budget_usage_handler
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Budget usage retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetUsage'
+        '404':
+          description: Budget not found
+  /api/v1/costs/budgets/{id}:
+    get:
+      tags:
+      - cost-management
+      summary: GET /api/v1/costs/budgets/{id} - Get budget by ID
+      operationId: get_budget_handler
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Budget found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '404':
+          description: Budget not found
+    put:
+      tags:
+      - cost-management
+      summary: PUT /api/v1/budgets/{id} - Update budget
+      operationId: update_budget_handler
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Budget'
+        required: true
+      responses:
+        '200':
+          description: Budget updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '500':
+          description: Internal server error
+    delete:
+      tags:
+      - cost-management
+      summary: DELETE /api/v1/budgets/{id} - Delete budget
+      operationId: delete_budget_handler
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Budget deleted successfully
+        '500':
+          description: Internal server error
+  /api/v1/costs/by-resource:
+    get:
+      tags:
+      - cost-management
+      summary: GET /api/v1/costs/by-resource - Get cost breakdown by resource type
+      operationId: get_cost_by_resource_handler
+      parameters:
+      - name: tenant_id
+        in: query
+        description: Filter by tenant ID
+        required: false
+        schema:
+          type: string
+      - name: start_date
+        in: query
+        description: Start date (YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+      - name: end_date
+        in: query
+        description: End date (YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Cost breakdown by resource
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostBreakdown'
+        '500':
+          description: Internal server error
+  /api/v1/costs/by-tenant:
+    get:
+      tags:
+      - cost-management
+      summary: GET /api/v1/costs/by-tenant - Get cost breakdown by tenant
+      operationId: get_cost_by_tenant_handler
+      parameters:
+      - name: start_date
+        in: query
+        description: Start date (YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+      - name: end_date
+        in: query
+        description: End date (YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Cost breakdown by tenant
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantCostBreakdown'
+        '500':
+          description: Internal server error
+  /api/v1/costs/summary:
+    get:
+      tags:
+      - cost-management
+      summary: GET /api/v1/costs/summary - Get cost summary
+      operationId: get_cost_summary_handler
+      parameters:
+      - name: tenant_id
+        in: query
+        description: Filter by tenant ID
+        required: false
+        schema:
+          type: string
+      - name: start_date
+        in: query
+        description: Start date (YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+      - name: end_date
+        in: query
+        description: End date (YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+      - name: currency
+        in: query
+        description: Currency code (e.g., USD, EUR)
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Cost summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CostSummary'
+        '500':
+          description: Internal server error
+  /api/v1/costs/trends:
+    get:
+      tags:
+      - cost-management
+      summary: GET /api/v1/costs/trends - Get cost trends
+      operationId: get_cost_trends_handler
+      parameters:
+      - name: tenant_id
+        in: query
+        description: Filter by tenant ID
+        required: false
+        schema:
+          type: string
+      - name: start_date
+        in: query
+        description: Start date (YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+      - name: end_date
+        in: query
+        description: End date (YYYY-MM-DD)
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Cost trends
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostTrend'
+        '500':
+          description: Internal server error
+  /api/v1/executions/{id}/logs/stream:
+    get:
+      tags:
+      - observability
+      operationId: logs_stream_handler
+      parameters:
+      - name: id
+        in: path
+        description: Execution ID to stream logs for
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Log stream
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+  /api/v1/logs/statistics:
+    get:
+      tags:
+      - observability
+      summary: GET /api/v1/logs/statistics - Get log statistics
+      operationId: logs_statistics_handler
+      parameters:
+      - name: tenant_id
+        in: query
+        description: Filter by tenant ID
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Log statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogStatistics'
+        '500':
+          description: Internal server error
+  /api/v1/metrics:
+    get:
+      tags:
+      - observability
+      summary: GET /api/v1/metrics/dashboard - Get dashboard metrics
+      operationId: get_dashboard_metrics
+      parameters:
+      - name: tenant_id
+        in: query
+        description: Filter by tenant ID
+        required: false
+        schema:
+          type: string
+      - name: range
+        in: query
+        description: Time range in hours (e.g., '24h', '168h')
+        required: false
+        schema:
+          type: string
+      - name: time_range_hours
+        in: query
+        description: Alternative time range parameter
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+      responses:
+        '200':
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardMetrics'
+        '500':
+          description: Internal server error
+  /api/v1/metrics/stream/{worker_id}:
+    get:
+      tags:
+      - observability
+      summary: WebSocket handler for live metrics
+      operationId: metrics_websocket_handler
+      parameters:
+      - name: worker_id
+        in: path
+        description: Worker ID to stream metrics for
+        required: true
+        schema:
+          type: string
+      responses:
+        '101':
+          description: WebSocket upgrade successful
+        '400':
+          description: Bad request
+        '500':
+          description: Internal server error
+  /api/v1/observability/audit:
+    get:
+      tags:
+      - Observability API
+      summary: Get audit logs
+      operationId: get_audit_logs
+      parameters:
+      - name: limit
+        in: query
+        description: Maximum number of logs to return
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+      responses:
+        '200':
+          description: Audit logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLog'
+  /api/v1/observability/config:
+    get:
+      tags:
+      - Observability API
+      summary: Get observability configuration
+      operationId: get_observability_config
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservabilityConfig'
+    put:
+      tags:
+      - Observability API
+      summary: Update observability configuration
+      operationId: update_observability_config
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObservabilityConfig'
+        required: true
+      responses:
+        '200':
+          description: Configuration updated successfully
+        '400':
+          description: Invalid configuration
+  /api/v1/observability/errors:
+    get:
+      tags:
+      - Observability API
+      summary: Get error events
+      operationId: get_error_events
+      parameters:
+      - name: limit
+        in: query
+        description: Maximum number of errors to return
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+      responses:
+        '200':
+          description: Error events retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ErrorEvent'
+  /api/v1/observability/health:
+    get:
+      tags:
+      - Observability API
+      summary: Get service health
+      operationId: get_service_health
+      responses:
+        '200':
+          description: Service health retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceHealth'
+  /api/v1/observability/metrics:
+    get:
+      tags:
+      - Observability API
+      summary: Get metrics
+      operationId: get_metrics
+      parameters:
+      - name: limit
+        in: query
+        description: Maximum number of metrics to return
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+      responses:
+        '200':
+          description: Metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ObservabilityMetric'
+  /api/v1/observability/performance:
+    get:
+      tags:
+      - Observability API
+      summary: Get performance metrics
+      operationId: get_performance_metrics
+      responses:
+        '200':
+          description: Performance metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformanceMetrics'
+  /api/v1/observability/topology:
+    get:
+      tags:
+      - Observability API
+      summary: Get cluster topology (US-10.3)
+      operationId: get_cluster_topology
+      responses:
+        '200':
+          description: Cluster topology retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterTopology'
+  /api/v1/observability/traces/{trace_id}:
+    get:
+      tags:
+      - Observability API
+      summary: Get trace spans
+      operationId: get_trace_spans
+      parameters:
+      - name: trace_id
+        in: path
+        description: Trace ID
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Trace spans retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TraceSpan'
+  /api/v1/pipelines:
+    get:
+      tags:
+      - pipelines
+      operationId: list_pipelines_handler
+      parameters:
+      - name: status
+        in: query
+        description: Filter by pipeline status
+        required: false
+        schema:
+          type: string
+      - name: name
+        in: query
+        description: Filter by pipeline name
+        required: false
+        schema:
+          type: string
+      - name: created_after
+        in: query
+        description: Filter by creation date (ISO8601)
+        required: false
+        schema:
+          type: string
+      - name: created_before
+        in: query
+        description: Filter by creation date (ISO8601)
+        required: false
+        schema:
+          type: string
       responses:
         '200':
           description: List of pipelines
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Pipeline'
-                  total:
-                    type: integer
-                  hasMore:
-                    type: boolean
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                $ref: '#/components/schemas/ListPipelinesResponseDto'
         '500':
-          $ref: '#/components/responses/InternalError'
-
+          description: Internal server error
     post:
-      summary: Create a new pipeline
-      description: Creates a new pipeline with the provided configuration
-      operationId: createPipeline
       tags:
-        - Pipelines
+      - pipelines
+      operationId: create_pipeline_handler
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreatePipelineRequest'
-            example:
-              name: "web-app-build"
-              description: "Build and deploy web application"
-              schedule: "0 0 * * *"
-              tags: ["build", "deploy"]
+              $ref: '#/components/schemas/CreatePipelineRequestDto'
+        required: true
       responses:
-        '201':
+        '200':
           description: Pipeline created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pipeline'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-
-  /pipelines/{pipelineId}:
+                $ref: '#/components/schemas/PipelineDto'
+        '500':
+          description: Internal server error
+  /api/v1/pipelines/{id}:
     get:
-      summary: Get pipeline by ID
-      description: Returns a single pipeline by its ID
-      operationId: getPipeline
       tags:
-        - Pipelines
+      - pipelines
+      operationId: get_pipeline_handler
       parameters:
-        - name: pipelineId
-          in: path
-          description: ID of the pipeline
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: id
+        in: path
+        description: Pipeline ID
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: Pipeline details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pipeline'
+                $ref: '#/components/schemas/PipelineDto'
         '404':
-          $ref: '#/components/responses/NotFound'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-    patch:
-      summary: Update pipeline
-      description: Updates an existing pipeline with partial data
-      operationId: updatePipeline
+          description: Pipeline not found
+        '500':
+          description: Internal server error
+    put:
       tags:
-        - Pipelines
+      - pipelines
+      operationId: update_pipeline_handler
       parameters:
-        - name: pipelineId
-          in: path
-          description: ID of the pipeline
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
+      - name: id
+        in: path
+        description: Pipeline ID
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdatePipelineRequest'
+        schema:
+          type: string
       responses:
         '200':
           description: Pipeline updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pipeline'
-        '400':
-          $ref: '#/components/responses/BadRequest'
+                $ref: '#/components/schemas/PipelineDto'
         '404':
-          $ref: '#/components/responses/NotFound'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
+          description: Pipeline not found
+        '500':
+          description: Internal server error
     delete:
-      summary: Delete pipeline
-      description: Deletes a pipeline by its ID
-      operationId: deletePipeline
       tags:
-        - Pipelines
+      - pipelines
+      operationId: delete_pipeline_handler
       parameters:
-        - name: pipelineId
-          in: path
-          description: ID of the pipeline
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Pipeline deleted successfully
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /worker-pools:
-    get:
-      summary: List worker pools
-      description: Returns a list of all worker pools
-      operationId: listWorkerPools
-      tags:
-        - Workers
+      - name: id
+        in: path
+        description: Pipeline ID
+        required: true
+        schema:
+          type: string
       responses:
         '200':
-          description: List of worker pools
+          description: Pipeline deleted successfully
+        '500':
+          description: Internal server error
+  /api/v1/pipelines/{id}/dag:
+    get:
+      tags:
+      - pipelines
+      operationId: get_pipeline_dag_handler
+      parameters:
+      - name: id
+        in: path
+        description: Pipeline ID
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: DAG structure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DagStructureDto'
+        '404':
+          description: Pipeline not found
+        '500':
+          description: Internal server error
+  /api/v1/pipelines/{id}/execute:
+    post:
+      tags:
+      - executions
+      operationId: execute_pipeline_handler
+      parameters:
+      - name: id
+        in: path
+        description: Pipeline ID
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutePipelineRequestDto'
+        required: true
+      responses:
+        '200':
+          description: Pipeline execution started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutePipelineResponseDto'
+        '400':
+          description: Bad request
+        '404':
+          description: Pipeline not found
+        '500':
+          description: Internal server error
+  /api/v1/pipelines/{id}/executions/{execution_id}/logs:
+    get:
+      tags:
+      - executions
+      operationId: get_execution_logs_handler
+      parameters:
+      - name: id
+        in: path
+        description: Pipeline ID
+        required: true
+        schema:
+          type: string
+      - name: execution_id
+        in: path
+        description: Execution ID
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Execution logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionLogsDto'
+        '500':
+          description: Internal server error
+  /api/v1/pipelines/{id}/steps/{step_id}:
+    get:
+      tags:
+      - pipelines
+      operationId: get_step_details_handler
+      parameters:
+      - name: id
+        in: path
+        description: Pipeline ID
+        required: true
+        schema:
+          type: string
+      - name: step_id
+        in: path
+        description: Step ID
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Step details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepDetailsDto'
+        '404':
+          description: Pipeline or step not found
+        '500':
+          description: Internal server error
+  /api/v1/security/compliance:
+    get:
+      tags:
+      - security
+      summary: GET /api/v1/security/compliance - List compliance checks
+      operationId: list_compliance_checks_handler
+      parameters:
+      - name: tenant_id
+        in: query
+        description: Filter by tenant ID
+        required: false
+        schema:
+          type: string
+      - name: framework
+        in: query
+        description: Filter by compliance framework
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of compliance checks
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/WorkerPool'
-
-  /worker-pools/{poolId}/status:
+                  $ref: '#/components/schemas/ComplianceCheck'
+        '500':
+          description: Internal server error
+  /api/v1/security/metrics/{tenant_id}:
     get:
-      summary: Get worker pool status
-      description: Returns the current status of a worker pool
-      operationId: getWorkerPoolStatus
       tags:
-        - Workers
+      - security
+      summary: GET /api/v1/security/metrics/{tenant_id} - Get security metrics
+      operationId: get_security_metrics_handler
       parameters:
-        - name: poolId
-          in: path
-          description: ID of the worker pool
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: tenant_id
+        in: path
+        description: Tenant ID
+        required: true
+        schema:
+          type: string
       responses:
         '200':
-          description: Worker pool status
+          description: Security metrics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkerPoolStatus'
+                $ref: '#/components/schemas/SecurityMetrics'
         '404':
-          $ref: '#/components/responses/NotFound'
-
+          description: Security metrics not found
+        '500':
+          description: Internal server error
+  /api/v1/security/reports/generate:
+    post:
+      tags:
+      - security
+      summary: POST /api/v1/security/reports/generate - Generate security report
+      operationId: generate_security_report_handler
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecurityReportRequest'
+        required: true
+      responses:
+        '200':
+          description: Security report generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityReport'
+        '400':
+          description: Invalid request
+        '500':
+          description: Internal server error
+  /api/v1/security/score/{entity_id}:
+    get:
+      tags:
+      - security
+      summary: GET /api/v1/security/scores/{entity_id} - Get security score
+      operationId: get_security_score_handler
+      parameters:
+      - name: entity_id
+        in: path
+        description: Entity ID (resource, tenant, etc.)
+        required: true
+        schema:
+          type: string
+      - name: type
+        in: query
+        description: Entity type (resource, tenant, application)
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Security score
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityScore'
+        '404':
+          description: Security score not found
+        '500':
+          description: Internal server error
+  /api/v1/security/scores:
+    get:
+      tags:
+      - security
+      summary: GET /api/v1/security/scores - List security scores
+      operationId: list_security_scores_handler
+      parameters:
+      - name: tenant_id
+        in: query
+        description: Filter by tenant ID
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of security scores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SecurityScore'
+        '500':
+          description: Internal server error
+  /api/v1/security/vulnerabilities:
+    get:
+      tags:
+      - security
+      summary: GET /api/v1/security/vulnerabilities - List vulnerabilities
+      operationId: list_vulnerabilities_handler
+      parameters:
+      - name: tenant_id
+        in: query
+        description: Filter by tenant ID
+        required: false
+        schema:
+          type: string
+      - name: severity
+        in: query
+        description: Filter by severity
+        required: false
+        schema:
+          type: string
+      - name: status
+        in: query
+        description: Filter by status
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of vulnerabilities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vulnerability'
+        '500':
+          description: Internal server error
+  /api/v1/security/vulnerabilities/{id}:
+    get:
+      tags:
+      - security
+      summary: GET /api/v1/security/vulnerabilities/{id} - Get vulnerability by ID
+      operationId: get_vulnerability_handler
+      parameters:
+      - name: id
+        in: path
+        description: Vulnerability ID
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Vulnerability details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vulnerability'
+        '404':
+          description: Vulnerability not found
+        '500':
+          description: Internal server error
+  /api/v1/traces/{id}:
+    get:
+      tags:
+      - observability
+      summary: GET /api/v1/traces/:id - Get a specific trace by ID
+      operationId: get_trace_handler
+      parameters:
+      - name: id
+        in: path
+        description: Trace ID
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Trace details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trace'
+        '404':
+          description: Trace not found
+        '500':
+          description: Internal server error
+  /api/v1/worker-pools:
+    get:
+      tags:
+      - worker-pools
+      summary: Get all resource pools
+      operationId: list_pools_handler
+      responses:
+        '200':
+          description: List of resource pools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResourcePoolResponseDto'
+        '500':
+          description: Internal server error
+    post:
+      tags:
+      - worker-pools
+      summary: Create a new resource pool
+      operationId: create_pool_handler
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePoolRequestDto'
+        required: true
+      responses:
+        '200':
+          description: Resource pool created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePoolResponseDto'
+        '400':
+          description: Bad request
+        '409':
+          description: Pool already exists
+        '500':
+          description: Internal server error
+  /api/v1/worker-pools/{pool_id}:
+    get:
+      tags:
+      - worker-pools
+      summary: Get a specific resource pool
+      operationId: get_pool_handler
+      parameters:
+      - name: pool_id
+        in: path
+        description: Pool ID
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Resource pool details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePoolResponseDto'
+        '404':
+          description: Pool not found
+        '500':
+          description: Internal server error
+    put:
+      tags:
+      - worker-pools
+      summary: Update a resource pool (PUT - full update)
+      operationId: update_pool_put_handler
+      parameters:
+      - name: pool_id
+        in: path
+        description: Pool ID
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePoolRequestDto'
+        required: true
+      responses:
+        '200':
+          description: Resource pool updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePoolResponseDto'
+        '400':
+          description: Bad request
+        '404':
+          description: Pool not found
+        '500':
+          description: Internal server error
+    delete:
+      tags:
+      - worker-pools
+      summary: Delete a resource pool
+      operationId: delete_pool_handler
+      parameters:
+      - name: pool_id
+        in: path
+        description: Pool ID
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Resource pool deleted
+        '404':
+          description: Pool not found
+        '500':
+          description: Internal server error
+    patch:
+      tags:
+      - worker-pools
+      summary: Update a resource pool (PATCH - partial update) - US-10.4
+      operationId: update_pool_patch_handler
+      parameters:
+      - name: pool_id
+        in: path
+        description: Pool ID
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePoolRequestDto'
+        required: true
+      responses:
+        '200':
+          description: Resource pool updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePoolResponseDto'
+        '400':
+          description: Bad request
+        '404':
+          description: Pool not found
+        '500':
+          description: Internal server error
+  /api/v1/worker-pools/{pool_id}/status:
+    get:
+      tags:
+      - worker-pools
+      summary: Get resource pool status
+      operationId: get_pool_status_handler
+      parameters:
+      - name: pool_id
+        in: path
+        description: Pool ID
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Resource pool status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePoolStatusDto'
+        '404':
+          description: Pool status not found
+        '500':
+          description: Internal server error
 components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
   schemas:
-    Pipeline:
+    AccessDecision:
       type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: Unique identifier for the pipeline
-        name:
-          type: string
-          description: Name of the pipeline
-        description:
-          type: string
-          description: Description of the pipeline
-        status:
-          type: string
-          enum: [active, inactive, archived]
-          description: Current status of the pipeline
-        schedule:
-          type: string
-          description: Cron expression for scheduled execution
-        tags:
-          type: array
-          items:
-            type: string
-          description: Tags associated with the pipeline
-        createdAt:
-          type: string
-          format: date-time
-          description: When the pipeline was created
-        updatedAt:
-          type: string
-          format: date-time
-          description: When the pipeline was last updated
+      description: Access control decision
       required:
-        - id
-        - name
-        - status
-
-    CreatePipelineRequest:
-      type: object
+      - allowed
+      - permission
+      - resource_type
+      - reason
+      - effective_permissions
       properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 100
-          description: Name of the pipeline
-        description:
-          type: string
-          maxLength: 500
-          description: Description of the pipeline
-        schedule:
-          type: string
-          pattern: '^[0-9*,-/ ]+$'
-          description: Cron expression for scheduled execution
-        tags:
+        allowed:
+          type: boolean
+          description: Whether access is granted
+        effective_permissions:
           type: array
           items:
-            type: string
-          maxItems: 10
-          description: Tags associated with the pipeline
+            $ref: '#/components/schemas/Permission'
+          description: Effective permissions after evaluation
+        permission:
+          $ref: '#/components/schemas/Permission'
+          description: Permission that was checked
+        reason:
+          type: string
+          description: Reason for decision
+        resource_id:
+          type:
+          - string
+          - 'null'
+          description: Resource ID (if applicable)
+        resource_type:
+          $ref: '#/components/schemas/ResourceType'
+          description: Resource type
+    AlertThreshold:
+      oneOf:
+      - type: string
+        description: Alert at 50% of budget
+        enum:
+        - FiftyPercent
+      - type: string
+        description: Alert at 75% of budget
+        enum:
+        - SeventyFivePercent
+      - type: string
+        description: Alert at 90% of budget
+        enum:
+        - NinetyPercent
+      - type: string
+        description: Alert at 100% of budget
+        enum:
+        - HundredPercent
+      - type: object
+        description: Custom threshold percentage
+        required:
+        - Custom
+        properties:
+          Custom:
+            type: number
+            format: double
+            description: Custom threshold percentage
+      description: Alert threshold enum
+    AuditLog:
+      type: object
+      description: Audit log entry
       required:
-        - name
-
-    UpdatePipelineRequest:
-      type: object
+      - id
+      - timestamp
+      - user_id
+      - action
+      - resource
+      - outcome
+      - ip_address
+      - details
       properties:
-        name:
+        action:
           type: string
-          minLength: 1
-          maxLength: 100
-        description:
-          type: string
-          maxLength: 500
-        status:
-          type: string
-          enum: [active, inactive, archived]
-        schedule:
-          type: string
-          pattern: '^[0-9*,-/ ]+$'
-        tags:
-          type: array
-          items:
-            type: string
-
-    WorkerPool:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        poolType:
-          type: string
-          enum: [Docker, Kubernetes, Native]
-        providerName:
-          type: string
-        minSize:
-          type: integer
-          minimum: 0
-        maxSize:
-          type: integer
-          minimum: 0
-        defaultResources:
-          type: object
-          properties:
-            cpu_m:
-              type: integer
-              description: CPU in millicores
-            memory_mb:
-              type: integer
-              description: Memory in megabytes
-            gpu:
-              type: integer
-              description: Number of GPUs
-        tags:
+        details:
           type: object
           additionalProperties:
             type: string
-
-    WorkerPoolStatus:
+          propertyNames:
+            type: string
+        id:
+          type: string
+        ip_address:
+          type: string
+        outcome:
+          $ref: '#/components/schemas/AuditOutcome'
+        resource:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        user_agent:
+          type:
+          - string
+          - 'null'
+        user_id:
+          type: string
+    AuditOutcome:
+      type: string
+      description: Audit outcome
+      enum:
+      - success
+      - failure
+      - forbidden
+    AuthToken:
       type: object
+      description: Authentication token structure
+      required:
+      - id
+      - user_id
+      - token
+      - token_type
+      - expires_at
+      - scopes
+      - created_at
       properties:
+        created_at:
+          type: string
+          format: date-time
+          description: Creation date
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiration date
+        id:
+          type: string
+          description: Token ID
+        last_used:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Last used date
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+          description: Scopes (permissions included in token)
+        token:
+          type: string
+          description: Token value (in production, this would be a JWT or similar)
+        token_type:
+          type: string
+          description: Token type
+        user_id:
+          type: string
+          description: User ID
+    Budget:
+      type: object
+      description: Budget structure
+      required:
+      - id
+      - tenant_id
+      - name
+      - amount_limit
+      - current_spend
+      - period
+      - currency
+      - alerts_enabled
+      - alert_thresholds
+      - period_start
+      - period_end
+      - created_at
+      - updated_at
+      - is_active
+      properties:
+        alert_thresholds:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertThreshold'
+          description: Alert thresholds configured
+        alerts_enabled:
+          type: boolean
+          description: Whether alerts are enabled
+        amount_limit:
+          type: number
+          format: double
+          description: Maximum budget amount
+        created_at:
+          type: string
+          format: date-time
+          description: Budget creation date
+        currency:
+          type: string
+          description: Currency code (USD, EUR, etc.)
+        current_spend:
+          type: number
+          format: double
+          description: Current spending amount
+        id:
+          type: string
+          description: Unique budget ID
+        is_active:
+          type: boolean
+          description: Whether budget is active
         name:
           type: string
-        poolType:
+          description: Budget name/description
+        period:
+          $ref: '#/components/schemas/BudgetPeriod'
+          description: Budget period (daily, weekly, monthly, etc.)
+        period_end:
           type: string
-        totalCapacity:
-          type: integer
-          minimum: 0
-        availableCapacity:
-          type: integer
-          minimum: 0
-        activeWorkers:
-          type: integer
-          minimum: 0
-        pendingRequests:
-          type: integer
-          minimum: 0
-
-    Error:
+          format: date-time
+          description: Period end date
+        period_start:
+          type: string
+          format: date-time
+          description: Period start date
+        tenant_id:
+          type: string
+          description: Tenant ID this budget belongs to
+        updated_at:
+          type: string
+          format: date-time
+          description: Budget last updated date
+    BudgetAlert:
       type: object
+      description: Budget alert structure
+      required:
+      - id
+      - budget_id
+      - tenant_id
+      - threshold
+      - threshold_percentage
+      - current_spend
+      - budget_limit
+      - alert_type
+      - message
+      - severity
+      - triggered_at
+      - acknowledged
+      properties:
+        acknowledged:
+          type: boolean
+          description: Whether alert has been acknowledged
+        acknowledged_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Date alert was acknowledged (if applicable)
+        alert_type:
+          type: string
+          description: Alert type
+        budget_id:
+          type: string
+          description: Budget ID this alert belongs to
+        budget_limit:
+          type: number
+          format: double
+          description: Budget limit amount
+        current_spend:
+          type: number
+          format: double
+          description: Current spending amount when alert triggered
+        id:
+          type: string
+          description: Unique alert ID
+        message:
+          type: string
+          description: Alert message
+        severity:
+          type: string
+          description: Alert severity (info, warning, critical)
+        tenant_id:
+          type: string
+          description: Tenant ID
+        threshold:
+          $ref: '#/components/schemas/AlertThreshold'
+          description: Alert threshold that triggered
+        threshold_percentage:
+          type: number
+          format: double
+          description: Threshold percentage (0-100)
+        triggered_at:
+          type: string
+          format: date-time
+          description: Date alert was triggered
+    BudgetPeriod:
+      type: string
+      description: Budget period enum
+      enum:
+      - Daily
+      - Weekly
+      - Monthly
+      - Quarterly
+      - Yearly
+    BudgetUsage:
+      type: object
+      description: Budget usage structure
+      required:
+      - budget_id
+      - tenant_id
+      - limit
+      - current_spend
+      - percentage_used
+      - remaining
+      - days_remaining
+      - avg_daily_spend
+      - projected_spend
+      - is_over_budget
+      - alerts_count
+      properties:
+        alerts_count:
+          type: integer
+          format: int32
+          description: Number of alerts triggered
+          minimum: 0
+        avg_daily_spend:
+          type: number
+          format: double
+          description: Average daily spend
+        budget_id:
+          type: string
+          description: Budget ID
+        current_spend:
+          type: number
+          format: double
+          description: Current spending
+        days_remaining:
+          type: integer
+          format: int32
+          description: Days remaining in period
+          minimum: 0
+        is_over_budget:
+          type: boolean
+          description: Whether over budget
+        limit:
+          type: number
+          format: double
+          description: Budget limit
+        percentage_used:
+          type: number
+          format: double
+          description: Percentage used (0-100)
+        projected_spend:
+          type: number
+          format: double
+          description: Projected end-of-period spend
+        remaining:
+          type: number
+          format: double
+          description: Remaining budget
+        tenant_id:
+          type: string
+          description: Tenant ID
+    CheckPermissionRequest:
+      type: object
+      description: Check permission request structure
+      required:
+      - user_id
+      - permission
+      - resource_type
+      properties:
+        permission:
+          $ref: '#/components/schemas/Permission'
+        resource_id:
+          type:
+          - string
+          - 'null'
+        resource_type:
+          $ref: '#/components/schemas/ResourceType'
+        user_id:
+          type: string
+    ClusterEdge:
+      type: object
+      description: Connection/relationship between nodes
+      required:
+      - source
+      - target
+      - edge_type
+      - latency_ms
+      - bandwidth_mbps
+      properties:
+        bandwidth_mbps:
+          type: integer
+          format: int64
+          minimum: 0
+        edge_type:
+          $ref: '#/components/schemas/EdgeType'
+        latency_ms:
+          type: number
+          format: double
+        source:
+          type: string
+        target:
+          type: string
+    ClusterNode:
+      type: object
+      description: Individual node in the cluster
+      required:
+      - id
+      - node_type
+      - name
+      - status
+      - capabilities
+      - metadata
+      properties:
+        capabilities:
+          $ref: '#/components/schemas/NodeCapabilities'
+        id:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        name:
+          type: string
+        node_type:
+          $ref: '#/components/schemas/NodeType'
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+    ClusterTopology:
+      type: object
+      description: Cluster topology structures (US-10.3)
+      required:
+      - nodes
+      - edges
+      - total_workers
+      - active_workers
+      - timestamp
+      properties:
+        active_workers:
+          type: integer
+          format: int32
+          minimum: 0
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClusterEdge'
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClusterNode'
+        timestamp:
+          type: string
+          format: date-time
+        total_workers:
+          type: integer
+          format: int32
+          minimum: 0
+    ComplianceCheck:
+      type: object
+      description: Compliance check structure
+      required:
+      - id
+      - framework
+      - control_id
+      - control_name
+      - control_description
+      - status
+      - implementation_percentage
+      - evidence
+      - last_assessment
+      - next_assessment
+      - tenant_id
+      properties:
+        control_description:
+          type: string
+          description: Control description
+        control_id:
+          type: string
+          description: Control ID
+        control_name:
+          type: string
+          description: Control name
+        evidence:
+          type: array
+          items:
+            type: string
+          description: Evidence documents
+        framework:
+          $ref: '#/components/schemas/ComplianceFramework'
+          description: Compliance framework
+        id:
+          type: string
+          description: Check ID
+        implementation_percentage:
+          type: number
+          format: double
+          description: Implementation percentage (0-100)
+        last_assessment:
+          type: string
+          format: date-time
+          description: Last assessment date
+        next_assessment:
+          type: string
+          format: date-time
+          description: Next assessment due
+        notes:
+          type:
+          - string
+          - 'null'
+          description: Notes and comments
+        resource_id:
+          type:
+          - string
+          - 'null'
+          description: Resource ID (if applicable)
+        status:
+          $ref: '#/components/schemas/ControlStatus'
+          description: Implementation status
+        tenant_id:
+          type: string
+          description: Tenant ID
+    ComplianceFramework:
+      type: string
+      description: Compliance framework enum
+      enum:
+      - SOC2
+      - ISO27001
+      - GDPR
+      - PCIDSS
+      - HIPAA
+      - NIST
+    ControlStatus:
+      type: string
+      description: Security control status enum
+      enum:
+      - Implemented
+      - Partial
+      - NotImplemented
+      - NotApplicable
+    CostBreakdown:
+      type: object
+      description: Cost breakdown by resource type
+      required:
+      - resource_type
+      - cost
+      - usage_quantity
+      - unit
+      - cost_per_unit
+      - period_start
+      - period_end
+      properties:
+        cost:
+          type: number
+          format: double
+          description: Total cost for this resource type
+        cost_per_unit:
+          type: number
+          format: double
+          description: Cost per unit
+        period_end:
+          type: string
+          format: date-time
+          description: Period end timestamp
+        period_start:
+          type: string
+          format: date-time
+          description: Period start timestamp
+        resource_type:
+          type: string
+          description: Resource type (compute, storage, network, etc.)
+        unit:
+          type: string
+          description: Unit of measurement (GB, GB-hours, etc.)
+        usage_quantity:
+          type: number
+          format: double
+          description: Usage quantity
+    CostSummary:
+      type: object
+      description: Cost summary structure
+      required:
+      - total_cost
+      - period_start
+      - period_end
+      - currency
+      - breakdown_by_resource
+      - breakdown_by_tenant
+      properties:
+        breakdown_by_resource:
+          type: object
+          description: Cost breakdown by resource type
+          additionalProperties:
+            type: number
+            format: double
+          propertyNames:
+            type: string
+        breakdown_by_tenant:
+          type: object
+          description: Cost breakdown by tenant
+          additionalProperties:
+            type: number
+            format: double
+          propertyNames:
+            type: string
+        currency:
+          type: string
+          description: Currency code (USD, EUR, etc.)
+        period_end:
+          type: string
+          format: date-time
+          description: Period end timestamp
+        period_start:
+          type: string
+          format: date-time
+          description: Period start timestamp
+        total_cost:
+          type: number
+          format: double
+          description: Total cost for the period
+    CostTrend:
+      type: object
+      description: Cost trend data point
+      required:
+      - date
+      - total_cost
+      - compute_cost
+      - storage_cost
+      - network_cost
+      properties:
+        compute_cost:
+          type: number
+          format: double
+          description: Compute cost for this date
+        date:
+          type: string
+          format: date-time
+          description: Date of the trend data
+        network_cost:
+          type: number
+          format: double
+          description: Network cost for this date
+        storage_cost:
+          type: number
+          format: double
+          description: Storage cost for this date
+        total_cost:
+          type: number
+          format: double
+          description: Total cost for this date
+    CreateDynamicWorkerRequest:
+      type: object
+      description: Create dynamic worker request
+      required:
+      - provider_type
+      - image
+      - cpu_cores
+      - memory_mb
+      properties:
+        cpu_cores:
+          type: integer
+          format: int32
+          description: Number of CPU cores to allocate
+          minimum: 0
+        custom_image:
+          type:
+          - string
+          - 'null'
+          description: Custom image (overrides default)
+        custom_pod_template:
+          type:
+          - string
+          - 'null'
+          description: Custom Kubernetes Pod template (YAML or JSON as String, only for K8s)
+        env:
+          type:
+          - object
+          - 'null'
+          description: Environment variables
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        image:
+          type: string
+          description: Docker image to use for the worker
+        labels:
+          type:
+          - object
+          - 'null'
+          description: Labels to attach to the worker
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        memory_mb:
+          type: integer
+          format: int64
+          description: Memory in MB to allocate
+          minimum: 0
+        namespace:
+          type:
+          - string
+          - 'null'
+          description: Kubernetes namespace (if using K8s provider)
+        provider_type:
+          type: string
+          description: Infrastructure provider type
+    CreateDynamicWorkerResponse:
+      type: object
+      description: Create dynamic worker response
+      required:
+      - worker_id
+      - state
+      - message
+      properties:
+        container_id:
+          type:
+          - string
+          - 'null'
+          description: Container ID (Docker)
+        message:
+          type: string
+          description: Status message
+        state:
+          type: string
+          description: Current state
+        worker_id:
+          type: string
+          description: Unique worker identifier
+    CreateJobRequest:
+      type: object
+      description: Job specification for creating new jobs
+      required:
+      - name
+      - image
+      - command
+      - resources
+      - timeout_ms
+      - retries
+      - env
+      - secret_refs
+      properties:
+        command:
+          type: array
+          items:
+            type: string
+          description: Command to execute
+        env:
+          type: object
+          description: Environment variables
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        image:
+          type: string
+          description: Docker image to use
+        name:
+          type: string
+          description: Name of the job
+        resources:
+          $ref: '#/components/schemas/ResourceQuotaDto'
+          description: Resource requirements
+        retries:
+          type: integer
+          format: int32
+          description: Number of retries on failure
+          minimum: 0
+        secret_refs:
+          type: array
+          items:
+            type: string
+          description: References to secrets
+        timeout_ms:
+          type: integer
+          format: int64
+          description: Timeout in milliseconds
+          minimum: 0
+    CreatePipelineRequestDto:
+      type: object
+      required:
+      - name
+      - steps
+      properties:
+        description:
+          type:
+          - string
+          - 'null'
+        name:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreatePipelineStepRequestDto'
+    CreatePipelineStepRequestDto:
+      type: object
+      required:
+      - name
+      - job_spec
+      - dependencies
+      properties:
+        dependencies:
+          type: array
+          items:
+            type: string
+            format: uuid
+        job_spec:
+          $ref: '#/components/schemas/JobSpecDto'
+        name:
+          type: string
+    CreatePoolRequestDto:
+      type: object
+      required:
+      - pool_type
+      - name
+      - provider_name
+      - min_size
+      - max_size
+      - default_resources
+      properties:
+        default_resources:
+          $ref: '#/components/schemas/ResourceQuotaDto'
+        max_size:
+          type: integer
+          format: int32
+          minimum: 0
+        min_size:
+          type: integer
+          format: int32
+          minimum: 0
+        name:
+          type: string
+        pool_type:
+          $ref: '#/components/schemas/ResourcePoolTypeDto'
+        provider_name:
+          type: string
+        tags:
+          type:
+          - object
+          - 'null'
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+    CreateProviderRequest:
+      type: object
+      description: Create provider request
+      required:
+      - provider_type
+      - name
+      properties:
+        custom_image:
+          type:
+          - string
+          - 'null'
+          description: Custom image (overrides default)
+        custom_pod_template:
+          type:
+          - string
+          - 'null'
+          description: Custom K8s Pod template (for Kubernetes, YAML or JSON as String)
+        docker_host:
+          type:
+          - string
+          - 'null'
+          description: Docker host (for Docker)
+        name:
+          type: string
+          description: Provider name
+        namespace:
+          type:
+          - string
+          - 'null'
+          description: Namespace (for Kubernetes)
+        provider_type:
+          $ref: '#/components/schemas/ProviderTypeDto'
+          description: Provider type
+    CreateTenantRequest:
+      type: object
+      description: Create tenant request (EPIC-09)
+      required:
+      - name
+      - email
+      properties:
+        email:
+          type: string
+          description: Tenant admin email
+        name:
+          type: string
+          description: Tenant name
+    DagEdgeDto:
+      type: object
+      required:
+      - source
+      - target
+      properties:
+        source:
+          type: string
+          format: uuid
+        target:
+          type: string
+          format: uuid
+    DagNodeDto:
+      type: object
+      required:
+      - id
+      - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        position:
+          oneOf:
+          - type: 'null'
+          - $ref: '#/components/schemas/DagPositionDto'
+        status:
+          type:
+          - string
+          - 'null'
+    DagPositionDto:
+      type: object
+      required:
+      - x
+      - y
+      properties:
+        x:
+          type: number
+          format: double
+        y:
+          type: number
+          format: double
+    DagStructureDto:
+      type: object
+      required:
+      - pipeline_id
+      - nodes
+      - edges
+      properties:
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/DagEdgeDto'
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DagNodeDto'
+        pipeline_id:
+          type: string
+          format: uuid
+    DashboardMetrics:
+      type: object
+      description: Dashboard metrics response
+      required:
+      - total_pipelines
+      - active_pipelines
+      - total_executions_today
+      - success_rate
+      - avg_duration
+      - cost_per_run
+      - queue_time
+      - timestamp
+      properties:
+        active_pipelines:
+          type: integer
+          format: int32
+          description: Number of active pipelines
+          minimum: 0
+        avg_duration:
+          type: integer
+          format: int64
+          description: Average execution duration in seconds
+          minimum: 0
+        cost_per_run:
+          type: number
+          format: double
+          description: Average cost per run in dollars
+        queue_time:
+          type: integer
+          format: int64
+          description: Average queue time in seconds
+          minimum: 0
+        success_rate:
+          type: number
+          format: double
+          description: Success rate percentage (0-100)
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the metrics
+        total_executions_today:
+          type: integer
+          format: int32
+          description: Total executions today
+          minimum: 0
+        total_pipelines:
+          type: integer
+          format: int32
+          description: Total number of pipelines
+          minimum: 0
+      example:
+        active_pipelines: 42
+        avg_duration: 125
+        cost_per_run: 0.45
+        queue_time: 12
+        success_rate: 94.5
+        total_executions_today: 128
+        total_pipelines: 50
+    DashboardMetricsRequest:
+      type: object
+      description: Request parameters for dashboard metrics
+      properties:
+        tenant_id:
+          type:
+          - string
+          - 'null'
+          description: Optional tenant ID filter
+        time_range_hours:
+          type:
+          - integer
+          - 'null'
+          format: int32
+          description: Optional time range filter (in hours)
+          minimum: 0
+    DependencyHealth:
+      type: object
+      description: Dependency health
+      required:
+      - name
+      - status
+      - response_time_ms
+      - last_success
+      properties:
+        last_success:
+          type: string
+          format: date-time
+        name:
+          type: string
+        response_time_ms:
+          type: number
+          format: double
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+    DynamicWorkerStatusResponse:
+      type: object
+      description: Dynamic worker status response
+      required:
+      - worker_id
+      - state
+      - created_at
+      properties:
+        container_id:
+          type:
+          - string
+          - 'null'
+          description: Container ID (if applicable)
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        state:
+          type: string
+          description: Current state
+        worker_id:
+          type: string
+          description: Unique worker identifier
+    EdgeType:
+      type: string
+      description: Type of relationship between nodes
+      enum:
+      - Network
+      - Storage
+      - Control
+    ErrorEvent:
+      type: object
+      description: Error tracking
+      required:
+      - id
+      - error_type
+      - message
+      - timestamp
+      - severity
+      - service
+      properties:
+        error_type:
+          type: string
+        id:
+          type: string
+        message:
+          type: string
+        request_id:
+          type:
+          - string
+          - 'null'
+        service:
+          type: string
+        severity:
+          $ref: '#/components/schemas/ErrorSeverity'
+        stack_trace:
+          type:
+          - string
+          - 'null'
+        timestamp:
+          type: string
+          format: date-time
+        user_id:
+          type:
+          - string
+          - 'null'
+    ErrorResponse:
+      type: object
+      description: Generic error response
+      required:
+      - code
+      - message
       properties:
         code:
           type: string
           description: Error code
+        details:
+          type:
+          - string
+          - 'null'
+          description: Optional details
         message:
           type: string
           description: Error message
-        details:
+    ErrorSeverity:
+      type: string
+      description: Error severity
+      enum:
+      - low
+      - medium
+      - high
+      - critical
+    ExecutePipelineRequestDto:
+      type: object
+      properties:
+        branch:
+          type:
+          - string
+          - 'null'
+        environment:
+          type:
+          - string
+          - 'null'
+        parameters:
+          type:
+          - object
+          - 'null'
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        tenant_id:
+          type:
+          - string
+          - 'null'
+        variables:
+          type:
+          - object
+          - 'null'
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+    ExecutePipelineResponseDto:
+      type: object
+      required:
+      - execution_id
+      - pipeline_id
+      - status
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        pipeline_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+    ExecutionLogsDto:
+      type: object
+      required:
+      - execution_id
+      - step_executions
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        step_executions:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepExecutionLogsDto'
+    HealthResponse:
+      type: object
+      description: Health check response
+      required:
+      - status
+      - service
+      - version
+      - architecture
+      properties:
+        architecture:
+          type: string
+          description: Architecture type
+        service:
+          type: string
+          description: Name of the service
+        status:
+          type: string
+          description: Status of the service
+        version:
+          type: string
+          description: Version of the service
+    HealthStatus:
+      type: string
+      description: Health status
+      enum:
+      - healthy
+      - degraded
+      - unhealthy
+      - unknown
+    JobListResponse:
+      type: object
+      description: Response wrapper for jobs
+      required:
+      - jobs
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobResponse'
+          description: List of jobs
+    JobResponse:
+      type: object
+      description: Job response
+      required:
+      - id
+      - name
+      - spec
+      - state
+      - created_at
+      - updated_at
+      properties:
+        completed_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Completion timestamp (null if not completed)
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        id:
+          type: string
+          description: Unique job identifier
+        name:
+          type: string
+          description: Job name
+        result:
+          description: Job result (null if not completed)
+        spec:
+          $ref: '#/components/schemas/JobSpecDto'
+          description: Job specification
+        started_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Start timestamp (null if not started)
+        state:
+          type: string
+          description: Current state
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    JobSpecDto:
+      type: object
+      required:
+      - name
+      - image
+      - command
+      - resources
+      - timeout_ms
+      - retries
+      - env
+      - secret_refs
+      properties:
+        command:
+          type: array
+          items:
+            type: string
+        env:
           type: object
-          description: Additional error details
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        image:
+          type: string
+        name:
+          type: string
+        resources:
+          $ref: '#/components/schemas/ResourceQuotaDto'
+        retries:
+          type: integer
+          format: int32
+          minimum: 0
+        secret_refs:
+          type: array
+          items:
+            type: string
+        timeout_ms:
+          type: integer
+          format: int64
+          minimum: 0
+    ListDynamicWorkersResponse:
+      type: object
+      description: List dynamic workers response
+      required:
+      - workers
+      properties:
+        workers:
+          type: array
+          items:
+            $ref: '#/components/schemas/DynamicWorkerStatusResponse'
+          description: List of dynamic workers
+    ListPipelinesResponseDto:
+      type: object
+      required:
+      - items
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PipelineDto'
+        total:
+          type: integer
+          minimum: 0
+    ListProvidersResponse:
+      type: object
+      description: List providers response
+      required:
+      - providers
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderInfo'
+          description: List of available providers
+    ListTenantsResponse:
+      type: object
+      description: List tenants response (EPIC-09)
+      required:
+      - tenants
+      properties:
+        tenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantResponse'
+          description: List of tenants
+    LiveMetric:
+      type: object
+      description: Live metric DTO
+      required:
+      - metric_type
+      - worker_id
+      - value
+      - unit
+      - timestamp
+      - threshold_status
+      properties:
+        execution_id:
+          type:
+          - string
+          - 'null'
+        metric_type:
+          $ref: '#/components/schemas/MetricType'
+        threshold_status:
+          $ref: '#/components/schemas/ThresholdStatus'
         timestamp:
           type: string
           format: date-time
-          description: When the error occurred
+        unit:
+          type: string
+        value:
+          type: number
+          format: double
+        worker_id:
+          type: string
+    LogEntryDto:
+      type: object
       required:
-        - code
-        - message
-        - timestamp
-
-  responses:
-    BadRequest:
-      description: Bad request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            code: "BAD_REQUEST"
-            message: "Invalid request parameters"
-            timestamp: "2025-11-30T12:00:00Z"
-
-    Unauthorized:
-      description: Unauthorized
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            code: "UNAUTHORIZED"
-            message: "Authentication required"
-            timestamp: "2025-11-30T12:00:00Z"
-
-    NotFound:
-      description: Not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            code: "NOT_FOUND"
-            message: "Resource not found"
-            timestamp: "2025-11-30T12:00:00Z"
-
-    Conflict:
-      description: Conflict
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            code: "CONFLICT"
-            message: "Resource already exists"
-            timestamp: "2025-11-30T12:00:00Z"
-
-    InternalError:
-      description: Internal server error
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            code: "INTERNAL_ERROR"
-            message: "An unexpected error occurred"
-            timestamp: "2025-11-30T12:00:00Z"
-
+      - timestamp
+      - stream_type
+      - content
+      properties:
+        content:
+          type: string
+        stream_type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    LogEvent:
+      type: object
+      description: Log Event DTO for SSE streaming
+      required:
+      - timestamp
+      - level
+      - step
+      - message
+      - execution_id
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        level:
+          $ref: '#/components/schemas/LogLevel'
+        message:
+          type: string
+        step:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    LogLevel:
+      type: string
+      description: Log level
+      enum:
+      - debug
+      - info
+      - warn
+      - error
+      - fatal
+    LogStatistics:
+      type: object
+      description: Log statistics structure
+      required:
+      - total_logs
+      - by_log_level
+      - by_time_period
+      - top_search_terms
+      - error_rate
+      - timestamp
+      properties:
+        by_log_level:
+          type: object
+          description: Logs by log level
+          additionalProperties:
+            type: integer
+            format: int64
+            minimum: 0
+          propertyNames:
+            type: string
+        by_time_period:
+          type: object
+          description: Logs by time period
+          additionalProperties:
+            type: integer
+            format: int64
+            minimum: 0
+          propertyNames:
+            type: string
+        error_rate:
+          type: number
+          format: double
+          description: Error rate percentage
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the statistics
+        top_search_terms:
+          type: array
+          items:
+            type: string
+          description: Top search terms
+        total_logs:
+          type: integer
+          format: int64
+          description: Total number of logs
+          minimum: 0
+    LoginRequest:
+      type: object
+      description: Login request structure
+      required:
+      - username
+      - password
+      properties:
+        password:
+          type: string
+        username:
+          type: string
+    MessageResponse:
+      type: object
+      description: Generic success message
+      required:
+      - message
+      properties:
+        message:
+          type: string
+          description: Success message
+    MetricType:
+      type: string
+      description: Type of metric
+      enum:
+      - cpu_usage
+      - memory_usage
+      - disk_io
+      - network_io
+      - load_average
+    NodeCapabilities:
+      type: object
+      description: Node capabilities
+      required:
+      - cpu_cores
+      - memory_gb
+      - storage_gb
+      - network_bandwidth_mbps
+      properties:
+        cpu_cores:
+          type: integer
+          format: int32
+          minimum: 0
+        gpu_count:
+          type:
+          - integer
+          - 'null'
+          format: int32
+          minimum: 0
+        memory_gb:
+          type: integer
+          format: int64
+          minimum: 0
+        network_bandwidth_mbps:
+          type: integer
+          format: int64
+          minimum: 0
+        storage_gb:
+          type: integer
+          format: int64
+          minimum: 0
+    NodeType:
+      type: string
+      description: Type of cluster node
+      enum:
+      - ControlPlane
+      - Worker
+      - Storage
+      - LoadBalancer
+    ObservabilityConfig:
+      type: object
+      description: Observability configuration
+      required:
+      - enabled
+      - sampling_rate
+      - metrics_retention_days
+      - traces_retention_days
+      - logs_retention_days
+      - enable_performance_monitoring
+      - enable_error_tracking
+      - enable_audit_logging
+      properties:
+        enable_audit_logging:
+          type: boolean
+        enable_error_tracking:
+          type: boolean
+        enable_performance_monitoring:
+          type: boolean
+        enabled:
+          type: boolean
+        external_metrics_endpoint:
+          type:
+          - string
+          - 'null'
+        external_tracing_endpoint:
+          type:
+          - string
+          - 'null'
+        logs_retention_days:
+          type: integer
+          format: int32
+          minimum: 0
+        metrics_retention_days:
+          type: integer
+          format: int32
+          minimum: 0
+        sampling_rate:
+          type: number
+          format: double
+        traces_retention_days:
+          type: integer
+          format: int32
+          minimum: 0
+    ObservabilityMetric:
+      type: object
+      description: Observability metric
+      required:
+      - metric_name
+      - value
+      - timestamp
+      - labels
+      - source
+      properties:
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        metric_name:
+          type: string
+        source:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        value:
+          type: number
+          format: double
+    OptimizationType:
+      type: string
+      description: Optimization type enum
+      enum:
+      - Rightsizing
+      - ReservedInstances
+      - StorageTiering
+      - SpotInstances
+      - DeleteUnused
+      - ScheduleResources
+      - DataTransferOptimization
+    PerformanceMetrics:
+      type: object
+      description: Performance metrics
+      required:
+      - cpu_usage_percent
+      - memory_usage_bytes
+      - memory_usage_percent
+      - disk_usage_percent
+      - network_io_bytes_per_sec
+      - active_connections
+      - request_rate_per_sec
+      - average_response_time_ms
+      - error_rate_percent
+      properties:
+        active_connections:
+          type: integer
+          format: int32
+          minimum: 0
+        average_response_time_ms:
+          type: number
+          format: double
+        cpu_usage_percent:
+          type: number
+          format: double
+        disk_usage_percent:
+          type: number
+          format: double
+        error_rate_percent:
+          type: number
+          format: double
+        memory_usage_bytes:
+          type: integer
+          format: int64
+          minimum: 0
+        memory_usage_percent:
+          type: number
+          format: double
+        network_io_bytes_per_sec:
+          type: integer
+          format: int64
+          minimum: 0
+        request_rate_per_sec:
+          type: number
+          format: double
+    Permission:
+      type: string
+      description: Permission enum
+      enum:
+      - Read
+      - Write
+      - Delete
+      - Admin
+      - Execute
+      - Grant
+    PermissionGrant:
+      type: object
+      description: Permission grant structure
+      required:
+      - id
+      - grantee
+      - grantee_type
+      - permission
+      - resource_type
+      - tenant_id
+      - granted_by
+      - granted_at
+      properties:
+        granted_at:
+          type: string
+          format: date-time
+          description: Grant date
+        granted_by:
+          type: string
+          description: Grantor user ID
+        grantee:
+          type: string
+          description: User ID or Role
+        grantee_type:
+          type: string
+          description: Grant type (user or role)
+        id:
+          type: string
+          description: Grant ID
+        permission:
+          $ref: '#/components/schemas/Permission'
+          description: Permission
+        resource_id:
+          type:
+          - string
+          - 'null'
+          description: Resource ID (optional, for specific resources)
+        resource_type:
+          $ref: '#/components/schemas/ResourceType'
+          description: Resource type
+        tenant_id:
+          type: string
+          description: Tenant ID
+    PipelineDto:
+      type: object
+      required:
+      - id
+      - name
+      - steps
+      - created_at
+      - updated_at
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        description:
+          type:
+          - string
+          - 'null'
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/PipelineStepDto'
+        updated_at:
+          type: string
+          format: date-time
+    PipelineStepDto:
+      type: object
+      required:
+      - id
+      - name
+      - job_spec
+      - dependencies
+      properties:
+        dependencies:
+          type: array
+          items:
+            type: string
+            format: uuid
+        id:
+          type: string
+          format: uuid
+        job_spec:
+          $ref: '#/components/schemas/JobSpecDto'
+        name:
+          type: string
+    PipelineSummaryDto:
+      type: object
+      required:
+      - id
+      - name
+      - step_count
+      - created_at
+      - updated_at
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        description:
+          type:
+          - string
+          - 'null'
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        step_count:
+          type: integer
+          minimum: 0
+        updated_at:
+          type: string
+          format: date-time
+    ProviderCapabilitiesInfo:
+      type: object
+      required:
+      - supports_auto_scaling
+      - supports_health_checks
+      - supports_volumes
+      - estimated_provision_time_ms
+      properties:
+        estimated_provision_time_ms:
+          type: integer
+          format: int64
+          description: Estimated provisioning time in milliseconds
+          minimum: 0
+        max_workers:
+          type:
+          - integer
+          - 'null'
+          format: int32
+          description: Maximum number of workers (null if unlimited)
+          minimum: 0
+        supports_auto_scaling:
+          type: boolean
+          description: Supports auto-scaling
+        supports_health_checks:
+          type: boolean
+          description: Supports health checks
+        supports_volumes:
+          type: boolean
+          description: Supports volumes
+    ProviderCapabilitiesResponse:
+      type: object
+      description: Provider capabilities response
+      required:
+      - provider_type
+      - name
+      - capabilities
+      properties:
+        capabilities:
+          $ref: '#/components/schemas/ProviderCapabilitiesInfo'
+          description: Provider capabilities
+        name:
+          type: string
+          description: Provider name
+        provider_type:
+          type: string
+          description: Provider type
+    ProviderInfo:
+      type: object
+      description: Provider info
+      required:
+      - provider_type
+      - name
+      - status
+      properties:
+        name:
+          type: string
+          description: Provider name
+        provider_type:
+          type: string
+          description: Provider type
+        status:
+          type: string
+          description: Provider status
+    ProviderResponse:
+      type: object
+      description: Provider response
+      required:
+      - provider_type
+      - name
+      - status
+      - created_at
+      properties:
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        custom_image:
+          type:
+          - string
+          - 'null'
+          description: Custom image
+        name:
+          type: string
+          description: Provider name
+        namespace:
+          type:
+          - string
+          - 'null'
+          description: Namespace
+        provider_type:
+          type: string
+          description: Provider type
+        status:
+          type: string
+          description: Provider status
+    ProviderTypeDto:
+      type: string
+      description: Provider type enumeration
+      enum:
+      - Docker
+      - Kubernetes
+    QuotaResponse:
+      type: object
+      description: Quota response (EPIC-09)
+      required:
+      - cpu_m
+      - memory_mb
+      - max_concurrent_jobs
+      - current_usage
+      properties:
+        cpu_m:
+          type: integer
+          format: int64
+          description: CPU allocation in millicores
+          minimum: 0
+        current_usage:
+          $ref: '#/components/schemas/QuotaUsage'
+          description: Current resource usage
+        max_concurrent_jobs:
+          type: integer
+          format: int32
+          description: Maximum concurrent jobs
+          minimum: 0
+        memory_mb:
+          type: integer
+          format: int64
+          description: Memory allocation in MB
+          minimum: 0
+    QuotaUsage:
+      type: object
+      description: Quota usage (EPIC-09)
+      required:
+      - cpu_m
+      - memory_mb
+      - active_jobs
+      properties:
+        active_jobs:
+          type: integer
+          format: int32
+          description: Currently active jobs
+          minimum: 0
+        cpu_m:
+          type: integer
+          format: int64
+          description: Currently used CPU in millicores
+          minimum: 0
+        memory_mb:
+          type: integer
+          format: int64
+          description: Currently used memory in MB
+          minimum: 0
+    Recommendation:
+      type: object
+      description: Recommendation structure
+      required:
+      - id
+      - title
+      - description
+      - optimization_type
+      - resource_type
+      - current_cost
+      - potential_savings
+      - confidence
+      - priority
+      - effort_hours
+      - action_items
+      - affected_resources
+      - generated_at
+      - valid_until
+      properties:
+        action_items:
+          type: array
+          items:
+            type: string
+          description: Action items to take
+        affected_resources:
+          type: array
+          items:
+            type: string
+          description: Resource identifiers affected
+        confidence:
+          type: number
+          format: double
+          description: Confidence level (0.0 to 1.0)
+        current_cost:
+          type: number
+          format: double
+          description: Current cost for this resource
+        description:
+          type: string
+          description: Detailed description
+        effort_hours:
+          type: number
+          format: double
+          description: Estimated effort to implement (hours)
+        generated_at:
+          type: string
+          format: date-time
+          description: Date recommendation was generated
+        id:
+          type: string
+          description: Unique recommendation ID
+        optimization_type:
+          $ref: '#/components/schemas/OptimizationType'
+          description: Type of optimization
+        potential_savings:
+          type: number
+          format: double
+          description: Potential monthly savings
+        priority:
+          type: integer
+          format: int32
+          description: Priority level (1-5, 5 being highest)
+          minimum: 0
+        resource_type:
+          $ref: '#/components/schemas/ResourceType'
+          description: Resource type affected
+        title:
+          type: string
+          description: Title of the recommendation
+        valid_until:
+          type: string
+          format: date-time
+          description: Valid until date
+    RegisterWorkerRequest:
+      type: object
+      description: Register worker request
+      required:
+      - name
+      - cpu_cores
+      - memory_gb
+      properties:
+        cpu_cores:
+          type: integer
+          format: int32
+          description: Number of CPU cores
+          minimum: 0
+        memory_gb:
+          type: integer
+          format: int64
+          description: Memory in GB
+          minimum: 0
+        name:
+          type: string
+          description: Worker name
+    ResourcePoolConfigDto:
+      type: object
+      required:
+      - pool_type
+      - name
+      - provider_name
+      - min_size
+      - max_size
+      - default_resources
+      - tags
+      properties:
+        default_resources:
+          $ref: '#/components/schemas/ResourceQuotaDto'
+        max_size:
+          type: integer
+          format: int32
+          minimum: 0
+        min_size:
+          type: integer
+          format: int32
+          minimum: 0
+        name:
+          type: string
+        pool_type:
+          $ref: '#/components/schemas/ResourcePoolTypeDto'
+        provider_name:
+          type: string
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+    ResourcePoolResponseDto:
+      type: object
+      required:
+      - id
+      - config
+      properties:
+        config:
+          $ref: '#/components/schemas/ResourcePoolConfigDto'
+        id:
+          type: string
+    ResourcePoolStatusDto:
+      type: object
+      required:
+      - name
+      - pool_type
+      - total_capacity
+      - available_capacity
+      - active_workers
+      - pending_requests
+      properties:
+        active_workers:
+          type: integer
+          format: int32
+          minimum: 0
+        available_capacity:
+          type: integer
+          format: int32
+          minimum: 0
+        name:
+          type: string
+        pending_requests:
+          type: integer
+          format: int32
+          minimum: 0
+        pool_type:
+          $ref: '#/components/schemas/ResourcePoolTypeDto'
+        total_capacity:
+          type: integer
+          format: int32
+          minimum: 0
+    ResourcePoolTypeDto:
+      type: string
+      enum:
+      - Docker
+      - Kubernetes
+      - Cloud
+      - Static
+    ResourceQuotaDto:
+      type: object
+      required:
+      - cpu_m
+      - memory_mb
+      properties:
+        cpu_m:
+          type: integer
+          format: int64
+          minimum: 0
+        gpu:
+          type:
+          - integer
+          - 'null'
+          format: int32
+          minimum: 0
+        memory_mb:
+          type: integer
+          format: int64
+          minimum: 0
+    ResourceType:
+      type: string
+      description: Resource type enum
+      enum:
+      - Pipeline
+      - Execution
+      - Worker
+      - ResourcePool
+      - Metrics
+      - Logs
+      - Traces
+      - Alerts
+      - Cost
+      - Security
+      - Users
+      - System
+    RevokeRoleRequest:
+      type: object
+      description: Revoke role request structure
+      required:
+      - assignment_id
+      properties:
+        assignment_id:
+          type: string
+    Role:
+      type: string
+      description: Role enum
+      enum:
+      - SuperAdmin
+      - Admin
+      - Manager
+      - Developer
+      - Viewer
+      - Guest
+    RoleAssignment:
+      type: object
+      description: Role assignment structure
+      required:
+      - id
+      - user_id
+      - role
+      - tenant_id
+      - granted_by
+      - granted_at
+      properties:
+        expires_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Expiration date (optional)
+        granted_at:
+          type: string
+          format: date-time
+          description: Grant date
+        granted_by:
+          type: string
+          description: Grantor user ID
+        id:
+          type: string
+          description: Assignment ID
+        resource_id:
+          type:
+          - string
+          - 'null'
+          description: Resource ID (optional, for resource-specific roles)
+        resource_type:
+          oneOf:
+          - type: 'null'
+          - $ref: '#/components/schemas/ResourceType'
+            description: Resource type (optional, for resource-specific roles)
+        role:
+          $ref: '#/components/schemas/Role'
+          description: Role
+        tenant_id:
+          type: string
+          description: Tenant ID
+        user_id:
+          type: string
+          description: User ID
+    SecurityMetrics:
+      type: object
+      description: Security metrics structure
+      required:
+      - total_vulnerabilities
+      - by_severity
+      - by_status
+      - by_type
+      - avg_remediation_time
+      - score_trend
+      - compliance_score
+      - open_issues
+      - overdue_items
+      - coverage_percentage
+      - assessed_at
+      - tenant_id
+      properties:
+        assessed_at:
+          type: string
+          format: date-time
+          description: Assessment date
+        avg_remediation_time:
+          type: number
+          format: double
+          description: Average time to remediate (in days)
+        by_severity:
+          type: object
+          description: Vulnerabilities by severity
+          additionalProperties:
+            type: integer
+            format: int32
+            minimum: 0
+          propertyNames:
+            type: string
+        by_status:
+          type: object
+          description: Vulnerabilities by status
+          additionalProperties:
+            type: integer
+            format: int32
+            minimum: 0
+          propertyNames:
+            type: string
+        by_type:
+          type: object
+          description: Vulnerabilities by type
+          additionalProperties:
+            type: integer
+            format: int32
+            minimum: 0
+          propertyNames:
+            type: string
+        compliance_score:
+          type: number
+          format: double
+          description: Compliance score
+        coverage_percentage:
+          type: number
+          format: double
+          description: Coverage percentage
+        open_issues:
+          type: integer
+          format: int32
+          description: Number of open issues
+          minimum: 0
+        overdue_items:
+          type: integer
+          format: int32
+          description: Number of overdue items
+          minimum: 0
+        score_trend:
+          type: array
+          items:
+            type: number
+            format: double
+          description: Security score trend
+        tenant_id:
+          type: string
+          description: Tenant ID
+        total_vulnerabilities:
+          type: integer
+          format: int32
+          description: Total number of vulnerabilities
+          minimum: 0
+    SecurityReport:
+      type: object
+      description: Security report structure
+      required:
+      - id
+      - title
+      - report_type
+      - generated_at
+      - period_start
+      - period_end
+      - tenant_id
+      - executive_summary
+      - key_findings
+      - recommendations
+      - risk_rating
+      - compliance_status
+      - metrics
+      properties:
+        compliance_status:
+          type: string
+          description: Compliance status
+        executive_summary:
+          type: string
+          description: Executive summary
+        generated_at:
+          type: string
+          format: date-time
+          description: Generated date
+        id:
+          type: string
+          description: Report ID
+        key_findings:
+          type: array
+          items:
+            type: string
+          description: Key findings
+        metrics:
+          $ref: '#/components/schemas/SecurityMetrics'
+          description: Metrics included
+        period_end:
+          type: string
+          format: date-time
+          description: Report period end
+        period_start:
+          type: string
+          format: date-time
+          description: Report period start
+        recommendations:
+          type: array
+          items:
+            type: string
+          description: Recommendations
+        report_type:
+          type: string
+          description: Report type
+        risk_rating:
+          type: string
+          description: Overall risk rating
+        tenant_id:
+          type: string
+          description: Tenant ID
+        title:
+          type: string
+          description: Report title
+    SecurityReportRequest:
+      type: object
+      description: Security report request structure
+      required:
+      - tenant_id
+      - report_type
+      - period_start
+      - period_end
+      properties:
+        period_end:
+          type: string
+          format: date-time
+        period_start:
+          type: string
+          format: date-time
+        report_type:
+          type: string
+        tenant_id:
+          type: string
+    SecurityScore:
+      type: object
+      description: Security score structure
+      required:
+      - id
+      - entity_id
+      - entity_type
+      - overall_score
+      - vulnerability_score
+      - compliance_score
+      - configuration_score
+      - score_breakdown
+      - critical_count
+      - high_count
+      - medium_count
+      - low_count
+      - open_count
+      - resolved_count
+      - trend
+      - calculated_at
+      - tenant_id
+      properties:
+        calculated_at:
+          type: string
+          format: date-time
+          description: Last calculation date
+        compliance_score:
+          type: number
+          format: double
+          description: Compliance score component
+        configuration_score:
+          type: number
+          format: double
+          description: Configuration score component
+        critical_count:
+          type: integer
+          format: int32
+          description: Number of critical vulnerabilities
+          minimum: 0
+        entity_id:
+          type: string
+          description: Associated entity (tenant, resource, etc.)
+        entity_type:
+          type: string
+          description: Entity type (tenant, resource, application)
+        high_count:
+          type: integer
+          format: int32
+          description: Number of high vulnerabilities
+          minimum: 0
+        id:
+          type: string
+          description: Score ID
+        low_count:
+          type: integer
+          format: int32
+          description: Number of low vulnerabilities
+          minimum: 0
+        medium_count:
+          type: integer
+          format: int32
+          description: Number of medium vulnerabilities
+          minimum: 0
+        open_count:
+          type: integer
+          format: int32
+          description: Number of open vulnerabilities
+          minimum: 0
+        overall_score:
+          type: number
+          format: double
+          description: Overall security score (0-100)
+        resolved_count:
+          type: integer
+          format: int32
+          description: Number of resolved vulnerabilities
+          minimum: 0
+        score_breakdown:
+          type: object
+          description: Score breakdown by category
+          additionalProperties:
+            type: number
+            format: double
+          propertyNames:
+            type: string
+        tenant_id:
+          type: string
+          description: Tenant ID
+        trend:
+          type: string
+          description: Score trend (improving, declining, stable)
+        vulnerability_score:
+          type: number
+          format: double
+          description: Vulnerability score component
+    ServiceHealth:
+      type: object
+      description: Service health status
+      required:
+      - service_name
+      - status
+      - uptime
+      - last_check
+      - dependencies
+      properties:
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencyHealth'
+        last_check:
+          type: string
+          format: date-time
+        service_name:
+          type: string
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+        uptime:
+          type: integer
+          format: int64
+          minimum: 0
+    Session:
+      type: object
+      description: Session information
+      required:
+      - id
+      - user_id
+      - tenant_id
+      - login_at
+      - last_activity
+      - ip_address
+      - user_agent
+      - is_active
+      properties:
+        id:
+          type: string
+          description: Session ID
+        ip_address:
+          type: string
+          description: Session IP address
+        is_active:
+          type: boolean
+          description: Is active
+        last_activity:
+          type: string
+          format: date-time
+          description: Last activity timestamp
+        login_at:
+          type: string
+          format: date-time
+          description: Login timestamp
+        tenant_id:
+          type: string
+          description: Tenant ID
+        user_agent:
+          type: string
+          description: User agent
+        user_id:
+          type: string
+          description: User ID
+    Span:
+      type: object
+      description: Span structure representing a single operation in a trace
+      required:
+      - span_id
+      - trace_id
+      - operation_name
+      - service_name
+      - start_time
+      - end_time
+      - duration_ms
+      - status_code
+      - tags
+      - logs
+      properties:
+        duration_ms:
+          type: integer
+          format: int64
+          description: Duration in milliseconds
+          minimum: 0
+        end_time:
+          type: string
+          format: date-time
+          description: End timestamp
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpanLog'
+          description: Structured logs for this span
+        operation_name:
+          type: string
+          description: Operation name
+        parent_span_id:
+          type:
+          - string
+          - 'null'
+          description: Parent span ID (optional, null for root spans)
+        service_name:
+          type: string
+          description: Service name where the span originated
+        span_id:
+          type: string
+          description: Unique span ID
+        start_time:
+          type: string
+          format: date-time
+          description: Start timestamp
+        status_code:
+          type: string
+          description: Status code (OK, ERROR, TIMEOUT)
+        tags:
+          type: object
+          description: Key-value tags for additional span metadata
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        trace_id:
+          type: string
+          description: Trace ID this span belongs to
+    SpanLog:
+      type: object
+      description: Span log entry
+      required:
+      - timestamp
+      - level
+      - message
+      - fields
+      properties:
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        level:
+          $ref: '#/components/schemas/LogLevel'
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    StepDetailsDto:
+      type: object
+      required:
+      - id
+      - name
+      - image
+      - command
+      - timeout_ms
+      - retries
+      - environment
+      properties:
+        command:
+          type: array
+          items:
+            type: string
+        environment:
+          type: object
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        id:
+          type: string
+          format: uuid
+        image:
+          type: string
+        name:
+          type: string
+        retries:
+          type: integer
+          format: int32
+          minimum: 0
+        status:
+          type:
+          - string
+          - 'null'
+        timeout_ms:
+          type: integer
+          format: int64
+          minimum: 0
+    StepExecutionLogsDto:
+      type: object
+      required:
+      - step_id
+      - step_name
+      - status
+      - logs
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntryDto'
+        status:
+          type: string
+        step_id:
+          type: string
+          format: uuid
+        step_name:
+          type: string
+    TenantCostBreakdown:
+      type: object
+      description: Cost breakdown by tenant
+      required:
+      - tenant_id
+      - total_cost
+      - resource_breakdown
+      - period_start
+      - period_end
+      properties:
+        period_end:
+          type: string
+          format: date-time
+          description: Period end timestamp
+        period_start:
+          type: string
+          format: date-time
+          description: Period start timestamp
+        resource_breakdown:
+          type: object
+          description: Breakdown by resource type
+          additionalProperties:
+            type: number
+            format: double
+          propertyNames:
+            type: string
+        tenant_id:
+          type: string
+          description: Tenant ID
+        total_cost:
+          type: number
+          format: double
+          description: Total cost for this tenant
+    TenantResponse:
+      type: object
+      description: Tenant response (EPIC-09)
+      required:
+      - id
+      - name
+      - email
+      - created_at
+      - updated_at
+      properties:
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        email:
+          type: string
+          description: Tenant admin email
+        id:
+          type: string
+          description: Unique tenant identifier
+        name:
+          type: string
+          description: Tenant name
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    ThresholdStatus:
+      type: string
+      description: Threshold status
+      enum:
+      - normal
+      - warning
+      - critical
+    Trace:
+      type: object
+      description: Trace structure representing a distributed trace
+      required:
+      - trace_id
+      - operation_name
+      - service_name
+      - start_time
+      - end_time
+      - duration_ms
+      - tenant_id
+      - status
+      - spans
+      - tags
+      properties:
+        duration_ms:
+          type: integer
+          format: int64
+          description: Total duration in milliseconds
+          minimum: 0
+        end_time:
+          type: string
+          format: date-time
+          description: End timestamp
+        error_message:
+          type:
+          - string
+          - 'null'
+          description: Error message (optional)
+        operation_name:
+          type: string
+          description: Root operation name
+        service_name:
+          type: string
+          description: Service name where the trace originated
+        spans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Span'
+          description: List of spans in this trace
+        start_time:
+          type: string
+          format: date-time
+          description: Start timestamp
+        status:
+          type: string
+          description: Status (SUCCESS, ERROR, TIMEOUT)
+        tags:
+          type: object
+          description: Key-value tags for additional trace metadata
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        tenant_id:
+          type: string
+          description: Tenant ID
+        trace_id:
+          type: string
+          description: Unique trace ID
+    TraceSpan:
+      type: object
+      description: Tracing span
+      required:
+      - span_id
+      - trace_id
+      - operation_name
+      - start_time
+      - end_time
+      - duration_ms
+      - tags
+      - logs
+      properties:
+        duration_ms:
+          type: number
+          format: double
+        end_time:
+          type: string
+          format: date-time
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpanLog'
+        operation_name:
+          type: string
+        parent_span_id:
+          type:
+          - string
+          - 'null'
+        span_id:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        trace_id:
+          type: string
+    UpdatePoolRequestDto:
+      type: object
+      properties:
+        max_size:
+          type:
+          - integer
+          - 'null'
+          format: int32
+          minimum: 0
+        min_size:
+          type:
+          - integer
+          - 'null'
+          format: int32
+          minimum: 0
+        name:
+          type:
+          - string
+          - 'null'
+        tags:
+          type:
+          - object
+          - 'null'
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+    UpdateTenantRequest:
+      type: object
+      description: Update tenant request (EPIC-09)
+      required:
+      - name
+      - email
+      properties:
+        email:
+          type: string
+          description: Tenant admin email
+        name:
+          type: string
+          description: Tenant name
+    User:
+      type: object
+      description: User structure
+      required:
+      - id
+      - username
+      - email
+      - display_name
+      - is_active
+      - tenant_id
+      - roles
+      - permissions
+      - created_at
+      - metadata
+      properties:
+        created_at:
+          type: string
+          format: date-time
+          description: Creation date
+        display_name:
+          type: string
+          description: Display name
+        email:
+          type: string
+          description: Email address
+        id:
+          type: string
+          description: Unique user ID
+        is_active:
+          type: boolean
+          description: User status
+        last_login:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Last login date
+        metadata:
+          type: object
+          description: User metadata
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+          description: User permissions
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+          description: User roles
+        tenant_id:
+          type: string
+          description: Tenant ID
+        username:
+          type: string
+          description: Username
+    Vulnerability:
+      type: object
+      description: Security vulnerability structure
+      required:
+      - id
+      - title
+      - description
+      - severity
+      - status
+      - cvss_score
+      - resource_id
+      - resource_type
+      - tenant_id
+      - discovered_at
+      - updated_at
+      - evidence
+      - remediation_steps
+      - related_vulnerabilities
+      - tags
+      properties:
+        assigned_to:
+          type:
+          - string
+          - 'null'
+          description: Assigned user/team
+        cve_id:
+          type:
+          - string
+          - 'null'
+          description: CVE identifier (if applicable)
+        cvss_score:
+          type: number
+          format: double
+          description: CVSS score (0.0 - 10.0)
+        description:
+          type: string
+          description: Detailed description
+        discovered_at:
+          type: string
+          format: date-time
+          description: Discovery date
+        due_date:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Due date for remediation
+        evidence:
+          type: array
+          items:
+            type: string
+          description: Evidence and proof
+        id:
+          type: string
+          description: Unique vulnerability ID
+        related_vulnerabilities:
+          type: array
+          items:
+            type: string
+          description: Related vulnerabilities
+        remediation_steps:
+          type: array
+          items:
+            type: string
+          description: Remediation steps
+        resource_id:
+          type: string
+          description: Affected resource ID
+        resource_type:
+          type: string
+          description: Resource type
+        severity:
+          $ref: '#/components/schemas/VulnerabilitySeverity'
+          description: Severity level
+        status:
+          $ref: '#/components/schemas/VulnerabilityStatus'
+          description: Current status
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for categorization
+        tenant_id:
+          type: string
+          description: Tenant ID
+        title:
+          type: string
+          description: Vulnerability title/description
+        updated_at:
+          type: string
+          format: date-time
+          description: Last updated
+    VulnerabilitySeverity:
+      type: string
+      description: Vulnerability severity enum
+      enum:
+      - Critical
+      - High
+      - Medium
+      - Low
+      - Info
+    VulnerabilityStatus:
+      type: string
+      description: Vulnerability status enum
+      enum:
+      - Open
+      - InProgress
+      - Verified
+      - Resolved
+      - Accepted
+      - FalsePositive
+    WorkerCapabilitiesDto:
+      type: object
+      required:
+      - cpu_cores
+      - memory_gb
+      - features
+      - labels
+      - max_concurrent_jobs
+      properties:
+        cpu_cores:
+          type: integer
+          format: int32
+          minimum: 0
+        features:
+          type: array
+          items:
+            type: string
+        gpu:
+          type:
+          - integer
+          - 'null'
+          format: int32
+          minimum: 0
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
+        max_concurrent_jobs:
+          type: integer
+          format: int32
+          minimum: 0
+        memory_gb:
+          type: integer
+          format: int64
+          minimum: 0
+    WorkerResponse:
+      type: object
+      description: Worker response
+      required:
+      - id
+      - name
+      - status
+      - capabilities
+      - last_heartbeat
+      properties:
+        capabilities:
+          $ref: '#/components/schemas/WorkerCapabilitiesDto'
+          description: Worker capabilities
+        id:
+          type: string
+          description: Unique worker identifier
+        last_heartbeat:
+          type: string
+          format: date-time
+          description: Last heartbeat timestamp
+        name:
+          type: string
+          description: Worker name
+        status:
+          type: string
+          description: Current status
 tags:
-  - name: Pipelines
-    description: Pipeline management operations
-  - name: Workers
-    description: Worker and pool management
-  - name: Jobs
-    description: Job execution operations
-  - name: Observability
-    description: Logs, metrics, and monitoring
-  - name: Alerts
-    description: Alert management and notifications
+- name: pipelines
+  description: Pipeline management endpoints
+- name: executions
+  description: Pipeline execution endpoints
+- name: worker-pools
+  description: Resource pool management endpoints
+- name: system
+  description: System status and health endpoints
+- name: cost-management
+  description: Cost management and budget tracking endpoints
+- name: security
+  description: Security vulnerability tracking and compliance endpoints
+- name: auth
+  description: Authentication and RBAC management endpoints
+- name: observability
+  description: Observability, monitoring, and cluster topology endpoints

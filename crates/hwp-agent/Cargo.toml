@@ -49,7 +49,7 @@ tonic-prost-build = { workspace = true }
 prost-build = { workspace = true }
 
 [[bin]]
-name = "hwp-agent"
+name = "hwp-pipeline-agent"
 path = "src/main.rs"
 
 [dev-dependencies]

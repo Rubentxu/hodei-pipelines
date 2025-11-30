@@ -8,7 +8,6 @@
 //! - Type safety with utoipa
 
 use chrono::Utc;
-use serde_json::Value;
 use std::collections::HashMap;
 
 #[cfg(test)]
@@ -17,8 +16,8 @@ mod tests {
 
     use hodei_server::api_docs::{ApiDoc, *};
     use hodei_server::security_vulnerability_tracking::{
-        ComplianceCheck, ComplianceFramework, ControlStatus, SecurityMetrics, SecurityScore,
-        Vulnerability, VulnerabilitySeverity, VulnerabilityStatus,
+        ComplianceCheck, ComplianceFramework, ControlStatus, SecurityScore, Vulnerability,
+        VulnerabilitySeverity, VulnerabilityStatus,
     };
     use utoipa::OpenApi;
 

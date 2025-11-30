@@ -2,7 +2,8 @@
 //!
 //! This is the main binary for the HWP (Hodei Worker Protocol) agent.
 
-use hwp_agent::{Config, Result};
+use hodei_pipelines_core::{Uuid, WorkerId};
+use hwp_pipelines_agent::{Config, Result, connection, monitor};
 use tracing::{error, info, warn};
 
 #[tokio::main]
@@ -16,11 +17,8 @@ async fn main() -> Result<()> {
     let mut config = load_config().await?;
 
     // Ensure worker_id is a UUID
-    if config.worker_id.parse::<hodei_core::Uuid>().is_err() {
-        let uuid = hodei_core::Uuid::new_v5(
-            &hodei_core::Uuid::NAMESPACE_DNS,
-            config.worker_id.as_bytes(),
-        );
+    if config.worker_id.parse::<Uuid>().is_err() {
+        let uuid = Uuid::new_v5(&Uuid::NAMESPACE_DNS, config.worker_id.as_bytes());
         info!(
             "Converted worker_id '{}' to UUID '{}'",
             config.worker_id, uuid
@@ -34,7 +32,7 @@ async fn main() -> Result<()> {
     );
 
     // Create agent instance
-    let mut agent = hwp_agent::connection::Client::new(config.clone());
+    let mut agent = connection::Client::new(config.clone());
 
     // Connect to server with retry
     connect_with_retry(&mut agent, &config).await?;
@@ -59,10 +57,7 @@ async fn load_config() -> Result<Config> {
     }
 }
 
-async fn connect_with_retry(
-    agent: &mut hwp_agent::connection::Client,
-    config: &Config,
-) -> Result<()> {
+async fn connect_with_retry(agent: &mut connection::Client, config: &Config) -> Result<()> {
     let mut delay_ms = config.reconnect_initial_delay_ms;
     let max_delay = config.reconnect_max_delay_ms;
 
@@ -85,25 +80,25 @@ async fn connect_with_retry(
     }
 }
 
-async fn run_agent_loop(mut agent: hwp_agent::connection::Client, config: Config) -> Result<()> {
+async fn run_agent_loop(mut agent: connection::Client, config: Config) -> Result<()> {
     info!("Entering main agent loop");
 
     loop {
         // Start heartbeat sender
         let heartbeat_agent = agent.clone();
-        let heartbeat_config = hwp_agent::monitor::HeartbeatConfig {
+        let heartbeat_config = monitor::HeartbeatConfig {
             interval_ms: config.resource_sampling_interval_ms,
             max_failures: 3,
             failure_timeout_ms: 30000,
         };
         // We know worker_id is a valid UUID string now
-        let worker_uuid = config.worker_id.parse::<hodei_core::Uuid>().unwrap();
-        let worker_id = hodei_core::WorkerId(worker_uuid);
+        let worker_uuid = config.worker_id.parse::<Uuid>().unwrap();
+        let worker_id = WorkerId(worker_uuid);
         let sampling_interval = config.resource_sampling_interval_ms;
 
         let heartbeat_handle = tokio::spawn(async move {
-            let resource_monitor = hwp_agent::monitor::ResourceMonitor::new(sampling_interval);
-            let mut sender = hwp_agent::monitor::HeartbeatSender::new(
+            let resource_monitor = monitor::ResourceMonitor::new(sampling_interval);
+            let mut sender = monitor::HeartbeatSender::new(
                 heartbeat_config,
                 resource_monitor,
                 worker_id,

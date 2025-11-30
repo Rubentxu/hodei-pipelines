@@ -9,14 +9,14 @@
 
 #[cfg(test)]
 mod auto_registration_tests {
-    use hodei_adapters::{RegistrationConfig, WorkerRegistrationAdapter};
-    use hodei_core::{Worker, WorkerId};
-    use hodei_core::{WorkerCapabilities, WorkerStatus};
-    use hodei_modules::worker_management::{WorkerManagementConfig, WorkerManagementService};
+    use hodei_pipelines_adapters::{RegistrationConfig, WorkerRegistrationAdapter};
+    use hodei_pipelines_core::{Worker, WorkerId};
+    use hodei_pipelines_core::{WorkerCapabilities, WorkerStatus};
+    use hodei_pipelines_modules::worker_management::{WorkerManagementConfig, WorkerManagementService};
 
-    use hodei_ports::WorkerRegistrationPort;
-    use hodei_ports::scheduler_port::{SchedulerError, SchedulerPort};
-    use hodei_ports::worker_provider::{ProviderCapabilities, ProviderError, WorkerProvider};
+    use hodei_pipelines_ports::WorkerRegistrationPort;
+    use hodei_pipelines_ports::scheduler_port::{SchedulerError, SchedulerPort};
+    use hodei_pipelines_ports::worker_provider::{ProviderCapabilities, ProviderError, WorkerProvider};
 
     use std::sync::Arc;
     use std::time::{Duration, Instant};
@@ -159,8 +159,8 @@ mod auto_registration_tests {
 
     #[async_trait::async_trait]
     impl WorkerProvider for MockWorkerProvider {
-        fn provider_type(&self) -> hodei_ports::worker_provider::ProviderType {
-            hodei_ports::worker_provider::ProviderType::Docker
+        fn provider_type(&self) -> hodei_pipelines_ports::worker_provider::ProviderType {
+            hodei_pipelines_ports::worker_provider::ProviderType::Docker
         }
 
         fn name(&self) -> &str {
@@ -180,7 +180,7 @@ mod auto_registration_tests {
         async fn create_worker(
             &self,
             worker_id: WorkerId,
-            _config: hodei_ports::worker_provider::ProviderConfig,
+            _config: hodei_pipelines_ports::worker_provider::ProviderConfig,
         ) -> Result<Worker, ProviderError> {
             if self.should_fail {
                 return Err(ProviderError::Provider("Mock error".to_string()));
@@ -517,7 +517,7 @@ mod auto_registration_tests {
         assert!(result.is_err());
         let error = result.unwrap_err();
         // Verify that the error is properly converted to DomainError
-        assert!(matches!(error, hodei_core::DomainError::Infrastructure(_)));
+        assert!(matches!(error, hodei_pipelines_core::DomainError::Infrastructure(_)));
     }
 
     #[tokio::test]

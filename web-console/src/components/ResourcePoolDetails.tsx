@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  deleteResourcePool,
+  getCapacityUtilization,
+  getPoolHealthStatus,
   getResourcePool,
   getResourcePoolStatus,
-  deleteResourcePool,
+  isAtCriticalCapacity,
   type ResourcePool,
   type ResourcePoolStatus,
-  getCapacityUtilization,
-  isAtCriticalCapacity,
-  getPoolHealthStatus,
 } from '../services/resourcePoolApi';
 
 export function ResourcePoolDetails() {
@@ -118,7 +118,7 @@ export function ResourcePoolDetails() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64" role="status" aria-label="Loading">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     );

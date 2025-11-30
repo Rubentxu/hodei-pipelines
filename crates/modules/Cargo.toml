@@ -25,12 +25,12 @@ chrono = { workspace = true }
 # Workspace utilities
 uuid = { workspace = true }
 tracing = { workspace = true }
-tracing-opentelemetry = "0.23"
-opentelemetry = "0.22"
-opentelemetry_sdk = "0.22"
-opentelemetry-otlp = "0.15"
+tracing-opentelemetry = "0.32.0"
+opentelemetry = "0.31.0"
+opentelemetry_sdk = "0.31.0"
+opentelemetry-otlp = "0.31.0"
 dashmap = { workspace = true }
-rand = "0.8"
+rand = "0.9.2"
 
 # Lock-free data structures and batching
 crossbeam = { version = "0.8", features = ["std"] }

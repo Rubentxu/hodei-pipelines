@@ -14,7 +14,7 @@ use tokio::time::{Instant, timeout};
 mod tests {
     use super::*;
 
-    use hodei_core::pipeline_execution::ExecutionId;
+    use hodei_pipelines_core::pipeline_execution::ExecutionId;
     use hodei_server::api_docs::{ApiDoc, *};
     use hodei_server::live_metrics_api::{
         LiveMetric, LiveMetricsService, MetricType, ThresholdStatus,
@@ -92,7 +92,7 @@ mod tests {
             level: LogLevel::Error,
             step: "deploy".to_string(),
             message: "Deployment failed".to_string(),
-            execution_id: ExecutionId::new(),
+            execution_id: ExecutionId::new().0,
         };
 
         let json = serde_json::to_string(&log_event).unwrap();
@@ -356,7 +356,7 @@ mod tests {
             level: LogLevel::Info,
             step: "build".to_string(),
             message: "Build started".to_string(),
-            execution_id: ExecutionId::new(),
+            execution_id: ExecutionId::new().0,
         };
 
         let metric = LiveMetric {
@@ -464,7 +464,7 @@ mod tests {
             level: LogLevel::Info,
             step: "auth".to_string(),
             message: "Authentication validated".to_string(),
-            execution_id: ExecutionId::new(),
+            execution_id: ExecutionId::new().0,
         };
 
         // Both should serialize without errors (auth would be handled at handler level)

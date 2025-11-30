@@ -18,7 +18,7 @@ use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::time::interval;
 use tokio_stream::{StreamExt, wrappers::IntervalStream};
 use tracing::{error, info};
-// use utoipa::ToSchema; // Disabled for now
+use uuid::Uuid;
 
 // ===== Application State =====
 
@@ -56,7 +56,7 @@ pub struct LogEvent {
     pub level: LogLevel,
     pub step: String,
     pub message: String,
-    pub execution_id: ExecutionId,
+    pub execution_id: Uuid,
 }
 
 /// Log Level Enum
@@ -130,8 +130,9 @@ impl IntoResponse for SseStream {
 )]
 pub async fn logs_stream_handler(
     State(state): State<LogsApiAppState>,
-    Path(execution_id): Path<ExecutionId>,
+    Path(execution_id_uuid): Path<Uuid>,
 ) -> Result<SseStream, StatusCode> {
+    let execution_id = ExecutionId(execution_id_uuid);
     info!("Starting logs stream for execution: {}", execution_id);
 
     match state.log_service.stream_logs(&execution_id).await {
@@ -209,7 +210,7 @@ fn create_mock_stream(
                 level: levels[level_index].clone(),
                 step: steps[step_index].to_string(),
                 message: messages[message_index].to_string(),
-                execution_id: execution_id.clone(),
+                execution_id: execution_id.0,
             }
         })
         // Limit to 20 events for the test
@@ -236,7 +237,7 @@ mod tests {
         let state = LogsApiAppState::new(mock_service);
 
         let execution_id = ExecutionId::new();
-        let result = logs_stream_handler(State(state), Path(execution_id.clone())).await;
+        let result = logs_stream_handler(State(state), Path(execution_id.0)).await;
 
         assert!(result.is_ok());
     }

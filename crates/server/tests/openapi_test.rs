@@ -4,8 +4,7 @@
 //! in the OpenAPI specification and that the contract is complete.
 
 use hodei_server::api_docs::ApiDoc;
-use serde_json::json;
-use utoipa::{OpenApi, ToSchema};
+use utoipa::OpenApi;
 
 /// Test that the OpenAPI specification can be generated
 #[tokio::test]
@@ -117,11 +116,7 @@ async fn test_resource_pool_endpoints_documented() {
 /// Test that schemas are properly defined
 #[tokio::test]
 async fn test_pipeline_schemas_defined() {
-    use hodei_server::pipeline_api::{
-        CreatePipelineRequestDto, CreatePipelineStepRequestDto, DagStructureDto,
-        ExecutePipelineRequestDto, ExecutePipelineResponseDto, ExecutionLogsDto,
-        ListPipelinesResponseDto, PipelineResponseDto, PipelineSummaryDto, StepDetailsDto,
-    };
+    use hodei_server::dtos::CreatePipelineRequestDto;
 
     // Test that schemas can be serialized (validation they have ToSchema)
     let create_req = CreatePipelineRequestDto {

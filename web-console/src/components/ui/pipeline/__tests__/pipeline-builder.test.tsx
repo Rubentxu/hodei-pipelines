@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PipelineBuilder } from '../pipeline-builder';
 
 describe('PipelineBuilder', () => {
@@ -37,9 +36,9 @@ describe('PipelineBuilder', () => {
       />
     );
 
-    expect(screen.getByText('Extract Data')).toBeInTheDocument();
-    expect(screen.getByText('Transform Data')).toBeInTheDocument();
-    expect(screen.getByText('Load Data')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Extract Data')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Transform Data')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Load Data')).toBeInTheDocument();
   });
 
   it('shows task types with color coding', () => {
@@ -129,7 +128,7 @@ describe('PipelineBuilder', () => {
       />
     );
 
-    const draggableElements = screen.getAllByText(/Extract Data|Transform Data|Load Data/);
+    const draggableElements = screen.getAllByDisplayValue(/Extract Data|Transform Data|Load Data/);
     expect(draggableElements.length).toBeGreaterThan(0);
   });
 
@@ -141,6 +140,14 @@ describe('PipelineBuilder', () => {
         onCancel={mockOnCancel}
       />
     );
+
+    // Remove the default task that is added when initialTasks is empty
+    const deleteButton = screen.getByText('Eliminar');
+    deleteButton.click();
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Nueva Tarea/i)).not.toBeInTheDocument();
+    });
 
     const saveButton = screen.getByText('Guardar Pipeline');
     saveButton.click();

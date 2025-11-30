@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utoipa::{OpenApi, ToSchema};
 
-// Re-export shared types for API documentation
-pub use hodei_pipelines_core::{JobSpec, ResourceQuota, WorkerCapabilities};
+use crate::dtos::*;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -109,29 +108,31 @@ pub use hodei_pipelines_core::{JobSpec, ResourceQuota, WorkerCapabilities};
             QuotaUsage,
             ListTenantsResponse,
             // Pipeline DTOs
-            crate::pipeline_api::CreatePipelineRequestDto,
-            crate::pipeline_api::CreatePipelineStepRequestDto,
-            crate::pipeline_api::PipelineResponseDto,
-            crate::pipeline_api::ListPipelinesResponseDto,
-            crate::pipeline_api::PipelineSummaryDto,
-            crate::pipeline_api::ExecutePipelineRequestDto,
-            crate::pipeline_api::ExecutePipelineResponseDto,
-            crate::pipeline_api::DagNodeDto,
-            crate::pipeline_api::DagEdgeDto,
-            crate::pipeline_api::DagPosition,
-            crate::pipeline_api::DagStructureDto,
-            crate::pipeline_api::StepDetailsDto,
-            crate::pipeline_api::ExecutionLogsDto,
-            crate::pipeline_api::StepExecutionLogsDto,
-            crate::pipeline_api::LogEntryDto,
+            crate::dtos::CreatePipelineRequestDto,
+            crate::dtos::CreatePipelineStepRequestDto,
+            crate::dtos::PipelineDto,
+            crate::dtos::PipelineStepDto,
+            crate::dtos::JobSpecDto,
+            crate::dtos::ResourceQuotaDto,
+            crate::dtos::ListPipelinesResponseDto,
+            crate::dtos::PipelineSummaryDto,
+            crate::dtos::ExecutePipelineRequestDto,
+            crate::dtos::ExecutePipelineResponseDto,
+            crate::dtos::DagNodeDto,
+            crate::dtos::DagEdgeDto,
+            crate::dtos::DagPositionDto,
+            crate::dtos::DagStructureDto,
+            crate::dtos::StepDetailsDto,
+            crate::dtos::ExecutionLogsDto,
+            crate::dtos::StepExecutionLogsDto,
+            crate::dtos::LogEntryDto,
             // Resource Pool DTOs
-            crate::resource_pool_crud::CreatePoolRequest,
-            crate::resource_pool_crud::UpdatePoolRequest,
-            crate::resource_pool_crud::ResourcePoolResponse,
-            hodei_pipelines_ports::resource_pool::ResourcePoolConfig,
-            hodei_pipelines_ports::resource_pool::ResourcePoolStatus,
-            hodei_pipelines_ports::resource_pool::ResourcePoolType,
-            hodei_pipelines_core::ResourceQuota,
+            crate::dtos::CreatePoolRequestDto,
+            crate::dtos::UpdatePoolRequestDto,
+            crate::dtos::ResourcePoolResponseDto,
+            crate::dtos::ResourcePoolConfigDto,
+            crate::dtos::ResourcePoolStatusDto,
+            crate::dtos::ResourcePoolTypeDto,
             // Observability Streaming DTOs
             crate::live_metrics_api::LiveMetric,
             crate::live_metrics_api::MetricType,
@@ -249,7 +250,7 @@ pub struct CreateJobRequest {
     /// Command to execute
     pub command: Vec<String>,
     /// Resource requirements
-    pub resources: ResourceQuota,
+    pub resources: ResourceQuotaDto,
     /// Timeout in milliseconds
     pub timeout_ms: u64,
     /// Number of retries on failure
@@ -268,7 +269,7 @@ pub struct JobResponse {
     /// Job name
     pub name: String,
     /// Job specification
-    pub spec: JobSpec,
+    pub spec: JobSpecDto,
     /// Current state
     pub state: String,
     /// Creation timestamp
@@ -311,7 +312,7 @@ pub struct WorkerResponse {
     /// Current status
     pub status: String,
     /// Worker capabilities
-    pub capabilities: WorkerCapabilities,
+    pub capabilities: WorkerCapabilitiesDto,
     /// Last heartbeat timestamp
     pub last_heartbeat: DateTime<Utc>,
 }

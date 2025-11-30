@@ -1,42 +1,43 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { getPipelines, createPipeline, updatePipeline, deletePipeline, executePipeline, Pipeline } from '@/services/pipelineApi';
-import { PipelineTask } from '@/types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CreatePipelineRequest, pipelineApi, UpdatePipelineRequest } from '../services/pipelineApi';
 
 export function usePipelines() {
   const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ['pipelines'],
-    queryFn: getPipelines,
+    queryFn: async () => {
+      const response = await pipelineApi.listPipelines();
+      return response.items || [];
+    },
     staleTime: 30000,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string; tasks: PipelineTask[] }) =>
-      createPipeline(data),
+    mutationFn: (data: CreatePipelineRequest) =>
+      pipelineApi.createPipeline(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipelines'] });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
-      updatePipeline(id, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdatePipelineRequest }) =>
+      pipelineApi.updatePipeline(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipelines'] });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deletePipeline(id),
+    mutationFn: (id: string) => pipelineApi.deletePipeline(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pipelines'] });
     },
   });
 
   const executeMutation = useMutation({
-    mutationFn: (id: string) => executePipeline(id),
+    mutationFn: (id: string) => pipelineApi.executePipeline(id),
   });
 
   return {
@@ -58,9 +59,7 @@ export function usePipelines() {
 export function usePipeline(id: string) {
   return useQuery({
     queryKey: ['pipelines', id],
-    queryFn: () => getPipelines().then(pipelines =>
-      pipelines.find(p => p.id === id)
-    ),
+    queryFn: () => pipelineApi.getPipeline(id),
     enabled: !!id,
   });
 }

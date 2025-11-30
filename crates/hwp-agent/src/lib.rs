@@ -49,7 +49,7 @@ pub enum AgentError {
     Io(#[from] std::io::Error),
 
     #[error("Worker client error: {0}")]
-    WorkerClient(#[from] hodei_ports::WorkerClientError),
+    WorkerClient(#[from] hodei_pipelines_ports::WorkerClientError),
 
     #[error("Other error: {0}")]
     Other(String),

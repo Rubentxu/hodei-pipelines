@@ -3,7 +3,7 @@
 //! This module sends periodic heartbeat messages to the server
 //! with resource usage and status updates.
 
-use hodei_core::WorkerId;
+use hodei_pipelines_core::WorkerId;
 use tokio::time::{Duration, MissedTickBehavior, interval};
 use tracing::{error, info, warn};
 
@@ -11,7 +11,7 @@ use super::resources::ResourceMonitor;
 use crate::{AgentError, Result};
 
 use super::resources::ResourceUsage;
-use hodei_ports::WorkerClient;
+use hodei_pipelines_ports::WorkerClient;
 
 /// Heartbeat configuration
 #[derive(Debug, Clone)]
@@ -162,8 +162,8 @@ impl HeartbeatSender {
 
     /// Send heartbeat via gRPC client
     async fn send_heartbeat(&mut self, usage: &ResourceUsage) -> Result<()> {
-        // Map local ResourceUsage to hodei_core::ResourceUsage
-        let core_usage = hodei_core::ResourceUsage {
+        // Map local ResourceUsage to hodei_pipelines_core::ResourceUsage
+        let core_usage = hodei_pipelines_core::ResourceUsage {
             cpu_usage_m: (usage.cpu_percent * 10.0) as u64, // Convert % to millicores (approx)
             memory_usage_mb: usage.memory_bytes / 1024 / 1024,
             active_jobs: 0, // TODO: Get active jobs count
@@ -231,25 +231,25 @@ mod tests {
         async fn assign_job(
             &self,
             _worker_id: &WorkerId,
-            _job_id: &hodei_core::JobId,
-            _job_spec: &hodei_core::JobSpec,
-        ) -> std::result::Result<(), hodei_ports::WorkerClientError> {
+            _job_id: &hodei_pipelines_core::JobId,
+            _job_spec: &hodei_pipelines_core::JobSpec,
+        ) -> std::result::Result<(), hodei_pipelines_ports::WorkerClientError> {
             Ok(())
         }
 
         async fn cancel_job(
             &self,
             _worker_id: &WorkerId,
-            _job_id: &hodei_core::JobId,
-        ) -> std::result::Result<(), hodei_ports::WorkerClientError> {
+            _job_id: &hodei_pipelines_core::JobId,
+        ) -> std::result::Result<(), hodei_pipelines_ports::WorkerClientError> {
             Ok(())
         }
 
         async fn get_worker_status(
             &self,
             _worker_id: &WorkerId,
-        ) -> std::result::Result<hodei_core::WorkerStatus, hodei_ports::WorkerClientError> {
-            Ok(hodei_core::WorkerStatus {
+        ) -> std::result::Result<hodei_pipelines_core::WorkerStatus, hodei_pipelines_ports::WorkerClientError> {
+            Ok(hodei_pipelines_core::WorkerStatus {
                 worker_id: _worker_id.clone(),
                 status: "IDLE".to_string(),
                 current_jobs: vec![],
@@ -260,8 +260,8 @@ mod tests {
         async fn send_heartbeat(
             &self,
             _worker_id: &WorkerId,
-            _resource_usage: &hodei_core::ResourceUsage,
-        ) -> std::result::Result<(), hodei_ports::WorkerClientError> {
+            _resource_usage: &hodei_pipelines_core::ResourceUsage,
+        ) -> std::result::Result<(), hodei_pipelines_ports::WorkerClientError> {
             // Simulate successful heartbeat
             Ok(())
         }

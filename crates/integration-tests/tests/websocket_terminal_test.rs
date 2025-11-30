@@ -3,8 +3,8 @@
 //! Tests for WebSocket-based interactive terminal sessions.
 //! Validates production-ready terminal functionality with real PTY allocation.
 
-use hodei_adapters::bus::InMemoryBus;
-use hodei_adapters::config::AppConfig;
+use hodei_pipelines_adapters::bus::InMemoryBus;
+use hodei_pipelines_adapters::config::AppConfig;
 use hodei_server::bootstrap::ServerComponents;
 use hodei_server::create_api_router;
 use std::sync::Arc;

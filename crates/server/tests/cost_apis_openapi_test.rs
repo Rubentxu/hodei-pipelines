@@ -7,24 +7,12 @@
 //! - Parameter documentation
 //! - Type safety with utoipa
 
-use chrono::Utc;
-use serde_json::Value;
-use std::collections::HashMap;
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use hodei_server::api_docs::{ApiDoc, *};
-    use hodei_server::budget_management::{
-        AlertThreshold, Budget, BudgetAlert, BudgetPeriod, BudgetUsage,
-    };
-    use hodei_server::cost_optimization_recommendations::{
-        OptimizationType, Recommendation, ResourceType,
-    };
-    use hodei_server::cost_tracking_aggregation::{
-        CostBreakdown, CostSummary, CostTrend, TenantCostBreakdown,
-    };
+    use hodei_server::budget_management::BudgetPeriod;
     use utoipa::OpenApi;
 
     /// Test 1: Validate BudgetPeriod enum schema in OpenAPI

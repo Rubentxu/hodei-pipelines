@@ -14,7 +14,6 @@ hodei-pipelines-proto = { workspace = true }
 
 # Workspace async and serialization
 async-trait = { workspace = true }
-utoipa = { version = "5.3", features = ["axum_extras", "chrono", "uuid"] }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
 chrono = { workspace = true }

@@ -3,11 +3,12 @@
 //! This module validates that Pipeline API DTOs match the frontend expectations
 //! and documents all type mismatches that need to be fixed.
 
-use hodei_core::pipeline::{Pipeline, PipelineId, PipelineStatus};
-use hodei_core::pipeline_execution::ExecutionId;
-use hodei_server::pipeline_api::{
+use hodei_pipelines_core::pipeline::{Pipeline, PipelineId, PipelineStatus};
+use hodei_pipelines_core::pipeline_execution::ExecutionId;
+use hodei_server::dtos::{
     CreatePipelineRequestDto, CreatePipelineStepRequestDto, ExecutePipelineRequestDto,
-    ExecutePipelineResponseDto, ListPipelinesResponseDto, PipelineResponseDto,
+    ExecutePipelineResponseDto, JobSpecDto, ListPipelinesResponseDto, PipelineDto,
+    ResourceQuotaDto,
 };
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -41,13 +42,25 @@ async fn test_pipeline_step_required_fields() {
     let mut env = HashMap::new();
     env.insert("KEY".to_string(), "value".to_string());
 
-    let step = CreatePipelineStepRequestDto {
-        name: "step-name".to_string(),
+    let job_spec = JobSpecDto {
+        name: "step-job".to_string(),
         image: "ubuntu:latest".to_string(),
         command: vec!["echo".to_string(), "hello".to_string()],
-        timeout_ms: Some(5000),
-        retries: Some(3),
-        env: Some(env),
+        resources: ResourceQuotaDto {
+            cpu_m: 1000,
+            memory_mb: 512,
+            gpu: None,
+        },
+        timeout_ms: 5000,
+        retries: 3,
+        env,
+        secret_refs: vec![],
+    };
+
+    let step = CreatePipelineStepRequestDto {
+        name: "step-name".to_string(),
+        job_spec,
+        dependencies: vec![],
     };
 
     let json = serde_json::to_string(&step).expect("Failed to serialize step");
@@ -55,13 +68,15 @@ async fn test_pipeline_step_required_fields() {
 
     // Verify required fields are present
     assert_eq!(parsed["name"], "step-name");
-    assert_eq!(parsed["image"], "ubuntu:latest");
-    assert_eq!(parsed["command"], json!(["echo", "hello"]));
+    assert_eq!(parsed["job_spec"]["name"], "step-job");
+    assert_eq!(parsed["job_spec"]["image"], "ubuntu:latest");
+    assert_eq!(parsed["job_spec"]["command"], json!(["echo", "hello"]));
+    assert_eq!(parsed["job_spec"]["timeout_ms"], json!(5000));
+    assert_eq!(parsed["job_spec"]["retries"], json!(3));
 
-    // Verify optional fields are handled correctly
-    assert!(parsed.get("timeout_ms").is_some());
-    assert!(parsed.get("retries").is_some());
-    assert!(parsed.get("env").is_some());
+    // Verify dependencies field
+    assert!(parsed.get("dependencies").is_some());
+    assert_eq!(parsed["dependencies"], json!([]));
 
     println!("✅ CreatePipelineStepRequestDto has correct field structure");
 }
@@ -94,12 +109,11 @@ async fn test_pipeline_response_status_enum() {
             workflow_definition: json!(null),
         };
 
-        let dto: PipelineResponseDto = pipeline.into();
+        let dto: PipelineDto = pipeline.into();
 
         println!("⚠️  Backend status enum doesn't match frontend expectations");
         println!("   Backend has: PENDING, RUNNING, SUCCESS, FAILED, CANCELLED");
         println!("   Frontend expects: active, paused, error, inactive");
-        println!("   Current status: {:?}", dto.status);
     }
 
     println!("✅ Status enum mismatch documented - needs frontend/backend sync");
@@ -172,8 +186,8 @@ async fn test_execute_pipeline_response_structure() {
         PipelineId(uuid::Uuid::parse_str("87654321-4321-8765-cba9-987654321098").unwrap());
 
     let response = ExecutePipelineResponseDto {
-        execution_id,
-        pipeline_id,
+        execution_id: execution_id.0,
+        pipeline_id: pipeline_id.0,
         status: "running".to_string(),
     };
 
@@ -205,11 +219,21 @@ async fn test_pipeline_dto_json_roundtrip() {
         description: Some("desc".to_string()),
         steps: vec![CreatePipelineStepRequestDto {
             name: "step".to_string(),
-            image: "img".to_string(),
-            command: vec!["cmd".to_string()],
-            timeout_ms: Some(1000),
-            retries: Some(1),
-            env: None,
+            job_spec: JobSpecDto {
+                name: "step-job".to_string(),
+                image: "img".to_string(),
+                command: vec!["cmd".to_string()],
+                resources: ResourceQuotaDto {
+                    cpu_m: 1000,
+                    memory_mb: 512,
+                    gpu: None,
+                },
+                timeout_ms: 1000,
+                retries: 1,
+                env: HashMap::new(),
+                secret_refs: vec![],
+            },
+            dependencies: vec![],
         }],
     };
 

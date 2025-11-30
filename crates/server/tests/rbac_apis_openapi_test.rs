@@ -8,7 +8,6 @@
 //! - Type safety with utoipa
 
 use chrono::Utc;
-use serde_json::Value;
 use std::collections::HashMap;
 
 #[cfg(test)]
@@ -17,8 +16,7 @@ mod tests {
 
     use hodei_server::api_docs::{ApiDoc, *};
     use hodei_server::rbac::{
-        AccessDecision, AuthToken, CheckPermissionRequest, LoginRequest, Permission,
-        PermissionGrant, ResourceType, RevokeRoleRequest, Role, RoleAssignment, Session, User,
+        AccessDecision, AuthToken, LoginRequest, Permission, ResourceType, Role, User,
     };
     use utoipa::OpenApi;
 

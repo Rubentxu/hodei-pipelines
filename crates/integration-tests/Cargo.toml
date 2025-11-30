@@ -1,42 +1,32 @@
 [package]
 name = "integration-pipelines-tests"
-version = "0.1.0"
-edition = "2021"
-authors = ["Your Team"]
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [dependencies]
-# Async runtime
-tokio = { version = "1.40", features = ["full"] }
-futures = "0.3"
-
-# Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
-
-# Testing frameworks
-tempfile = "3.13"
-testcontainers = "0.25"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt"] }
-
-# HTTP client
-reqwest = { version = "0.12", features = ["json", "stream"] }
-axum-test = "14.7"
-
-# Database
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+# Workspace dependencies
+tokio = { workspace = true, features = ["full"] }
+futures = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt"] }
+reqwest = { workspace = true, features = ["json", "stream"] }
+testcontainers = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+anyhow = { workspace = true }
+sqlx = { workspace = true, features = ["macros", "runtime-tokio-rustls", "postgres"] }
+portable-pty = { workspace = true }
 
 # Workspace crates
-hodei-pipelines-core = { path = "../core" }
-hodei-pipelines-ports = { path = "../ports" }
-hodei-pipelines-adapters = { path = "../adapters" }
-hodei-pipelines-server = { path = "../server" }
+hodei-pipelines-core = { workspace = true }
+hodei-pipelines-ports = { workspace = true }
+hodei-pipelines-adapters = { workspace = true }
+hodei-pipelines-server = { workspace = true }
 
 [dev-dependencies]
-uuid = { version = "1.11", features = ["v4"] }
-anyhow = "1.0"
-axum = { workspace = true }
-hyper = { workspace = true }
-portable-pty = { workspace = true }
+axum-test = "18.3.0"
+tempfile = { workspace = true }

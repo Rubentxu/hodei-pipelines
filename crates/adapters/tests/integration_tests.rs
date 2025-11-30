@@ -2,9 +2,9 @@
 //!
 //! These tests verify the repository implementations work correctly.
 
-use hodei_core::{Job, JobId, JobSpec, Worker, WorkerId};
-use hodei_ports::event_bus::SystemEvent;
-use hodei_core::{ResourceQuota, WorkerCapabilities};
+use hodei_pipelines_core::{Job, JobId, JobSpec, Worker, WorkerId};
+use hodei_pipelines_core::{ResourceQuota, WorkerCapabilities};
+use hodei_pipelines_ports::event_bus::SystemEvent;
 use std::collections::HashMap;
 
 /// Helper function to create a test Job

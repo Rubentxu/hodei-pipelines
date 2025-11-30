@@ -12,11 +12,7 @@ use axum::{
 };
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::{collections::HashMap, hash::Hash, sync::Arc};
 use tokio::sync::{RwLock, broadcast};
 use tokio::time::{Duration, interval};
 use tracing::{error, info, warn};

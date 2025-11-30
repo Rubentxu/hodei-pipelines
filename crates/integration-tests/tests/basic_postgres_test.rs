@@ -1,48 +1,74 @@
-//! Basic PostgreSQL Integration Test
+//! Basic PostgreSQL Integration Test with TestContainers
 //!
 //! This test validates PostgreSQL connectivity and basic operations
-//! using a local PostgreSQL instance.
+//! using TestContainers to spin up a real PostgreSQL instance.
 
 use std::collections::HashMap;
-use tokio::time::{sleep, Duration};
+use testcontainers::{GenericImage, ImageExt, core::ContainerPort, runners::AsyncRunner};
 use tracing::info;
 
-use hodei_adapters::postgres::PostgreSqlJobRepository;
-use hodei_core::job::{Job, JobId, JobSpec, ResourceQuota};
-use hodei_ports::JobRepository;
+use hodei_pipelines_adapters::postgres::PostgreSqlJobRepository;
+use hodei_pipelines_core::job::{Job, JobId, JobSpec, ResourceQuota};
+use hodei_pipelines_ports::JobRepository;
 
 #[tokio::test]
 async fn test_postgres_connection_basic() {
     tracing_subscriber::fmt::init();
 
-    info!("🚀 Starting PostgreSQL integration test");
+    info!("🚀 Starting PostgreSQL integration test with TestContainers");
 
-    // Try to connect to PostgreSQL at localhost:5432
-    info!("📦 Connecting to PostgreSQL at localhost:5432...");
+    // Start PostgreSQL container using TestContainers
+    info!("📦 Starting PostgreSQL container...");
 
-    let connection_string = "postgresql://postgres:postgres@localhost:5432/postgres";
+    let node = GenericImage::new("postgres", "16-alpine")
+        .with_env_var("POSTGRES_USER", "postgres")
+        .with_env_var("POSTGRES_PASSWORD", "postgres")
+        .with_env_var("POSTGRES_DB", "postgres")
+        .with_mapped_port(5432, ContainerPort::Tcp(5432))
+        .start()
+        .await
+        .expect("Failed to start PostgreSQL container");
 
-    let mut pool = None;
-    for i in 0..30 {
-        match sqlx::PgPool::connect(connection_string).await {
-            Ok(p) => {
-                pool = Some(p);
-                info!("✅ PostgreSQL connection established (attempt {})", i + 1);
+    let port = node
+        .get_host_port_ipv4(5432)
+        .await
+        .expect("Failed to get PostgreSQL port");
+
+    info!("✅ PostgreSQL container started on port {}", port);
+
+    // Build connection string
+    let connection_string = format!("postgresql://postgres:postgres@127.0.0.1:{}/postgres", port);
+
+    info!("📡 Connecting to PostgreSQL at {}", connection_string);
+
+    // Wait for PostgreSQL to be ready
+    let mut attempts = 0;
+    let max_attempts = 30;
+    loop {
+        match sqlx::PgPool::connect(&connection_string).await {
+            Ok(_) => {
+                info!("✅ PostgreSQL connection established");
                 break;
             }
-            Err(e) => {
-                info!("⚠️ PostgreSQL connection attempt {} failed: {}", i + 1, e);
-                if i < 29 {
-                    sleep(Duration::from_secs(1)).await;
-                } else {
-                    info!("✅ Test skipped - PostgreSQL not available (expected in CI)");
-                    return;
+            Err(_e) => {
+                attempts += 1;
+                if attempts >= max_attempts {
+                    panic!(
+                        "Failed to connect to PostgreSQL after {} attempts",
+                        attempts
+                    );
                 }
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         }
     }
 
-    let pool = pool.expect("Failed to establish PostgreSQL connection");
+    // Connect to PostgreSQL
+    let pool = sqlx::PgPool::connect(&connection_string)
+        .await
+        .expect("Failed to connect to PostgreSQL");
+
+    info!("✅ PostgreSQL ready for queries");
 
     // Step 3: Initialize database schema
     info!("🗄️ Initializing database schema...");
@@ -93,4 +119,5 @@ async fn test_postgres_connection_basic() {
     info!("✅ Job listing works correctly");
 
     info!("✅ PostgreSQL integration test completed successfully");
+    info!("🔌 Container will be automatically cleaned up by TestContainers");
 }

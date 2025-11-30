@@ -11,14 +11,13 @@ use axum::{
     routing::{get, post},
 };
 use hodei_pipelines_core::{
-    Result as CoreResult,
     pipeline::PipelineId,
-    pipeline_execution::{ExecutionId, PipelineExecution, StepExecutionStatus},
+    pipeline_execution::{ExecutionId, StepExecutionStatus},
 };
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use tracing::{error, info, warn};
-// use utoipa::ToSchema; // Disabled for compilation
+
+use crate::dtos::*;
 
 // ===== Application State =====
 
@@ -41,102 +40,20 @@ impl ExecutionApiAppState {
 /// Wrapper trait to abstract the ExecutionService
 #[async_trait::async_trait]
 pub trait ExecutionServiceWrapper: Send + Sync {
-    async fn get_execution(&self, id: &ExecutionId) -> CoreResult<Option<PipelineExecution>>;
+    async fn get_execution(
+        &self,
+        id: &ExecutionId,
+    ) -> hodei_pipelines_core::Result<
+        Option<hodei_pipelines_core::pipeline_execution::PipelineExecution>,
+    >;
     async fn get_executions_for_pipeline(
         &self,
         pipeline_id: &PipelineId,
-    ) -> CoreResult<Vec<PipelineExecution>>;
-    async fn cancel_execution(&self, id: &ExecutionId) -> CoreResult<()>;
-    async fn retry_execution(&self, id: &ExecutionId) -> CoreResult<ExecutionId>;
-}
-
-// ===== DTOs =====
-
-/// Execution Details Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExecutionDetailsDto {
-    pub id: ExecutionId,
-    pub pipeline_id: PipelineId,
-    pub status: String,
-    pub started_at: chrono::DateTime<chrono::Utc>,
-    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub duration_ms: Option<u64>,
-    pub current_step: Option<String>,
-    pub stages: Vec<StageExecutionDto>,
-    pub variables: HashMap<String, String>,
-    pub tenant_id: Option<String>,
-    pub correlation_id: Option<String>,
-}
-
-/// Stage Execution DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StageExecutionDto {
-    pub step_id: String,
-    pub step_name: String,
-    pub status: StepExecutionStatusDto,
-    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub retry_count: u8,
-    pub error_message: Option<String>,
-}
-
-/// Step Execution Status DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum StepExecutionStatusDto {
-    PENDING,
-    RUNNING,
-    COMPLETED,
-    FAILED,
-    SKIPPED,
-}
-
-impl From<StepExecutionStatus> for StepExecutionStatusDto {
-    fn from(status: StepExecutionStatus) -> Self {
-        match status {
-            StepExecutionStatus::PENDING => Self::PENDING,
-            StepExecutionStatus::RUNNING => Self::RUNNING,
-            StepExecutionStatus::COMPLETED => Self::COMPLETED,
-            StepExecutionStatus::FAILED => Self::FAILED,
-            StepExecutionStatus::SKIPPED => Self::SKIPPED,
-        }
-    }
-}
-
-/// Execution List Item DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExecutionListItemDto {
-    pub id: ExecutionId,
-    pub pipeline_id: PipelineId,
-    pub status: String,
-    pub trigger: String,
-    pub started_at: chrono::DateTime<chrono::Utc>,
-    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub duration_ms: Option<u64>,
-    pub cost: Option<f64>,
-}
-
-/// Execution History Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExecutionHistoryDto {
-    pub executions: Vec<ExecutionListItemDto>,
-    pub total: usize,
-}
-
-/// Cancel Execution Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CancelExecutionResponseDto {
-    pub id: ExecutionId,
-    pub status: String,
-    pub canceled_at: chrono::DateTime<chrono::Utc>,
-}
-
-/// Retry Execution Response DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RetryExecutionResponseDto {
-    pub original_execution_id: ExecutionId,
-    pub new_execution_id: ExecutionId,
-    pub status: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    ) -> hodei_pipelines_core::Result<
+        Vec<hodei_pipelines_core::pipeline_execution::PipelineExecution>,
+    >;
+    async fn cancel_execution(&self, id: &ExecutionId) -> hodei_pipelines_core::Result<()>;
+    async fn retry_execution(&self, id: &ExecutionId) -> hodei_pipelines_core::Result<ExecutionId>;
 }
 
 // ===== API Handlers =====
@@ -155,8 +72,8 @@ pub async fn get_execution_details_handler(
                 .steps
                 .iter()
                 .map(|step| StageExecutionDto {
-                    step_id: step.step_id.to_string(),
-                    step_name: format!("step-{}", step.step_id),
+                    step_id: step.step_id.0.to_string(),
+                    step_name: format!("step-{}", step.step_id.0),
                     status: step.status.clone().into(),
                     started_at: step.started_at,
                     completed_at: step.completed_at,
@@ -169,15 +86,15 @@ pub async fn get_execution_details_handler(
                 .steps
                 .iter()
                 .find(|s| matches!(s.status, StepExecutionStatus::RUNNING))
-                .map(|s| s.step_id.to_string());
+                .map(|s| s.step_id.0.to_string());
 
             let duration_ms = execution
                 .get_duration()
                 .map(|d| d.num_milliseconds() as u64);
 
             let details = ExecutionDetailsDto {
-                id: execution.id,
-                pipeline_id: execution.pipeline_id,
+                id: execution.id.0,
+                pipeline_id: execution.pipeline_id.0,
                 status: execution.status.as_str().to_string(),
                 started_at: execution.started_at,
                 completed_at: execution.completed_at,
@@ -226,8 +143,8 @@ pub async fn get_execution_history_handler(
                     let duration_ms = exec.get_duration().map(|d| d.num_milliseconds() as u64);
 
                     ExecutionListItemDto {
-                        id: exec.id.clone(),
-                        pipeline_id: exec.pipeline_id.clone(),
+                        id: exec.id.0,
+                        pipeline_id: exec.pipeline_id.0,
                         status: exec.status.as_str().to_string(),
                         trigger: "manual".to_string(), // TODO: Get from correlation_id or other source
                         started_at: exec.started_at,
@@ -267,7 +184,7 @@ pub async fn cancel_execution_handler(
             info!("Execution canceled successfully: {}", execution_id);
 
             let response = CancelExecutionResponseDto {
-                id: execution_id,
+                id: execution_id.0,
                 status: "CANCELED".to_string(),
                 canceled_at: chrono::Utc::now(),
             };
@@ -300,8 +217,8 @@ pub async fn retry_execution_handler(
             );
 
             let response = RetryExecutionResponseDto {
-                original_execution_id: execution_id,
-                new_execution_id,
+                original_execution_id: execution_id.0,
+                new_execution_id: new_execution_id.0,
                 status: "CREATED".to_string(),
                 created_at: chrono::Utc::now(),
             };

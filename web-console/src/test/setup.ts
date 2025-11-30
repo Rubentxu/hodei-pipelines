@@ -1,10 +1,10 @@
 import "@testing-library/jest-dom";
-import { beforeAll, afterEach, afterAll, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { server } from "./__mocks__/msw/server";
 
 // Add fetch polyfill for Node.js environment (required for MSW v2)
-import "cross-fetch/polyfill";
+
 
 // Runs a cleanup after each test case
 afterEach(() => {

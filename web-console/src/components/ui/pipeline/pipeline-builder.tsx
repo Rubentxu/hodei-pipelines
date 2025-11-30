@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { cn } from '@/utils/cn';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { PipelineTask } from '@/types';
+import { cn } from '@/utils/cn';
+import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd';
+import { useState } from 'react';
 
 interface PipelineBuilderProps {
   initialTasks?: PipelineTask[];
@@ -59,15 +59,17 @@ export function PipelineBuilder({
     initialTasks.length > 0
       ? initialTasks
       : [
-          {
-            id: `task-${Date.now()}`,
-            name: 'Nueva Tarea',
-            type: 'extract',
-            status: 'pending',
-            position: 0,
-          },
-        ]
+        {
+          id: `task-${Date.now()}`,
+          name: 'Nueva Tarea',
+          type: 'extract',
+          status: 'pending',
+          position: 0,
+        },
+      ]
   );
+
+  const [error, setError] = useState<string | null>(null);
 
   const handleDragEnd = (result: DropResult) => {
     const { source, destination } = result;
@@ -101,6 +103,7 @@ export function PipelineBuilder({
       position: tasks.length,
     };
     setTasks([...tasks, newTask]);
+    setError(null);
   };
 
   const removeTask = (taskId: string) => {
@@ -117,9 +120,10 @@ export function PipelineBuilder({
 
   const handleSave = () => {
     if (tasks.length === 0) {
-      alert('El pipeline debe tener al menos una tarea');
+      setError('El pipeline debe tener al menos una tarea');
       return;
     }
+    setError(null);
     onSave(tasks);
   };
 
@@ -249,6 +253,12 @@ export function PipelineBuilder({
                   />
                 ))}
               </svg>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-red-500 text-sm p-2 bg-red-500/10 rounded">
+              {error}
             </div>
           )}
 

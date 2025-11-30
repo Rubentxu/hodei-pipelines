@@ -210,7 +210,7 @@ impl AlertingService {
     /// Update an existing alert rule
     pub async fn update_alert_rule(
         &self,
-        rule_id: &str,
+        _rule_id: &str,
         rule: AlertRule,
     ) -> Result<AlertRule, String> {
         // In production, this would update in database
@@ -218,13 +218,13 @@ impl AlertingService {
     }
 
     /// Delete an alert rule
-    pub async fn delete_alert_rule(&self, rule_id: &str) -> Result<(), String> {
+    pub async fn delete_alert_rule(&self, _rule_id: &str) -> Result<(), String> {
         // In production, this would delete from database
         Ok(())
     }
 
     /// Enable/disable an alert rule
-    pub async fn toggle_alert_rule(&self, rule_id: &str, enabled: bool) -> Result<(), String> {
+    pub async fn toggle_alert_rule(&self, _rule_id: &str, _enabled: bool) -> Result<(), String> {
         // In production, this would update in database
         Ok(())
     }

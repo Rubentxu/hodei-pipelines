@@ -19,6 +19,8 @@ use hodei_pipelines_proto::{
     WorkerRegistration, WorkerServiceClient, WorkerStatus,
 };
 
+use hodei_pipelines_ports::{WorkerClient, WorkerClientError};
+
 use crate::connection::auth::AuthInterceptor;
 use crate::executor::ProcessManager;
 use crate::executor::pty::{PtyAllocation, PtySizeConfig};
@@ -459,38 +461,37 @@ impl Client {
 }
 
 use async_trait::async_trait;
-use hodei_ports::{WorkerClient, WorkerClientError};
 
 #[async_trait]
 impl WorkerClient for Client {
     async fn assign_job(
         &self,
-        _worker_id: &hodei_core::WorkerId,
-        _job_id: &hodei_core::JobId,
-        _job_spec: &hodei_core::JobSpec,
+        _worker_id: &hodei_pipelines_core::WorkerId,
+        _job_id: &hodei_pipelines_core::JobId,
+        _job_spec: &hodei_pipelines_core::JobSpec,
     ) -> std::result::Result<(), WorkerClientError> {
         Err(WorkerClientError::NotAvailable)
     }
 
     async fn cancel_job(
         &self,
-        _worker_id: &hodei_core::WorkerId,
-        _job_id: &hodei_core::JobId,
+        _worker_id: &hodei_pipelines_core::WorkerId,
+        _job_id: &hodei_pipelines_core::JobId,
     ) -> std::result::Result<(), WorkerClientError> {
         Err(WorkerClientError::NotAvailable)
     }
 
     async fn get_worker_status(
         &self,
-        _worker_id: &hodei_core::WorkerId,
-    ) -> std::result::Result<hodei_core::WorkerStatus, WorkerClientError> {
+        _worker_id: &hodei_pipelines_core::WorkerId,
+    ) -> std::result::Result<hodei_pipelines_core::WorkerStatus, WorkerClientError> {
         Err(WorkerClientError::NotAvailable)
     }
 
     async fn send_heartbeat(
         &self,
-        worker_id: &hodei_core::WorkerId,
-        resource_usage: &hodei_core::ResourceUsage,
+        worker_id: &hodei_pipelines_core::WorkerId,
+        resource_usage: &hodei_pipelines_core::ResourceUsage,
     ) -> std::result::Result<(), WorkerClientError> {
         let channel = self
             .channel

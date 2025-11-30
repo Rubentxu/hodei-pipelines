@@ -20,6 +20,7 @@ hodei-pipelines-ports = { path = "crates/ports" }
 hodei-pipelines-modules = { path = "crates/modules" }
 hodei-pipelines-adapters = { path = "crates/adapters" }
 hodei-pipelines-proto = { path = "crates/hwp-proto" }
+hodei-pipelines-server = { path = "crates/server" }
 hwp-pipelines-agent = { path = "crates/hwp-agent" }
 
 # Core async runtime
@@ -118,7 +119,12 @@ pretty_assertions = "1.6"
 proptest = "1.4"
 
 # Benchmarks
-criterion = { version = "0.7.0", features = ["html_reports"] }
+criterion = { version = "0.8.0", features = ["html_reports"] }
+
+# Additional dependencies
+serde_yaml = "0.9.33"
+utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
 
 
 [profile.release]
@@ -133,7 +139,7 @@ debug = true
 strip = false
 
 [workspace.package]
-version = "0.15.0"
+version = "0.15.1"
 edition = "2024"
 authors = ["Hodei Team"]
 license = "MIT"

@@ -10,14 +10,14 @@ use axum::{
     response::{IntoResponse, Json},
     routing::{delete, get, patch, post, put},
 };
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{error, info};
-use utoipa::ToSchema;
 
-use hodei_pipelines_ports::resource_pool::{ResourcePoolConfig, ResourcePoolStatus, ResourcePoolType};
+use hodei_pipelines_ports::resource_pool::{ResourcePoolConfig, ResourcePoolStatus};
+
+use crate::dtos::*;
 
 /// Application state for resource pool CRUD
 #[derive(Clone)]
@@ -47,17 +47,17 @@ impl ResourcePoolCrudService {
     /// Create a new resource pool
     pub async fn create_pool(
         &self,
-        pool: CreatePoolRequest,
-    ) -> Result<ResourcePoolResponse, String> {
+        pool: CreatePoolRequestDto,
+    ) -> Result<ResourcePoolResponseDto, String> {
         let pool_id = uuid::Uuid::new_v4().to_string();
 
         let pool_config = ResourcePoolConfig {
-            pool_type: pool.pool_type,
+            pool_type: pool.pool_type.into(),
             name: pool.name,
             provider_name: pool.provider_name,
             min_size: pool.min_size,
             max_size: pool.max_size,
-            default_resources: pool.default_resources,
+            default_resources: pool.default_resources.into(),
             tags: pool.tags.unwrap_or_default(),
         };
 
@@ -87,32 +87,32 @@ impl ResourcePoolCrudService {
 
         info!("Created resource pool: {}", pool_config_clone.name);
 
-        Ok(ResourcePoolResponse {
+        Ok(ResourcePoolResponseDto {
             id: pool_id,
-            config: pool_config,
+            config: pool_config.into(),
         })
     }
 
     /// Get a resource pool by ID
-    pub async fn get_pool(&self, pool_id: &str) -> Result<ResourcePoolResponse, String> {
+    pub async fn get_pool(&self, pool_id: &str) -> Result<ResourcePoolResponseDto, String> {
         let pools = self.pools.read().await;
         match pools.get(pool_id) {
-            Some(config) => Ok(ResourcePoolResponse {
+            Some(config) => Ok(ResourcePoolResponseDto {
                 id: pool_id.to_string(),
-                config: config.clone(),
+                config: config.clone().into(),
             }),
             None => Err("Pool not found".to_string()),
         }
     }
 
     /// List all resource pools
-    pub async fn list_pools(&self) -> Result<Vec<ResourcePoolResponse>, String> {
+    pub async fn list_pools(&self) -> Result<Vec<ResourcePoolResponseDto>, String> {
         let pools = self.pools.read().await;
         let result = pools
             .iter()
-            .map(|(id, config)| ResourcePoolResponse {
+            .map(|(id, config)| ResourcePoolResponseDto {
                 id: id.clone(),
-                config: config.clone(),
+                config: config.clone().into(),
             })
             .collect();
         Ok(result)
@@ -122,8 +122,8 @@ impl ResourcePoolCrudService {
     pub async fn update_pool(
         &self,
         pool_id: &str,
-        updates: UpdatePoolRequest,
-    ) -> Result<ResourcePoolResponse, String> {
+        updates: UpdatePoolRequestDto,
+    ) -> Result<ResourcePoolResponseDto, String> {
         let mut pools = self.pools.write().await;
         match pools.get_mut(pool_id) {
             Some(config) => {
@@ -153,9 +153,9 @@ impl ResourcePoolCrudService {
 
                 info!("Updated resource pool: {}", config.name);
 
-                Ok(ResourcePoolResponse {
+                Ok(ResourcePoolResponseDto {
                     id: pool_id.to_string(),
-                    config: config.clone(),
+                    config: config.clone().into(),
                 })
             }
             None => Err("Pool not found".to_string()),
@@ -179,41 +179,13 @@ impl ResourcePoolCrudService {
     }
 
     /// Get pool status
-    pub async fn get_pool_status(&self, pool_id: &str) -> Result<ResourcePoolStatus, String> {
+    pub async fn get_pool_status(&self, pool_id: &str) -> Result<ResourcePoolStatusDto, String> {
         let pool_statuses = self.pool_statuses.read().await;
         match pool_statuses.get(pool_id) {
-            Some(status) => Ok(status.clone()),
+            Some(status) => Ok(status.clone().into()),
             None => Err("Pool status not found".to_string()),
         }
     }
-}
-
-/// Request to create a new resource pool
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreatePoolRequest {
-    pub pool_type: ResourcePoolType,
-    pub name: String,
-    pub provider_name: String,
-    pub min_size: u32,
-    pub max_size: u32,
-    pub default_resources: hodei_pipelines_core::ResourceQuota,
-    pub tags: Option<HashMap<String, String>>,
-}
-
-/// Request to update a resource pool
-#[derive(Debug, Deserialize, Default, ToSchema)]
-pub struct UpdatePoolRequest {
-    pub name: Option<String>,
-    pub min_size: Option<u32>,
-    pub max_size: Option<u32>,
-    pub tags: Option<HashMap<String, String>>,
-}
-
-/// Response for resource pool operations
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ResourcePoolResponse {
-    pub id: String,
-    pub config: ResourcePoolConfig,
 }
 
 /// Get all resource pools
@@ -221,7 +193,7 @@ pub struct ResourcePoolResponse {
     get,
     path = "/api/v1/worker-pools",
     responses(
-        (status = 200, description = "List of resource pools", body = Vec<ResourcePoolResponse>),
+        (status = 200, description = "List of resource pools", body = Vec<ResourcePoolResponseDto>),
         (status = 500, description = "Internal server error")
     ),
     tag = "worker-pools"
@@ -247,7 +219,7 @@ pub async fn list_pools_handler(
         ("pool_id" = String, Path, description = "Pool ID")
     ),
     responses(
-        (status = 200, description = "Resource pool details", body = ResourcePoolResponse),
+        (status = 200, description = "Resource pool details", body = ResourcePoolResponseDto),
         (status = 404, description = "Pool not found"),
         (status = 500, description = "Internal server error")
     ),
@@ -275,9 +247,9 @@ pub async fn get_pool_handler(
 #[utoipa::path(
     post,
     path = "/api/v1/worker-pools",
-    request_body = CreatePoolRequest,
+    request_body = CreatePoolRequestDto,
     responses(
-        (status = 200, description = "Resource pool created", body = ResourcePoolResponse),
+        (status = 200, description = "Resource pool created", body = ResourcePoolResponseDto),
         (status = 400, description = "Bad request"),
         (status = 409, description = "Pool already exists"),
         (status = 500, description = "Internal server error")
@@ -286,7 +258,7 @@ pub async fn get_pool_handler(
 )]
 pub async fn create_pool_handler(
     State(app_state): State<ResourcePoolCrudAppState>,
-    Json(payload): Json<CreatePoolRequest>,
+    Json(payload): Json<CreatePoolRequestDto>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     // Validate request
     if payload.min_size > payload.max_size {
@@ -317,9 +289,9 @@ pub async fn create_pool_handler(
     params(
         ("pool_id" = String, Path, description = "Pool ID")
     ),
-    request_body = UpdatePoolRequest,
+    request_body = UpdatePoolRequestDto,
     responses(
-        (status = 200, description = "Resource pool updated", body = ResourcePoolResponse),
+        (status = 200, description = "Resource pool updated", body = ResourcePoolResponseDto),
         (status = 400, description = "Bad request"),
         (status = 404, description = "Pool not found"),
         (status = 500, description = "Internal server error")
@@ -329,7 +301,7 @@ pub async fn create_pool_handler(
 pub async fn update_pool_put_handler(
     State(app_state): State<ResourcePoolCrudAppState>,
     Path(pool_id): Path<String>,
-    Json(payload): Json<UpdatePoolRequest>,
+    Json(payload): Json<UpdatePoolRequestDto>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     // Validate min_size <= max_size if both are provided
     if let (Some(min_size), Some(max_size)) = (payload.min_size, payload.max_size) {
@@ -395,7 +367,7 @@ pub async fn delete_pool_handler(
         ("pool_id" = String, Path, description = "Pool ID")
     ),
     responses(
-        (status = 200, description = "Resource pool status", body = ResourcePoolStatus),
+        (status = 200, description = "Resource pool status", body = ResourcePoolStatusDto),
         (status = 404, description = "Pool status not found"),
         (status = 500, description = "Internal server error")
     ),
@@ -426,9 +398,9 @@ pub async fn get_pool_status_handler(
     params(
         ("pool_id" = String, Path, description = "Pool ID")
     ),
-    request_body = UpdatePoolRequest,
+    request_body = UpdatePoolRequestDto,
     responses(
-        (status = 200, description = "Resource pool updated", body = ResourcePoolResponse),
+        (status = 200, description = "Resource pool updated", body = ResourcePoolResponseDto),
         (status = 400, description = "Bad request"),
         (status = 404, description = "Pool not found"),
         (status = 500, description = "Internal server error")
@@ -438,7 +410,7 @@ pub async fn get_pool_status_handler(
 pub async fn update_pool_patch_handler(
     State(app_state): State<ResourcePoolCrudAppState>,
     Path(pool_id): Path<String>,
-    Json(payload): Json<UpdatePoolRequest>,
+    Json(payload): Json<UpdatePoolRequestDto>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     // Same validation and update logic as PUT
     // The difference is semantic: PATCH is for partial updates
@@ -492,13 +464,13 @@ mod tests {
         let pool_statuses = Arc::new(RwLock::new(HashMap::new()));
         let service = ResourcePoolCrudService::new(pools, pool_statuses);
 
-        let request = CreatePoolRequest {
-            pool_type: ResourcePoolType::Docker,
+        let request = CreatePoolRequestDto {
+            pool_type: ResourcePoolTypeDto::Docker,
             name: "test-pool".to_string(),
             provider_name: "docker".to_string(),
             min_size: 1,
             max_size: 10,
-            default_resources: hodei_pipelines_core::ResourceQuota {
+            default_resources: ResourceQuotaDto {
                 cpu_m: 2000,
                 memory_mb: 4096,
                 gpu: None,
@@ -518,13 +490,13 @@ mod tests {
         let pool_statuses = Arc::new(RwLock::new(HashMap::new()));
         let service = ResourcePoolCrudService::new(pools, pool_statuses);
 
-        let request = CreatePoolRequest {
-            pool_type: ResourcePoolType::Kubernetes,
+        let request = CreatePoolRequestDto {
+            pool_type: ResourcePoolTypeDto::Kubernetes,
             name: "k8s-pool".to_string(),
             provider_name: "kubernetes".to_string(),
             min_size: 2,
             max_size: 20,
-            default_resources: hodei_pipelines_core::ResourceQuota {
+            default_resources: ResourceQuotaDto {
                 cpu_m: 4000,
                 memory_mb: 8192,
                 gpu: None,
@@ -544,13 +516,13 @@ mod tests {
         let pool_statuses = Arc::new(RwLock::new(HashMap::new()));
         let service = ResourcePoolCrudService::new(pools, pool_statuses);
 
-        let request1 = CreatePoolRequest {
-            pool_type: ResourcePoolType::Static,
+        let request1 = CreatePoolRequestDto {
+            pool_type: ResourcePoolTypeDto::Static,
             name: "static-pool".to_string(),
             provider_name: "static".to_string(),
             min_size: 5,
             max_size: 5,
-            default_resources: hodei_pipelines_core::ResourceQuota {
+            default_resources: ResourceQuotaDto {
                 cpu_m: 1000,
                 memory_mb: 2048,
                 gpu: None,
@@ -558,13 +530,13 @@ mod tests {
             tags: None,
         };
 
-        let request2 = CreatePoolRequest {
-            pool_type: ResourcePoolType::Cloud,
+        let request2 = CreatePoolRequestDto {
+            pool_type: ResourcePoolTypeDto::Cloud,
             name: "cloud-pool".to_string(),
             provider_name: "aws".to_string(),
             min_size: 0,
             max_size: 100,
-            default_resources: hodei_pipelines_core::ResourceQuota {
+            default_resources: ResourceQuotaDto {
                 cpu_m: 8000,
                 memory_mb: 16384,
                 gpu: None,
@@ -585,13 +557,13 @@ mod tests {
         let pool_statuses = Arc::new(RwLock::new(HashMap::new()));
         let service = ResourcePoolCrudService::new(pools, pool_statuses);
 
-        let request = CreatePoolRequest {
-            pool_type: ResourcePoolType::Docker,
+        let request = CreatePoolRequestDto {
+            pool_type: ResourcePoolTypeDto::Docker,
             name: "original-pool".to_string(),
             provider_name: "docker".to_string(),
             min_size: 1,
             max_size: 10,
-            default_resources: hodei_pipelines_core::ResourceQuota {
+            default_resources: ResourceQuotaDto {
                 cpu_m: 2000,
                 memory_mb: 4096,
                 gpu: None,
@@ -601,7 +573,7 @@ mod tests {
 
         let created = service.create_pool(request).await.unwrap();
 
-        let updates = UpdatePoolRequest {
+        let updates = UpdatePoolRequestDto {
             name: Some("updated-pool".to_string()),
             min_size: Some(2),
             max_size: Some(20),
@@ -620,13 +592,13 @@ mod tests {
         let pool_statuses = Arc::new(RwLock::new(HashMap::new()));
         let service = ResourcePoolCrudService::new(pools, pool_statuses);
 
-        let request = CreatePoolRequest {
-            pool_type: ResourcePoolType::Kubernetes,
+        let request = CreatePoolRequestDto {
+            pool_type: ResourcePoolTypeDto::Kubernetes,
             name: "delete-me".to_string(),
             provider_name: "k8s".to_string(),
             min_size: 1,
             max_size: 5,
-            default_resources: hodei_pipelines_core::ResourceQuota {
+            default_resources: ResourceQuotaDto {
                 cpu_m: 2000,
                 memory_mb: 4096,
                 gpu: None,
@@ -648,13 +620,13 @@ mod tests {
         let pool_statuses = Arc::new(RwLock::new(HashMap::new()));
         let service = ResourcePoolCrudService::new(pools, pool_statuses);
 
-        let request = CreatePoolRequest {
-            pool_type: ResourcePoolType::Docker,
+        let request = CreatePoolRequestDto {
+            pool_type: ResourcePoolTypeDto::Docker,
             name: "status-test".to_string(),
             provider_name: "docker".to_string(),
             min_size: 1,
             max_size: 10,
-            default_resources: hodei_pipelines_core::ResourceQuota {
+            default_resources: ResourceQuotaDto {
                 cpu_m: 2000,
                 memory_mb: 4096,
                 gpu: None,

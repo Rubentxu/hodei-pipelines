@@ -8,34 +8,34 @@
 import type { components, operations } from "../types/api";
 
 // Type aliases for better readability
-type Pipeline = components["schemas"]["Pipeline"];
-type CreatePipelineRequest = components["schemas"]["CreatePipelineRequest"];
-type UpdatePipelineRequest = components["schemas"]["UpdatePipelineRequest"];
-type Error = components["schemas"]["Error"];
+export type Pipeline = components["schemas"]["PipelineResponseDto"];
+export type CreatePipelineRequest = components["schemas"]["CreatePipelineRequestDto"];
+export type UpdatePipelineRequest = components["schemas"]["UpdatePipelineRequest"];
+export type Error = components["schemas"]["ErrorResponse"];
 
 // Response types from operations
-type ListPipelinesResponse =
-  operations["listPipelines"]["responses"][200]["content"]["application/json"];
-type CreatePipelineResponse =
-  operations["createPipeline"]["responses"][201]["content"]["application/json"];
-type GetPipelineResponse =
-  operations["getPipeline"]["responses"][200]["content"]["application/json"];
+export type ListPipelinesResponse =
+  operations["list_pipelines_handler"]["responses"][200]["content"]["application/json"];
+export type CreatePipelineResponse =
+  operations["create_pipeline_handler"]["responses"][201]["content"]["application/json"];
+export type GetPipelineResponse =
+  operations["get_pipeline_handler"]["responses"][200]["content"]["application/json"];
+export type ExecutePipelineResponse =
+  operations["execute_pipeline_handler"]["responses"][200]["content"]["application/json"];
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/v1";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1";
 
 // Generic API error class
 export class APIError extends Error {
   code: string;
-  details?: Record<string, unknown>;
-  timestamp: string;
+  details?: string;
 
   constructor(error: Error) {
     super(error.message);
     this.name = "APIError";
     this.code = error.code;
     this.details = error.details;
-    this.timestamp = error.timestamp;
   }
 }
 
@@ -55,7 +55,7 @@ export class PipelineApiService {
   async listPipelines(params?: {
     limit?: number;
     offset?: number;
-    status?: "active" | "inactive" | "archived";
+    status?: string;
   }): Promise<ListPipelinesResponse> {
     const searchParams = new URLSearchParams();
 
@@ -139,7 +139,7 @@ export class PipelineApiService {
     request: UpdatePipelineRequest,
   ): Promise<GetPipelineResponse> {
     const response = await fetch(`${this.baseUrl}/pipelines/${pipelineId}`, {
-      method: "PATCH",
+      method: "PUT",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
@@ -171,6 +171,27 @@ export class PipelineApiService {
       throw new APIError(error);
     }
   }
+
+  /**
+   * Execute a pipeline
+   */
+  async executePipeline(pipelineId: string): Promise<ExecutePipelineResponse> {
+    const response = await fetch(`${this.baseUrl}/pipelines/${pipelineId}/execute`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+      },
+      body: JSON.stringify({}), // Empty body for now
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as Error;
+      throw new APIError(error);
+    }
+
+    return response.json() as Promise<ExecutePipelineResponse>;
+  }
 }
 
 // Export singleton instance
@@ -178,11 +199,6 @@ export const pipelineApi = new PipelineApiService();
 
 // Export types for use in components
 export type {
-  Pipeline,
-  CreatePipelineRequest,
-  UpdatePipelineRequest,
-  Error as ApiError,
-  ListPipelinesResponse,
-  CreatePipelineResponse,
-  GetPipelineResponse,
+  Error as ApiError
 };
+

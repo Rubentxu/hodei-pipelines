@@ -3,12 +3,15 @@
 //! Tests for API endpoints
 //! Validates production-ready functionality
 
-use hodei_adapters::bus::InMemoryBus;
-use hodei_adapters::config::AppConfig;
+use hodei_pipelines_adapters::bus::InMemoryBus;
+use hodei_pipelines_adapters::config::AppConfig;
 use hodei_server::bootstrap::ServerComponents;
 use hodei_server::create_api_router;
 use std::collections::HashMap;
 use std::sync::Arc;
+use uuid::Uuid;
+
+use hodei_pipelines_core::pipeline_execution::ExecutionId;
 
 #[tokio::test]
 async fn test_health_endpoint() {
@@ -58,7 +61,7 @@ async fn test_live_logs_sse_endpoint() {
         level: LogLevel::Info,
         step: "checkout".to_string(),
         message: "Cloning repository...".to_string(),
-        execution_id: hodei_core::pipeline_execution::ExecutionId::new(),
+        execution_id: ExecutionId::new().0,
     };
 
     // Verify the structure can be serialized to JSON
@@ -227,8 +230,8 @@ async fn test_realtime_status_updates_websocket() {
     use hodei_server::realtime_status_api::ExecutionStatusUpdate;
 
     let status_update = ExecutionStatusUpdate {
-        execution_id: hodei_core::pipeline_execution::ExecutionId::new(),
-        status: hodei_core::pipeline_execution::ExecutionStatus::RUNNING,
+        execution_id: ExecutionId::new(),
+        status: hodei_pipelines_core::pipeline_execution::ExecutionStatus::RUNNING,
         current_stage: Some("build".to_string()),
         progress: 50,
         message: Some("Running build stage".to_string()),
@@ -258,7 +261,7 @@ async fn test_realtime_status_updates_websocket() {
     use hodei_server::realtime_status_api::RealtimeStatusService;
 
     let status_service = RealtimeStatusService::new();
-    let execution_id = hodei_core::pipeline_execution::ExecutionId::new();
+    let execution_id = ExecutionId::new();
 
     // Verify we can get status updates
     let updates = status_service.get_status_updates(&execution_id).await;
@@ -1009,7 +1012,7 @@ async fn test_logs_explorer_ui() {
     let log_entry = LogEntry {
         id: "log-1".to_string(),
         timestamp: chrono::Utc::now(),
-        execution_id: hodei_core::pipeline_execution::ExecutionId::new(),
+        execution_id: ExecutionId::new(),
         pipeline_id: Some("pipeline-123".to_string()),
         tenant_id: "tenant-123".to_string(),
         log_level: "INFO".to_string(),

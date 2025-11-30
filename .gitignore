@@ -99,6 +99,8 @@ docs/alineamiento
 !docs/sequence_diagrams.md
 !docs/testing/postman_guide.md
 !docs/testing/postman_guide.es.md
+!FILES_CREATED.md
+!FINAL_COMPLETION_REPORT.md
 node_modules/
 package-lock.json
 *.csv

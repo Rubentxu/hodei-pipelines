@@ -200,7 +200,7 @@ impl CostOptimizationService {
     /// Get filtered recommendations
     fn get_filtered_recommendations(
         &self,
-        tenant_id: Option<&str>,
+        _tenant_id: Option<&str>,
         resource_type: Option<ResourceType>,
     ) -> Vec<Recommendation> {
         let recommendations = self.mock_recommendations.clone();
@@ -271,8 +271,7 @@ impl CostOptimizationService {
 
     /// Generate mock recommendation data
     fn generate_mock_recommendations() -> Vec<MockRecommendationData> {
-        use rand::Rng;
-        let mut rng = rand::rng();
+        let _rng = rand::rng();
 
         let mut recommendations = Vec::new();
 

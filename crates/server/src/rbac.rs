@@ -294,7 +294,7 @@ impl RbacService {
     }
 
     /// Authenticate user
-    pub async fn authenticate(&self, username: &str, password: &str) -> Option<AuthToken> {
+    pub async fn authenticate(&self, username: &str, _password: &str) -> Option<AuthToken> {
         // In production, this would validate credentials against a secure store
         let users = self.mock_users.clone();
 
@@ -463,13 +463,13 @@ impl RbacService {
     }
 
     /// Update user
-    pub async fn update_user(&self, id: &str, updates: User) -> Result<User, String> {
+    pub async fn update_user(&self, _id: &str, updates: User) -> Result<User, String> {
         // In production, this would update database
         Ok(updates)
     }
 
     /// Delete user
-    pub async fn delete_user(&self, id: &str) -> Result<(), String> {
+    pub async fn delete_user(&self, _id: &str) -> Result<(), String> {
         // In production, this would delete from database
         Ok(())
     }
@@ -492,7 +492,7 @@ impl RbacService {
     }
 
     /// Revoke role from user
-    pub async fn revoke_role(&self, assignment_id: &str) -> Result<(), String> {
+    pub async fn revoke_role(&self, _assignment_id: &str) -> Result<(), String> {
         // In production, this would delete from database
         Ok(())
     }
@@ -509,7 +509,7 @@ impl RbacService {
     }
 
     /// Terminate session
-    pub async fn terminate_session(&self, session_id: &str) -> Result<(), String> {
+    pub async fn terminate_session(&self, _session_id: &str) -> Result<(), String> {
         // In production, this would update database
         Ok(())
     }
