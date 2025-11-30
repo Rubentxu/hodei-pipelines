@@ -1,7 +1,7 @@
 //! Worker Repository Port
 
 use async_trait::async_trait;
-use hodei_core::{Result, Worker, WorkerId};
+use hodei_pipelines_core::{Result, Worker, WorkerId};
 
 #[async_trait]
 pub trait WorkerRepository: Send + Sync {
@@ -23,7 +23,7 @@ pub trait WorkerRepository: Send + Sync {
     async fn update_worker_status(
         &self,
         worker_id: &WorkerId,
-        status: hodei_core::WorkerStatus,
+        status: hodei_pipelines_core::WorkerStatus,
     ) -> Result<()>;
 }
 
@@ -106,7 +106,7 @@ mod tests {
             async fn update_worker_status(
                 &self,
                 _worker_id: &WorkerId,
-                _status: hodei_core::WorkerStatus,
+                _status: hodei_pipelines_core::WorkerStatus,
             ) -> Result<()> {
                 Ok(())
             }
@@ -147,7 +147,7 @@ mod tests {
             async fn update_worker_status(
                 &self,
                 _worker_id: &WorkerId,
-                _status: hodei_core::WorkerStatus,
+                _status: hodei_pipelines_core::WorkerStatus,
             ) -> Result<()> {
                 Ok(())
             }

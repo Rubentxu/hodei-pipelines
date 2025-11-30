@@ -1,6 +1,7 @@
 //! Worker-related message types for distributed communication
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Worker identifier
@@ -118,7 +119,7 @@ impl RuntimeSpec {
 }
 
 /// Worker capabilities for matching
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct WorkerCapabilities {
     pub cpu_cores: u32,
     pub memory_gb: u64,

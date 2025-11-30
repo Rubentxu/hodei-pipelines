@@ -1,5 +1,5 @@
 [package]
-name = "hodei-adapters"
+name = "hodei-pipelines-adapters"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -9,9 +9,9 @@ repository.workspace = true
 
 [dependencies]
 # Workspace core crates
-hodei-core = { workspace = true, features = ["sqlx", "serde"] }
-hodei-ports = { workspace = true }
-hwp-proto = { workspace = true }
+hodei-pipelines-core = { workspace = true, features = ["sqlx", "serde"] }
+hodei-pipelines-ports = { workspace = true }
+hodei-pipelines-proto = { workspace = true }
 
 # Workspace async and utilities
 async-trait = { workspace = true }
@@ -76,12 +76,12 @@ tracing-test = "0.2.5"
 serial_test = { version = "3.0", default-features = false }
 
 [features]
-integration = ["testcontainers", "sqlx/runtime-tokio-rustls", "hodei-core/sqlx"]
+integration = ["testcontainers", "sqlx/runtime-tokio-rustls", "hodei-pipelines-core/sqlx"]
 docker-provider = []
 kubernetes-provider = []
 default = []
 # Ensure serde is always available for tests
-test = ["hodei-core/serde"]
+test = ["hodei-pipelines-core/serde"]
 
 # Perfiles de test
 [profile.integration]

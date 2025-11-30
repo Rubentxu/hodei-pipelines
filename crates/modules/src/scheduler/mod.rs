@@ -7,12 +7,12 @@ pub use state_machine::{SchedulingContext, SchedulingState, SchedulingStateMachi
 use crossbeam::queue::SegQueue;
 use crossbeam::utils::CachePadded;
 use dashmap::DashMap;
-use hodei_core::{DomainError, Job, JobId, JobState, Result, Worker, WorkerCapabilities, WorkerId};
-use hodei_ports::{
+use hodei_pipelines_core::{DomainError, Job, JobId, JobState, Result, Worker, WorkerCapabilities, WorkerId};
+use hodei_pipelines_ports::{
     EventPublisher, JobRepository, PipelineRepository, RoleRepository, SchedulerPort, WorkerClient,
     WorkerRepository,
 };
-use hwp_proto::ServerMessage;
+use hodei_pipelines_proto::ServerMessage;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
@@ -232,7 +232,7 @@ where
         orchestrator::OrchestratorModule<
             R,
             E,
-            hodei_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository,
+            hodei_pipelines_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository,
         >,
     >, // Assuming P is this for now, or need generic P?
     pub pipeline_crud: Option<pipeline_crud::PipelineCrudService<R, E>>,
@@ -242,14 +242,14 @@ where
     pub rbac: Option<
         rbac::RoleBasedAccessControlService<
             R,
-            hodei_adapters::rbac_repositories::InMemoryPermissionRepository,
+            hodei_pipelines_adapters::rbac_repositories::InMemoryPermissionRepository,
             E,
         >,
     >, // Need generic P
     pub worker_management: Option<
         Box<
             worker_management::WorkerManagementService<
-                hodei_adapters::DockerProvider,
+                hodei_pipelines_adapters::DockerProvider,
                 SchedulerModule<R, E, W, WR>,
             >,
         >,
@@ -279,7 +279,7 @@ where
         orchestrator::OrchestratorModule<
             R,
             E,
-            hodei_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository,
+            hodei_pipelines_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository,
         >,
     >,
     pub pipeline_crud: Option<pipeline_crud::PipelineCrudService<R, E>>,
@@ -289,13 +289,13 @@ where
     pub rbac: Option<
         rbac::RoleBasedAccessControlService<
             R,
-            hodei_adapters::rbac_repositories::InMemoryPermissionRepository,
+            hodei_pipelines_adapters::rbac_repositories::InMemoryPermissionRepository,
             E,
         >,
     >,
     pub worker_management: Option<
         worker_management::WorkerManagementService<
-            hodei_adapters::docker_provider::DockerProvider,
+            hodei_pipelines_adapters::docker_provider::DockerProvider,
             SchedulerModule<R, E, W, WR>,
         >,
     >,
@@ -358,19 +358,19 @@ where
 
     pub fn build(self) -> Result<SchedulerModule<R, E, W, WR>> {
         let job_repo = self.job_repo.ok_or_else(|| {
-            hodei_core::DomainError::Infrastructure("job_repository is required".into())
+            hodei_pipelines_core::DomainError::Infrastructure("job_repository is required".into())
         })?;
 
         let event_bus = self.event_bus.ok_or_else(|| {
-            hodei_core::DomainError::Infrastructure("event_bus is required".into())
+            hodei_pipelines_core::DomainError::Infrastructure("event_bus is required".into())
         })?;
 
         let worker_client = self.worker_client.ok_or_else(|| {
-            hodei_core::DomainError::Infrastructure("worker_client is required".into())
+            hodei_pipelines_core::DomainError::Infrastructure("worker_client is required".into())
         })?;
 
         let worker_repo = self.worker_repo.ok_or_else(|| {
-            hodei_core::DomainError::Infrastructure("worker_repository is required".into())
+            hodei_pipelines_core::DomainError::Infrastructure("worker_repository is required".into())
         })?;
 
         let config = self.config.unwrap_or_default();
@@ -816,7 +816,7 @@ where
         &self,
         worker_id: &WorkerId,
         transmitter: mpsc::UnboundedSender<
-            std::result::Result<ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+            std::result::Result<ServerMessage, hodei_pipelines_ports::scheduler_port::SchedulerError>,
         >,
     ) -> Result<()> {
         self.cluster_state
@@ -851,15 +851,15 @@ where
         let gpu_count = job_spec.resources.gpu.unwrap_or(0) as u32;
 
         let message = ServerMessage {
-            payload: Some(hwp_proto::pb::server_message::Payload::AssignJob(
-                hwp_proto::pb::AssignJobRequest {
+            payload: Some(hodei_pipelines_proto::pb::server_message::Payload::AssignJob(
+                hodei_pipelines_proto::pb::AssignJobRequest {
                     worker_id: worker_id.to_string(),
                     job_id: job.id.as_uuid().to_string(),
-                    job_spec: Some(hwp_proto::pb::JobSpec {
+                    job_spec: Some(hodei_pipelines_proto::pb::JobSpec {
                         name: job.id.to_string(),
                         image: job_spec.image,
                         command: job_spec.command,
-                        resources: Some(hwp_proto::pb::ResourceQuota {
+                        resources: Some(hodei_pipelines_proto::pb::ResourceQuota {
                             cpu_m: job_spec.resources.cpu_m,
                             memory_mb: job_spec.resources.memory_mb,
                             gpu: gpu_count,
@@ -949,9 +949,9 @@ where
         job_id: &JobId,
         worker_id: &WorkerId,
         log_data: Vec<u8>,
-        stream_type: hodei_ports::event_bus::StreamType,
+        stream_type: hodei_pipelines_ports::event_bus::StreamType,
     ) -> Result<()> {
-        let log_entry = hodei_ports::event_bus::LogEntry {
+        let log_entry = hodei_pipelines_ports::event_bus::LogEntry {
             job_id: *job_id,
             data: log_data,
             stream_type,
@@ -961,7 +961,7 @@ where
 
         // Publish log event to event bus
         self.event_bus
-            .publish(hodei_ports::event_bus::SystemEvent::LogChunkReceived(
+            .publish(hodei_pipelines_ports::event_bus::SystemEvent::LogChunkReceived(
                 log_entry.clone(),
             ))
             .await
@@ -1044,12 +1044,12 @@ where
 
         // Publish job completed/failed event
         let event = if exit_code == 0 {
-            hodei_ports::event_bus::SystemEvent::JobCompleted {
+            hodei_pipelines_ports::event_bus::SystemEvent::JobCompleted {
                 job_id: *job_id,
                 exit_code,
             }
         } else {
-            hodei_ports::event_bus::SystemEvent::JobFailed {
+            hodei_pipelines_ports::event_bus::SystemEvent::JobFailed {
                 job_id: *job_id,
                 error: format!("Job failed with exit code {}", exit_code),
             }
@@ -1138,7 +1138,7 @@ pub struct ClusterState {
         DashMap<
             WorkerId,
             mpsc::UnboundedSender<
-                std::result::Result<ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+                std::result::Result<ServerMessage, hodei_pipelines_ports::scheduler_port::SchedulerError>,
             >,
         >,
     >,
@@ -1255,7 +1255,7 @@ impl ClusterState {
         &self,
         worker_id: &WorkerId,
         transmitter: mpsc::UnboundedSender<
-            std::result::Result<ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+            std::result::Result<ServerMessage, hodei_pipelines_ports::scheduler_port::SchedulerError>,
         >,
     ) -> Result<()> {
         self.transmitters.insert(worker_id.clone(), transmitter);
@@ -1335,10 +1335,10 @@ where
     async fn register_worker(
         &self,
         worker: &Worker,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         if let Err(e) = self.worker_repo.save_worker(worker).await {
             return Err(
-                hodei_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
+                hodei_pipelines_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
             );
         }
         Ok(())
@@ -1347,10 +1347,10 @@ where
     async fn unregister_worker(
         &self,
         worker_id: &WorkerId,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         if let Err(e) = self.worker_repo.delete_worker(worker_id).await {
             return Err(
-                hodei_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
+                hodei_pipelines_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
             );
         }
         Ok(())
@@ -1358,10 +1358,10 @@ where
 
     async fn get_registered_workers(
         &self,
-    ) -> std::result::Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<Vec<WorkerId>, hodei_pipelines_ports::scheduler_port::SchedulerError> {
         let workers =
             self.worker_repo.get_all_workers().await.map_err(|e| {
-                hodei_ports::scheduler_port::SchedulerError::internal(e.to_string())
+                hodei_pipelines_ports::scheduler_port::SchedulerError::internal(e.to_string())
             })?;
         Ok(workers.into_iter().map(|w| w.id).collect())
     }
@@ -1370,14 +1370,14 @@ where
         &self,
         worker_id: &WorkerId,
         transmitter: mpsc::UnboundedSender<
-            std::result::Result<ServerMessage, hodei_ports::scheduler_port::SchedulerError>,
+            std::result::Result<ServerMessage, hodei_pipelines_ports::scheduler_port::SchedulerError>,
         >,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         self.cluster_state
             .register_transmitter(worker_id, transmitter)
             .await
             .map_err(|e| {
-                hodei_ports::scheduler_port::SchedulerError::internal(format!(
+                hodei_pipelines_ports::scheduler_port::SchedulerError::internal(format!(
                     "Failed to register transmitter: {}",
                     e
                 ))
@@ -1387,12 +1387,12 @@ where
     async fn unregister_transmitter(
         &self,
         worker_id: &WorkerId,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         self.cluster_state
             .unregister_transmitter(worker_id)
             .await
             .map_err(|e| {
-                hodei_ports::scheduler_port::SchedulerError::internal(format!(
+                hodei_pipelines_ports::scheduler_port::SchedulerError::internal(format!(
                     "Failed to unregister transmitter: {}",
                     e
                 ))
@@ -1403,12 +1403,12 @@ where
         &self,
         worker_id: &WorkerId,
         message: ServerMessage,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         self.cluster_state
             .send_to_worker(worker_id, message)
             .await
             .map_err(|e| {
-                hodei_ports::scheduler_port::SchedulerError::internal(format!(
+                hodei_pipelines_ports::scheduler_port::SchedulerError::internal(format!(
                     "Failed to send message to worker: {}",
                     e
                 ))

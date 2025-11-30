@@ -11,7 +11,7 @@ use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 use crate::auto_scaling_engine::ScaleDirection;
-use hodei_core::Result;
+use hodei_pipelines_core::Result;
 
 /// Cooldown type for different scaling scenarios
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -471,8 +471,8 @@ impl Default for OverrideConfig {
 }
 
 // Convert CooldownError to DomainError
-impl From<CooldownError> for hodei_core::DomainError {
+impl From<CooldownError> for hodei_pipelines_core::DomainError {
     fn from(err: CooldownError) -> Self {
-        hodei_core::DomainError::Other(err.to_string())
+        hodei_pipelines_core::DomainError::Other(err.to_string())
     }
 }

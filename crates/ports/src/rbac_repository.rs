@@ -3,7 +3,7 @@
 //! Defines the repository interfaces for RBAC operations.
 
 use async_trait::async_trait;
-use hodei_core::{
+use hodei_pipelines_core::{
     DomainError,
     security::{PermissionEntity, PermissionId, RoleEntity, RoleId},
 };

@@ -5,7 +5,7 @@
 
 use crate::{DockerProvider, KubernetesProvider};
 use async_trait::async_trait;
-use hodei_ports::worker_provider::{
+use hodei_pipelines_ports::worker_provider::{
     ProviderConfig, ProviderError, ProviderFactoryTrait, WorkerProvider,
 };
 
@@ -31,12 +31,12 @@ impl ProviderFactoryTrait for DefaultProviderFactory {
         config: ProviderConfig,
     ) -> Result<Box<dyn WorkerProvider>, ProviderError> {
         match config.provider_type {
-            hodei_ports::worker_provider::ProviderType::Docker => {
+            hodei_pipelines_ports::worker_provider::ProviderType::Docker => {
                 let provider = DockerProvider::new(config).await?;
                 Ok(Box::new(provider) as Box<dyn WorkerProvider>)
             }
 
-            hodei_ports::worker_provider::ProviderType::Kubernetes => {
+            hodei_pipelines_ports::worker_provider::ProviderType::Kubernetes => {
                 let provider = KubernetesProvider::new(config).await?;
                 Ok(Box::new(provider) as Box<dyn WorkerProvider>)
             }

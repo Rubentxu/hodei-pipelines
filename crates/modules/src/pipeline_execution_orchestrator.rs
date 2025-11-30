@@ -3,12 +3,12 @@
 //! Production-ready implementation for orchestrating pipeline step execution
 //! with dependency management and fault tolerance.
 
-use hodei_core::{
+use hodei_pipelines_core::{
     DomainError, Result,
     pipeline::{Pipeline, PipelineId, PipelineStepId},
     pipeline_execution::{ExecutionId, ExecutionStatus, PipelineExecution, StepExecutionStatus},
 };
-use hodei_ports::{EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository};
+use hodei_pipelines_ports::{EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{Semaphore, mpsc};
@@ -144,7 +144,7 @@ where
 
         // Publish pipeline execution started event
         self.event_bus
-            .publish(hodei_ports::SystemEvent::PipelineExecutionStarted {
+            .publish(hodei_pipelines_ports::SystemEvent::PipelineExecutionStarted {
                 pipeline_id: pipeline_id_clone.clone(),
                 execution_id: execution_id.clone(),
             })
@@ -470,8 +470,8 @@ where
 /// Helper function to wait for job completion
 async fn wait_for_job_completion<R>(
     job_repo: Arc<R>,
-    job_id: hodei_core::JobId,
-) -> Result<hodei_core::job::JobState>
+    job_id: hodei_pipelines_core::JobId,
+) -> Result<hodei_pipelines_core::job::JobState>
 where
     R: JobRepository + Send + Sync,
 {

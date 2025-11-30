@@ -4,9 +4,9 @@
 //! that automatically provision and scale workers based on demand.
 
 use async_trait::async_trait;
-use hodei_adapters::DefaultProviderFactory;
-use hodei_core::{DomainError, ResourceQuota, Result, WorkerId};
-use hodei_ports::{
+use hodei_pipelines_adapters::DefaultProviderFactory;
+use hodei_pipelines_core::{DomainError, ResourceQuota, Result, WorkerId};
+use hodei_pipelines_ports::{
     ProviderFactoryTrait,
     resource_pool::{
         AllocationStatus, ResourceAllocation, ResourceAllocationRequest, ResourcePool,

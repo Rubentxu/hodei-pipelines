@@ -4,7 +4,7 @@
 //! needed by the application layer. These are implemented by adapters
 //! in the infrastructure layer.
 
-pub use hodei_core::WorkerStatus;
+pub use hodei_pipelines_core::WorkerStatus;
 
 pub mod event_bus;
 pub mod job_repository;

@@ -7,7 +7,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 
-use hodei_core::{DomainError, JobId, Result};
+use hodei_pipelines_core::{DomainError, JobId, Result};
 use tokio::sync::RwLock;
 use tracing::info;
 

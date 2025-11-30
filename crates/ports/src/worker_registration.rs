@@ -4,8 +4,8 @@
 //! that handle automatic registration of workers with the scheduler.
 
 use async_trait::async_trait;
-use hodei_core::Worker;
-use hodei_core::WorkerId;
+use hodei_pipelines_core::Worker;
+use hodei_pipelines_core::WorkerId;
 
 /// Worker registration port error
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]

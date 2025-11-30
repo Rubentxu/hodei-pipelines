@@ -3,8 +3,8 @@
 //! Defines the interface for communicating with workers.
 
 use async_trait::async_trait;
-use hodei_core::JobSpec;
-use hodei_core::{JobId, WorkerId, WorkerStatus};
+use hodei_pipelines_core::JobSpec;
+use hodei_pipelines_core::{JobId, WorkerId, WorkerStatus};
 
 /// Worker client port for communicating with worker agents
 #[async_trait]
@@ -34,7 +34,7 @@ pub trait WorkerClient: Send + Sync {
     async fn send_heartbeat(
         &self,
         worker_id: &WorkerId,
-        resource_usage: &hodei_core::ResourceUsage,
+        resource_usage: &hodei_pipelines_core::ResourceUsage,
     ) -> Result<(), WorkerClientError>;
 }
 

@@ -1,5 +1,5 @@
 [package]
-name = "hodei-modules"
+name = "hodei-pipelines-modules"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -9,10 +9,10 @@ repository.workspace = true
 
 [dependencies]
 # Workspace core crates
-hodei-core = { workspace = true }
-hodei-ports = { workspace = true }
-hodei-adapters = { workspace = true }
-hwp-proto = { workspace = true }
+hodei-pipelines-core = { workspace = true }
+hodei-pipelines-ports = { workspace = true }
+hodei-pipelines-adapters = { workspace = true }
+hodei-pipelines-proto = { workspace = true }
 
 # Workspace async and serialization
 async-trait = { workspace = true }

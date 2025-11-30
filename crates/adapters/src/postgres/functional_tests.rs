@@ -14,14 +14,14 @@ mod tests {
         PostgreSqlJobRepository, PostgreSqlPipelineExecutionRepository,
         PostgreSqlPipelineRepository, PostgreSqlWorkerRepository,
     };
-    use hodei_core::{
+    use hodei_pipelines_core::{
         JobSpec, JobState, Pipeline, PipelineId, PipelineState, PipelineStep, PipelineStepId,
         ResourceQuota,
     };
     use hodei_modules::pipeline_execution_orchestrator::{
         PipelineExecutionConfig, PipelineExecutionOrchestrator,
     };
-    use hodei_ports::{
+    use hodei_pipelines_ports::{
         EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository,
     };
     use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -41,7 +41,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl EventPublisher for MockEventPublisher {
-        async fn publish(&self, event: hodei_ports::SystemEvent) -> hodei_core::Result<()> {
+        async fn publish(&self, event: hodei_pipelines_ports::SystemEvent) -> hodei_pipelines_core::Result<()> {
             let mut events = self.published_events.lock().await;
             events.push(format!("{:?}", event));
             Ok(())
@@ -49,8 +49,8 @@ mod tests {
 
         async fn publish_batch(
             &self,
-            events: Vec<hodei_ports::SystemEvent>,
-        ) -> hodei_core::Result<()> {
+            events: Vec<hodei_pipelines_ports::SystemEvent>,
+        ) -> hodei_pipelines_core::Result<()> {
             let mut events_lock = self.published_events.lock().await;
             for event in events {
                 events_lock.push(format!("{:?}", event));
@@ -134,7 +134,7 @@ mod tests {
             id: pipeline_id.clone(),
             name: "test-pipeline".to_string(),
             description: Some("Test pipeline".to_string()),
-            spec: hodei_core::PipelineSpec {
+            spec: hodei_pipelines_core::PipelineSpec {
                 steps: vec![
                     PipelineStep {
                         id: step1_id.clone(),
@@ -218,7 +218,7 @@ mod tests {
             id: pipeline_id.clone(),
             name: "execution-test-pipeline".to_string(),
             description: None,
-            spec: hodei_core::PipelineSpec {
+            spec: hodei_pipelines_core::PipelineSpec {
                 steps: vec![PipelineStep {
                     id: step_id.clone(),
                     name: "test-step".to_string(),
@@ -304,7 +304,7 @@ mod tests {
             id: pipeline_id.clone(),
             name: "complex-dependencies-pipeline".to_string(),
             description: None,
-            spec: hodei_core::PipelineSpec {
+            spec: hodei_pipelines_core::PipelineSpec {
                 steps: vec![
                     PipelineStep {
                         id: step1.clone(),
@@ -410,7 +410,7 @@ mod tests {
             id: pipeline_id.clone(),
             name: "variables-test-pipeline".to_string(),
             description: None,
-            spec: hodei_core::PipelineSpec {
+            spec: hodei_pipelines_core::PipelineSpec {
                 steps: vec![PipelineStep {
                     id: step_id.clone(),
                     name: "step-with-vars".to_string(),

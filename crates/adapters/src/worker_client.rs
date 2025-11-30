@@ -5,10 +5,10 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use hodei_core::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
-use hodei_core::{JobId, JobSpec};
-use hodei_core::{WorkerId, WorkerStatus};
-use hodei_ports::{WorkerClient, WorkerClientError};
+use hodei_pipelines_core::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
+use hodei_pipelines_core::{JobId, JobSpec};
+use hodei_pipelines_core::{WorkerId, WorkerStatus};
+use hodei_pipelines_ports::{WorkerClient, WorkerClientError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -451,8 +451,8 @@ impl GrpcWorkerClient {
     }
 
     /// Get worker service client
-    fn worker_service_client(&self) -> hwp_proto::WorkerServiceClient<Channel> {
-        hwp_proto::WorkerServiceClient::new(self.channel.clone())
+    fn worker_service_client(&self) -> hodei_pipelines_proto::WorkerServiceClient<Channel> {
+        hodei_pipelines_proto::WorkerServiceClient::new(self.channel.clone())
     }
 }
 
@@ -464,14 +464,14 @@ impl WorkerClient for GrpcWorkerClient {
         job_id: &JobId,
         job_spec: &JobSpec,
     ) -> Result<(), WorkerClientError> {
-        let request = hwp_proto::AssignJobRequest {
+        let request = hodei_pipelines_proto::AssignJobRequest {
             worker_id: worker_id.to_string(),
             job_id: job_id.to_string(),
-            job_spec: Some(hwp_proto::JobSpec {
+            job_spec: Some(hodei_pipelines_proto::JobSpec {
                 name: job_spec.name.clone(),
                 image: job_spec.image.clone(),
                 command: job_spec.command.clone(),
-                resources: Some(hwp_proto::ResourceQuota {
+                resources: Some(hodei_pipelines_proto::ResourceQuota {
                     cpu_m: job_spec.resources.cpu_m,
                     memory_mb: job_spec.resources.memory_mb,
                     gpu: job_spec.resources.gpu.unwrap_or(0) as u32,
@@ -519,7 +519,7 @@ impl WorkerClient for GrpcWorkerClient {
         worker_id: &WorkerId,
         job_id: &JobId,
     ) -> Result<(), WorkerClientError> {
-        let request = hwp_proto::CancelJobRequest {
+        let request = hodei_pipelines_proto::CancelJobRequest {
             worker_id: worker_id.to_string(),
             job_id: job_id.to_string(),
         };
@@ -559,7 +559,7 @@ impl WorkerClient for GrpcWorkerClient {
         &self,
         worker_id: &WorkerId,
     ) -> Result<WorkerStatus, WorkerClientError> {
-        let request = hwp_proto::GetWorkerStatusRequest {
+        let request = hodei_pipelines_proto::GetWorkerStatusRequest {
             worker_id: worker_id.to_string(),
         };
 
@@ -600,10 +600,10 @@ impl WorkerClient for GrpcWorkerClient {
     async fn send_heartbeat(
         &self,
         worker_id: &WorkerId,
-        resource_usage: &hodei_core::ResourceUsage,
+        resource_usage: &hodei_pipelines_core::ResourceUsage,
     ) -> Result<(), WorkerClientError> {
-        // Convert hodei_core::ResourceUsage to proto format
-        let proto_usage = hwp_proto::ResourceUsage {
+        // Convert hodei_pipelines_core::ResourceUsage to proto format
+        let proto_usage = hodei_pipelines_proto::ResourceUsage {
             cpu_usage_m: resource_usage.cpu_usage_m,
             memory_usage_mb: resource_usage.memory_usage_mb,
             active_jobs: resource_usage.active_jobs,
@@ -615,7 +615,7 @@ impl WorkerClient for GrpcWorkerClient {
             timestamp: resource_usage.timestamp,
         };
 
-        let request = hwp_proto::HeartbeatRequest {
+        let request = hodei_pipelines_proto::HeartbeatRequest {
             worker_id: worker_id.to_string(),
             timestamp: resource_usage.timestamp,
             resource_usage: Some(proto_usage),
@@ -798,7 +798,7 @@ impl WorkerClient for HttpWorkerClient {
     async fn send_heartbeat(
         &self,
         worker_id: &WorkerId,
-        resource_usage: &hodei_core::ResourceUsage,
+        resource_usage: &hodei_pipelines_core::ResourceUsage,
     ) -> Result<(), WorkerClientError> {
         let url = format!("{}/api/v1/workers/{}/heartbeat", self.base_url, worker_id);
 
@@ -956,7 +956,7 @@ impl WorkerClient for ResilientWorkerClient {
     async fn send_heartbeat(
         &self,
         worker_id: &WorkerId,
-        resource_usage: &hodei_core::ResourceUsage,
+        resource_usage: &hodei_pipelines_core::ResourceUsage,
     ) -> Result<(), WorkerClientError> {
         self.inner.send_heartbeat(worker_id, resource_usage).await
     }

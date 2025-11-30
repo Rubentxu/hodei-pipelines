@@ -1,7 +1,7 @@
 //! Orchestrator Module
 
-use hodei_core::{Job, JobId, JobSpec, Pipeline, PipelineId, Result};
-use hodei_ports::{EventPublisher, JobRepository, PipelineRepository};
+use hodei_pipelines_core::{Job, JobId, JobSpec, Pipeline, PipelineId, Result};
+use hodei_pipelines_ports::{EventPublisher, JobRepository, PipelineRepository};
 use std::sync::Arc;
 use tracing::info;
 
@@ -58,7 +58,7 @@ where
             .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         self.event_bus
-            .publish(hodei_ports::SystemEvent::JobCreated(job.spec.clone()))
+            .publish(hodei_pipelines_ports::SystemEvent::JobCreated(job.spec.clone()))
             .await
             .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
@@ -97,7 +97,7 @@ where
     pub async fn create_pipeline(
         &self,
         name: String,
-        steps: Vec<hodei_core::pipeline::PipelineStep>,
+        steps: Vec<hodei_pipelines_core::pipeline::PipelineStep>,
     ) -> Result<Pipeline> {
         info!("Creating pipeline: {}", name);
 
@@ -110,7 +110,7 @@ where
             .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         self.event_bus
-            .publish(hodei_ports::SystemEvent::PipelineCreated(pipeline.clone()))
+            .publish(hodei_pipelines_ports::SystemEvent::PipelineCreated(pipeline.clone()))
             .await
             .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
@@ -137,7 +137,7 @@ where
             .map_err(|e| OrchestratorError::DomainError(e.to_string()))?;
 
         self.event_bus
-            .publish(hodei_ports::SystemEvent::PipelineStarted {
+            .publish(hodei_pipelines_ports::SystemEvent::PipelineStarted {
                 pipeline_id: id.clone(),
             })
             .await
@@ -178,18 +178,18 @@ pub enum OrchestratorError {
     PipelineNotFound(PipelineId),
 
     #[error("Job repository error: {0}")]
-    JobRepository(hodei_ports::JobRepositoryError),
+    JobRepository(hodei_pipelines_ports::JobRepositoryError),
 
     #[error("Pipeline repository error: {0}")]
-    PipelineRepository(hodei_ports::PipelineRepositoryError),
+    PipelineRepository(hodei_pipelines_ports::PipelineRepositoryError),
 
     #[error("Event bus error: {0}")]
-    EventBus(hodei_ports::EventBusError),
+    EventBus(hodei_pipelines_ports::EventBusError),
 }
 
 // Error conversion to DomainError
-impl From<OrchestratorError> for hodei_core::DomainError {
+impl From<OrchestratorError> for hodei_pipelines_core::DomainError {
     fn from(err: OrchestratorError) -> Self {
-        hodei_core::DomainError::Infrastructure(err.to_string())
+        hodei_pipelines_core::DomainError::Infrastructure(err.to_string())
     }
 }

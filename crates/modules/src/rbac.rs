@@ -3,11 +3,11 @@
 //! Provides CRUD operations for Role and Permission entities following DDD principles.
 //! Implements use cases for managing roles, permissions, and role-permission assignments.
 
-use hodei_core::{
+use hodei_pipelines_core::{
     DomainError, Result,
     security::{PermissionEntity, PermissionId, RoleEntity, RoleId},
 };
-use hodei_ports::{EventPublisher, PermissionRepository, RoleRepository};
+use hodei_pipelines_ports::{EventPublisher, PermissionRepository, RoleRepository};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{error, info};
@@ -464,7 +464,7 @@ pub enum RbacError {
     Repository(DomainError),
 
     #[error("Event bus error: {0}")]
-    EventBus(hodei_ports::EventBusError),
+    EventBus(hodei_pipelines_ports::EventBusError),
 
     #[error("Role not found: {0}")]
     RoleNotFound(RoleId),
@@ -482,8 +482,8 @@ pub enum RbacError {
 // ========== Tests ==========
 
 // Convert RbacError to DomainError
-impl From<RbacError> for hodei_core::DomainError {
+impl From<RbacError> for hodei_pipelines_core::DomainError {
     fn from(err: RbacError) -> Self {
-        hodei_core::DomainError::Other(err.to_string())
+        hodei_pipelines_core::DomainError::Other(err.to_string())
     }
 }

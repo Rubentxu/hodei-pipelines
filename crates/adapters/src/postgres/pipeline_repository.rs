@@ -3,8 +3,8 @@
 //! Production-ready implementation for persisting and retrieving pipelines.
 
 use async_trait::async_trait;
-use hodei_core::{DomainError, Pipeline, PipelineId, Result};
-use hodei_ports::PipelineRepository;
+use hodei_pipelines_core::{DomainError, Pipeline, PipelineId, Result};
+use hodei_pipelines_ports::PipelineRepository;
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 use tracing::info;
@@ -103,24 +103,24 @@ impl PostgreSqlPipelineRepository {
     fn deserialize_pipeline_step_from_row(
         &self,
         step_row: &sqlx::postgres::PgRow,
-    ) -> Result<hodei_core::pipeline::PipelineStep> {
+    ) -> Result<hodei_pipelines_core::pipeline::PipelineStep> {
         // Handle both "name" (regular query) and "step_name" (JOIN query) column names
         let step_name = step_row
             .try_get::<String, _>("step_name")
             .unwrap_or_else(|_| step_row.get::<String, _>("name"));
 
-        let job_spec: hodei_core::job::JobSpec = serde_json::from_value(step_row.get("job_spec"))
+        let job_spec: hodei_pipelines_core::job::JobSpec = serde_json::from_value(step_row.get("job_spec"))
             .map_err(|e| {
             DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
         })?;
 
-        let depends_on: Vec<hodei_core::pipeline::PipelineStepId> =
+        let depends_on: Vec<hodei_pipelines_core::pipeline::PipelineStepId> =
             serde_json::from_value(step_row.get("depends_on")).map_err(|e| {
                 DomainError::Validation(format!("Failed to deserialize dependencies: {}", e))
             })?;
 
-        Ok(hodei_core::pipeline::PipelineStep {
-            id: hodei_core::pipeline::PipelineStepId::from_uuid(step_row.get("step_id")),
+        Ok(hodei_pipelines_core::pipeline::PipelineStep {
+            id: hodei_pipelines_core::pipeline::PipelineStepId::from_uuid(step_row.get("step_id")),
             name: step_name,
             job_spec,
             depends_on,
@@ -149,7 +149,7 @@ impl PostgreSqlPipelineRepository {
             id: PipelineId::from_uuid(pipeline_row.get("pipeline_id")),
             name: pipeline_row.get("name"),
             description: pipeline_row.get("description"),
-            status: hodei_core::pipeline::PipelineStatus::from_str(pipeline_row.get("status"))
+            status: hodei_pipelines_core::pipeline::PipelineStatus::from_str(pipeline_row.get("status"))
                 .map_err(|_| DomainError::Validation("Invalid pipeline status".to_string()))?,
             steps,
             variables,

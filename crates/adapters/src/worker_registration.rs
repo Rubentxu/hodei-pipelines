@@ -5,9 +5,9 @@
 //! and batch operations with controlled concurrency.
 
 use async_trait::async_trait;
-use hodei_core::Worker;
-use hodei_core::WorkerId;
-use hodei_ports::{
+use hodei_pipelines_core::Worker;
+use hodei_pipelines_core::WorkerId;
+use hodei_pipelines_ports::{
     SchedulerPort, WorkerRegistrationError, WorkerRegistrationPort, scheduler_port::SchedulerError,
 };
 use std::time::Duration;

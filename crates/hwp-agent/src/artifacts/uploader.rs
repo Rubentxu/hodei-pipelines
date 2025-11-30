@@ -7,7 +7,7 @@ use tokio::fs;
 use tonic::Request;
 use tracing::{error, info};
 
-use hwp_proto::{ArtifactChunk, FinalizeUploadRequest, InitiateUploadRequest, WorkerServiceClient};
+use hodei_pipelines_proto::{ArtifactChunk, FinalizeUploadRequest, InitiateUploadRequest, WorkerServiceClient};
 
 use super::{CompressionType, Compressor};
 use crate::{AgentError, Result};

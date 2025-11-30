@@ -1,7 +1,7 @@
 //! Pipeline Repository Port
 
 use async_trait::async_trait;
-use hodei_core::{Pipeline, PipelineId, Result};
+use hodei_pipelines_core::{Pipeline, PipelineId, Result};
 
 #[async_trait]
 pub trait PipelineRepository: Send + Sync {

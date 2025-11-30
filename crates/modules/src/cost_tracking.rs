@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use hodei_core::Result;
+use hodei_pipelines_core::Result;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tracing::{error, info};
@@ -492,8 +492,8 @@ pub enum CostTrackingError {
 }
 
 // Convert CostTrackingError to DomainError
-impl From<CostTrackingError> for hodei_core::DomainError {
+impl From<CostTrackingError> for hodei_pipelines_core::DomainError {
     fn from(err: CostTrackingError) -> Self {
-        hodei_core::DomainError::Other(err.to_string())
+        hodei_pipelines_core::DomainError::Other(err.to_string())
     }
 }

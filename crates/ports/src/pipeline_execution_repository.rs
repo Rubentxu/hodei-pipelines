@@ -3,7 +3,7 @@
 //! Defines the interface for persisting and retrieving pipeline executions.
 
 use async_trait::async_trait;
-use hodei_core::{
+use hodei_pipelines_core::{
     Result,
     pipeline::PipelineStepId,
     pipeline_execution::{
@@ -43,7 +43,7 @@ pub trait PipelineExecutionRepository: Send + Sync {
     /// Get all executions for a pipeline
     async fn get_executions_by_pipeline(
         &self,
-        pipeline_id: &hodei_core::PipelineId,
+        pipeline_id: &hodei_pipelines_core::PipelineId,
     ) -> Result<Vec<PipelineExecution>>;
 
     /// Update pipeline execution status

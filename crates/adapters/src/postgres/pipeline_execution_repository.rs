@@ -3,7 +3,7 @@
 //! Production-ready implementation for persisting and retrieving pipeline executions.
 
 use async_trait::async_trait;
-use hodei_core::{
+use hodei_pipelines_core::{
     DomainError, Result,
     pipeline::PipelineStepId,
     pipeline_execution::{
@@ -11,7 +11,7 @@ use hodei_core::{
         StepExecutionStatus,
     },
 };
-use hodei_ports::PipelineExecutionRepository;
+use hodei_pipelines_ports::PipelineExecutionRepository;
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 use tracing::{debug, info};
@@ -198,7 +198,7 @@ impl PostgreSqlPipelineExecutionRepository {
 
         Ok(PipelineExecution {
             id: ExecutionId::from_uuid(exec_row.get("execution_id")),
-            pipeline_id: hodei_core::PipelineId::from_uuid(exec_row.get("pipeline_id")),
+            pipeline_id: hodei_pipelines_core::PipelineId::from_uuid(exec_row.get("pipeline_id")),
             status,
             started_at: exec_row.get("started_at"),
             completed_at: exec_row.get("completed_at"),
@@ -327,7 +327,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
 
     async fn get_executions_by_pipeline(
         &self,
-        pipeline_id: &hodei_core::PipelineId,
+        pipeline_id: &hodei_pipelines_core::PipelineId,
     ) -> Result<Vec<PipelineExecution>> {
         debug!("Getting pipeline executions for pipeline: {}", pipeline_id);
 

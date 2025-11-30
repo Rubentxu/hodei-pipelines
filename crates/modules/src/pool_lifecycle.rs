@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use hodei_core::{Result, WorkerId};
+use hodei_pipelines_core::{Result, WorkerId};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
@@ -73,7 +73,7 @@ pub struct PoolConfig {
 }
 
 impl FromStr for PoolConfig {
-    type Err = hodei_core::DomainError;
+    type Err = hodei_pipelines_core::DomainError;
 
     fn from_str(s: &str) -> Result<Self> {
         // Simple default config for health checks
@@ -704,8 +704,8 @@ impl PoolEventHandler for LoggingEventHandler {
 }
 
 // Convert LifecycleError to DomainError
-impl From<LifecycleError> for hodei_core::DomainError {
+impl From<LifecycleError> for hodei_pipelines_core::DomainError {
     fn from(err: LifecycleError) -> Self {
-        hodei_core::DomainError::Other(err.to_string())
+        hodei_pipelines_core::DomainError::Other(err.to_string())
     }
 }

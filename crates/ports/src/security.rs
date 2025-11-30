@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use hodei_core::security::{JwtClaims, Permission, Role, SecurityContext};
+use hodei_pipelines_core::security::{JwtClaims, Permission, Role, SecurityContext};
 use thiserror::Error;
 
 #[derive(Error, Debug)]

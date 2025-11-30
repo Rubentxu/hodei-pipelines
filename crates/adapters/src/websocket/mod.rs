@@ -11,7 +11,7 @@ use axum::{
     response::IntoResponse,
 };
 
-use hodei_ports::{EventSubscriber, SystemEvent};
+use hodei_pipelines_ports::{EventSubscriber, SystemEvent};
 use std::sync::Arc;
 use tracing::{error, info, warn};
 

@@ -4,11 +4,11 @@
 //! for testing and development purposes.
 
 use async_trait::async_trait;
-use hodei_core::{
+use hodei_pipelines_core::{
     DomainError,
     security::{PermissionEntity, PermissionId, RoleEntity, RoleId},
 };
-use hodei_ports::{PermissionRepository, RoleRepository};
+use hodei_pipelines_ports::{PermissionRepository, RoleRepository};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 

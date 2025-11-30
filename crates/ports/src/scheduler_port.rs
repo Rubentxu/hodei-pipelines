@@ -6,9 +6,9 @@
 //! implementations.
 
 use async_trait::async_trait;
-use hodei_core::Worker;
-use hodei_core::WorkerId;
-use hwp_proto::ServerMessage;
+use hodei_pipelines_core::Worker;
+use hodei_pipelines_core::WorkerId;
+use hodei_pipelines_proto::ServerMessage;
 use tokio::sync::mpsc;
 
 /// Scheduler port error
@@ -365,7 +365,7 @@ mod tests {
         let worker = Worker::new(
             WorkerId::new(),
             "test-worker".to_string(),
-            hodei_core::WorkerCapabilities::new(4, 8192),
+            hodei_pipelines_core::WorkerCapabilities::new(4, 8192),
         );
 
         let result = mock.register_worker(&worker).await;
@@ -379,7 +379,7 @@ mod tests {
         let worker = Worker::new(
             WorkerId::new(),
             "test-worker".to_string(),
-            hodei_core::WorkerCapabilities::new(4, 8192),
+            hodei_pipelines_core::WorkerCapabilities::new(4, 8192),
         );
 
         let result = mock.register_worker(&worker).await;
@@ -437,7 +437,7 @@ mod tests {
                 .register_worker(&Worker::new(
                     WorkerId::new(),
                     "test".to_string(),
-                    hodei_core::WorkerCapabilities::new(4, 8192),
+                    hodei_pipelines_core::WorkerCapabilities::new(4, 8192),
                 ))
                 .await
                 .is_ok()
@@ -627,7 +627,7 @@ mod tests {
                 .register_worker(&Worker::new(
                     WorkerId::new(),
                     "test".to_string(),
-                    hodei_core::WorkerCapabilities::new(4, 8192),
+                    hodei_pipelines_core::WorkerCapabilities::new(4, 8192),
                 ))
                 .await
                 .is_ok()

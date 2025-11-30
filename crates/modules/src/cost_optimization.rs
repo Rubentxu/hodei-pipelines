@@ -4,7 +4,7 @@
 //! based on resource pool metrics and tenant usage patterns.
 
 use chrono::{DateTime, Utc};
-use hodei_core::Result;
+use hodei_pipelines_core::Result;
 use std::collections::HashMap;
 
 /// Cost optimization recommendation types

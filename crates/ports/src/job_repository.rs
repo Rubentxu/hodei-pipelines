@@ -3,7 +3,7 @@
 //! Defines the interface for job persistence.
 
 use async_trait::async_trait;
-use hodei_core::{Job, JobId, Result, WorkerId};
+use hodei_pipelines_core::{Job, JobId, Result, WorkerId};
 
 /// Job filter for querying jobs
 #[derive(Debug, Clone)]
@@ -63,13 +63,13 @@ pub trait JobRepository: Send + Sync {
     async fn set_job_duration(&self, job_id: &JobId, duration_ms: i64) -> Result<()>;
 
     /// Create a job from spec (US-PIPE-001 extension)
-    async fn create_job(&self, job_spec: hodei_core::job::JobSpec) -> Result<JobId>;
+    async fn create_job(&self, job_spec: hodei_pipelines_core::job::JobSpec) -> Result<JobId>;
 
     /// Update job state (US-PIPE-001 extension)
     async fn update_job_state(
         &self,
         job_id: &JobId,
-        state: hodei_core::job::JobState,
+        state: hodei_pipelines_core::job::JobState,
     ) -> Result<()>;
 
     /// List jobs (US-PIPE-001 extension)

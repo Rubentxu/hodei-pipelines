@@ -4,9 +4,9 @@
 //! using the Kubernetes REST API via reqwest for professional Kubernetes operations.
 
 use async_trait::async_trait;
-use hodei_core::WorkerStatus;
-use hodei_core::{Worker, WorkerId};
-use hodei_ports::worker_provider::{
+use hodei_pipelines_core::WorkerStatus;
+use hodei_pipelines_core::{Worker, WorkerId};
+use hodei_pipelines_ports::worker_provider::{
     ProviderCapabilities, ProviderConfig, ProviderError, ProviderType, WorkerProvider,
 };
 use reqwest::{Client as HttpClient, Response};
@@ -358,7 +358,7 @@ impl WorkerProvider for KubernetesProvider {
         let worker = Worker::new(
             worker_id,
             worker_name,
-            hodei_core::WorkerCapabilities::new(2, 4096),
+            hodei_pipelines_core::WorkerCapabilities::new(2, 4096),
         );
 
         Ok(worker)

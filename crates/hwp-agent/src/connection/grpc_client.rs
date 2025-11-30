@@ -12,9 +12,9 @@ use tonic::transport::Channel;
 use tonic::{Request, Response};
 use tracing::{error, info, warn};
 
-use hwp_proto::pb::agent_message::Payload as AgentPayload;
-use hwp_proto::pb::server_message::Payload as ServerPayload;
-use hwp_proto::{
+use hodei_pipelines_proto::pb::agent_message::Payload as AgentPayload;
+use hodei_pipelines_proto::pb::server_message::Payload as ServerPayload;
+use hodei_pipelines_proto::{
     AgentMessage, AssignJobRequest, JobAccepted, JobResult, LogEntry, ServerMessage,
     WorkerRegistration, WorkerServiceClient, WorkerStatus,
 };
@@ -500,7 +500,7 @@ impl WorkerClient for Client {
         let mut client =
             WorkerServiceClient::with_interceptor(channel.clone(), self.interceptor.clone());
 
-        let proto_usage = hwp_proto::ResourceUsage {
+        let proto_usage = hodei_pipelines_proto::ResourceUsage {
             cpu_usage_m: resource_usage.cpu_usage_m,
             memory_usage_mb: resource_usage.memory_usage_mb,
             active_jobs: resource_usage.active_jobs,
@@ -512,7 +512,7 @@ impl WorkerClient for Client {
             timestamp: resource_usage.timestamp,
         };
 
-        let request = hwp_proto::HeartbeatRequest {
+        let request = hodei_pipelines_proto::HeartbeatRequest {
             worker_id: worker_id.to_string(),
             timestamp: resource_usage.timestamp,
             resource_usage: Some(proto_usage),

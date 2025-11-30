@@ -5,6 +5,7 @@ use crate::error::DomainError;
 use crate::specifications::Specification;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use utoipa::ToSchema;
 
 /// Job identifier
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -44,7 +45,7 @@ impl std::fmt::Display for JobId {
 }
 
 /// Resource requirements for a job
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct ResourceQuota {
     pub cpu_m: u64,      // CPU in millicores
     pub memory_mb: u64,  // Memory in MB
@@ -132,7 +133,7 @@ impl Default for ResourceQuota {
 }
 
 /// Job specification (immutable value object)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct JobSpec {
     pub name: String,
     pub image: String,

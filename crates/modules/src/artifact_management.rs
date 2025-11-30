@@ -5,7 +5,7 @@
 //! with business logic in the domain layer.
 
 use async_trait::async_trait;
-use hodei_core::{JobId, Result};
+use hodei_pipelines_core::{JobId, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -585,8 +585,8 @@ impl Default for ArtifactManagementConfig {
 }
 
 // Convert ArtifactError to DomainError
-impl From<ArtifactError> for hodei_core::DomainError {
+impl From<ArtifactError> for hodei_pipelines_core::DomainError {
     fn from(err: ArtifactError) -> Self {
-        hodei_core::DomainError::Other(err.to_string())
+        hodei_pipelines_core::DomainError::Other(err.to_string())
     }
 }

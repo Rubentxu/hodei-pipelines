@@ -3,8 +3,8 @@
 //! Defines interfaces for event bus that supports both in-memory and distributed (NATS) implementations.
 
 use async_trait::async_trait;
-use hodei_core::{ExecutionId, PipelineId};
-use hodei_core::{JobId, JobSpec, WorkerId};
+use hodei_pipelines_core::{ExecutionId, PipelineId};
+use hodei_pipelines_core::{JobId, JobSpec, WorkerId};
 use serde::{Deserialize, Serialize};
 
 /// Log entry (cloneable data for network transmission)
@@ -51,14 +51,14 @@ pub enum SystemEvent {
     WorkerHeartbeat {
         worker_id: WorkerId,
         timestamp: chrono::DateTime<chrono::Utc>,
-        resource_usage: hodei_core::ResourceUsage,
+        resource_usage: hodei_pipelines_core::ResourceUsage,
     },
 
     /// Log chunk received event
     LogChunkReceived(LogEntry),
 
     /// Pipeline created event
-    PipelineCreated(hodei_core::Pipeline),
+    PipelineCreated(hodei_pipelines_core::Pipeline),
 
     /// Pipeline started event
     PipelineStarted { pipeline_id: PipelineId },
@@ -134,7 +134,7 @@ pub trait EventSubscriber: Send + Sync {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use hodei_core::{JobId, JobSpec, ResourceQuota, WorkerId};
+    use hodei_pipelines_core::{JobId, JobSpec, ResourceQuota, WorkerId};
     use std::collections::HashMap;
 
     #[tokio::test]
@@ -291,7 +291,7 @@ mod tests {
         let event = SystemEvent::WorkerHeartbeat {
             worker_id: WorkerId::new(),
             timestamp: chrono::Utc::now(),
-            resource_usage: hodei_core::ResourceUsage {
+            resource_usage: hodei_pipelines_core::ResourceUsage {
                 cpu_usage_m: 100,
                 memory_usage_mb: 1024,
                 active_jobs: 1,
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_system_event_pipeline_created_serialization() {
-        use hodei_core::{Pipeline, PipelineId};
+        use hodei_pipelines_core::{Pipeline, PipelineId};
 
         let pipeline = Pipeline::new(PipelineId::new(), "test-pipeline".to_string(), vec![])
             .expect("Failed to create pipeline");

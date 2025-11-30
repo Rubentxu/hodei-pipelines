@@ -1,6 +1,6 @@
 //! Adapters - Infrastructure Implementations
 //!
-//! This crate contains the implementations of the ports defined in hodei-ports.
+//! This crate contains the implementations of the ports defined in hodei-pipelines-ports.
 
 pub mod bus;
 pub mod cached_repository;
@@ -30,8 +30,8 @@ pub use crate::websocket::websocket_handler;
 pub use crate::worker_client::{GrpcWorkerClient, HttpWorkerClient};
 pub use crate::worker_registration::{RegistrationConfig, WorkerRegistrationAdapter};
 
-// Re-export types from hodei-ports
-pub use hodei_ports::worker_provider::{ProviderConfig, ProviderType};
+// Re-export types from hodei-pipelines-ports
+pub use hodei_pipelines_ports::worker_provider::{ProviderConfig, ProviderType};
 
 // PostgreSQL implementations
 pub use crate::postgres::{

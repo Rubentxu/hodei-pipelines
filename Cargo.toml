@@ -7,13 +7,21 @@ members = [
     "crates/e2e-tests",
     "crates/hwp-proto",
     "crates/hwp-agent",
-    "server",
+    "crates/server",
     "crates/integration-tests",
 ]
 exclude = ["code-manifest"]
 resolver = "2"
 
 [workspace.dependencies]
+# Workspace crate aliases
+hodei-pipelines-core = { path = "crates/core" }
+hodei-pipelines-ports = { path = "crates/ports" }
+hodei-pipelines-modules = { path = "crates/modules" }
+hodei-pipelines-adapters = { path = "crates/adapters" }
+hodei-pipelines-proto = { path = "crates/hwp-proto" }
+hwp-pipelines-agent = { path = "crates/hwp-agent" }
+
 # Core async runtime
 tokio = { version = "1.40", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
@@ -92,11 +100,11 @@ daggy = "0.9"
 # Agent specific
 portable-pty = "0.9.0"
 sysinfo = "0.37.2"
-hostname = "0.4.1"
+hostname = "0.4.2"
 flate2 = "1.0"
 
 # WebSocket
-tokio-tungstenite = { version = "0.23", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.28.0", features = ["native-tls"] }
 
 # Testing
 tempfile = "3.13"
@@ -112,13 +120,6 @@ proptest = "1.4"
 # Benchmarks
 criterion = { version = "0.7.0", features = ["html_reports"] }
 
-# Workspace crates
-hodei-core = { path = "crates/core" }
-hodei-shared-types = { path = "crates/shared-types" }
-hodei-ports = { path = "crates/ports" }
-hodei-modules = { path = "crates/modules" }
-hodei-adapters = { path = "crates/adapters" }
-hwp-proto = { path = "crates/hwp-proto" }
 
 [profile.release]
 opt-level = 3

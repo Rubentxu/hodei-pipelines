@@ -11,8 +11,8 @@ use bollard_next::container::{
 use bollard_next::image::CreateImageOptions;
 use bollard_next::Docker;
 use futures::StreamExt;
-use hodei_core::{Worker, WorkerId};
-use hodei_ports::worker_provider::{
+use hodei_pipelines_core::{Worker, WorkerId};
+use hodei_pipelines_ports::worker_provider::{
     ProviderCapabilities, ProviderConfig, ProviderError, ProviderType, WorkerProvider,
 };
 use std::collections::HashMap;
@@ -160,7 +160,7 @@ impl WorkerProvider for DockerProvider {
         let worker = Worker::new(
             worker_id.clone(),
             format!("worker-{}", worker_id),
-            hodei_core::WorkerCapabilities::new(2, 4096),
+            hodei_pipelines_core::WorkerCapabilities::new(2, 4096),
         );
 
         Ok(worker)
@@ -169,7 +169,7 @@ impl WorkerProvider for DockerProvider {
     async fn get_worker_status(
         &self,
         worker_id: &WorkerId,
-    ) -> Result<hodei_core::WorkerStatus, ProviderError> {
+    ) -> Result<hodei_pipelines_core::WorkerStatus, ProviderError> {
         let container_name = Self::create_container_name(worker_id);
 
         let container_info = self
@@ -190,14 +190,14 @@ impl WorkerProvider for DockerProvider {
             .and_then(|s| s.status.as_ref())
         {
             Some(bollard_next::models::ContainerStateStatusEnum::RUNNING) => {
-                hodei_core::WorkerStatus::new(
+                hodei_pipelines_core::WorkerStatus::new(
                     worker_id.clone(),
-                    hodei_core::WorkerStatus::IDLE.to_string(),
+                    hodei_pipelines_core::WorkerStatus::IDLE.to_string(),
                 )
             }
-            _ => hodei_core::WorkerStatus::new(
+            _ => hodei_pipelines_core::WorkerStatus::new(
                 worker_id.clone(),
-                hodei_core::WorkerStatus::OFFLINE.to_string(),
+                hodei_pipelines_core::WorkerStatus::OFFLINE.to_string(),
             ),
         };
 

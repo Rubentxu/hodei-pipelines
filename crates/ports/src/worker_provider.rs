@@ -4,7 +4,7 @@
 //! that handle dynamic worker provisioning.
 
 use async_trait::async_trait;
-use hodei_core::{Worker, WorkerId};
+use hodei_pipelines_core::{Worker, WorkerId};
 use serde::{Deserialize, Serialize};
 
 /// Provider type enumeration
@@ -62,7 +62,7 @@ pub trait WorkerProvider: Send + Sync + std::fmt::Debug {
     async fn get_worker_status(
         &self,
         worker_id: &WorkerId,
-    ) -> Result<hodei_core::WorkerStatus, ProviderError>;
+    ) -> Result<hodei_pipelines_core::WorkerStatus, ProviderError>;
 
     async fn stop_worker(&self, worker_id: &WorkerId, graceful: bool) -> Result<(), ProviderError>;
 
@@ -137,7 +137,7 @@ impl ProviderConfig {
     }
 }
 
-/// Provider factory trait - implemented in hodei-adapters
+/// Provider factory trait - implemented in hodei-pipelines-adapters
 #[async_trait]
 pub trait ProviderFactoryTrait: Send + Sync {
     async fn create_provider(

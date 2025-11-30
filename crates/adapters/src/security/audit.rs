@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use hodei_core::security::SecurityContext;
-use hodei_ports::security::{AuditLogger, Result};
+use hodei_pipelines_core::security::SecurityContext;
+use hodei_pipelines_ports::security::{AuditLogger, Result};
 use serde::Deserialize;
 use tracing::info;
 

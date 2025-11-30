@@ -3,7 +3,7 @@
 //! Provides complete CRUD operations for Pipeline entities following DDD principles.
 //! Implements use cases for creating, reading, updating, and deleting pipelines.
 
-use hodei_core::{
+use hodei_pipelines_core::{
     Result,
     job::JobSpec,
     pipeline::{
@@ -11,7 +11,7 @@ use hodei_core::{
     },
     pipeline_execution::PipelineExecution,
 };
-use hodei_ports::{EventBusError, EventPublisher, PipelineRepository, SystemEvent};
+use hodei_pipelines_ports::{EventBusError, EventPublisher, PipelineRepository, SystemEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -117,7 +117,7 @@ where
 
         // Publish event
         self.event_bus
-            .publish(hodei_ports::SystemEvent::PipelineCreated(pipeline.clone()))
+            .publish(hodei_pipelines_ports::SystemEvent::PipelineCreated(pipeline.clone()))
             .await
             .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
@@ -342,7 +342,7 @@ where
 
         // Publish event
         self.event_bus
-            .publish(hodei_ports::SystemEvent::PipelineStarted {
+            .publish(hodei_pipelines_ports::SystemEvent::PipelineStarted {
                 pipeline_id: id.clone(),
             })
             .await
@@ -377,7 +377,7 @@ where
 
         // Publish event
         self.event_bus
-            .publish(hodei_ports::SystemEvent::PipelineCompleted {
+            .publish(hodei_pipelines_ports::SystemEvent::PipelineCompleted {
                 pipeline_id: id.clone(),
             })
             .await
@@ -549,7 +549,7 @@ pub struct CreatePipelineStepRequest {
     pub name: String,
     pub image: String,
     pub command: Vec<String>,
-    pub resources: Option<hodei_core::job::ResourceQuota>,
+    pub resources: Option<hodei_pipelines_core::job::ResourceQuota>,
     pub timeout_ms: Option<u64>,
     pub retries: Option<u32>,
     pub env: Option<HashMap<String, String>>,
@@ -648,15 +648,15 @@ pub enum PipelineCrudError {
     NotFound(PipelineId),
 
     #[error("Pipeline repository error: {0}")]
-    PipelineRepository(hodei_ports::PipelineRepositoryError),
+    PipelineRepository(hodei_pipelines_ports::PipelineRepositoryError),
 
     #[error("Event bus error: {0}")]
     EventBus(EventBusError),
 }
 
 // Convert PipelineCrudError to DomainError
-impl From<PipelineCrudError> for hodei_core::DomainError {
+impl From<PipelineCrudError> for hodei_pipelines_core::DomainError {
     fn from(err: PipelineCrudError) -> Self {
-        hodei_core::DomainError::Other(err.to_string())
+        hodei_pipelines_core::DomainError::Other(err.to_string())
     }
 }

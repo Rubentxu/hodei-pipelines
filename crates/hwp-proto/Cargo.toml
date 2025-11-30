@@ -1,5 +1,5 @@
 [package]
-name = "hwp-proto"
+name = "hodei-pipelines-proto"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -22,7 +22,7 @@ tonic-prost-build = { workspace = true }
 prost-build = { workspace = true }
 
 [lib]
-name = "hwp_proto"
+name = "hodei_pipelines_proto"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]

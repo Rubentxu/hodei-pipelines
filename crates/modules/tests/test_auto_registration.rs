@@ -107,7 +107,7 @@ mod auto_registration_tests {
             &self,
             _worker_id: &WorkerId,
             _transmitter: tokio::sync::mpsc::UnboundedSender<
-                Result<hwp_proto::pb::ServerMessage, SchedulerError>,
+                Result<hodei_pipelines_proto::pb::ServerMessage, SchedulerError>,
             >,
         ) -> Result<(), SchedulerError> {
             Ok(())
@@ -123,7 +123,7 @@ mod auto_registration_tests {
         async fn send_to_worker(
             &self,
             _worker_id: &WorkerId,
-            _message: hwp_proto::pb::ServerMessage,
+            _message: hodei_pipelines_proto::pb::ServerMessage,
         ) -> Result<(), SchedulerError> {
             Ok(())
         }

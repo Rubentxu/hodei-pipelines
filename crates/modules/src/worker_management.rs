@@ -8,11 +8,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
-use hodei_adapters::WorkerRegistrationAdapter;
-use hodei_core::{DomainError, JobId, Result, Worker, WorkerId};
-use hodei_ports::scheduler_port::SchedulerPort;
-use hodei_ports::worker_provider::{ProviderConfig, ProviderError, WorkerProvider};
-use hodei_ports::{WorkerRegistrationError, WorkerRegistrationPort};
+use hodei_pipelines_adapters::WorkerRegistrationAdapter;
+use hodei_pipelines_core::{DomainError, JobId, Result, Worker, WorkerId};
+use hodei_pipelines_ports::scheduler_port::SchedulerPort;
+use hodei_pipelines_ports::worker_provider::{ProviderConfig, ProviderError, WorkerProvider};
+use hodei_pipelines_ports::{WorkerRegistrationError, WorkerRegistrationPort};
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
@@ -192,7 +192,7 @@ where
     pub async fn get_worker_status(
         &self,
         worker_id: &WorkerId,
-    ) -> Result<hodei_core::WorkerStatus> {
+    ) -> Result<hodei_pipelines_core::WorkerStatus> {
         let status = self
             .provider
             .get_worker_status(worker_id)
@@ -216,7 +216,7 @@ where
     /// Get provider capabilities
     pub async fn get_provider_capabilities(
         &self,
-    ) -> Result<hodei_ports::worker_provider::ProviderCapabilities> {
+    ) -> Result<hodei_pipelines_ports::worker_provider::ProviderCapabilities> {
         let capabilities = self
             .provider
             .capabilities()
@@ -801,15 +801,15 @@ pub enum CleanupError {
     Internal(String),
 }
 
-impl From<DynamicPoolError> for hodei_core::DomainError {
+impl From<DynamicPoolError> for hodei_pipelines_core::DomainError {
     fn from(err: DynamicPoolError) -> Self {
-        hodei_core::DomainError::Infrastructure(err.to_string())
+        hodei_pipelines_core::DomainError::Infrastructure(err.to_string())
     }
 }
 
-impl From<RemediationError> for hodei_core::DomainError {
+impl From<RemediationError> for hodei_pipelines_core::DomainError {
     fn from(err: RemediationError) -> Self {
-        hodei_core::DomainError::Infrastructure(err.to_string())
+        hodei_pipelines_core::DomainError::Infrastructure(err.to_string())
     }
 }
 
@@ -850,7 +850,7 @@ impl Default for HealthScoreConfig {
 #[derive(Debug)]
 pub struct WorkerHealthMetricsCollector<R>
 where
-    R: hodei_ports::WorkerRepository + Send + Sync,
+    R: hodei_pipelines_ports::WorkerRepository + Send + Sync,
 {
     worker_repo: Arc<R>,
     health_status_cache: Arc<RwLock<HashMap<WorkerId, HealthCheckResult>>>,
@@ -859,7 +859,7 @@ where
 
 impl<R> WorkerHealthMetricsCollector<R>
 where
-    R: hodei_ports::WorkerRepository + Send + Sync,
+    R: hodei_pipelines_ports::WorkerRepository + Send + Sync,
 {
     /// Create new metrics collector
     pub fn new(
@@ -1059,8 +1059,8 @@ where
 #[derive(Debug)]
 pub struct WorkerCleanupService<R, J>
 where
-    R: hodei_ports::WorkerRepository + Send + Sync,
-    J: hodei_ports::JobRepository + Send + Sync,
+    R: hodei_pipelines_ports::WorkerRepository + Send + Sync,
+    J: hodei_pipelines_ports::JobRepository + Send + Sync,
 {
     config: CleanupConfig,
     worker_repo: Arc<R>,
@@ -1070,8 +1070,8 @@ where
 
 impl<R, J> WorkerCleanupService<R, J>
 where
-    R: hodei_ports::WorkerRepository + Send + Sync,
-    J: hodei_ports::JobRepository + Send + Sync,
+    R: hodei_pipelines_ports::WorkerRepository + Send + Sync,
+    J: hodei_pipelines_ports::JobRepository + Send + Sync,
 {
     /// Create new cleanup service
     pub fn new(config: CleanupConfig, worker_repo: Arc<R>, job_repo: Arc<J>) -> Self {
@@ -1200,7 +1200,7 @@ where
 #[derive(Debug)]
 pub struct HealthCheckService<R>
 where
-    R: hodei_ports::WorkerRepository + Send + Sync,
+    R: hodei_pipelines_ports::WorkerRepository + Send + Sync,
 {
     config: HealthCheckConfig,
     worker_repo: Arc<R>,
@@ -1209,7 +1209,7 @@ where
 
 impl<R> HealthCheckService<R>
 where
-    R: hodei_ports::WorkerRepository + Send + Sync,
+    R: hodei_pipelines_ports::WorkerRepository + Send + Sync,
 {
     /// Create new health check service
     pub fn new(config: HealthCheckConfig, worker_repo: Arc<R>) -> Self {
@@ -2495,20 +2495,20 @@ impl SchedulerPort for MockSchedulerPort {
     async fn register_worker(
         &self,
         _worker: &Worker,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 
     async fn unregister_worker(
         &self,
         _worker_id: &WorkerId,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 
     async fn get_registered_workers(
         &self,
-    ) -> std::result::Result<Vec<WorkerId>, hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<Vec<WorkerId>, hodei_pipelines_ports::scheduler_port::SchedulerError> {
         Ok(Vec::new())
     }
 
@@ -2517,26 +2517,26 @@ impl SchedulerPort for MockSchedulerPort {
         _worker_id: &WorkerId,
         _transmitter: tokio::sync::mpsc::UnboundedSender<
             std::result::Result<
-                hwp_proto::pb::ServerMessage,
-                hodei_ports::scheduler_port::SchedulerError,
+                hodei_pipelines_proto::pb::ServerMessage,
+                hodei_pipelines_ports::scheduler_port::SchedulerError,
             >,
         >,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 
     async fn unregister_transmitter(
         &self,
         _worker_id: &WorkerId,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 
     async fn send_to_worker(
         &self,
         _worker_id: &WorkerId,
-        _message: hwp_proto::pb::ServerMessage,
-    ) -> std::result::Result<(), hodei_ports::scheduler_port::SchedulerError> {
+        _message: hodei_pipelines_proto::pb::ServerMessage,
+    ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         Ok(())
     }
 }
@@ -2687,7 +2687,7 @@ where
     pub async fn release_worker(
         &self,
         worker_id: WorkerId,
-        job_id: hodei_core::JobId,
+        job_id: hodei_pipelines_core::JobId,
     ) -> Result<()> {
         let mut state = self.state.write().await;
 
@@ -3267,7 +3267,7 @@ impl AuditLogger for InMemoryAuditLogger {
 
 /// Mock action executor for testing
 pub struct MockActionExecutor {
-    pub worker_repo: Arc<dyn hodei_ports::WorkerRepository + Send + Sync>,
+    pub worker_repo: Arc<dyn hodei_pipelines_ports::WorkerRepository + Send + Sync>,
     pub should_fail: std::sync::atomic::AtomicBool,
 }
 
@@ -3283,7 +3283,7 @@ impl std::fmt::Debug for MockActionExecutor {
 }
 
 impl MockActionExecutor {
-    pub fn new(worker_repo: Arc<dyn hodei_ports::WorkerRepository + Send + Sync>) -> Self {
+    pub fn new(worker_repo: Arc<dyn hodei_pipelines_ports::WorkerRepository + Send + Sync>) -> Self {
         Self {
             worker_repo,
             should_fail: std::sync::atomic::AtomicBool::new(false),
@@ -3383,7 +3383,7 @@ impl JobManager for MockJobManager {
 /// Auto-remediation service for automatic recovery of unhealthy workers
 pub struct AutoRemediationService<R, J>
 where
-    R: hodei_ports::WorkerRepository + Send + Sync,
+    R: hodei_pipelines_ports::WorkerRepository + Send + Sync,
     J: JobManager + Send + Sync,
 {
     policies: Vec<RemediationPolicy>,
@@ -3397,7 +3397,7 @@ where
 
 impl<R, J> std::fmt::Debug for AutoRemediationService<R, J>
 where
-    R: hodei_ports::WorkerRepository + Send + Sync,
+    R: hodei_pipelines_ports::WorkerRepository + Send + Sync,
     J: JobManager + Send + Sync,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -3414,7 +3414,7 @@ where
 
 impl<R, J> AutoRemediationService<R, J>
 where
-    R: hodei_ports::WorkerRepository + Send + Sync,
+    R: hodei_pipelines_ports::WorkerRepository + Send + Sync,
     J: JobManager + Send + Sync,
 {
     /// Create new auto-remediation service

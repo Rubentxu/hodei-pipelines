@@ -3,8 +3,8 @@
 //! Production-ready implementation for persisting and retrieving workers.
 
 use async_trait::async_trait;
-use hodei_core::{DomainError, Result, Worker, WorkerCapabilities, WorkerId, WorkerStatus};
-use hodei_ports::WorkerRepository;
+use hodei_pipelines_core::{DomainError, Result, Worker, WorkerCapabilities, WorkerId, WorkerStatus};
+use hodei_pipelines_ports::WorkerRepository;
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 use tracing::info;
@@ -252,7 +252,7 @@ impl WorkerRepository for PostgreSqlWorkerRepository {
     async fn update_worker_status(
         &self,
         worker_id: &WorkerId,
-        status: hodei_core::worker_messages::WorkerStatus,
+        status: hodei_pipelines_core::worker_messages::WorkerStatus,
     ) -> Result<()> {
         sqlx::query(
             r#"

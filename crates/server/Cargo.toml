@@ -1,0 +1,64 @@
+[package]
+name = "hodei-pipelines-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Hodei Pipelines Server - Monolithic Modular Architecture"
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Workspace core crates
+hodei-pipelines-core = { workspace = true }
+hodei-pipelines-ports = { workspace = true }
+hodei-pipelines-modules = { workspace = true }
+hodei-pipelines-adapters = { workspace = true, features = [
+    "docker-provider",
+    "kubernetes-provider",
+] }
+hodei-pipelines-proto = { workspace = true }
+
+# Workspace dependencies
+tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true, features = ["sync"] }
+tonic = { workspace = true, features = ["transport"] }
+axum = { workspace = true, features = ["json", "http2", "ws"] }
+tower = { workspace = true, features = ["util", "timeout"] }
+tower-http = { workspace = true, features = ["cors", "trace"] }
+hyper = { workspace = true, features = ["full"] }
+http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }
+prometheus = { workspace = true }
+config = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+serde_yaml = "0.9.33"
+reqwest = { version = "0.12.24", features = ["json"] }
+async-trait = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }
+
+# OpenAPI / Swagger UI
+utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
+
+# WebSocket Terminal
+tokio-tungstenite = { workspace = true, features = ["native-tls"] }
+portable-pty = { workspace = true }
+
+[lib]
+name = "hodei_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[dev-dependencies]
+tempfile = { workspace = true }

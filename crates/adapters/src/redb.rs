@@ -4,8 +4,8 @@
 //! Redb provides ACID transactions, MVCC, and excellent performance.
 
 use async_trait::async_trait;
-use hodei_core::{DomainError, Job, JobId, Result, WorkerId};
-use hodei_ports::JobRepository;
+use hodei_pipelines_core::{DomainError, Job, JobId, Result, WorkerId};
+use hodei_pipelines_ports::JobRepository;
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -285,7 +285,7 @@ impl JobRepository for RedbJobRepository {
 
         // Update state
         let updated_job = Job {
-            state: hodei_core::job::JobState::try_from_str(new_state).map_err(|_| {
+            state: hodei_pipelines_core::job::JobState::try_from_str(new_state).map_err(|_| {
                 DomainError::Validation(format!("Invalid job state: {}", new_state))
             })?,
             ..job
@@ -457,7 +457,7 @@ impl JobRepository for RedbJobRepository {
         Ok(())
     }
 
-    async fn create_job(&self, job_spec: hodei_core::job::JobSpec) -> Result<JobId> {
+    async fn create_job(&self, job_spec: hodei_pipelines_core::job::JobSpec) -> Result<JobId> {
         let job_id = JobId::new();
         let job = Job::new(job_id, job_spec)?;
         self.save_job(&job).await?;
@@ -467,7 +467,7 @@ impl JobRepository for RedbJobRepository {
     async fn update_job_state(
         &self,
         job_id: &JobId,
-        state: hodei_core::job::JobState,
+        state: hodei_pipelines_core::job::JobState,
     ) -> Result<()> {
         let db = self.db.lock().await;
 
@@ -550,7 +550,7 @@ impl JobRepository for RedbJobRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_core::job::JobSpec;
+    use hodei_pipelines_core::job::JobSpec;
     use std::collections::HashMap;
     use tempfile::TempDir;
 
@@ -567,7 +567,7 @@ mod tests {
             name: "test-job".to_string(),
             image: "ubuntu:latest".to_string(),
             command: vec!["echo".to_string(), "hello".to_string()],
-            resources: hodei_core::ResourceQuota::default(),
+            resources: hodei_pipelines_core::ResourceQuota::default(),
             timeout_ms: 300000,
             retries: 3,
             env: HashMap::new(),
@@ -637,7 +637,7 @@ mod tests {
             name: "test-job".to_string(),
             image: "ubuntu:latest".to_string(),
             command: vec!["echo".to_string(), "hello".to_string()],
-            resources: hodei_core::ResourceQuota::default(),
+            resources: hodei_pipelines_core::ResourceQuota::default(),
             timeout_ms: 300000,
             retries: 3,
             env: HashMap::new(),
@@ -669,7 +669,7 @@ mod tests {
             name: "test-job".to_string(),
             image: "ubuntu:latest".to_string(),
             command: vec!["echo".to_string(), "hello".to_string()],
-            resources: hodei_core::ResourceQuota::default(),
+            resources: hodei_pipelines_core::ResourceQuota::default(),
             timeout_ms: 300000,
             retries: 3,
             env: HashMap::new(),
@@ -717,7 +717,7 @@ mod tests {
             name: "test-job".to_string(),
             image: "ubuntu:latest".to_string(),
             command: vec!["echo".to_string(), "hello".to_string()],
-            resources: hodei_core::ResourceQuota::default(),
+            resources: hodei_pipelines_core::ResourceQuota::default(),
             timeout_ms: 300000,
             retries: 3,
             env: HashMap::new(),
@@ -746,7 +746,7 @@ mod tests {
             name: "pending-job".to_string(),
             image: "ubuntu:latest".to_string(),
             command: vec!["echo".to_string(), "hello".to_string()],
-            resources: hodei_core::ResourceQuota::default(),
+            resources: hodei_pipelines_core::ResourceQuota::default(),
             timeout_ms: 300000,
             retries: 3,
             env: HashMap::new(),
@@ -758,7 +758,7 @@ mod tests {
 
         // Create running job
         let mut job2 = Job::new(JobId::new(), job_spec).unwrap();
-        job2.state = hodei_core::job::JobState::Running;
+        job2.state = hodei_pipelines_core::job::JobState::Running;
         repo.save_job(&job2).await.unwrap();
 
         let pending = repo.get_pending_jobs().await.unwrap();
@@ -779,7 +779,7 @@ mod tests {
             name: "pending-job".to_string(),
             image: "ubuntu:latest".to_string(),
             command: vec!["echo".to_string(), "hello".to_string()],
-            resources: hodei_core::ResourceQuota::default(),
+            resources: hodei_pipelines_core::ResourceQuota::default(),
             timeout_ms: 300000,
             retries: 3,
             env: HashMap::new(),
@@ -791,7 +791,7 @@ mod tests {
 
         // Create running job
         let mut job2 = Job::new(JobId::new(), job_spec).unwrap();
-        job2.state = hodei_core::job::JobState::Running;
+        job2.state = hodei_pipelines_core::job::JobState::Running;
         repo.save_job(&job2).await.unwrap();
 
         let running = repo.get_running_jobs().await.unwrap();
@@ -826,7 +826,7 @@ mod tests {
             name: "test-job".to_string(),
             image: "ubuntu:latest".to_string(),
             command: vec!["echo".to_string(), "hello".to_string()],
-            resources: hodei_core::ResourceQuota::default(),
+            resources: hodei_pipelines_core::ResourceQuota::default(),
             timeout_ms: 300000,
             retries: 3,
             env: HashMap::new(),

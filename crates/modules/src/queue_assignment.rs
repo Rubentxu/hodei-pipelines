@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use chrono::Utc;
-use hodei_core::{JobId, Result, Worker, WorkerId};
+use hodei_pipelines_core::{JobId, Result, Worker, WorkerId};
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
@@ -372,9 +372,9 @@ pub enum ResourcePoolError {
     PoolError(String),
 }
 
-impl From<ResourcePoolError> for hodei_core::DomainError {
+impl From<ResourcePoolError> for hodei_pipelines_core::DomainError {
     fn from(error: ResourcePoolError) -> Self {
-        hodei_core::DomainError::Infrastructure(error.to_string())
+        hodei_pipelines_core::DomainError::Infrastructure(error.to_string())
     }
 }
 
@@ -619,7 +619,7 @@ impl QueueAssignmentEngine {
         queue_id: &str,
     ) -> Result<AssignmentResult> {
         let queue = self.queues.get(queue_id).ok_or_else(|| {
-            hodei_core::DomainError::NotFound(format!("Queue not found: {}", queue_id))
+            hodei_pipelines_core::DomainError::NotFound(format!("Queue not found: {}", queue_id))
         })?;
 
         let queued_job = QueuedJob {
@@ -1028,8 +1028,8 @@ impl Clone for DeadLetterQueue {
 }
 
 // Convert QueueError to DomainError
-impl From<QueueError> for hodei_core::DomainError {
+impl From<QueueError> for hodei_pipelines_core::DomainError {
     fn from(err: QueueError) -> Self {
-        hodei_core::DomainError::Other(err.to_string())
+        hodei_pipelines_core::DomainError::Other(err.to_string())
     }
 }

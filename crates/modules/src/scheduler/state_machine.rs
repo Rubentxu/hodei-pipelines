@@ -5,7 +5,7 @@
 //! flexibility in the scheduling process.
 
 use crate::scheduler::{SchedulerModule, Worker, WorkerNode};
-use hodei_core::{Job, Result};
+use hodei_pipelines_core::{Job, Result};
 
 /// Scheduling state to eliminate temporal coupling
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,15 +73,15 @@ impl SchedulingStateMachine {
         scheduler: &SchedulerModule<R, E, W, WR>,
     ) -> Result<()>
     where
-        R: hodei_ports::JobRepository
-            + hodei_ports::PipelineRepository
-            + hodei_ports::RoleRepository
+        R: hodei_pipelines_ports::JobRepository
+            + hodei_pipelines_ports::PipelineRepository
+            + hodei_pipelines_ports::RoleRepository
             + Send
             + Sync
             + 'static,
-        E: hodei_ports::EventPublisher + Send + Sync + 'static,
-        W: hodei_ports::WorkerClient + Send + Sync + 'static,
-        WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
+        E: hodei_pipelines_ports::EventPublisher + Send + Sync + 'static,
+        W: hodei_pipelines_ports::WorkerClient + Send + Sync + 'static,
+        WR: hodei_pipelines_ports::WorkerRepository + Send + Sync + 'static,
     {
         self.validate_state(&[SchedulingState::Idle])?;
 
@@ -107,15 +107,15 @@ impl SchedulingStateMachine {
         scheduler: &SchedulerModule<R, E, W, WR>,
     ) -> Result<()>
     where
-        R: hodei_ports::JobRepository
-            + hodei_ports::PipelineRepository
-            + hodei_ports::RoleRepository
+        R: hodei_pipelines_ports::JobRepository
+            + hodei_pipelines_ports::PipelineRepository
+            + hodei_pipelines_ports::RoleRepository
             + Send
             + Sync
             + 'static,
-        E: hodei_ports::EventPublisher + Send + Sync + 'static,
-        W: hodei_ports::WorkerClient + Send + Sync + 'static,
-        WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
+        E: hodei_pipelines_ports::EventPublisher + Send + Sync + 'static,
+        W: hodei_pipelines_ports::WorkerClient + Send + Sync + 'static,
+        WR: hodei_pipelines_ports::WorkerRepository + Send + Sync + 'static,
     {
         self.validate_state(&[SchedulingState::Matching])?;
 
@@ -138,15 +138,15 @@ impl SchedulingStateMachine {
         _scheduler: &SchedulerModule<R, E, W, WR>,
     ) -> Result<()>
     where
-        R: hodei_ports::JobRepository
-            + hodei_ports::PipelineRepository
-            + hodei_ports::RoleRepository
+        R: hodei_pipelines_ports::JobRepository
+            + hodei_pipelines_ports::PipelineRepository
+            + hodei_pipelines_ports::RoleRepository
             + Send
             + Sync
             + 'static,
-        E: hodei_ports::EventPublisher + Send + Sync + 'static,
-        W: hodei_ports::WorkerClient + Send + Sync + 'static,
-        WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
+        E: hodei_pipelines_ports::EventPublisher + Send + Sync + 'static,
+        W: hodei_pipelines_ports::WorkerClient + Send + Sync + 'static,
+        WR: hodei_pipelines_ports::WorkerRepository + Send + Sync + 'static,
     {
         self.validate_state(&[SchedulingState::Optimizing])?;
 
@@ -163,15 +163,15 @@ impl SchedulingStateMachine {
         scheduler: &SchedulerModule<R, E, W, WR>,
     ) -> Result<()>
     where
-        R: hodei_ports::JobRepository
-            + hodei_ports::PipelineRepository
-            + hodei_ports::RoleRepository
+        R: hodei_pipelines_ports::JobRepository
+            + hodei_pipelines_ports::PipelineRepository
+            + hodei_pipelines_ports::RoleRepository
             + Send
             + Sync
             + 'static,
-        E: hodei_ports::EventPublisher + Send + Sync + 'static,
-        W: hodei_ports::WorkerClient + Send + Sync + 'static,
-        WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
+        E: hodei_pipelines_ports::EventPublisher + Send + Sync + 'static,
+        W: hodei_pipelines_ports::WorkerClient + Send + Sync + 'static,
+        WR: hodei_pipelines_ports::WorkerRepository + Send + Sync + 'static,
     {
         self.validate_state(&[SchedulingState::Committing])?;
 
@@ -183,27 +183,27 @@ impl SchedulingStateMachine {
                     .job_repo
                     .compare_and_swap_status(
                         &job.id,
-                        &hodei_core::JobState::Pending.as_str(),
-                        &hodei_core::JobState::Scheduled.as_str(),
+                        &hodei_pipelines_core::JobState::Pending.as_str(),
+                        &hodei_pipelines_core::JobState::Scheduled.as_str(),
                     )
                     .await
-                    .map_err(|e| hodei_core::DomainError::Infrastructure(e.to_string()))?;
+                    .map_err(|e| hodei_pipelines_core::DomainError::Infrastructure(e.to_string()))?;
 
                 // Assign job to worker
                 scheduler
                     .worker_client
                     .assign_job(&worker.id, &job.id, &job.spec)
                     .await
-                    .map_err(|e| hodei_core::DomainError::Infrastructure(e.to_string()))?;
+                    .map_err(|e| hodei_pipelines_core::DomainError::Infrastructure(e.to_string()))?;
 
                 self.current_state = SchedulingState::Completed;
             } else {
-                return Err(hodei_core::DomainError::Infrastructure(
+                return Err(hodei_pipelines_core::DomainError::Infrastructure(
                     "No eligible workers found".to_string(),
                 ));
             }
         } else {
-            return Err(hodei_core::DomainError::Infrastructure(
+            return Err(hodei_pipelines_core::DomainError::Infrastructure(
                 "No eligible workers found".to_string(),
             ));
         }
@@ -217,15 +217,15 @@ impl SchedulingStateMachine {
         scheduler: &SchedulerModule<R, E, W, WR>,
     ) -> Result<()>
     where
-        R: hodei_ports::JobRepository
-            + hodei_ports::PipelineRepository
-            + hodei_ports::RoleRepository
+        R: hodei_pipelines_ports::JobRepository
+            + hodei_pipelines_ports::PipelineRepository
+            + hodei_pipelines_ports::RoleRepository
             + Send
             + Sync
             + 'static,
-        E: hodei_ports::EventPublisher + Send + Sync + 'static,
-        W: hodei_ports::WorkerClient + Send + Sync + 'static,
-        WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
+        E: hodei_pipelines_ports::EventPublisher + Send + Sync + 'static,
+        W: hodei_pipelines_ports::WorkerClient + Send + Sync + 'static,
+        WR: hodei_pipelines_ports::WorkerRepository + Send + Sync + 'static,
     {
         self.collect(scheduler).await?;
         self.match_jobs(scheduler).await?;
@@ -240,19 +240,19 @@ impl SchedulingStateMachine {
         scheduler: &SchedulerModule<R, E, W, WR>,
     ) -> Result<Option<Worker>>
     where
-        R: hodei_ports::JobRepository
-            + hodei_ports::PipelineRepository
-            + hodei_ports::RoleRepository
+        R: hodei_pipelines_ports::JobRepository
+            + hodei_pipelines_ports::PipelineRepository
+            + hodei_pipelines_ports::RoleRepository
             + Send
             + Sync
             + 'static,
-        E: hodei_ports::EventPublisher + Send + Sync + 'static,
-        W: hodei_ports::WorkerClient + Send + Sync + 'static,
-        WR: hodei_ports::WorkerRepository + Send + Sync + 'static,
+        E: hodei_pipelines_ports::EventPublisher + Send + Sync + 'static,
+        W: hodei_pipelines_ports::WorkerClient + Send + Sync + 'static,
+        WR: hodei_pipelines_ports::WorkerRepository + Send + Sync + 'static,
     {
         // Can only match if we have a job and are in valid state
         if self.context.job.is_none() {
-            return Err(hodei_core::DomainError::Validation(
+            return Err(hodei_pipelines_core::DomainError::Validation(
                 "No job set in context".to_string(),
             ));
         }
@@ -279,7 +279,7 @@ impl SchedulingStateMachine {
 
     fn validate_state(&self, allowed_states: &[SchedulingState]) -> Result<()> {
         if !allowed_states.contains(&self.current_state) {
-            return Err(hodei_core::DomainError::Validation(format!(
+            return Err(hodei_pipelines_core::DomainError::Validation(format!(
                 "Invalid state transition from {:?} to allowed states {:?}",
                 self.current_state, allowed_states
             )));

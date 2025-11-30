@@ -97,8 +97,8 @@ docs/alineamiento
 !TESTING.md
 !docs/architecture.md
 !docs/sequence_diagrams.md
-!docs/analysis/api_alignment_analysis.md
-!docs/analysis/alignment_improvements.md
+!docs/testing/postman_guide.md
+!docs/testing/postman_guide.es.md
 node_modules/
 package-lock.json
 *.csv

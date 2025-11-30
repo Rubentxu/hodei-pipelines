@@ -1,5 +1,5 @@
 [package]
-name = "e2e-tests"
+name = "e2e-pipelines-tests"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -37,9 +37,9 @@ uuid = { workspace = true, features = ["v4"] }
 anyhow = { workspace = true }
 
 # Workspace specific crates
-hodei-core = { workspace = true }
-hodei-ports = { workspace = true }
-hodei-adapters = { workspace = true }
+hodei-pipelines-core = { workspace = true }
+hodei-pipelines-ports = { workspace = true }
+hodei-pipelines-adapters = { workspace = true }
 
 [features]
 default = []

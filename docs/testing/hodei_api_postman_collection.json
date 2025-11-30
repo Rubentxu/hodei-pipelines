@@ -1,0 +1,391 @@
+{
+    "info": {
+        "_postman_id": "hodei-api-collection-v2",
+        "name": "Hodei API (Enhanced)",
+        "description": "Comprehensive collection for Hodei Pipelines API. Includes:\n- **Unit Tests**: For individual endpoints.\n- **E2E Scenarios**: Full lifecycle workflows.\n- **Negative Tests**: Error handling verification.\n- **Schema Validation**: JSON Schema checks.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8080",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "1. Worker Pools",
+            "item": [
+                {
+                    "name": "Create Resource Pool",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "var jsonData = pm.response.json();",
+                                    "pm.test(\"Schema Validation\", function () {",
+                                    "    var schema = {",
+                                    "        \"type\": \"object\",",
+                                    "        \"properties\": {",
+                                    "            \"id\": { \"type\": \"string\" },",
+                                    "            \"config\": { \"type\": \"object\" }",
+                                    "        },",
+                                    "        \"required\": [\"id\", \"config\"]",
+                                    "    };",
+                                    "    pm.expect(tv4.validate(jsonData, schema)).to.be.true;",
+                                    "});",
+                                    "",
+                                    "pm.collectionVariables.set(\"poolId\", jsonData.id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"test-pool-{{$randomInt}}\",\n  \"pool_type\": \"Docker\",\n  \"provider_name\": \"local-docker\",\n  \"min_size\": 1,\n  \"max_size\": 5,\n  \"default_resources\": {\n    \"cpu_m\": 500,\n    \"memory_mb\": 1024\n  },\n  \"tags\": {\n    \"env\": \"test\"\n  }\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/worker-pools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "worker-pools"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get All Pools",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Response is array\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.be.an('array');",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/worker-pools",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "worker-pools"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Pool",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 204\", function () {",
+                                    "    pm.response.to.have.status(204);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/worker-pools/{{poolId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "worker-pools",
+                                "{{poolId}}"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "2. E2E Pipeline Scenario",
+            "description": "A full lifecycle test: Create -> Execute -> Verify -> Delete",
+            "item": [
+                {
+                    "name": "Step 1: Create Pipeline",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "var jsonData = pm.response.json();",
+                                    "pm.collectionVariables.set(\"e2ePipelineId\", jsonData.id);",
+                                    "console.log(\"Created Pipeline ID: \" + jsonData.id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"e2e-pipeline-{{$randomInt}}\",\n  \"description\": \"E2E Test Pipeline\",\n  \"steps\": [\n    {\n      \"name\": \"echo-step\",\n      \"image\": \"alpine:latest\",\n      \"command\": [\"echo\", \"Hello World\"]\n    }\n  ]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/pipelines",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "pipelines"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Step 2: Execute Pipeline",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "var jsonData = pm.response.json();",
+                                    "pm.collectionVariables.set(\"e2eExecutionId\", jsonData.execution_id);",
+                                    "console.log(\"Started Execution ID: \" + jsonData.execution_id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"branch\": \"main\",\n  \"environment\": \"test\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/pipelines/{{e2ePipelineId}}/execute",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "pipelines",
+                                "{{e2ePipelineId}}",
+                                "execute"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Step 3: Check Execution Logs",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "var jsonData = pm.response.json();",
+                                    "pm.test(\"Logs belong to execution\", function () {",
+                                    "    pm.expect(jsonData.execution_id).to.eql(pm.collectionVariables.get(\"e2eExecutionId\"));",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/pipelines/{{e2ePipelineId}}/executions/{{e2eExecutionId}}/logs",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "pipelines",
+                                "{{e2ePipelineId}}",
+                                "executions",
+                                "{{e2eExecutionId}}",
+                                "logs"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Step 4: Delete Pipeline",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/pipelines/{{e2ePipelineId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "pipelines",
+                                "{{e2ePipelineId}}"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "3. Negative Tests",
+            "item": [
+                {
+                    "name": "Get Non-Existent Pipeline",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 404\", function () {",
+                                    "    pm.response.to.have.status(404);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/pipelines/00000000-0000-0000-0000-000000000000",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "pipelines",
+                                "00000000-0000-0000-0000-000000000000"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Invalid Pipeline (Empty Name)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 400 or 500\", function () {",
+                                    "    // Depending on validation implementation, could be 400 or 500",
+                                    "    pm.expect(pm.response.code).to.be.oneOf([400, 422, 500]);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"\",\n  \"steps\": []\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/pipelines",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "pipelines"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

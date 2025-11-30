@@ -7,10 +7,12 @@ use crate::{DomainError, Result};
 // use daggy::{Dag, NodeIndex};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Pipeline identifier - Value Object
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[schema(value_type = String)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
 pub struct PipelineId(pub Uuid);
 
@@ -41,7 +43,8 @@ impl std::fmt::Display for PipelineId {
 }
 
 /// Pipeline step identifier - Value Object
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[schema(value_type = String)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
 pub struct PipelineStepId(pub Uuid);
 
@@ -228,7 +231,7 @@ impl Default for PipelineStepBuilder {
 }
 
 /// Pipeline status - Value Object (Enum)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub enum PipelineStatus {
     PENDING,
     RUNNING,

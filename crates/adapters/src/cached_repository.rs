@@ -10,8 +10,8 @@
 //! 3. Cache invalidation: Automatic when jobs are deleted or updated
 
 use async_trait::async_trait;
-use hodei_core::{DomainError, Job, JobId, Result, WorkerId};
-use hodei_ports::JobRepository;
+use hodei_pipelines_core::{DomainError, Job, JobId, Result, WorkerId};
+use hodei_pipelines_ports::JobRepository;
 use sqlx::{Row, postgres::PgPool};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -128,12 +128,12 @@ impl CachedJobRepository {
             stats.db_reads += 1;
 
             // Use the JobMapper to reconstruct the Job from database row
-            use hodei_core::mappers::job_mapper::{JobMapper, SqlxJobMapper};
+            use hodei_pipelines_core::mappers::job_mapper::{JobMapper, SqlxJobMapper};
 
             let mapper = SqlxJobMapper::new();
 
             // Convert sqlx::Row to JobRow
-            let job_row = hodei_core::mappers::job_mapper::JobRow {
+            let job_row = hodei_pipelines_core::mappers::job_mapper::JobRow {
                 id: JobId::from_uuid(row.get::<uuid::Uuid, _>("id")),
                 name: row.get::<String, _>("name"),
                 description: row.get::<Option<String>, _>("description"),
@@ -425,9 +425,9 @@ impl JobRepository for CachedJobRepository {
         Ok(())
     }
 
-    async fn create_job(&self, job_spec: hodei_core::job::JobSpec) -> Result<JobId> {
-        let job_id = hodei_core::JobId::new();
-        let job = hodei_core::Job::new(job_id, job_spec)?;
+    async fn create_job(&self, job_spec: hodei_pipelines_core::job::JobSpec) -> Result<JobId> {
+        let job_id = hodei_pipelines_core::JobId::new();
+        let job = hodei_pipelines_core::Job::new(job_id, job_spec)?;
 
         self.save_job(&job).await?;
 
@@ -437,7 +437,7 @@ impl JobRepository for CachedJobRepository {
     async fn update_job_state(
         &self,
         job_id: &JobId,
-        state: hodei_core::job::JobState,
+        state: hodei_pipelines_core::job::JobState,
     ) -> Result<()> {
         let cache = self.cache.read().await;
         cache.update_job_state(job_id, state).await?;

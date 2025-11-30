@@ -5,7 +5,7 @@
 
 use async_nats::jetstream::stream::{Config, StorageType};
 use async_trait::async_trait;
-use hodei_ports::event_bus::{
+use hodei_pipelines_ports::event_bus::{
     EventBusError, EventPublisher, EventReceiver, EventSubscriber, SystemEvent,
 };
 use serde_json;
@@ -13,7 +13,7 @@ use serde_json;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_core::{JobId, JobSpec, ResourceQuota};
+    use hodei_pipelines_core::{JobId, JobSpec, ResourceQuota};
     use std::collections::HashMap;
 
     #[tokio::test]
@@ -81,11 +81,11 @@ mod tests {
         let events = vec![
             SystemEvent::JobScheduled {
                 job_id: JobId::new(),
-                worker_id: hodei_core::WorkerId::new(),
+                worker_id: hodei_pipelines_core::WorkerId::new(),
             },
             SystemEvent::JobStarted {
                 job_id: JobId::new(),
-                worker_id: hodei_core::WorkerId::new(),
+                worker_id: hodei_pipelines_core::WorkerId::new(),
             },
         ];
 

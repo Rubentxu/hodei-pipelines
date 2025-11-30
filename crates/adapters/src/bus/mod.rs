@@ -9,7 +9,7 @@ pub mod nats;
 
 use async_trait::async_trait;
 use config::{EventBusConfig, EventBusType};
-use hodei_ports::event_bus::{
+use hodei_pipelines_ports::event_bus::{
     BusError, EventPublisher, EventReceiver, EventSubscriber, SystemEvent,
 };
 use std::sync::Arc;

@@ -7,12 +7,14 @@ use crate::pipeline::{PipelineId, PipelineStepId};
 use crate::{DomainError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Execution identifier - Value Object
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[schema(value_type = String)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
-pub struct ExecutionId(pub Uuid);
+pub struct ExecutionId(pub uuid::Uuid);
 
 impl ExecutionId {
     pub fn new() -> Self {

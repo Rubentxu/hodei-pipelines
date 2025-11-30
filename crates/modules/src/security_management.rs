@@ -3,11 +3,11 @@
 //! Provides CRUD operations for User entities following DDD principles.
 //! Implements use cases for managing users, roles, and permissions.
 
-use hodei_core::{
+use hodei_pipelines_core::{
     DomainError, Result,
     security::{Email, Permission, Role, User, UserId, UserStatus},
 };
-use hodei_ports::{EventPublisher, SystemEvent};
+use hodei_pipelines_ports::{EventPublisher, SystemEvent};
 use serde::{Deserialize, Serialize};
 use std::result::Result as StdResult;
 use std::sync::Arc;

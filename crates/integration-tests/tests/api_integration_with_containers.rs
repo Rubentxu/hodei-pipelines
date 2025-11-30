@@ -98,7 +98,7 @@ async fn test_live_logs_sse_endpoint() {
     println!("   • Mock log generation every 500ms");
     println!("   • Proper HTTP headers (Cache-Control: no-cache, Connection: keep-alive)");
     println!("   • LogEvent DTO with timestamp, level, step, message, execution_id");
-    println!("   • Integration with hodei-core types (ExecutionId)");
+    println!("   • Integration with hodei-pipelines-core types (ExecutionId)");
     println!("   • Production-ready error handling");
 }
 
@@ -197,7 +197,7 @@ async fn test_dashboard_metrics_api() {
     println!("   • Returns: success_rate, avg_duration, cost_per_run, queue_time");
     println!("   • Supports filters: tenant_id, time_range_hours");
     println!("   • Production-ready aggregation service");
-    println!("   • Integration with hodei-core types");
+    println!("   • Integration with hodei-pipelines-core types");
     println!("   • Cache layer for performance");
 }
 
