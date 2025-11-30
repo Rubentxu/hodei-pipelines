@@ -1,7 +1,10 @@
-import '@testing-library/jest-dom';
-import { beforeAll, afterEach, afterAll, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
-import { server } from './__mocks__/msw/server';
+import "@testing-library/jest-dom";
+import { beforeAll, afterEach, afterAll, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
+import { server } from "./__mocks__/msw/server";
+
+// Add fetch polyfill for Node.js environment (required for MSW v2)
+import "cross-fetch/polyfill";
 
 // Runs a cleanup after each test case
 afterEach(() => {
@@ -9,7 +12,7 @@ afterEach(() => {
 });
 
 // Setup MSW
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
@@ -30,7 +33,7 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 }));
 
 // Mock matchMedia
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: vi.fn().mockImplementation((query) => ({
     matches: false,

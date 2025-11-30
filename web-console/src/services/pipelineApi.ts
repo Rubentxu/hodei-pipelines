@@ -1,103 +1,188 @@
-import { Pipeline, PipelineTask } from '@/types';
+/**
+ * Pipeline API Service
+ *
+ * This service demonstrates TypeScript code generation from OpenAPI specifications.
+ * All types are auto-generated from docs/openapi.yaml using the openapi-typescript package.
+ */
 
-export interface CreatePipelineRequest {
-  name: string;
-  description?: string;
-  tasks: PipelineTask[];
-  schedule?: {
-    cron: string;
-    timezone: string;
-  };
-  tags?: string[];
-}
+import type { components, operations } from "../types/api";
 
-export interface UpdatePipelineRequest {
-  name?: string;
-  description?: string;
-  tasks?: PipelineTask[];
-  status?: 'active' | 'paused' | 'error' | 'inactive';
-  schedule?: {
-    cron: string;
-    timezone: string;
-  };
-  tags?: string[];
-}
+// Type aliases for better readability
+type Pipeline = components["schemas"]["Pipeline"];
+type CreatePipelineRequest = components["schemas"]["CreatePipelineRequest"];
+type UpdatePipelineRequest = components["schemas"]["UpdatePipelineRequest"];
+type Error = components["schemas"]["Error"];
 
-export async function getPipelines(): Promise<Pipeline[]> {
-  const response = await fetch('/api/v1/pipelines');
+// Response types from operations
+type ListPipelinesResponse =
+  operations["listPipelines"]["responses"][200]["content"]["application/json"];
+type CreatePipelineResponse =
+  operations["createPipeline"]["responses"][201]["content"]["application/json"];
+type GetPipelineResponse =
+  operations["getPipeline"]["responses"][200]["content"]["application/json"];
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch pipelines');
-  }
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/v1";
 
-  return response.json();
-}
+// Generic API error class
+export class APIError extends Error {
+  code: string;
+  details?: Record<string, unknown>;
+  timestamp: string;
 
-export async function getPipeline(id: string): Promise<Pipeline> {
-  const response = await fetch(`/api/v1/pipelines/${id}`);
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch pipeline');
-  }
-
-  return response.json();
-}
-
-export async function createPipeline(
-  data: CreatePipelineRequest
-): Promise<Pipeline> {
-  const response = await fetch('/api/v1/pipelines', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to create pipeline');
-  }
-
-  return response.json();
-}
-
-export async function updatePipeline(
-  id: string,
-  data: UpdatePipelineRequest
-): Promise<Pipeline> {
-  const response = await fetch(`/api/v1/pipelines/${id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to update pipeline');
-  }
-
-  return response.json();
-}
-
-export async function deletePipeline(id: string): Promise<void> {
-  const response = await fetch(`/api/v1/pipelines/${id}`, {
-    method: 'DELETE',
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to delete pipeline');
+  constructor(error: Error) {
+    super(error.message);
+    this.name = "APIError";
+    this.code = error.code;
+    this.details = error.details;
+    this.timestamp = error.timestamp;
   }
 }
 
-export async function executePipeline(id: string): Promise<{ executionId: string }> {
-  const response = await fetch(`/api/v1/pipelines/${id}/execute`, {
-    method: 'POST',
-  });
+/**
+ * Pipeline API client with type-safe operations
+ */
+export class PipelineApiService {
+  private baseUrl: string;
 
-  if (!response.ok) {
-    throw new Error('Failed to execute pipeline');
+  constructor(baseUrl: string = API_BASE_URL) {
+    this.baseUrl = baseUrl;
   }
 
-  return response.json();
+  /**
+   * List all pipelines with optional filtering and pagination
+   */
+  async listPipelines(params?: {
+    limit?: number;
+    offset?: number;
+    status?: "active" | "inactive" | "archived";
+  }): Promise<ListPipelinesResponse> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.limit !== undefined) {
+      searchParams.append("limit", params.limit.toString());
+    }
+    if (params?.offset !== undefined) {
+      searchParams.append("offset", params.offset.toString());
+    }
+    if (params?.status !== undefined) {
+      searchParams.append("status", params.status);
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/pipelines?${searchParams.toString()}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const error = (await response.json()) as Error;
+      throw new APIError(error);
+    }
+
+    return response.json() as Promise<ListPipelinesResponse>;
+  }
+
+  /**
+   * Get a single pipeline by ID
+   */
+  async getPipeline(pipelineId: string): Promise<GetPipelineResponse> {
+    const response = await fetch(`${this.baseUrl}/pipelines/${pipelineId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as Error;
+      throw new APIError(error);
+    }
+
+    return response.json() as Promise<GetPipelineResponse>;
+  }
+
+  /**
+   * Create a new pipeline
+   */
+  async createPipeline(
+    request: CreatePipelineRequest,
+  ): Promise<CreatePipelineResponse> {
+    const response = await fetch(`${this.baseUrl}/pipelines`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as Error;
+      throw new APIError(error);
+    }
+
+    return response.json() as Promise<CreatePipelineResponse>;
+  }
+
+  /**
+   * Update an existing pipeline
+   */
+  async updatePipeline(
+    pipelineId: string,
+    request: UpdatePipelineRequest,
+  ): Promise<GetPipelineResponse> {
+    const response = await fetch(`${this.baseUrl}/pipelines/${pipelineId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as Error;
+      throw new APIError(error);
+    }
+
+    return response.json() as Promise<GetPipelineResponse>;
+  }
+
+  /**
+   * Delete a pipeline
+   */
+  async deletePipeline(pipelineId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/pipelines/${pipelineId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as Error;
+      throw new APIError(error);
+    }
+  }
 }
+
+// Export singleton instance
+export const pipelineApi = new PipelineApiService();
+
+// Export types for use in components
+export type {
+  Pipeline,
+  CreatePipelineRequest,
+  UpdatePipelineRequest,
+  Error as ApiError,
+  ListPipelinesResponse,
+  CreatePipelineResponse,
+  GetPipelineResponse,
+};

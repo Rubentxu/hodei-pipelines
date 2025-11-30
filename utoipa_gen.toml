@@ -1,0 +1,29 @@
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.utoipa]
+# All features that the app has
+all_features = true
+
+# YAML output
+yaml = ["utoipa/yaml"]
+# JSON output
+json = ["utoipa/json"]
+# Add openapi documentation for the main function
+openapi_dir = "docs/openapi"
+# Hide struct fields from documentation
+hide_enum_tags = []
+# Add documentation examples
+examples = true
+
+[[package.metadata.utoipa.overrides]]
+name = "crate::models::CreatePipelineRequest"
+example = "CreatePipelineRequest { name: \"My Pipeline\".to_string(), description: None }"
+
+[[package.metadata.utoipa.overrides]]
+name = "crate::models::PipelineResponse"
+example = "PipelineResponse { id: 1, name: \"My Pipeline\".to_string(), status: \"active\".to_string() }"
+
+[[package.metadata.utoipa.overrides]]
+name = "crate::models::JobRequest"
+example = "JobRequest { pipeline_id: 1, config: serde_json::Value::Null }"

@@ -15,7 +15,7 @@ SCRIPT_TESTKUBE := testkube/scripts/run-tests.sh
 SCRIPT_VCLUSTER := testkube/scripts/setup-vcluster-testkube.sh
 SCRIPT_MANIFEST := scripts/generate_clean_manifest.sh
 
-.PHONY: help build push deploy test-helm test-e2e setup-dev clean manifest
+.PHONY: help build push deploy test-helm test-e2e setup-dev clean manifest validate-api gen-types check-contract test-contract
 
 # Default target
 help: ## Show this help message
@@ -65,6 +65,40 @@ setup-dev: ## Setup local vcluster environment with Testkube
 manifest: ## Generate CODE_MANIFEST.csv
 	@echo "Generating CODE_MANIFEST.csv..."
 	@bash $(SCRIPT_MANIFEST)
+
+# =============================================================================
+# API Contract Validation
+# =============================================================================
+
+validate-api: ## Validate OpenAPI specification
+	@echo "Validating API contract..."
+	@./scripts/validate-api-contract.sh
+
+gen-types: ## Generate TypeScript types from OpenAPI
+	@echo "Generating TypeScript types..."
+	@if [ -f "docs/openapi.yaml" ]; then \
+		cd web-console && npm run generate:types; \
+		echo "✅ TypeScript types generated"; \
+	else \
+		echo "❌ OpenAPI spec not found at docs/openapi.yaml"; \
+		exit 1; \
+	fi
+
+check-contract: ## Check for breaking changes in API contract
+	@echo "Checking for breaking changes..."
+	@if [ -f "docs/openapi-previous.yaml" ]; then \
+		echo "Comparing with previous specification..."; \
+		diff -u docs/openapi-previous.yaml docs/openapi.yaml || \
+		echo "⚠️  Breaking changes detected!"; \
+	else \
+		echo "No previous spec found. Copying current as baseline..."; \
+		cp docs/openapi.yaml docs/openapi-previous.yaml; \
+	fi
+
+test-contract: ## Run contract tests
+	@echo "Running contract tests..."
+	@cd web-console && npm test -- tests/contract/api-contract.test.ts || \
+		echo "⚠️  Contract tests failed"
 
 # =============================================================================
 # Cleanup

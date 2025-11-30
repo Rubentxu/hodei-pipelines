@@ -1,0 +1,480 @@
+openapi: 3.0.3
+info:
+  title: Hodei Pipelines API
+  description: |
+    API specification for the Hodei Pipelines job orchestration platform.
+
+    ## Features
+    - Pipeline management
+    - Job execution
+    - Worker management
+    - Resource pools
+    - Logs and observability
+    - Alerts and notifications
+    - Security and compliance
+
+  version: 1.0.0
+  contact:
+    name: Hodei Pipelines Team
+    email: support@hodei-pipelines.dev
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.hodei-pipelines.dev/v1
+    description: Production server
+  - url: https://staging-api.hodei-pipelines.dev/v1
+    description: Staging server
+  - url: http://localhost:8080/v1
+    description: Local development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /pipelines:
+    get:
+      summary: List all pipelines
+      description: Returns a paginated list of pipelines
+      operationId: listPipelines
+      tags:
+        - Pipelines
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of items to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of items to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: status
+          in: query
+          description: Filter by pipeline status
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive, archived]
+      responses:
+        '200':
+          description: List of pipelines
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pipeline'
+                  total:
+                    type: integer
+                  hasMore:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      summary: Create a new pipeline
+      description: Creates a new pipeline with the provided configuration
+      operationId: createPipeline
+      tags:
+        - Pipelines
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePipelineRequest'
+            example:
+              name: "web-app-build"
+              description: "Build and deploy web application"
+              schedule: "0 0 * * *"
+              tags: ["build", "deploy"]
+      responses:
+        '201':
+          description: Pipeline created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pipeline'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /pipelines/{pipelineId}:
+    get:
+      summary: Get pipeline by ID
+      description: Returns a single pipeline by its ID
+      operationId: getPipeline
+      tags:
+        - Pipelines
+      parameters:
+        - name: pipelineId
+          in: path
+          description: ID of the pipeline
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pipeline details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pipeline'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      summary: Update pipeline
+      description: Updates an existing pipeline with partial data
+      operationId: updatePipeline
+      tags:
+        - Pipelines
+      parameters:
+        - name: pipelineId
+          in: path
+          description: ID of the pipeline
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePipelineRequest'
+      responses:
+        '200':
+          description: Pipeline updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pipeline'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      summary: Delete pipeline
+      description: Deletes a pipeline by its ID
+      operationId: deletePipeline
+      tags:
+        - Pipelines
+      parameters:
+        - name: pipelineId
+          in: path
+          description: ID of the pipeline
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Pipeline deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /worker-pools:
+    get:
+      summary: List worker pools
+      description: Returns a list of all worker pools
+      operationId: listWorkerPools
+      tags:
+        - Workers
+      responses:
+        '200':
+          description: List of worker pools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkerPool'
+
+  /worker-pools/{poolId}/status:
+    get:
+      summary: Get worker pool status
+      description: Returns the current status of a worker pool
+      operationId: getWorkerPoolStatus
+      tags:
+        - Workers
+      parameters:
+        - name: poolId
+          in: path
+          description: ID of the worker pool
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Worker pool status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerPoolStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Pipeline:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the pipeline
+        name:
+          type: string
+          description: Name of the pipeline
+        description:
+          type: string
+          description: Description of the pipeline
+        status:
+          type: string
+          enum: [active, inactive, archived]
+          description: Current status of the pipeline
+        schedule:
+          type: string
+          description: Cron expression for scheduled execution
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags associated with the pipeline
+        createdAt:
+          type: string
+          format: date-time
+          description: When the pipeline was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the pipeline was last updated
+      required:
+        - id
+        - name
+        - status
+
+    CreatePipelineRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Name of the pipeline
+        description:
+          type: string
+          maxLength: 500
+          description: Description of the pipeline
+        schedule:
+          type: string
+          pattern: '^[0-9*,-/ ]+$'
+          description: Cron expression for scheduled execution
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+          description: Tags associated with the pipeline
+      required:
+        - name
+
+    UpdatePipelineRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        status:
+          type: string
+          enum: [active, inactive, archived]
+        schedule:
+          type: string
+          pattern: '^[0-9*,-/ ]+$'
+        tags:
+          type: array
+          items:
+            type: string
+
+    WorkerPool:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        poolType:
+          type: string
+          enum: [Docker, Kubernetes, Native]
+        providerName:
+          type: string
+        minSize:
+          type: integer
+          minimum: 0
+        maxSize:
+          type: integer
+          minimum: 0
+        defaultResources:
+          type: object
+          properties:
+            cpu_m:
+              type: integer
+              description: CPU in millicores
+            memory_mb:
+              type: integer
+              description: Memory in megabytes
+            gpu:
+              type: integer
+              description: Number of GPUs
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+
+    WorkerPoolStatus:
+      type: object
+      properties:
+        name:
+          type: string
+        poolType:
+          type: string
+        totalCapacity:
+          type: integer
+          minimum: 0
+        availableCapacity:
+          type: integer
+          minimum: 0
+        activeWorkers:
+          type: integer
+          minimum: 0
+        pendingRequests:
+          type: integer
+          minimum: 0
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+      required:
+        - code
+        - message
+        - timestamp
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "BAD_REQUEST"
+            message: "Invalid request parameters"
+            timestamp: "2025-11-30T12:00:00Z"
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "UNAUTHORIZED"
+            message: "Authentication required"
+            timestamp: "2025-11-30T12:00:00Z"
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "NOT_FOUND"
+            message: "Resource not found"
+            timestamp: "2025-11-30T12:00:00Z"
+
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "CONFLICT"
+            message: "Resource already exists"
+            timestamp: "2025-11-30T12:00:00Z"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "INTERNAL_ERROR"
+            message: "An unexpected error occurred"
+            timestamp: "2025-11-30T12:00:00Z"
+
+tags:
+  - name: Pipelines
+    description: Pipeline management operations
+  - name: Workers
+    description: Worker and pool management
+  - name: Jobs
+    description: Job execution operations
+  - name: Observability
+    description: Logs, metrics, and monitoring
+  - name: Alerts
+    description: Alert management and notifications

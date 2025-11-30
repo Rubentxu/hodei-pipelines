@@ -8,6 +8,11 @@ import { PipelinesPage } from "./pages/pipelines/pipelines-page";
 import { SecurityPage } from "./pages/security/security-page";
 import { TerminalPage } from "./pages/terminal/terminal-page";
 import { WorkersPage } from "./pages/workers/workers-page";
+import { ResourcePoolList } from "./components/ResourcePoolList";
+import { ResourcePoolForm } from "./components/ResourcePoolForm";
+import { ResourcePoolDetails } from "./components/ResourcePoolDetails";
+import LogsExplorer from "./components/LogsExplorer";
+import AlertManagement from "./components/AlertManagement";
 
 function App() {
   return (
@@ -15,9 +20,18 @@ function App() {
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/pipelines" element={<PipelinesPage />} />
-        <Route path="/pipelines/:pipelineId/executions/:executionId" element={<ExecutionDetailsPage />} />
+        <Route
+          path="/pipelines/:pipelineId/executions/:executionId"
+          element={<ExecutionDetailsPage />}
+        />
         <Route path="/terminal/:jobId" element={<TerminalPage />} />
         <Route path="/workers" element={<WorkersPage />} />
+        <Route path="/resource-pools" element={<ResourcePoolList />} />
+        <Route path="/resource-pools/new" element={<ResourcePoolForm />} />
+        <Route path="/resource-pools/:id" element={<ResourcePoolDetails />} />
+        <Route path="/resource-pools/:id/edit" element={<ResourcePoolForm />} />
+        <Route path="/logs" element={<LogsExplorer />} />
+        <Route path="/alerts" element={<AlertManagement />} />
         <Route path="/finops" element={<FinOpsPage />} />
         <Route path="/security" element={<SecurityPage />} />
         <Route path="/observability" element={<ObservabilityPage />} />

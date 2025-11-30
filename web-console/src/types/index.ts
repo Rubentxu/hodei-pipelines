@@ -264,3 +264,9 @@ export interface Alert {
   acknowledgedBy?: string;
   acknowledgedAt?: string;
 }
+
+export interface ResourceQuota {
+  cpu_m: number;
+  memory_mb: number;
+  gpu: number | null;
+}
