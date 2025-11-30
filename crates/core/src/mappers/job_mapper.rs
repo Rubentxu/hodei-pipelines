@@ -29,6 +29,7 @@ pub trait JobMapper {
     fn to_row(&self, job: &Job) -> JobRow;
 
     /// Convert database row to domain Job
+    #[allow(clippy::wrong_self_convention)]
     fn from_row(&self, row: JobRow) -> Result<Job, String>;
 
     /// Generate UPDATE query and parameters for partial updates

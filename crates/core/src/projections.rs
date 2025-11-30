@@ -19,7 +19,7 @@ use uuid::Uuid;
 #[async_trait::async_trait]
 pub trait Projector: Send + Sync {
     /// Process an event and update the read model
-    async fn project(&mut self, event: &Box<dyn DomainEvent>) -> Result<(), ProjectionError>;
+    async fn project(&mut self, event: &dyn DomainEvent) -> Result<(), ProjectionError>;
 
     /// Get the name of this projector
     fn name(&self) -> &'static str;
@@ -90,14 +90,15 @@ impl JobStatusProjection {
 
     pub fn execution_duration(&self) -> Option<std::time::Duration> {
         if let Some(started) = self.started_at
-            && let Some(completed) = self.completed_at {
-                return Some(
-                    completed
-                        .signed_duration_since(started)
-                        .to_std()
-                        .unwrap_or_default(),
-                );
-            }
+            && let Some(completed) = self.completed_at
+        {
+            return Some(
+                completed
+                    .signed_duration_since(started)
+                    .to_std()
+                    .unwrap_or_default(),
+            );
+        }
         None
     }
 }
@@ -325,19 +326,20 @@ impl Default for JobStatusProjector {
 
 #[async_trait::async_trait]
 impl Projector for JobStatusProjector {
-    async fn project(&mut self, event: &Box<dyn DomainEvent>) -> Result<(), ProjectionError> {
+    async fn project(&mut self, event: &dyn DomainEvent) -> Result<(), ProjectionError> {
         match event.event_type() {
             "JobCreated" => {
                 // Use serialize() method from DomainEvent trait
                 if let Ok(event_data) = event.serialize()
-                    && let Ok(job_event) = serde_json::from_value::<JobCreatedEvent>(event_data) {
-                        let projection =
-                            JobStatusProjection::new(job_event.aggregate_id, job_event.job_name);
-                        if let Some(_tenant) = job_event.tenant_id {
-                            // Update projection with tenant
-                        }
-                        self.projections.insert(job_event.aggregate_id, projection);
+                    && let Ok(job_event) = serde_json::from_value::<JobCreatedEvent>(event_data)
+                {
+                    let projection =
+                        JobStatusProjection::new(job_event.aggregate_id, job_event.job_name);
+                    if let Some(_tenant) = job_event.tenant_id {
+                        // Update projection with tenant
                     }
+                    self.projections.insert(job_event.aggregate_id, projection);
+                }
             }
             "JobScheduled" => {
                 if let Some(proj) = self.projections.get_mut(&event.aggregate_id()) {
@@ -356,12 +358,13 @@ impl Projector for JobStatusProjector {
                 if let Ok(event_data) = event.serialize()
                     && let Ok(completed_event) =
                         serde_json::from_value::<JobCompletedEvent>(event_data)
-                        && let Some(proj) = self.projections.get_mut(&event.aggregate_id()) {
-                            proj.current_state = completed_event.final_state;
-                            proj.completed_at = Some(Utc::now());
-                            proj.execution_time_ms = Some(completed_event.execution_time_ms);
-                            proj.updated_at = Utc::now();
-                        }
+                    && let Some(proj) = self.projections.get_mut(&event.aggregate_id())
+                {
+                    proj.current_state = completed_event.final_state;
+                    proj.completed_at = Some(Utc::now());
+                    proj.execution_time_ms = Some(completed_event.execution_time_ms);
+                    proj.updated_at = Utc::now();
+                }
             }
             _ => {
                 // Ignore unknown event types
@@ -390,8 +393,6 @@ pub async fn build_projections_from_events<T: EventStore + Send + Sync>(
     event_store: Arc<T>,
     _from_version: Option<u64>,
 ) -> Result<JobStatusProjector, ProjectionError> {
-    
-
     let mut projector = JobStatusProjector::new();
 
     // Get all job-related events (in a real implementation, you'd filter by aggregate type)
@@ -405,7 +406,7 @@ pub async fn build_projections_from_events<T: EventStore + Send + Sync>(
 
     for event in all_events {
         projector
-            .project(&event)
+            .project(event.as_ref() as &dyn DomainEvent)
             .await
             .map_err(|e| ProjectionError::UpdateError(format!("Failed to project event: {}", e)))?;
     }
@@ -492,7 +493,10 @@ mod tests {
             tenant_id: Some("tenant-1".to_string()),
         };
 
-        projector.project(&event.as_trait_object()).await.unwrap();
+        projector
+            .project(event.as_trait_object().as_ref() as &dyn DomainEvent)
+            .await
+            .unwrap();
 
         let projection = projector.get(&job_id).unwrap();
         assert_eq!(projection.job_id, job_id);

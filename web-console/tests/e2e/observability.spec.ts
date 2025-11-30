@@ -6,8 +6,14 @@ test.describe('Observability Dashboard', () => {
         page.on('console', msg => console.log(`BROWSER LOG: ${msg.text()}`));
         page.on('pageerror', err => console.log(`BROWSER ERROR: ${err.message}`));
 
+        // Log all requests
+        await page.route('**', async (route) => {
+            console.log(`REQUEST: ${route.request().url()}`);
+            await route.continue();
+        });
+
         // Mock Metrics
-        await page.route('/api/observability/metrics*', async (route) => {
+        await page.route('**/api/observability/metrics*', async (route) => {
             console.log('Intercepted metrics request:', route.request().url());
             await route.fulfill({
                 status: 200,
@@ -33,7 +39,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Logs
-        await page.route('/api/observability/logs*', async (route) => {
+        await page.route('**/api/observability/logs*', async (route) => {
             await route.fulfill({
                 json: {
                     logs: [
@@ -46,7 +52,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Traces
-        await page.route('/api/observability/traces*', async (route) => {
+        await page.route('**/api/observability/traces*', async (route) => {
             await route.fulfill({
                 json: {
                     traces: [
@@ -59,7 +65,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Alerts
-        await page.route('/api/observability/alerts*', async (route) => {
+        await page.route('**/api/observability/alerts*', async (route) => {
             await route.fulfill({
                 json: {
                     alerts: [
@@ -71,7 +77,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Alert Rules
-        await page.route('/api/observability/alerts/rules*', async (route) => {
+        await page.route('**/api/observability/alerts/rules*', async (route) => {
             await route.fulfill({
                 json: [
                     { id: 'rule-1', name: 'High Error Rate', severity: 'critical', enabled: true }
@@ -80,7 +86,7 @@ test.describe('Observability Dashboard', () => {
         });
 
         // Mock Services
-        await page.route('/api/observability/services*', async (route) => {
+        await page.route('**/api/observability/services*', async (route) => {
             await route.fulfill({
                 json: {
                     services: [

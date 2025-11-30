@@ -65,6 +65,7 @@ pub struct ResourceAllocation {
 
 /// Allocation status
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum AllocationStatus {
     Pending,
     Allocated {

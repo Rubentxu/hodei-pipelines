@@ -395,7 +395,7 @@ fn has_cycle(steps: &[PipelineStep]) -> std::result::Result<bool, DomainError> {
     let step_lookup: HashMap<PipelineStepId, usize> = steps
         .iter()
         .enumerate()
-        .map(|(idx, step)| (step.id.clone(), idx))
+        .map(|(idx, step)| (step.id, idx))
         .collect();
 
     let mut visited = HashMap::new();
@@ -420,8 +420,8 @@ fn has_cycle_dfs(
     visited: &mut HashMap<PipelineStepId, bool>,
     rec_stack: &mut HashMap<PipelineStepId, bool>,
 ) -> std::result::Result<bool, DomainError> {
-    visited.insert(step_id.clone(), true);
-    rec_stack.insert(step_id.clone(), true);
+    visited.insert(*step_id, true);
+    rec_stack.insert(*step_id, true);
 
     // O(1) lookup instead of O(n) iteration
     let step_idx = step_lookup
@@ -443,7 +443,7 @@ fn has_cycle_dfs(
         }
     }
 
-    rec_stack.insert(step_id.clone(), false);
+    rec_stack.insert(*step_id, false);
     Ok(false)
 }
 
@@ -456,7 +456,7 @@ fn topological_sort(
     let step_lookup: HashMap<PipelineStepId, usize> = steps
         .iter()
         .enumerate()
-        .map(|(idx, step)| (step.id.clone(), idx))
+        .map(|(idx, step)| (step.id, idx))
         .collect();
 
     // Build adjacency list and in-degrees in O(n) time
@@ -490,8 +490,8 @@ fn topological_sort(
     // Process queue
     while let Some(step_idx) = queue.pop() {
         // Convert index back to step_id
-        let step_id = &steps[step_idx].id;
-        result.push(step_id.clone());
+        let step_id = steps[step_idx].id;
+        result.push(step_id);
 
         // For each node that this step points to
         for &neighbor in &graph[step_idx] {
