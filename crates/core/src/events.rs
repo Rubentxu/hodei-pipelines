@@ -118,6 +118,7 @@ impl<T> BaseEvent<T> {
 }
 
 /// Event Registry for deserializing events
+#[allow(clippy::type_complexity)]
 pub struct EventRegistry {
     builders: std::collections::HashMap<
         &'static str,
@@ -666,7 +667,6 @@ impl EventStore for PostgreSqlEventStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_event_metadata_creation() {

@@ -145,6 +145,7 @@ impl ValidJobSpec {
     }
 
     /// Create a composite specification using custom composition
+    #[allow(clippy::type_complexity)]
     pub fn composed() -> AndSpec<
         AndSpec<
             AndSpec<JobNameNotEmptySpec, JobImageNotEmptySpec, JobSpec>,

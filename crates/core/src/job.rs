@@ -65,6 +65,7 @@ impl Job {
     /// Reconstruct Job aggregate from persisted data
     ///
     /// This is used by repositories to rebuild Jobs from database records
+    #[allow(clippy::too_many_arguments)]
     pub fn reconstruct(
         id: JobId,
         name: String,

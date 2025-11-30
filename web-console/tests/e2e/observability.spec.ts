@@ -8,7 +8,10 @@ test.describe('Observability Dashboard', () => {
 
         // Mock Metrics
         await page.route('/api/observability/metrics*', async (route) => {
+            console.log('Intercepted metrics request:', route.request().url());
             await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
                 json: {
                     metrics: {
                         systemHealth: 98,
