@@ -13,6 +13,7 @@ import type {
   StandardApiResponse,
   PaginationMeta,
 } from "../types/api-responses";
+import { trackEndpointUsage } from "./deprecation-service";
 
 /**
  * API Client configuration
@@ -174,6 +175,9 @@ export class ApiClient {
     endpoint: string,
     options?: RequestOptions,
   ): Promise<ResponseData<T>> {
+    // Track deprecated endpoint usage
+    trackEndpointUsage("GET", endpoint);
+
     const url = this.buildUrl(endpoint, options?.params);
     const headers = this.buildHeaders(options);
 
@@ -192,6 +196,9 @@ export class ApiClient {
     endpoint: string,
     options?: RequestOptions,
   ): Promise<ResponseData<T>> {
+    // Track deprecated endpoint usage
+    trackEndpointUsage("POST", endpoint);
+
     const url = this.buildUrl(endpoint, options?.params);
     const headers = this.buildHeaders(options);
 
@@ -211,6 +218,9 @@ export class ApiClient {
     endpoint: string,
     options?: RequestOptions,
   ): Promise<ResponseData<T>> {
+    // Track deprecated endpoint usage
+    trackEndpointUsage("PATCH", endpoint);
+
     const url = this.buildUrl(endpoint, options?.params);
     const headers = this.buildHeaders(options);
 
@@ -230,6 +240,9 @@ export class ApiClient {
     endpoint: string,
     options?: RequestOptions,
   ): Promise<ResponseData<T>> {
+    // Track deprecated endpoint usage
+    trackEndpointUsage("PUT", endpoint);
+
     const url = this.buildUrl(endpoint, options?.params);
     const headers = this.buildHeaders(options);
 
@@ -249,6 +262,9 @@ export class ApiClient {
     endpoint: string,
     options?: RequestOptions,
   ): Promise<ResponseData<T>> {
+    // Track deprecated endpoint usage
+    trackEndpointUsage("DELETE", endpoint);
+
     const url = this.buildUrl(endpoint, options?.params);
     const headers = this.buildHeaders(options);
 
