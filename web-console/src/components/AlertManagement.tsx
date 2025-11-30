@@ -1,18 +1,18 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  acknowledgeAlert,
   Alert,
   AlertRule,
   AlertSeverity,
   AlertStatus,
-  getAlerts,
-  getAlertRules,
-  getAlertStats,
-  acknowledgeAlert,
-  resolveAlert,
   assignAlert,
+  getAlertPriorityScore,
+  getAlertRules,
+  getAlerts,
+  getAlertStats,
   getSeverityColor,
   getStatusColor,
-  getAlertPriorityScore,
+  resolveAlert,
 } from "../services/alertManagementApi";
 
 interface TabType {
@@ -228,10 +228,11 @@ export default function AlertManagement() {
         <div className="bg-card rounded-lg border border-border p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label htmlFor="search-alerts" className="block text-sm font-medium mb-2">
                 Search
               </label>
               <input
+                id="search-alerts"
                 type="text"
                 placeholder="Search alerts..."
                 value={searchQuery}
@@ -240,10 +241,11 @@ export default function AlertManagement() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label htmlFor="status-filter" className="block text-sm font-medium mb-2">
                 Status
               </label>
               <select
+                id="status-filter"
                 multiple
                 value={alertStatusFilter}
                 onChange={(e) =>
@@ -260,10 +262,11 @@ export default function AlertManagement() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label htmlFor="severity-filter" className="block text-sm font-medium mb-2">
                 Severity
               </label>
               <select
+                id="severity-filter"
                 multiple
                 value={severityFilter}
                 onChange={(e) =>
@@ -335,13 +338,13 @@ export default function AlertManagement() {
                   )}
                   {(alert.status === "open" ||
                     alert.status === "acknowledged") && (
-                    <button
-                      onClick={() => handleResolve(alert.id)}
-                      className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                    >
-                      Resolve
-                    </button>
-                  )}
+                      <button
+                        onClick={() => handleResolve(alert.id)}
+                        className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      >
+                        Resolve
+                      </button>
+                    )}
                 </div>
               </div>
             </div>
@@ -470,11 +473,10 @@ export default function AlertManagement() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === tab.id
+              className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               {tab.name}
               {tab.count !== undefined && (

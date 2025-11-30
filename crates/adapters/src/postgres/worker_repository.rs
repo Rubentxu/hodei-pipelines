@@ -3,11 +3,14 @@
 //! Production-ready implementation for persisting and retrieving workers.
 
 use async_trait::async_trait;
-use hodei_pipelines_core::{DomainError, Result, Worker, WorkerCapabilities, WorkerId, WorkerStatus};
-use hodei_pipelines_ports::WorkerRepository;
+use hodei_pipelines_core::{
+    DomainError, Result, Worker, WorkerCapabilities, WorkerId, WorkerStatus,
+};
+use hodei_pipelines_ports::{SchedulerError, SchedulerPort, WorkerRepository};
+use hodei_pipelines_proto::ServerMessage;
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{error, info};
 use uuid::Uuid;
 
 /// Default worker capabilities for new workers
@@ -274,6 +277,74 @@ impl WorkerRepository for PostgreSqlWorkerRepository {
             DomainError::Infrastructure(format!("Failed to update worker status: {}", e))
         })?;
 
+        Ok(())
+    }
+}
+
+// Implement SchedulerPort for PostgreSqlWorkerRepository
+// This allows using the repository directly as a scheduler in production
+#[async_trait::async_trait]
+impl SchedulerPort for PostgreSqlWorkerRepository {
+    async fn register_worker(&self, worker: &Worker) -> std::result::Result<(), SchedulerError> {
+        info!("SchedulerPort: Registering worker {}", worker.id);
+
+        self.save_worker(worker)
+            .await
+            .map_err(|e| SchedulerError::WorkerRepository(e.to_string()))?;
+
+        info!("✅ Worker {} registered successfully", worker.id);
+        Ok(())
+    }
+
+    async fn unregister_worker(
+        &self,
+        worker_id: &WorkerId,
+    ) -> std::result::Result<(), SchedulerError> {
+        info!("SchedulerPort: Unregistering worker {}", worker_id);
+
+        self.delete_worker(worker_id)
+            .await
+            .map_err(|e| SchedulerError::WorkerRepository(e.to_string()))?;
+
+        info!("✅ Worker {} removed", worker_id);
+        Ok(())
+    }
+
+    async fn get_registered_workers(&self) -> std::result::Result<Vec<WorkerId>, SchedulerError> {
+        self.get_all_workers()
+            .await
+            .map_err(|e| {
+                error!("Failed to get workers: {}", e);
+                SchedulerError::WorkerRepository(e.to_string())
+            })
+            .map(|workers| workers.into_iter().map(|w| w.id).collect())
+    }
+
+    async fn register_transmitter(
+        &self,
+        _worker_id: &WorkerId,
+        _transmitter: tokio::sync::mpsc::UnboundedSender<
+            std::result::Result<ServerMessage, SchedulerError>,
+        >,
+    ) -> std::result::Result<(), SchedulerError> {
+        info!("SchedulerPort: Transmitter registered");
+        Ok(())
+    }
+
+    async fn unregister_transmitter(
+        &self,
+        _worker_id: &WorkerId,
+    ) -> std::result::Result<(), SchedulerError> {
+        info!("SchedulerPort: Transmitter unregistered");
+        Ok(())
+    }
+
+    async fn send_to_worker(
+        &self,
+        _worker_id: &WorkerId,
+        _message: ServerMessage,
+    ) -> std::result::Result<(), SchedulerError> {
+        info!("SchedulerPort: Message sent (implementation pending for streaming)");
         Ok(())
     }
 }

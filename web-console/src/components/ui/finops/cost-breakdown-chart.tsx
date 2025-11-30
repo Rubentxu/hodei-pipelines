@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
-import * as echarts from 'echarts';
-import { cn } from '@/utils/cn';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CostBreakdown } from '@/types';
+import { cn } from '@/utils/cn';
+import * as echarts from 'echarts';
+import { useEffect, useRef } from 'react';
 
 interface CostBreakdownChartProps {
   breakdown: CostBreakdown[];
@@ -143,7 +143,7 @@ export function CostBreakdownChart({ breakdown, className }: CostBreakdownChartP
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div ref={chartRef} style={{ width: '100%', height: '300px' }} />
+        <div ref={chartRef} style={{ width: '100%', height: '300px' }} data-testid="cost-breakdown-chart" />
 
         <div className="space-y-2">
           <div className="text-sm font-semibold text-nebula-text-primary mb-2">

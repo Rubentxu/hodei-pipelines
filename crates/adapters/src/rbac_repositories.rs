@@ -36,52 +36,64 @@ impl Default for InMemoryRoleRepository {
 #[async_trait]
 impl RoleRepository for InMemoryRoleRepository {
     async fn save_role(&self, role: &RoleEntity) -> Result<(), DomainError> {
-        let mut roles = self
-            .roles
-            .write()
-            .expect("Failed to acquire write lock on roles (poisoned lock)");
+        let mut roles = self.roles.write().map_err(|e| {
+            tracing::error!(
+                "Failed to acquire write lock on roles (poisoned lock): {:?}",
+                e
+            );
+            DomainError::Infrastructure(format!(
+                "Failed to acquire lock for role repository: {}",
+                e
+            ))
+        })?;
+
         roles.insert(role.id.clone(), role.clone());
         Ok(())
     }
 
     async fn get_role(&self, id: &RoleId) -> Result<Option<RoleEntity>, DomainError> {
-        let roles = self
-            .roles
-            .read()
-            .expect("Failed to acquire read lock on roles (poisoned lock)");
+        let roles = self.roles.read().map_err(|e| {
+            tracing::error!("Failed to acquire read lock on roles: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         Ok(roles.get(id).cloned())
     }
 
     async fn get_role_by_name(&self, name: &str) -> Result<Option<RoleEntity>, DomainError> {
-        let roles = self
-            .roles
-            .read()
-            .expect("Failed to acquire read lock on roles (poisoned lock)");
+        let roles = self.roles.read().map_err(|e| {
+            tracing::error!("Failed to acquire read lock on roles: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         Ok(roles.values().find(|r| r.name == name).cloned())
     }
 
     async fn list_all_roles(&self) -> Result<Vec<RoleEntity>, DomainError> {
-        let roles = self
-            .roles
-            .read()
-            .expect("Failed to acquire read lock on roles (poisoned lock)");
+        let roles = self.roles.read().map_err(|e| {
+            tracing::error!("Failed to acquire read lock on roles: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         Ok(roles.values().cloned().collect())
     }
 
     async fn delete_role(&self, id: &RoleId) -> Result<(), DomainError> {
-        let mut roles = self
-            .roles
-            .write()
-            .expect("Failed to acquire write lock on roles (poisoned lock)");
+        let mut roles = self.roles.write().map_err(|e| {
+            tracing::error!("Failed to acquire write lock on roles: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         roles.remove(id);
         Ok(())
     }
 
     async fn exists(&self, id: &RoleId) -> Result<bool, DomainError> {
-        let roles = self
-            .roles
-            .read()
-            .expect("Failed to acquire read lock on roles (poisoned lock)");
+        let roles = self.roles.read().map_err(|e| {
+            tracing::error!("Failed to acquire read lock on roles: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         Ok(roles.contains_key(id))
     }
 }
@@ -110,10 +122,17 @@ impl Default for InMemoryPermissionRepository {
 #[async_trait]
 impl PermissionRepository for InMemoryPermissionRepository {
     async fn save_permission(&self, permission: &PermissionEntity) -> Result<(), DomainError> {
-        let mut permissions = self
-            .permissions
-            .write()
-            .expect("Failed to acquire write lock on permissions (poisoned lock)");
+        let mut permissions = self.permissions.write().map_err(|e| {
+            tracing::error!(
+                "Failed to acquire write lock on permissions (poisoned lock): {:?}",
+                e
+            );
+            DomainError::Infrastructure(format!(
+                "Failed to acquire lock for permission repository: {}",
+                e
+            ))
+        })?;
+
         permissions.insert(permission.id.clone(), permission.clone());
         Ok(())
     }
@@ -122,10 +141,11 @@ impl PermissionRepository for InMemoryPermissionRepository {
         &self,
         id: &PermissionId,
     ) -> Result<Option<PermissionEntity>, DomainError> {
-        let permissions = self
-            .permissions
-            .read()
-            .expect("Failed to acquire read lock on permissions (poisoned lock)");
+        let permissions = self.permissions.read().map_err(|e| {
+            tracing::error!("Failed to acquire read lock on permissions: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         Ok(permissions.get(id).cloned())
     }
 
@@ -134,10 +154,11 @@ impl PermissionRepository for InMemoryPermissionRepository {
         resource: &str,
         action: &str,
     ) -> Result<Option<PermissionEntity>, DomainError> {
-        let permissions = self
-            .permissions
-            .read()
-            .expect("Failed to acquire read lock on permissions (poisoned lock)");
+        let permissions = self.permissions.read().map_err(|e| {
+            tracing::error!("Failed to acquire read lock on permissions: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         Ok(permissions
             .values()
             .find(|p| p.resource == resource && p.action == action)
@@ -145,28 +166,30 @@ impl PermissionRepository for InMemoryPermissionRepository {
     }
 
     async fn list_all_permissions(&self) -> Result<Vec<PermissionEntity>, DomainError> {
-        let permissions = self
-            .permissions
-            .read()
-            .expect("Failed to acquire read lock on permissions (poisoned lock)");
+        let permissions = self.permissions.read().map_err(|e| {
+            tracing::error!("Failed to acquire read lock on permissions: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         Ok(permissions.values().cloned().collect())
     }
 
     async fn delete_permission(&self, id: &PermissionId) -> Result<(), DomainError> {
-        let mut permissions = self
-            .permissions
-            .write()
-            .expect("Failed to acquire write lock on permissions (poisoned lock)");
+        let mut permissions = self.permissions.write().map_err(|e| {
+            tracing::error!("Failed to acquire write lock on permissions: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         permissions.remove(id);
         Ok(())
     }
 
     async fn exists(&self, id: &PermissionId) -> Result<bool, DomainError> {
-        let permissions = self
-            .permissions
-            .read()
-            .expect("Failed to acquire read lock on permissions (poisoned lock)");
+        let permissions = self.permissions.read().map_err(|e| {
+            tracing::error!("Failed to acquire read lock on permissions: {:?}", e);
+            DomainError::Infrastructure(format!("Failed to acquire lock: {}", e))
+        })?;
+
         Ok(permissions.contains_key(id))
     }
 }
-

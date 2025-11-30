@@ -14,10 +14,11 @@ use hodei_pipelines_core::{
 use hodei_pipelines_ports::PipelineExecutionRepository;
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 /// Log separator for step execution logs
-const LOG_SEPARATOR: &str = "\n";
+/// Optimizado como char para evitar allocations innecesarias
+const LOG_SEPARATOR: char = '\n';
 
 /// Execution status constants
 const EXECUTION_STATUS_PENDING: &str = "PENDING";
@@ -212,10 +213,16 @@ impl PostgreSqlPipelineExecutionRepository {
 
 #[async_trait]
 impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
+    #[instrument(skip(self, execution), fields(execution_id = %execution.id))]
     async fn save_execution(&self, execution: &PipelineExecution) -> Result<()> {
+        // Usamos transacción para garantizar consistencia atómica entre cabecera y pasos
+        let mut tx = self.pool.begin().await.map_err(|e| {
+            DomainError::Infrastructure(format!("Failed to begin transaction: {}", e))
+        })?;
+
         debug!("Saving pipeline execution: {}", execution.id);
 
-        // Save pipeline execution
+        // 1. Upsert Execution Header (en transacción)
         sqlx::query(
             r#"
             INSERT INTO pipeline_executions (
@@ -237,14 +244,18 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
         .bind(serde_json::to_value(&execution.variables).unwrap_or_default())
         .bind(execution.tenant_id.as_deref())
         .bind(execution.correlation_id.as_deref())
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| {
-            DomainError::Infrastructure(format!("Failed to save pipeline execution: {}", e))
+            DomainError::Infrastructure(format!("Failed to save pipeline execution header: {}", e))
         })?;
 
-        // Save step executions
+        // 2. Upsert Steps (Batching sería mejor, pero iteración es segura por ahora)
+        // Usamos una variable local para el separator y evitar recrearlo
+        let logs_sep = LOG_SEPARATOR.to_string();
         for step in &execution.steps {
+            let logs_joined = step.logs.join(&logs_sep);
+
             sqlx::query(
                 r#"
                 INSERT INTO step_executions (
@@ -269,13 +280,18 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             .bind(step.completed_at)
             .bind(step.retry_count as i32)
             .bind(step.error_message.as_deref())
-            .bind(step.logs.join(LOG_SEPARATOR))
-            .execute(&self.pool)
+            .bind(logs_joined)
+            .execute(&mut *tx)
             .await
             .map_err(|e| {
-                DomainError::Infrastructure(format!("Failed to save step execution: {}", e))
+                DomainError::Infrastructure(format!("Failed to save step {}: {}", step.step_id, e))
             })?;
         }
+
+        // Commit de la transacción para garantizar consistencia atómica
+        tx.commit().await.map_err(|e| {
+            DomainError::Infrastructure(format!("Failed to commit execution transaction: {}", e))
+        })?;
 
         info!("Pipeline execution saved successfully: {}", execution.id);
         Ok(())
@@ -481,7 +497,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
         .bind(step.completed_at)
         .bind(step.retry_count as i32)
         .bind(step.error_message.as_deref())
-        .bind(step.logs.join(LOG_SEPARATOR))
+        .bind(step.logs.join(&LOG_SEPARATOR.to_string()))
         .bind(step.step_execution_id.as_uuid())
         .execute(&self.pool)
         .await

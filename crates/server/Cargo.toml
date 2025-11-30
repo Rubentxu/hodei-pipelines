@@ -52,6 +52,9 @@ utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 portable-pty = { workspace = true }
 
+# Database
+sqlx = { workspace = true, features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+
 [lib]
 name = "hodei_server"
 path = "src/lib.rs"

@@ -2,13 +2,32 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Workers Management', () => {
     test.beforeEach(async ({ page }) => {
+        // Mock Auth
+        await page.addInitScript(() => {
+            window.localStorage.setItem('token', 'fake-jwt-token');
+            window.localStorage.setItem('user', JSON.stringify({ id: 'user-1', name: 'Test User', email: 'test@example.com', role: 'admin' }));
+        });
+
+        // Mock Workers Stream
+        await page.route('/api/workers/stream', async (route) => {
+            await route.fulfill({
+                status: 200,
+                headers: {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                },
+                body: '', // Keep connection open
+            });
+        });
+
         // Mock Workers API
         await page.route('/api/workers', async (route) => {
             await route.fulfill({
                 json: [
-                    { id: 'worker-1', name: 'Worker 1', status: 'healthy', cpu: 45, memory: 60, version: '1.0.0' },
-                    { id: 'worker-2', name: 'Worker 2', status: 'failed', cpu: 0, memory: 0, version: '1.0.0' },
-                    { id: 'worker-3', name: 'Worker 3', status: 'maintenance', cpu: 10, memory: 20, version: '1.0.0' },
+                    { id: 'worker-1', name: 'Worker 1', status: 'healthy', cpu: 45, memory: 60, version: '1.0.0', currentJobs: 5, maxJobs: 10, poolId: 'pool-1' },
+                    { id: 'worker-2', name: 'Worker 2', status: 'failed', cpu: 0, memory: 0, version: '1.0.0', currentJobs: 0, maxJobs: 10, poolId: 'pool-1' },
+                    { id: 'worker-3', name: 'Worker 3', status: 'maintenance', cpu: 10, memory: 20, version: '1.0.0', currentJobs: 0, maxJobs: 10, poolId: 'pool-2' },
                 ],
             });
         });
@@ -46,12 +65,17 @@ test.describe('Workers Management', () => {
         await expect(page.getByText('Workers', { exact: true }).first()).toBeVisible();
 
         // Check statistics cards
-        await expect(page.getByText('Activos')).toBeVisible();
-        await expect(page.getByText('1', { exact: true })).toBeVisible(); // 1 healthy worker
-        await expect(page.getByText('Fallidos')).toBeVisible();
-        await expect(page.getByText('1', { exact: true })).toBeVisible(); // 1 failed worker
-        await expect(page.getByText('Total')).toBeVisible();
-        await expect(page.getByText('3', { exact: true })).toBeVisible(); // 3 total workers
+        const activeCard = page.locator('.rounded-lg', { hasText: 'Activos' });
+        await expect(activeCard).toBeVisible();
+        await expect(activeCard.getByText('1', { exact: true })).toBeVisible(); // 1 healthy worker
+
+        const failedCard = page.locator('.rounded-lg', { hasText: 'Fallidos' });
+        await expect(failedCard).toBeVisible();
+        await expect(failedCard.getByText('1', { exact: true })).toBeVisible(); // 1 failed worker
+
+        const totalCard = page.locator('.rounded-lg', { hasText: 'Total' });
+        await expect(totalCard).toBeVisible();
+        await expect(totalCard.getByText('3', { exact: true })).toBeVisible(); // 3 total workers
 
         // Check worker cards
         await expect(page.getByText('Worker 1')).toBeVisible();
@@ -65,12 +89,12 @@ test.describe('Workers Management', () => {
         // Actually, looking at WorkerCard, it uses Shadcn Card.
         // We can scope by text.
 
-        // Stop Worker 1
-        await page.locator('.rounded-lg', { hasText: 'Worker 1' }).getByRole('button', { name: 'Detener' }).click();
+        // Stop Worker 1 (Healthy)
+        await page.getByRole('button', { name: 'Detener' }).first().click();
         // Verify API call was made (Playwright routes handle this, but we could assert request if needed)
 
         // Worker 2 is failed, should have Start button
-        await page.locator('.rounded-lg', { hasText: 'Worker 2' }).getByRole('button', { name: 'Iniciar' }).click();
+        await page.getByRole('button', { name: 'Iniciar' }).first().click();
     });
 
     test('should list worker pools', async ({ page }) => {
@@ -89,6 +113,6 @@ test.describe('Workers Management', () => {
         // In workers.spec.ts mock: { id: 'pool-1', name: 'General Purpose', ... } 
         // We need to add type: 'static' to the mock for pool-1 to see the buttons.
 
-        await page.locator('.rounded-lg', { hasText: 'General Purpose' }).getByRole('button', { name: '+1' }).click();
+        await page.locator('.border').filter({ has: page.getByRole('heading', { name: 'General Purpose' }) }).getByRole('button', { name: '+1' }).click();
     });
 });

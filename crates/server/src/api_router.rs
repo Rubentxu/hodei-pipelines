@@ -23,7 +23,7 @@ use crate::cost_optimization_recommendations::{
 use crate::cost_tracking_aggregation::{
     CostTrackingApiAppState, CostTrackingService, cost_tracking_api_routes,
 };
-use crate::execution_api::{ExecutionApiAppState, ExecutionServiceWrapper, execution_api_routes};
+use crate::execution_api::{ExecutionApiAppState, execution_api_routes};
 use crate::live_metrics_api::{
     LiveMetricsApiAppState, LiveMetricsService, live_metrics_api_routes,
 };
@@ -37,7 +37,7 @@ use crate::metrics_api::{
 use crate::observability_api::{
     ObservabilityApiAppState, ObservabilityApiService, observability_api_routes,
 };
-use crate::pipeline_api::{PipelineApiAppState, PipelineServiceWrapper, pipeline_api_routes};
+use crate::pipeline_api::{PipelineApiAppState, pipeline_api_routes};
 use crate::rbac::{RbacApiAppState, RbacService, rbac_api_routes};
 use crate::realtime_status_api::{
     RealtimeStatusApiAppState, RealtimeStatusService, realtime_status_api_routes,
@@ -58,85 +58,17 @@ use hodei_pipelines_core::{
     pipeline_execution::PipelineExecution,
 };
 use hodei_pipelines_modules::{
-    CreatePipelineRequest, ExecutePipelineRequest, ListPipelinesFilter, UpdatePipelineRequest,
+    CreatePipelineRequest, ExecutePipelineRequest, ListPipelinesFilter,
+    PipelineExecutionService, PipelineService, UpdatePipelineRequest,
 };
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-/// Mock Pipeline Service for development/testing
-#[derive(Debug, Clone)]
-pub struct MockPipelineService;
+/// Type alias for PipelineService trait object
+type PipelineServiceType = Arc<dyn PipelineService>;
 
-/// Mock Execution Service for development/testing
-#[derive(Debug, Clone)]
-pub struct MockExecutionService;
-
-#[async_trait::async_trait]
-impl PipelineServiceWrapper for MockPipelineService {
-    async fn create_pipeline(&self, _request: CreatePipelineRequest) -> CoreResult<Pipeline> {
-        Err(DomainError::Infrastructure(
-            "Pipeline CRUD service not yet initialized in production mode".to_string(),
-        ))
-    }
-
-    async fn get_pipeline(&self, _id: &PipelineId) -> CoreResult<Option<Pipeline>> {
-        Ok(None)
-    }
-
-    async fn list_pipelines(
-        &self,
-        _filter: Option<ListPipelinesFilter>,
-    ) -> CoreResult<Vec<Pipeline>> {
-        Ok(vec![])
-    }
-
-    async fn update_pipeline(
-        &self,
-        _id: &PipelineId,
-        _request: UpdatePipelineRequest,
-    ) -> CoreResult<Pipeline> {
-        Err(DomainError::Infrastructure(
-            "Pipeline CRUD service not yet initialized in production mode".to_string(),
-        ))
-    }
-
-    async fn delete_pipeline(&self, _id: &PipelineId) -> CoreResult<()> {
-        Err(DomainError::Infrastructure(
-            "Pipeline CRUD service not yet initialized in production mode".to_string(),
-        ))
-    }
-
-    async fn execute_pipeline(
-        &self,
-        _request: ExecutePipelineRequest,
-    ) -> CoreResult<PipelineExecution> {
-        Err(DomainError::Infrastructure(
-            "Pipeline CRUD service not yet initialized in production mode".to_string(),
-        ))
-    }
-}
-
-#[async_trait::async_trait]
-impl ExecutionServiceWrapper for MockExecutionService {
-    async fn get_execution(&self, _id: &ExecutionId) -> CoreResult<Option<PipelineExecution>> {
-        Ok(None)
-    }
-
-    async fn get_executions_for_pipeline(
-        &self,
-        _pipeline_id: &PipelineId,
-    ) -> CoreResult<Vec<PipelineExecution>> {
-        Ok(vec![])
-    }
-
-    async fn cancel_execution(&self, _id: &ExecutionId) -> CoreResult<()> {
-        Ok(())
-    }
-
-    async fn retry_execution(&self, _id: &ExecutionId) -> CoreResult<ExecutionId> {
-        Ok(ExecutionId::new())
-    }
-}
+/// Type alias for PipelineExecutionService trait object
+type ExecutionServiceType = Arc<dyn PipelineExecutionService>;
 
 /// Create centralized API router
 pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
@@ -153,13 +85,13 @@ pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
         pool_statuses: Arc::new(RwLock::new(HashMap::new())),
     };
 
-    // Initialize pipeline state - with mock service for now
-    let mock_pipeline_service = Arc::new(MockPipelineService);
-    let pipeline_state = PipelineApiAppState::new(mock_pipeline_service);
+    // Initialize pipeline state - with production service using PipelineExecutionOrchestrator
+    let pipeline_service: PipelineServiceType = server_components.pipeline_service.clone();
+    let pipeline_state = PipelineApiAppState::new(pipeline_service);
 
-    // Initialize execution state - with mock service for now
-    let mock_execution_service = Arc::new(MockExecutionService);
-    let execution_state = ExecutionApiAppState::new(mock_execution_service);
+    // Initialize execution state - with production service using PipelineExecutionOrchestrator
+    let execution_service: ExecutionServiceType = server_components.orchestrator.clone();
+    let execution_state = ExecutionApiAppState::new(execution_service);
 
     // Initialize logs state - with mock service for now
     let mock_log_service = Arc::new(MockLogService);

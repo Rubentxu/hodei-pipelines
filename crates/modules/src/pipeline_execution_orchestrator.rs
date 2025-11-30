@@ -3,16 +3,27 @@
 //! Production-ready implementation for orchestrating pipeline step execution
 //! with dependency management and fault tolerance.
 
+use async_trait::async_trait;
 use hodei_pipelines_core::{
-    DomainError, Result,
-    pipeline::{Pipeline, PipelineId, PipelineStepId},
+    DomainError, Pipeline, PipelineId, Result,
+    pipeline::PipelineStepId,
     pipeline_execution::{ExecutionId, ExecutionStatus, PipelineExecution, StepExecutionStatus},
 };
-use hodei_pipelines_ports::{EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository};
+use hodei_pipelines_ports::{
+    EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository,
+};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{Semaphore, mpsc};
 use tracing::{Instrument, Span, error, info, warn};
+
+use crate::pipeline_crud::{
+    CreatePipelineRequest, ExecutePipelineRequest, ListPipelinesFilter, UpdatePipelineRequest,
+};
+use hodei_pipelines_adapters::{
+    InMemoryBus, PostgreSqlJobRepository, PostgreSqlPipelineExecutionRepository,
+    PostgreSqlPipelineRepository,
+};
 
 /// Configuration for pipeline execution orchestrator
 #[derive(Debug, Clone)]
@@ -53,6 +64,25 @@ where
     cancellation_receiver: Arc<tokio::sync::Mutex<mpsc::UnboundedReceiver<ExecutionId>>>,
     // Semaphore for concurrent step execution
     step_semaphore: Arc<Semaphore>,
+}
+
+// Make it Send + Sync for use as trait object
+unsafe impl<R, J, P, E> Send for PipelineExecutionOrchestrator<R, J, P, E>
+where
+    R: PipelineExecutionRepository + Send + Sync,
+    J: JobRepository + Send + Sync,
+    P: PipelineRepository + Send + Sync,
+    E: EventPublisher + Send + Sync,
+{
+}
+
+unsafe impl<R, J, P, E> Sync for PipelineExecutionOrchestrator<R, J, P, E>
+where
+    R: PipelineExecutionRepository + Send + Sync,
+    J: JobRepository + Send + Sync,
+    P: PipelineRepository + Send + Sync,
+    E: EventPublisher + Send + Sync,
+{
 }
 
 impl<R, J, P, E> PipelineExecutionOrchestrator<R, J, P, E>
@@ -144,10 +174,12 @@ where
 
         // Publish pipeline execution started event
         self.event_bus
-            .publish(hodei_pipelines_ports::SystemEvent::PipelineExecutionStarted {
-                pipeline_id: pipeline_id_clone.clone(),
-                execution_id: execution_id.clone(),
-            })
+            .publish(
+                hodei_pipelines_ports::SystemEvent::PipelineExecutionStarted {
+                    pipeline_id: pipeline_id_clone.clone(),
+                    execution_id: execution_id.clone(),
+                },
+            )
             .await
             .map_err(|e| DomainError::Infrastructure(format!("Failed to publish event: {}", e)))?;
 
@@ -509,4 +541,334 @@ fn build_dependency_graph(pipeline: &Pipeline) -> HashMap<PipelineStepId, Vec<Pi
     }
 
     graph
+}
+
+// =============================================================================
+// Concrete Orchestrator Wrapper for DI
+// =============================================================================
+
+/// Concrete orchestrator wrapper for dependency injection
+/// This avoids generic type parameters in trait objects
+pub struct ConcreteOrchestrator {
+    inner: Arc<
+        PipelineExecutionOrchestrator<
+            PostgreSqlPipelineExecutionRepository,
+            PostgreSqlJobRepository,
+            PostgreSqlPipelineRepository,
+            InMemoryBus,
+        >,
+    >,
+}
+
+impl ConcreteOrchestrator {
+    pub fn new(
+        execution_repo: Arc<PostgreSqlPipelineExecutionRepository>,
+        job_repo: Arc<PostgreSqlJobRepository>,
+        pipeline_repo: Arc<PostgreSqlPipelineRepository>,
+        event_bus: Arc<InMemoryBus>,
+        config: PipelineExecutionConfig,
+    ) -> Result<Self> {
+        let orchestrator = PipelineExecutionOrchestrator::new(
+            execution_repo,
+            job_repo,
+            pipeline_repo,
+            event_bus,
+            config,
+        )?;
+
+        Ok(Self {
+            inner: Arc::new(orchestrator),
+        })
+    }
+}
+
+#[async_trait]
+impl PipelineService for ConcreteOrchestrator {
+    async fn create_pipeline(&self, request: CreatePipelineRequest) -> Result<Pipeline> {
+        self.inner.create_pipeline(request).await
+    }
+
+    async fn get_pipeline(&self, id: &PipelineId) -> Result<Option<Pipeline>> {
+        self.inner.get_pipeline(id).await
+    }
+
+    async fn list_pipelines(&self, filter: Option<ListPipelinesFilter>) -> Result<Vec<Pipeline>> {
+        self.inner.list_pipelines(filter).await
+    }
+
+    async fn update_pipeline(
+        &self,
+        id: &PipelineId,
+        request: UpdatePipelineRequest,
+    ) -> Result<Pipeline> {
+        self.inner.update_pipeline(id, request).await
+    }
+
+    async fn delete_pipeline(&self, id: &PipelineId) -> Result<()> {
+        self.inner.delete_pipeline(id).await
+    }
+
+    async fn execute_pipeline(&self, request: ExecutePipelineRequest) -> Result<PipelineExecution> {
+        let execution_id = self
+            .inner
+            .execute_pipeline(
+                request.pipeline_id,
+                request.variables.unwrap_or_default(),
+                request.tenant_id,
+                request.correlation_id,
+            )
+            .await?;
+
+        match self.inner.get_execution(&execution_id).await? {
+            Some(execution) => Ok(execution),
+            None => Err(DomainError::Infrastructure(
+                "Failed to retrieve execution after creation".to_string(),
+            )),
+        }
+    }
+}
+
+#[async_trait]
+impl PipelineExecutionService for ConcreteOrchestrator {
+    async fn get_execution(&self, id: &ExecutionId) -> Result<Option<PipelineExecution>> {
+        self.inner.get_execution(id).await
+    }
+
+    async fn get_executions_for_pipeline(
+        &self,
+        pipeline_id: &PipelineId,
+    ) -> Result<Vec<PipelineExecution>> {
+        self.inner.get_executions_for_pipeline(pipeline_id).await
+    }
+
+    async fn cancel_execution(&self, id: &ExecutionId) -> Result<()> {
+        self.inner.cancel_execution(id).await
+    }
+
+    async fn retry_execution(&self, id: &ExecutionId) -> Result<ExecutionId> {
+        self.inner.retry_execution(id).await
+    }
+}
+
+// =============================================================================
+// API Traits for use as trait objects
+// =============================================================================
+
+#[async_trait]
+pub trait PipelineService: Send + Sync {
+    async fn create_pipeline(&self, request: CreatePipelineRequest) -> Result<Pipeline>;
+    async fn get_pipeline(&self, id: &PipelineId) -> Result<Option<Pipeline>>;
+    async fn list_pipelines(&self, filter: Option<ListPipelinesFilter>) -> Result<Vec<Pipeline>>;
+    async fn update_pipeline(
+        &self,
+        id: &PipelineId,
+        request: UpdatePipelineRequest,
+    ) -> Result<Pipeline>;
+    async fn delete_pipeline(&self, id: &PipelineId) -> Result<()>;
+    async fn execute_pipeline(&self, request: ExecutePipelineRequest) -> Result<PipelineExecution>;
+}
+
+#[async_trait]
+pub trait PipelineExecutionService: Send + Sync {
+    async fn get_execution(&self, id: &ExecutionId) -> Result<Option<PipelineExecution>>;
+    async fn get_executions_for_pipeline(
+        &self,
+        pipeline_id: &PipelineId,
+    ) -> Result<Vec<PipelineExecution>>;
+    async fn cancel_execution(&self, id: &ExecutionId) -> Result<()>;
+    async fn retry_execution(&self, id: &ExecutionId) -> Result<ExecutionId>;
+}
+
+// =============================================================================
+// Trait Implementations
+// =============================================================================
+
+#[async_trait]
+impl<R, J, P, E> PipelineService for PipelineExecutionOrchestrator<R, J, P, E>
+where
+    R: PipelineExecutionRepository + Send + Sync + 'static,
+    J: JobRepository + Send + Sync + 'static,
+    P: PipelineRepository + Send + Sync,
+    E: EventPublisher + Send + Sync + 'static,
+{
+    async fn create_pipeline(&self, request: CreatePipelineRequest) -> Result<Pipeline> {
+        info!("Creating pipeline: {}", request.name);
+
+        // Convert CreatePipelineStepRequest to PipelineStep
+        let steps: Vec<hodei_pipelines_core::pipeline::PipelineStep> = request
+            .steps
+            .into_iter()
+            .map(|step_req| {
+                let timeout_ms = step_req.timeout_ms.unwrap_or(300000);
+                let job_spec = hodei_pipelines_core::job::JobSpec {
+                    name: step_req.name.clone(),
+                    image: step_req.image,
+                    command: step_req.command,
+                    resources: step_req.resources.unwrap_or_default(),
+                    timeout_ms,
+                    retries: step_req.retries.unwrap_or(3) as u8,
+                    env: step_req.env.unwrap_or_default(),
+                    secret_refs: step_req.secret_refs.unwrap_or_default(),
+                };
+
+                hodei_pipelines_core::pipeline::PipelineStep::new(
+                    job_spec.name.clone(),
+                    job_spec,
+                    timeout_ms,
+                )
+            })
+            .collect();
+
+        let pipeline = Pipeline::new(hodei_pipelines_core::PipelineId::new(), request.name, steps)?;
+
+        self.pipeline_repo
+            .save_pipeline(&pipeline)
+            .await
+            .map_err(|e| {
+                DomainError::Infrastructure(format!("Failed to create pipeline: {}", e))
+            })?;
+
+        info!("Pipeline created successfully: {}", pipeline.id);
+        Ok(pipeline)
+    }
+
+    async fn get_pipeline(&self, id: &PipelineId) -> Result<Option<Pipeline>> {
+        self.pipeline_repo
+            .get_pipeline(id)
+            .await
+            .map_err(|e| DomainError::Infrastructure(format!("Failed to get pipeline: {}", e)))
+    }
+
+    async fn list_pipelines(&self, filter: Option<ListPipelinesFilter>) -> Result<Vec<Pipeline>> {
+        // TODO: Implement filtering when repository supports it
+        // For now, ignore filter and return all pipelines
+        let _ = filter; // Silence unused warning
+
+        self.pipeline_repo
+            .get_all_pipelines()
+            .await
+            .map_err(|e| DomainError::Infrastructure(format!("Failed to list pipelines: {}", e)))
+    }
+
+    async fn update_pipeline(
+        &self,
+        id: &PipelineId,
+        request: UpdatePipelineRequest,
+    ) -> Result<Pipeline> {
+        info!("Updating pipeline: {}", id);
+
+        let mut pipeline = self
+            .pipeline_repo
+            .get_pipeline(id)
+            .await
+            .map_err(|e| DomainError::Infrastructure(format!("Failed to get pipeline: {}", e)))?
+            .ok_or_else(|| DomainError::NotFound(format!("Pipeline not found: {}", id)))?;
+
+        if let Some(name) = request.name {
+            pipeline.name = name;
+        }
+
+        if let Some(description) = request.description {
+            pipeline.description = Some(description);
+        }
+
+        if let Some(_steps) = request.steps {
+            // TODO: Implement step updates when needed
+            // For now, we skip step updates in the update operation
+        }
+
+        if let Some(variables) = request.variables {
+            pipeline.variables = variables;
+        }
+
+        self.pipeline_repo
+            .save_pipeline(&pipeline)
+            .await
+            .map_err(|e| {
+                DomainError::Infrastructure(format!("Failed to update pipeline: {}", e))
+            })?;
+
+        info!("Pipeline updated successfully: {}", pipeline.id);
+        Ok(pipeline)
+    }
+
+    async fn delete_pipeline(&self, id: &PipelineId) -> Result<()> {
+        info!("Deleting pipeline: {}", id);
+
+        self.pipeline_repo.delete_pipeline(id).await.map_err(|e| {
+            DomainError::Infrastructure(format!("Failed to delete pipeline: {}", e))
+        })?;
+
+        info!("Pipeline deleted successfully: {}", id);
+        Ok(())
+    }
+
+    async fn execute_pipeline(&self, request: ExecutePipelineRequest) -> Result<PipelineExecution> {
+        let execution_id = self
+            .execute_pipeline(
+                request.pipeline_id,
+                request.variables.unwrap_or_default(),
+                request.tenant_id,
+                request.correlation_id,
+            )
+            .await?;
+
+        match self.get_execution(&execution_id).await? {
+            Some(execution) => Ok(execution),
+            None => Err(DomainError::Infrastructure(
+                "Failed to retrieve execution after creation".to_string(),
+            )),
+        }
+    }
+}
+
+#[async_trait]
+impl<R, J, P, E> PipelineExecutionService for PipelineExecutionOrchestrator<R, J, P, E>
+where
+    R: PipelineExecutionRepository + Send + Sync + 'static,
+    J: JobRepository + Send + Sync + 'static,
+    P: PipelineRepository + Send + Sync,
+    E: EventPublisher + Send + Sync + 'static,
+{
+    async fn get_execution(&self, id: &ExecutionId) -> Result<Option<PipelineExecution>> {
+        self.get_execution(id).await
+    }
+
+    async fn get_executions_for_pipeline(
+        &self,
+        pipeline_id: &PipelineId,
+    ) -> Result<Vec<PipelineExecution>> {
+        self.execution_repo
+            .get_executions_by_pipeline(pipeline_id)
+            .await
+            .map_err(|e| {
+                DomainError::Infrastructure(format!("Failed to get executions for pipeline: {}", e))
+            })
+    }
+
+    async fn cancel_execution(&self, id: &ExecutionId) -> Result<()> {
+        self.cancel_execution(id).await
+    }
+
+    async fn retry_execution(&self, id: &ExecutionId) -> Result<ExecutionId> {
+        info!("Retrying execution: {}", id);
+
+        let execution = self
+            .get_execution(id)
+            .await
+            .map_err(|e| DomainError::Infrastructure(format!("Failed to get execution: {}", e)))?
+            .ok_or_else(|| DomainError::NotFound(format!("Execution not found: {}", id)))?;
+
+        let pipeline_id = execution.pipeline_id.clone();
+        let variables = execution.variables.clone();
+        let tenant_id = execution.tenant_id.clone();
+        let correlation_id = execution.correlation_id.clone();
+
+        let new_execution_id = self
+            .execute_pipeline(pipeline_id, variables, tenant_id, correlation_id)
+            .await?;
+
+        info!("Execution retried: {} -> {}", id, new_execution_id);
+        Ok(new_execution_id)
+    }
 }

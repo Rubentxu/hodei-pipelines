@@ -26,6 +26,7 @@ hodei-pipelines-core = { workspace = true }
 hodei-pipelines-ports = { workspace = true }
 hodei-pipelines-adapters = { workspace = true }
 hodei-pipelines-server = { workspace = true }
+hodei-pipelines-modules = { workspace = true }
 
 [dev-dependencies]
 axum-test = "18.3.0"

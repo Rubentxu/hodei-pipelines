@@ -2,6 +2,12 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Alert Management', () => {
     test.beforeEach(async ({ page }) => {
+        // Mock Auth
+        await page.addInitScript(() => {
+            window.localStorage.setItem('token', 'fake-jwt-token');
+            window.localStorage.setItem('user', JSON.stringify({ id: 'user-1', name: 'Test User', email: 'test@example.com', role: 'admin' }));
+        });
+
         // Mock Alerts List
         await page.route('/api/v1/alerts?*', async (route) => {
             const url = new URL(route.request().url());

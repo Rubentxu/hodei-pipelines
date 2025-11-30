@@ -9,7 +9,10 @@ export function useKPIMetrics() {
 
   const query = useQuery({
     queryKey: ["kpi-metrics"],
-    queryFn: () => observabilityApi.getMetrics(),
+    queryFn: () => {
+      console.log('useKPIMetrics: calling getMetrics');
+      return observabilityApi.getMetrics();
+    },
     refetchInterval: 5000, // Poll every 5 seconds
     staleTime: 30000,
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
@@ -18,14 +21,14 @@ export function useKPIMetrics() {
   useEffect(() => {
     let cleanup: (() => void) | undefined;
 
-    observabilityApi.streamMetrics((data) => {
+    const eventSource = observabilityApi.streamMetrics((data) => {
       queryClient.setQueryData<ObservabilityMetricsResponse>(["kpi-metrics"], (old) => {
         return old ? { ...old, ...data } : ({ ...data } as ObservabilityMetricsResponse);
       });
       setIsConnected(true);
-    }).then((eventSource) => {
-      cleanup = () => eventSource.close();
     });
+
+    cleanup = () => eventSource.close();
 
     const connectionTimeout = setTimeout(() => {
       setIsConnected(false);

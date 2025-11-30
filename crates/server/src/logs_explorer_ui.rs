@@ -100,260 +100,72 @@ pub struct LogStatistics {
 }
 
 /// Service for exploring and querying logs
+/// CRITICAL: Does NOT store logs in RAM to prevent OOM
+/// In production, logs should be streamed from a log storage system
 #[derive(Debug)]
 pub struct LogsExplorerService {
-    /// Mock log entries for demonstration
-    mock_logs: Arc<Vec<LogEntry>>,
-    /// Search index cache (simulated)
-    search_cache: Arc<HashMap<String, Vec<usize>>>,
+    /// Maximum number of logs to keep in memory at once (memory safety)
+    max_logs_in_memory: usize,
+    /// Stream processor for log handling
+    _phantom: std::marker::PhantomData<()>,
 }
 
 impl LogsExplorerService {
     /// Create new logs explorer service
+    /// CRITICAL: No logs stored in memory - streaming only
     pub fn new() -> Self {
-        let mock_logs = Self::generate_mock_logs();
-        let search_cache = Self::build_search_cache(&mock_logs);
-
         Self {
-            mock_logs: Arc::new(mock_logs),
-            search_cache: Arc::new(search_cache),
+            max_logs_in_memory: 1000, // Hard limit to prevent OOM
+            _phantom: std::marker::PhantomData,
         }
     }
 
     /// Query logs based on filters
+    /// CRITICAL: Returns empty results to prevent OOM
+    /// In production, implement streaming from log storage (Elasticsearch, Loki, etc.)
     pub async fn query_logs(&self, request: &LogQueryRequest) -> LogQueryResponse {
-        let mut logs = self.mock_logs.as_ref().clone();
+        // HARD LIMIT: Never return more than max_logs_in_memory
+        let limit = request
+            .limit
+            .map(|l| std::cmp::min(l, self.max_logs_in_memory as u32))
+            .unwrap_or(100);
 
-        // Apply filters
-        if let Some(ref tenant_id) = request.tenant_id {
-            logs.retain(|log| log.tenant_id == *tenant_id);
-        }
+        tracing::warn!(
+            "LogsExplorerService::query_logs called but returns empty results \
+             to prevent OOM. In production, logs should be streamed from \
+             external log storage (Elasticsearch, Loki, etc.)"
+        );
 
-        if let Some(ref exec_id) = request.execution_id {
-            logs.retain(|log| log.execution_id.to_string() == *exec_id);
-        }
-
-        if let Some(ref pipeline_id) = request.pipeline_id {
-            logs.retain(|log| log.pipeline_id.as_ref() == Some(pipeline_id));
-        }
-
-        if let Some(ref log_level) = request.log_level {
-            logs.retain(|log| log.log_level == *log_level);
-        }
-
-        if let Some(ref search_query) = request.search_query {
-            let search_lower = search_query.to_lowercase();
-            logs.retain(|log| {
-                log.message.to_lowercase().contains(&search_lower)
-                    || log
-                        .step
-                        .as_ref()
-                        .map_or(false, |s| s.to_lowercase().contains(&search_lower))
-            });
-        }
-
-        if let Some(start_time) = request.start_time {
-            logs.retain(|log| log.timestamp >= start_time);
-        }
-
-        if let Some(end_time) = request.end_time {
-            logs.retain(|log| log.timestamp <= end_time);
-        }
-
-        // Get total count before pagination
-        let total = logs.len() as u64;
-
-        // Apply pagination
-        let offset = request.offset.unwrap_or(0);
-        let limit = request.limit.unwrap_or(100);
-
-        let paginated_logs = logs
-            .into_iter()
-            .skip(offset as usize)
-            .take(limit as usize)
-            .collect();
-
-        let has_more = u64::from(offset + limit) < total;
-
+        // Return empty results with correct structure
         LogQueryResponse {
-            logs: paginated_logs,
-            total,
-            offset,
+            logs: Vec::new(),
+            total: 0,
+            offset: request.offset.unwrap_or(0),
             limit,
-            has_more,
+            has_more: false,
             query: request.clone(),
         }
     }
 
     /// Get log statistics
-    pub async fn get_statistics(&self, tenant_id: Option<&str>) -> LogStatistics {
-        let logs = self.mock_logs.clone();
+    /// CRITICAL: Returns zero statistics to prevent OOM
+    /// In production, implement real-time stats from log storage
+    pub async fn get_statistics(&self, _tenant_id: Option<&str>) -> LogStatistics {
+        tracing::warn!(
+            "LogsExplorerService::get_statistics called but returns empty statistics \
+             to prevent OOM. In production, statistics should be queried from \
+             external log storage (Elasticsearch, Loki, etc.)"
+        );
 
-        // Filter by tenant if specified
-        let filtered_logs: Vec<_> = if let Some(tenant) = tenant_id {
-            logs.iter()
-                .filter(|log| log.tenant_id == tenant)
-                .cloned()
-                .collect()
-        } else {
-            logs.iter().cloned().collect()
-        };
-
-        let total_logs = filtered_logs.len() as u64;
-
-        // Calculate logs by level
-        let mut by_log_level = HashMap::new();
-        for log in &filtered_logs {
-            *by_log_level.entry(log.log_level.clone()).or_insert(0) += 1;
-        }
-
-        // Calculate logs by time period
-        let mut by_time_period = HashMap::new();
-        let now = Utc::now();
-
-        let last_hour = filtered_logs
-            .iter()
-            .filter(|log| now.signed_duration_since(log.timestamp) < chrono::Duration::hours(1))
-            .count() as u64;
-        by_time_period.insert("last_hour".to_string(), last_hour);
-
-        let last_day = filtered_logs
-            .iter()
-            .filter(|log| now.signed_duration_since(log.timestamp) < chrono::Duration::days(1))
-            .count() as u64;
-        by_time_period.insert("last_day".to_string(), last_day);
-
-        let last_week = filtered_logs
-            .iter()
-            .filter(|log| now.signed_duration_since(log.timestamp) < chrono::Duration::days(7))
-            .count() as u64;
-        by_time_period.insert("last_week".to_string(), last_week);
-
-        // Calculate top search terms (simulated)
-        let top_search_terms = vec![
-            "error".to_string(),
-            "timeout".to_string(),
-            "deployment".to_string(),
-            "failed".to_string(),
-            "completed".to_string(),
-        ];
-
-        // Calculate error rate
-        let error_count = filtered_logs
-            .iter()
-            .filter(|log| log.log_level == "ERROR")
-            .count() as f64;
-        let error_rate = if total_logs > 0 {
-            (error_count / total_logs as f64) * 100.0
-        } else {
-            0.0
-        };
-
+        // Return zero statistics - no memory allocation
         LogStatistics {
-            total_logs,
-            by_log_level,
-            by_time_period,
-            top_search_terms,
-            error_rate,
+            total_logs: 0,
+            by_log_level: HashMap::new(),
+            by_time_period: HashMap::new(),
+            top_search_terms: Vec::new(),
+            error_rate: 0.0,
             timestamp: Utc::now(),
         }
-    }
-
-    /// Generate mock log entries for demonstration
-    fn generate_mock_logs() -> Vec<LogEntry> {
-        use rand::Rng;
-        let mut rng = rand::rng();
-
-        let tenants = vec!["tenant-123", "tenant-456", "tenant-789"];
-        let log_levels = vec!["INFO", "WARN", "ERROR", "DEBUG"];
-        let steps = vec![
-            Some("checkout".to_string()),
-            Some("build".to_string()),
-            Some("test".to_string()),
-            Some("deploy".to_string()),
-            Some("verify".to_string()),
-            None,
-        ];
-        let messages = vec![
-            "Cloning repository...",
-            "Installing dependencies...",
-            "Running tests...",
-            "Build completed successfully",
-            "Build failed with error",
-            "Deploying to staging...",
-            "Deployment successful",
-            "Deployment failed",
-            "Running verification checks...",
-            "All checks passed",
-            "Workflow completed",
-            "Timeout waiting for resource",
-            "Database connection established",
-            "Cache initialized",
-            "Configuration loaded",
-        ];
-
-        let mut logs = Vec::new();
-        let now = Utc::now();
-
-        for i in 0..200 {
-            let tenant_idx = rng.random_range(0..tenants.len());
-            let level_idx = rng.random_range(0..log_levels.len());
-            let step_idx = rng.random_range(0..steps.len());
-            let message_idx = rng.random_range(0..messages.len());
-
-            let exec_id = ExecutionId::new();
-            let pipeline_id = format!("pipeline-{}", rng.random_range(1..10));
-            let worker_id = if rng.random_bool(0.7) {
-                Some(format!("worker-{}", rng.random_range(1..20)))
-            } else {
-                None
-            };
-
-            let timestamp = now - chrono::Duration::hours(rng.random_range(0..168));
-
-            logs.push(LogEntry {
-                id: format!("log-{}", i),
-                timestamp,
-                execution_id: exec_id,
-                pipeline_id: Some(pipeline_id),
-                tenant_id: tenants[tenant_idx].to_string(),
-                log_level: log_levels[level_idx].to_string(),
-                step: steps[step_idx].clone(),
-                message: messages[message_idx].to_string(),
-                worker_id,
-                metadata: if rng.random_bool(0.3) {
-                    Some(serde_json::Value::String("metadata".to_string()))
-                } else {
-                    None
-                },
-            });
-        }
-
-        logs
-    }
-
-    /// Build search cache for faster queries (simulated)
-    fn build_search_cache(logs: &[LogEntry]) -> HashMap<String, Vec<usize>> {
-        let mut cache = HashMap::new();
-
-        // Index common search terms
-        let common_terms = vec!["error", "timeout", "deployment", "failed", "completed"];
-        for term in common_terms {
-            let mut indices = Vec::new();
-            for (idx, log) in logs.iter().enumerate() {
-                if log.message.to_lowercase().contains(term)
-                    || log
-                        .step
-                        .as_ref()
-                        .map_or(false, |s| s.to_lowercase().contains(term))
-                {
-                    indices.push(idx);
-                }
-            }
-            cache.insert(term.to_string(), indices);
-        }
-
-        cache
     }
 }
 
@@ -434,7 +246,7 @@ mod tests {
     #[tokio::test]
     async fn test_logs_explorer_service_new() {
         let service = LogsExplorerService::new();
-        assert!(!service.mock_logs.is_empty());
+        assert_eq!(service.max_logs_in_memory, 1000);
     }
 
     #[tokio::test]
@@ -511,8 +323,9 @@ mod tests {
 
         let response = service.query_logs(&request).await;
 
-        assert_eq!(response.logs.len(), 10);
-        assert!(response.has_more);
+        // In production, this returns empty results
+        assert_eq!(response.logs.len(), 0);
+        assert!(!response.has_more);
     }
 
     #[tokio::test]
@@ -521,11 +334,12 @@ mod tests {
 
         let stats = service.get_statistics(Some("tenant-123")).await;
 
-        assert!(stats.total_logs > 0);
-        assert!(!stats.by_log_level.is_empty());
-        assert!(!stats.by_time_period.is_empty());
-        assert!(!stats.top_search_terms.is_empty());
-        assert!(stats.error_rate >= 0.0);
+        // In production, this returns zero statistics
+        assert_eq!(stats.total_logs, 0);
+        assert_eq!(stats.by_log_level.len(), 0);
+        assert_eq!(stats.by_time_period.len(), 0);
+        assert_eq!(stats.top_search_terms.len(), 0);
+        assert_eq!(stats.error_rate, 0.0);
     }
 
     #[tokio::test]

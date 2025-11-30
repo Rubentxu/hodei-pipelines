@@ -15,6 +15,7 @@ use hodei_pipelines_core::{
     pipeline::{Pipeline, PipelineId, PipelineStepId},
     pipeline_execution::ExecutionId,
 };
+use hodei_pipelines_modules::PipelineService;
 use hodei_pipelines_modules::pipeline_crud::{
     CreatePipelineRequest, CreatePipelineStepRequest, ExecutePipelineRequest, ListPipelinesFilter,
     UpdatePipelineRequest,
@@ -29,38 +30,15 @@ use crate::dtos::*;
 /// Application state for Pipeline API
 #[derive(Clone)]
 pub struct PipelineApiAppState {
-    pub pipeline_service: Arc<dyn PipelineServiceWrapper + Send + Sync>,
+    pub pipeline_service: Arc<dyn PipelineService>,
 }
 
 impl PipelineApiAppState {
-    pub fn new(service: Arc<dyn PipelineServiceWrapper + Send + Sync>) -> Self {
+    pub fn new(service: Arc<dyn PipelineService>) -> Self {
         Self {
             pipeline_service: service,
         }
     }
-}
-
-// ===== Wrapper Trait for Dependency Injection =====
-
-/// Wrapper trait to abstract the PipelineCrudService
-#[async_trait::async_trait]
-pub trait PipelineServiceWrapper: Send + Sync {
-    async fn create_pipeline(&self, request: CreatePipelineRequest) -> CoreResult<Pipeline>;
-    async fn get_pipeline(&self, id: &PipelineId) -> CoreResult<Option<Pipeline>>;
-    async fn list_pipelines(
-        &self,
-        filter: Option<ListPipelinesFilter>,
-    ) -> CoreResult<Vec<Pipeline>>;
-    async fn update_pipeline(
-        &self,
-        id: &PipelineId,
-        request: UpdatePipelineRequest,
-    ) -> CoreResult<Pipeline>;
-    async fn delete_pipeline(&self, id: &PipelineId) -> CoreResult<()>;
-    async fn execute_pipeline(
-        &self,
-        request: ExecutePipelineRequest,
-    ) -> CoreResult<hodei_pipelines_core::pipeline_execution::PipelineExecution>;
 }
 
 // ===== API Handlers =====

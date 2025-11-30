@@ -14,6 +14,7 @@ use hodei_pipelines_core::{
     pipeline::PipelineId,
     pipeline_execution::{ExecutionId, StepExecutionStatus},
 };
+use hodei_pipelines_modules::PipelineExecutionService;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
@@ -24,36 +25,15 @@ use crate::dtos::*;
 /// Application state for Execution API
 #[derive(Clone)]
 pub struct ExecutionApiAppState {
-    pub execution_service: Arc<dyn ExecutionServiceWrapper + Send + Sync>,
+    pub execution_service: Arc<dyn PipelineExecutionService>,
 }
 
 impl ExecutionApiAppState {
-    pub fn new(service: Arc<dyn ExecutionServiceWrapper + Send + Sync>) -> Self {
+    pub fn new(service: Arc<dyn PipelineExecutionService>) -> Self {
         Self {
             execution_service: service,
         }
     }
-}
-
-// ===== Wrapper Trait for Dependency Injection =====
-
-/// Wrapper trait to abstract the ExecutionService
-#[async_trait::async_trait]
-pub trait ExecutionServiceWrapper: Send + Sync {
-    async fn get_execution(
-        &self,
-        id: &ExecutionId,
-    ) -> hodei_pipelines_core::Result<
-        Option<hodei_pipelines_core::pipeline_execution::PipelineExecution>,
-    >;
-    async fn get_executions_for_pipeline(
-        &self,
-        pipeline_id: &PipelineId,
-    ) -> hodei_pipelines_core::Result<
-        Vec<hodei_pipelines_core::pipeline_execution::PipelineExecution>,
-    >;
-    async fn cancel_execution(&self, id: &ExecutionId) -> hodei_pipelines_core::Result<()>;
-    async fn retry_execution(&self, id: &ExecutionId) -> hodei_pipelines_core::Result<ExecutionId>;
 }
 
 // ===== API Handlers =====

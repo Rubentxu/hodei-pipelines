@@ -1,16 +1,20 @@
 //! Server Bootstrap - Production Initialization
-//!
-//! This module handles the initialization of all server components including
-//! configuration loading, event bus setup, repository initialization,
-//! and dependency injection for production deployments.
 
-use hodei_pipelines_adapters::{InMemoryBus, config::AppConfig};
-use hodei_pipelines_ports::EventSubscriber;
+use hodei_pipelines_adapters::{
+    InMemoryBus, MetricsPersistenceConfig, MetricsPersistenceService, MetricsTimeseriesRepository,
+    PostgreSqlJobRepository, PostgreSqlPermissionRepository, PostgreSqlPipelineExecutionRepository,
+    PostgreSqlPipelineRepository, PostgreSqlRoleRepository, PostgreSqlWorkerRepository,
+    config::AppConfig,
+};
+use hodei_pipelines_modules::{
+    ConcreteOrchestrator, PipelineExecutionConfig, PipelineExecutionService, PipelineService,
+};
+use hodei_pipelines_ports::{EventSubscriber, SchedulerPort};
+use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info};
 
-/// Bootstrap error types
 #[derive(Debug, Error)]
 pub enum BootstrapError {
     #[error("Configuration error: {0}")]
@@ -22,68 +26,108 @@ pub enum BootstrapError {
 
 pub type Result<T> = std::result::Result<T, BootstrapError>;
 
-/// Server components initialized during bootstrap
 #[derive(Clone)]
 pub struct ServerComponents {
     pub config: AppConfig,
     pub event_subscriber: Arc<dyn EventSubscriber>,
     pub event_publisher: Arc<dyn hodei_pipelines_ports::EventPublisher>,
+    pub orchestrator: Arc<dyn PipelineExecutionService + Send + Sync>,
+    pub pipeline_service: Arc<dyn PipelineService + Send + Sync>,
+    pub role_repository: Arc<PostgreSqlRoleRepository>,
+    pub permission_repository: Arc<PostgreSqlPermissionRepository>,
+    pub worker_repository: Arc<PostgreSqlWorkerRepository>,
+    pub metrics_repository: Arc<MetricsTimeseriesRepository>,
+    pub metrics_persistence_service: Arc<MetricsPersistenceService>,
+    pub concrete_orchestrator: Arc<ConcreteOrchestrator>,
+    pub scheduler: Arc<dyn SchedulerPort + Send + Sync>,
     #[allow(dead_code)]
     pub status: &'static str,
 }
 
-/// Health checker for monitoring server components
-#[allow(dead_code)]
-pub struct HealthChecker {
-    pub config_loaded: bool,
-    pub status: &'static str,
-}
-
-impl HealthChecker {
-    /// Check health of all components
-    #[allow(dead_code)]
-    pub fn check_health(&self) -> bool {
-        self.config_loaded
-    }
-
-    /// Get health status as string
-    #[allow(dead_code)]
-    pub fn status(&self) -> &'static str {
-        if self.check_health() {
-            "healthy"
-        } else {
-            "unhealthy"
-        }
-    }
-}
-
-/// Initialize all server components for production
 pub async fn initialize_server() -> Result<ServerComponents> {
     info!("🚀 Initializing Hodei Pipelines Server for Production");
-    info!("📋 Loading application configuration...");
 
-    // Load configuration from environment or file
     let config = AppConfig::load().map_err(|e| {
         error!("❌ Failed to load configuration: {}", e);
         BootstrapError::Config(e)
     })?;
     info!("✅ Configuration loaded successfully");
 
-    // Validate critical configuration
-    if config.tls.enabled {
-        info!("🔒 TLS/mTLS enabled - Production security mode");
-    }
-
-    // Initialize Event Bus
-    info!("📡 Initializing Event Bus...");
-    // TODO: Use NatsEventBus if configured, for now defaulting to InMemory
     let event_bus = Arc::new(InMemoryBus::new(1000));
     let event_subscriber: Arc<dyn EventSubscriber> = event_bus.clone();
-    let event_publisher: Arc<dyn hodei_pipelines_ports::EventPublisher> = event_bus;
+    let event_publisher: Arc<dyn hodei_pipelines_ports::EventPublisher> = event_bus.clone();
     info!("✅ Event Bus initialized");
 
-    // Log configuration summary
-    log_config_summary(&config);
+    let pool = PgPoolOptions::new()
+        .max_connections(config.database.max_connections)
+        .connect(&config.database.url)
+        .await
+        .map_err(|e| {
+            error!("❌ Failed to connect to PostgreSQL: {}", e);
+            BootstrapError::General(anyhow::anyhow!("Failed to connect to PostgreSQL: {}", e))
+        })?;
+    info!("✅ PostgreSQL connection pool initialized");
+
+    let execution_repo = PostgreSqlPipelineExecutionRepository::new(pool.clone());
+    let job_repo = PostgreSqlJobRepository::new(pool.clone());
+    let pipeline_repo = PostgreSqlPipelineRepository::new(pool.clone());
+    let worker_repo = Arc::new(PostgreSqlWorkerRepository::new(pool.clone()));
+
+    let role_repository = Arc::new(PostgreSqlRoleRepository::new(pool.clone()));
+    let permission_repository = Arc::new(PostgreSqlPermissionRepository::new(pool.clone()));
+    info!("✅ RBAC Repositories initialized");
+
+    let metrics_repository = Arc::new(MetricsTimeseriesRepository::new(pool.clone()));
+    info!("✅ Metrics TSDB Repository initialized");
+
+    let metrics_config = MetricsPersistenceConfig::default();
+    let metrics_persistence_service = Arc::new(MetricsPersistenceService::new(
+        metrics_config,
+        metrics_repository.clone(),
+    ));
+    metrics_persistence_service.start().await.map_err(|e| {
+        error!("❌ Failed to start Metrics Persistence Service: {}", e);
+        BootstrapError::General(anyhow::anyhow!(
+            "Failed to start Metrics Persistence Service: {}",
+            e
+        ))
+    })?;
+    info!("✅ Metrics Persistence Service initialized");
+
+    info!("🎯 Initializing ConcreteOrchestrator...");
+    let orchestrator_config = PipelineExecutionConfig {
+        max_concurrent_steps: 10,
+        max_retry_attempts: 3,
+        step_timeout_secs: 3600,
+        cleanup_interval_secs: 300,
+    };
+
+    let event_bus_for_orchestrator = InMemoryBus::new(1000);
+
+    let concrete_orchestrator = Arc::new(
+        ConcreteOrchestrator::new(
+            Arc::new(execution_repo),
+            Arc::new(job_repo),
+            Arc::new(pipeline_repo),
+            Arc::new(event_bus_for_orchestrator),
+            orchestrator_config,
+        )
+        .map_err(|e| {
+            error!("❌ Failed to initialize ConcreteOrchestrator: {}", e);
+            BootstrapError::General(anyhow::anyhow!("Failed to initialize orchestrator: {}", e))
+        })?,
+    );
+
+    let pipeline_service: Arc<dyn PipelineService + Send + Sync> = concrete_orchestrator.clone();
+    let orchestrator_trait: Arc<dyn PipelineExecutionService + Send + Sync> =
+        concrete_orchestrator.clone();
+
+    info!("✅ ConcreteOrchestrator initialized");
+
+    // Create scheduler using concrete implementation
+    info!("📅 Initializing Scheduler...");
+    let scheduler: Arc<dyn SchedulerPort + Send + Sync> = worker_repo.clone();
+    info!("✅ Scheduler initialized");
 
     info!("✨ Server bootstrap completed successfully");
     info!("📊 Status: ready");
@@ -96,11 +140,19 @@ pub async fn initialize_server() -> Result<ServerComponents> {
         config,
         event_subscriber,
         event_publisher,
+        orchestrator: orchestrator_trait,
+        pipeline_service,
+        role_repository,
+        permission_repository,
+        worker_repository: worker_repo,
+        metrics_repository,
+        metrics_persistence_service,
+        concrete_orchestrator,
+        scheduler,
         status: "ready",
     })
 }
 
-/// Log configuration summary (without sensitive data)
 pub fn log_config_summary(config: &AppConfig) {
     info!("📋 Configuration Summary:");
     info!(
@@ -108,27 +160,9 @@ pub fn log_config_summary(config: &AppConfig) {
         mask_url(&config.database.url),
         config.database.max_connections
     );
-    info!(
-        "   Cache: {} (ttl: {}s, max_entries: {})",
-        config.cache.path, config.cache.ttl_seconds, config.cache.max_entries
-    );
-    info!(
-        "   Event Bus: {} (NATS: {})",
-        config.event_bus.bus_type, config.nats.url
-    );
     info!("   Server: {}:{}", config.server.host, config.server.port);
-    info!(
-        "   Kubernetes: insecure_skip_verify={}",
-        config.kubernetes.insecure_skip_verify
-    );
-    info!(
-        "   TLS: enabled={}, cert_path={}",
-        config.tls.enabled,
-        config.tls.cert_path.as_deref().unwrap_or("none")
-    );
 }
 
-/// Mask database URL for security (hide credentials)
 fn mask_url(url: &str) -> String {
     if let Some(pos) = url.find("://") {
         let (protocol, rest) = url.split_at(pos + 3);

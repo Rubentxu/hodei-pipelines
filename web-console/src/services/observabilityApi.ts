@@ -98,7 +98,10 @@ export const observabilityApi = {
 
   // Metrics
   async getMetrics(): Promise<ObservabilityMetricsResponse> {
-    const response = await fetch(`${API_BASE}/metrics`);
+    const url = `${API_BASE}/metrics`;
+    console.log('observabilityApi: getMetrics called', url);
+    const response = await fetch(url);
+    console.log('observabilityApi: getMetrics response status:', response.status);
 
     if (!response.ok) {
       throw new Error("Failed to fetch metrics");

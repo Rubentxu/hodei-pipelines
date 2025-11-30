@@ -2,6 +2,12 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Logs Explorer', () => {
     test.beforeEach(async ({ page }) => {
+        // Mock Auth
+        await page.addInitScript(() => {
+            window.localStorage.setItem('token', 'fake-jwt-token');
+            window.localStorage.setItem('user', JSON.stringify({ id: 'user-1', name: 'Test User', email: 'test@example.com', role: 'admin' }));
+        });
+
         // Mock Log Levels
         await page.route('/api/v1/logs/levels', async (route) => {
             await route.fulfill({ json: ['info', 'error', 'warn', 'debug'] });
@@ -93,7 +99,7 @@ test.describe('Logs Explorer', () => {
     });
 
     test('should display initial stats and logs', async ({ page }) => {
-        await expect(page.getByText('Logs Explorer')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Logs Explorer' })).toBeVisible();
         await expect(page.getByText('1250')).toBeVisible(); // Total logs
         await expect(page.getByText('2.0%')).toBeVisible(); // Error rate
 

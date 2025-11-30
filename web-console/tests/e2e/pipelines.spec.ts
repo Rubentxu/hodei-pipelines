@@ -26,14 +26,13 @@ test.describe('Pipelines Management', () => {
             });
         });
 
-        // Login first
-        await page.goto('/login');
-        await page.fill('input[name="username"]', 'testuser');
-        await page.fill('input[name="password"]', 'password123');
-        await page.click('button[type="submit"]');
+        // Mock Auth
+        await page.addInitScript(() => {
+            window.localStorage.setItem('token', 'fake-jwt-token');
+            window.localStorage.setItem('user', JSON.stringify({ id: 'user-1', name: 'Test User', email: 'test@example.com', role: 'admin' }));
+        });
 
-        // Navigate to pipelines page
-        await page.click('a[href="/pipelines"]');
+        await page.goto('/pipelines');
     });
 
     test('should list existing pipelines', async ({ page }) => {

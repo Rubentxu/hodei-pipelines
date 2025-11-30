@@ -2,6 +2,12 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Terminal / Job Inspection', () => {
     test.beforeEach(async ({ page }) => {
+        // Mock Auth
+        await page.addInitScript(() => {
+            window.localStorage.setItem('token', 'fake-jwt-token');
+            window.localStorage.setItem('user', JSON.stringify({ id: 'user-1', name: 'Test User', email: 'test@example.com', role: 'admin' }));
+        });
+
         // Navigate to a terminal page with a fake job ID
         await page.goto('/terminal/job-123');
     });

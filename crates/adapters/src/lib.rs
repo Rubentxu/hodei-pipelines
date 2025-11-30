@@ -11,7 +11,10 @@ pub mod extractors;
 pub mod kubernetes_provider;
 pub mod kubernetes_provider_tests;
 pub mod metrics;
+pub mod metrics_persistence_service;
 pub mod postgres;
+pub mod metrics_timeseries_repository;
+pub mod postgresql_rbac_repositories;
 pub mod provider_factory;
 pub mod rbac_repositories;
 pub mod redb;
@@ -40,4 +43,11 @@ pub use crate::postgres::{
 };
 
 // RBAC repositories
+pub use crate::postgresql_rbac_repositories::{
+    PostgreSqlPermissionRepository, PostgreSqlRoleRepository,
+};
 pub use crate::rbac_repositories::{InMemoryPermissionRepository, InMemoryRoleRepository};
+
+// Metrics TSDB repository
+pub use crate::metrics_timeseries_repository::MetricsTimeseriesRepository;
+pub use crate::metrics_persistence_service::{MetricsPersistenceConfig, MetricsPersistenceService};

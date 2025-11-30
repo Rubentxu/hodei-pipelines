@@ -2,6 +2,12 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Resource Pools Management', () => {
     test.beforeEach(async ({ page }) => {
+        // Mock Auth
+        await page.addInitScript(() => {
+            window.localStorage.setItem('token', 'fake-jwt-token');
+            window.localStorage.setItem('user', JSON.stringify({ id: 'user-1', name: 'Test User', email: 'test@example.com', role: 'admin' }));
+        });
+
         // Mock Resource Pools API
         await page.route('/api/v1/worker-pools', async (route) => {
             if (route.request().method() === 'GET') {
