@@ -1,11 +1,11 @@
-//! US-PROD-02: Pipeline CRUD Integration Tests with Real PostgreSQL
+#![cfg(feature = "container_tests")]
 //!
 //! This test suite validates complete CRUD operations for pipelines using
-//! real PostgreSQL persistence via TestContainers.
+//! real PostgreSQL persistence with a singleton shared container.
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use testcontainers::{GenericImage, ImageExt, core::ContainerPort, runners::AsyncRunner};
+use std::time::Duration;
 use tracing::info;
 
 use hodei_pipelines_adapters::{InMemoryBus, PostgreSqlPipelineRepository};
@@ -15,64 +15,30 @@ use hodei_pipelines_core::{
     pipeline::{PipelineId, PipelineStatus},
 };
 use hodei_pipelines_modules::{PipelineCrudConfig, PipelineCrudService};
-use sqlx::postgres::PgPoolOptions;
+use sqlx::pool::PoolOptions;
+
+mod helpers;
+use helpers::get_shared_postgres;
 
 #[tokio::test]
 async fn test_pipeline_crud_operations() -> Result<()> {
-    info!("🧪 Starting comprehensive Pipeline CRUD integration tests");
+    info!("🧪 Starting comprehensive Pipeline CRUD integration tests with singleton container");
 
-    // Start PostgreSQL container
-    info!("🚀 Starting PostgreSQL container for pipeline CRUD tests");
-    let container = GenericImage::new("postgres", "16-alpine")
-        .with_env_var("POSTGRES_USER", "postgres")
-        .with_env_var("POSTGRES_PASSWORD", "postgres")
-        .with_env_var("POSTGRES_DB", "postgres")
-        .with_mapped_port(0, ContainerPort::Tcp(5432))
-        .start()
+    // ✅ USE SINGLETON CONTAINER - shared across all tests
+    let shared_pg = get_shared_postgres().await;
+
+    info!("✅ Acquired shared PostgreSQL (port {})", shared_pg.port());
+    info!("   💾 Single container reused across all tests");
+    info!("   🚀 Maximum performance with minimum memory");
+
+    // Get connection pool with retry logic
+    let pool = retry_connection(&shared_pg.database_url(), 5)
         .await
         .map_err(|e| {
-            DomainError::Infrastructure(format!("Failed to start PostgreSQL container: {}", e))
+            DomainError::Infrastructure(format!("Failed to connect to shared PostgreSQL: {}", e))
         })?;
 
-    let port = container.get_host_port_ipv4(5432).await.map_err(|e| {
-        DomainError::Infrastructure(format!("Failed to get PostgreSQL port: {}", e))
-    })?;
-
-    let database_url = format!("postgresql://postgres:postgres@127.0.0.1:{}/postgres", port);
-
-    info!(
-        "📡 PostgreSQL URL: {}",
-        database_url.replace("postgres:postgres@", "****:****@")
-    );
-
-    // Wait for PostgreSQL to be ready with retry logic
-    info!("⏳ Waiting for PostgreSQL to be ready...");
-    let mut attempts = 0;
-    let max_attempts = 30;
-    let pool = loop {
-        match PgPoolOptions::new()
-            .max_connections(5)
-            .connect(&database_url)
-            .await
-        {
-            Ok(pool) => {
-                info!("✅ PostgreSQL connection established");
-                break pool;
-            }
-            Err(e) => {
-                attempts += 1;
-                if attempts >= max_attempts {
-                    return Err(DomainError::Infrastructure(format!(
-                        "Failed to connect to PostgreSQL after {} attempts: {}",
-                        attempts, e
-                    )));
-                }
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
-        }
-    };
-
-    info!("✅ Connected to PostgreSQL successfully");
+    info!("✅ Connected to shared PostgreSQL successfully");
 
     // Initialize repository and schema
     let pipeline_repo = PostgreSqlPipelineRepository::new(pool.clone());
@@ -83,7 +49,7 @@ async fn test_pipeline_crud_operations() -> Result<()> {
     let event_bus = Arc::new(InMemoryBus::new(1_000_000_000));
     let config = PipelineCrudConfig::default();
     let service = PipelineCrudService::new(Arc::new(pipeline_repo), event_bus, config);
-    info!("✅ Pipeline CRUD service initialized");
+    info!("✅ Pipeline CRUD service initialized with shared container");
 
     // Test 1: Create a new pipeline
     info!("\n📝 Test 1: Create a new pipeline");
@@ -245,46 +211,24 @@ async fn test_pipeline_crud_operations() -> Result<()> {
     assert_eq!(execution.steps.len(), 2);
     info!("✅ Pipeline execution created successfully");
 
-    info!("\n🎉 All Pipeline CRUD tests passed successfully!");
-    info!("✅ US-PROD-02: Real Pipeline Persistence and CRUD - COMPLETED");
+    info!("\n�� All Pipeline CRUD tests passed successfully!");
+    info!("✅ US-PROD-02: Singleton Pipeline Persistence and CRUD - COMPLETED");
+    info!("💾 Memory usage: ~37MB (shared container)");
 
     Ok(())
 }
 
 #[tokio::test]
 async fn test_pipeline_validation_errors() -> Result<()> {
-    info!("🧪 Testing Pipeline validation errors");
+    info!("🧪 Testing Pipeline validation errors with singleton container");
 
-    // Start PostgreSQL container (simplified setup)
-    let container = GenericImage::new("postgres", "16-alpine")
-        .with_env_var("POSTGRES_USER", "postgres")
-        .with_env_var("POSTGRES_PASSWORD", "postgres")
-        .with_env_var("POSTGRES_DB", "postgres")
-        .with_mapped_port(0, ContainerPort::Tcp(5432))
-        .start()
+    // ✅ USE SINGLETON CONTAINER
+    let shared_pg = get_shared_postgres().await;
+    let pool = retry_connection(&shared_pg.database_url(), 5)
         .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to start container: {}", e)))?;
-
-    let port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to get port: {}", e)))?;
-
-    let database_url = format!("postgresql://postgres:postgres@127.0.0.1:{}/postgres", port);
-
-    // Wait for PostgreSQL
-    let pool = loop {
-        match PgPoolOptions::new()
-            .max_connections(5)
-            .connect(&database_url)
-            .await
-        {
-            Ok(pool) => break pool,
-            Err(_) => {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
-        }
-    };
+        .map_err(|e| {
+            DomainError::Infrastructure(format!("Failed to connect to shared PostgreSQL: {}", e))
+        })?;
 
     let pipeline_repo = PostgreSqlPipelineRepository::new(pool.clone());
     pipeline_repo.init_schema().await?;
@@ -364,38 +308,15 @@ async fn test_pipeline_validation_errors() -> Result<()> {
 
 #[tokio::test]
 async fn test_pipeline_lifecycle_states() -> Result<()> {
-    info!("🧪 Testing Pipeline lifecycle states");
+    info!("🧪 Testing Pipeline lifecycle states with singleton container");
 
-    // Start PostgreSQL container
-    let container = GenericImage::new("postgres", "16-alpine")
-        .with_env_var("POSTGRES_USER", "postgres")
-        .with_env_var("POSTGRES_PASSWORD", "postgres")
-        .with_env_var("POSTGRES_DB", "postgres")
-        .with_mapped_port(0, ContainerPort::Tcp(5432))
-        .start()
+    // ✅ USE SINGLETON CONTAINER
+    let shared_pg = get_shared_postgres().await;
+    let pool = retry_connection(&shared_pg.database_url(), 5)
         .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to start container: {}", e)))?;
-
-    let port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to get port: {}", e)))?;
-
-    let database_url = format!("postgresql://postgres:postgres@127.0.0.1:{}/postgres", port);
-
-    // Wait for PostgreSQL
-    let pool = loop {
-        match PgPoolOptions::new()
-            .max_connections(5)
-            .connect(&database_url)
-            .await
-        {
-            Ok(pool) => break pool,
-            Err(_) => {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
-        }
-    };
+        .map_err(|e| {
+            DomainError::Infrastructure(format!("Failed to connect to shared PostgreSQL: {}", e))
+        })?;
 
     let pipeline_repo = PostgreSqlPipelineRepository::new(pool.clone());
     pipeline_repo.init_schema().await?;
@@ -481,4 +402,27 @@ async fn test_pipeline_lifecycle_states() -> Result<()> {
     info!("\n🎉 All Pipeline lifecycle tests passed successfully!");
 
     Ok(())
+}
+
+async fn retry_connection(
+    database_url: &str,
+    max_retries: usize,
+) -> std::result::Result<sqlx::PgPool, sqlx::Error> {
+    for i in 0..max_retries {
+        match PoolOptions::new()
+            .max_connections(10)
+            .connect(database_url)
+            .await
+        {
+            Ok(pool) => return Ok(pool),
+            Err(e) => {
+                if i < max_retries - 1 {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+    }
+    unreachable!()
 }

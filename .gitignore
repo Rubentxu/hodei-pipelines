@@ -69,6 +69,7 @@ docs/_build/
 # Logs
 logs/
 *.log
+*.logs
 
 # Cache
 .cache/

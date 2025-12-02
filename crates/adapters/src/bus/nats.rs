@@ -5,6 +5,7 @@
 
 use async_nats::jetstream::stream::{Config, StorageType};
 use async_trait::async_trait;
+use futures::StreamExt;
 use hodei_pipelines_ports::event_bus::{
     EventBusError, EventPublisher, EventReceiver, EventSubscriber, SystemEvent,
 };
@@ -488,10 +489,42 @@ impl NatsBus {
     }
 
     /// Subscribe to a specific subject (internal method)
-    async fn subscribe_with_subject(&self, _subject: &str) -> Result<EventReceiver, EventBusError> {
-        // For simplicity, create a mock receiver that handles the general subscription
-        // In a production implementation, this would create a JetStream consumer
+    async fn subscribe_with_subject(&self, subject: &str) -> Result<EventReceiver, EventBusError> {
+        let config = async_nats::jetstream::consumer::pull::Config {
+            filter_subject: subject.to_string(),
+            ..Default::default()
+        };
+
+        let consumer = self
+            .jetstream
+            .create_consumer_on_stream(config, &self.config.stream_name)
+            .await
+            .map_err(|e| EventBusError::Internal(format!("Failed to create consumer: {}", e)))?;
+
         let (tx, _) = tokio::sync::broadcast::channel::<SystemEvent>(1000);
+        let tx_clone = tx.clone();
+
+        let mut messages = consumer
+            .messages()
+            .await
+            .map_err(|e| EventBusError::Internal(format!("Failed to get messages: {}", e)))?;
+
+        tokio::spawn(async move {
+            while let Some(msg_result) = messages.next().await {
+                if let Ok(msg) = msg_result {
+                    if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload) {
+                        if let Err(e) = tx_clone.send(event) {
+                            tracing::error!("Failed to broadcast event: {}", e);
+                            break;
+                        }
+                    }
+                    if let Err(e) = msg.ack().await {
+                        tracing::error!("Failed to ack message: {}", e);
+                    }
+                }
+            }
+        });
+
         let receiver = tx.subscribe();
         Ok(EventReceiver { receiver })
     }
@@ -499,13 +532,9 @@ impl NatsBus {
     /// Subscribe to a specific subject
     pub async fn subscribe_to_subject(
         &self,
-        _subject: &str,
+        subject: &str,
     ) -> Result<EventReceiver, EventBusError> {
-        // For simplicity, create a mock receiver that handles the general subscription
-        // In a production implementation, this would create a JetStream consumer
-        let (tx, _) = tokio::sync::broadcast::channel::<SystemEvent>(1000);
-        let receiver = tx.subscribe();
-        Ok(EventReceiver { receiver })
+        self.subscribe_with_subject(subject).await
     }
 
     /// Subscribe with a consumer group for load balancing
@@ -521,15 +550,47 @@ impl NatsBus {
     /// Subscribe to a specific subject with consumer group
     pub async fn subscribe_with_subject_and_group(
         &self,
-        _subject: &str,
-        _consumer_group: &str,
+        subject: &str,
+        consumer_group: &str,
     ) -> Result<EventReceiver, EventBusError> {
-        // In production, this would:
-        // 1. Create or get a durable consumer with the consumer_group name
-        // 2. Subscribe to the subject
-        // 3. Process messages with proper acknowledgment
-        // For now, return a basic receiver
+        let config = async_nats::jetstream::consumer::pull::Config {
+            durable_name: Some(consumer_group.to_string()),
+            filter_subject: subject.to_string(),
+            ..Default::default()
+        };
+
+        let consumer = self
+            .jetstream
+            .create_consumer_on_stream(config, &self.config.stream_name)
+            .await
+            .map_err(|e| {
+                EventBusError::Internal(format!("Failed to create durable consumer: {}", e))
+            })?;
+
         let (tx, _) = tokio::sync::broadcast::channel::<SystemEvent>(1000);
+        let tx_clone = tx.clone();
+
+        let mut messages = consumer
+            .messages()
+            .await
+            .map_err(|e| EventBusError::Internal(format!("Failed to get messages: {}", e)))?;
+
+        tokio::spawn(async move {
+            while let Some(msg_result) = messages.next().await {
+                if let Ok(msg) = msg_result {
+                    if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload) {
+                        if let Err(e) = tx_clone.send(event) {
+                            tracing::error!("Failed to broadcast event: {}", e);
+                            break;
+                        }
+                    }
+                    if let Err(e) = msg.ack().await {
+                        tracing::error!("Failed to ack message: {}", e);
+                    }
+                }
+            }
+        });
+
         let receiver = tx.subscribe();
         Ok(EventReceiver { receiver })
     }

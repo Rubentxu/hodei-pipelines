@@ -207,10 +207,13 @@ impl CostSummary {
 }
 
 /// Cost tracking service
+use dashmap::DashMap;
+
+/// Cost tracking service
 #[derive(Clone)]
 pub struct CostTrackingService {
-    worker_costs: Arc<RwLock<HashMap<String, WorkerCost>>>,
-    active_jobs: Arc<RwLock<HashMap<String, JobCost>>>,
+    worker_costs: Arc<DashMap<String, WorkerCost>>,
+    active_jobs: Arc<DashMap<String, JobCost>>,
     completed_jobs: Arc<RwLock<Vec<JobCost>>>,
     cost_alerts: Arc<RwLock<CostAlerts>>,
 }
@@ -218,8 +221,8 @@ pub struct CostTrackingService {
 impl CostTrackingService {
     pub fn new() -> Self {
         Self {
-            worker_costs: Arc::new(RwLock::new(HashMap::new())),
-            active_jobs: Arc::new(RwLock::new(HashMap::new())),
+            worker_costs: Arc::new(DashMap::new()),
+            active_jobs: Arc::new(DashMap::new()),
             completed_jobs: Arc::new(RwLock::new(Vec::new())),
             cost_alerts: Arc::new(RwLock::new(CostAlerts::new())),
         }
@@ -230,8 +233,7 @@ impl CostTrackingService {
         let worker_type = worker_cost.worker_type.clone();
         let cost_per_hour = worker_cost.total_cost_per_hour_cents();
 
-        let mut costs = self.worker_costs.write().await;
-        costs.insert(worker_type.clone(), worker_cost);
+        self.worker_costs.insert(worker_type.clone(), worker_cost);
 
         info!(
             worker_type = worker_type,
@@ -244,23 +246,21 @@ impl CostTrackingService {
     pub async fn start_job_tracking(&self, job_cost: JobCost) -> Result<()> {
         let job_id = job_cost.job_id.clone();
 
-        let mut active_jobs = self.active_jobs.write().await;
-
-        if active_jobs.contains_key(&job_id) {
+        if self.active_jobs.contains_key(&job_id) {
             return Err(CostTrackingError::JobAlreadyTracked(job_id).into());
         }
 
-        active_jobs.insert(job_id.clone(), job_cost);
+        self.active_jobs.insert(job_id.clone(), job_cost);
         info!(job_id = job_id, "Started cost tracking for job");
         Ok(())
     }
 
     /// Complete a job and calculate final cost
     pub async fn complete_job_tracking(&self, job_id: &str) -> Result<JobCost> {
-        let mut active_jobs = self.active_jobs.write().await;
         let mut completed_jobs = self.completed_jobs.write().await;
 
-        let job_cost = active_jobs
+        let (_, job_cost) = self
+            .active_jobs
             .remove(job_id)
             .ok_or_else(|| CostTrackingError::JobNotFound(job_id.to_string()))?;
 
@@ -269,8 +269,7 @@ impl CostTrackingService {
 
         // Calculate final cost using worker type
         let worker_cost = {
-            let costs = self.worker_costs.read().await;
-            match costs.get(&worker_type) {
+            match self.worker_costs.get(&worker_type) {
                 Some(cost) => cost.clone(),
                 None => return Err(CostTrackingError::WorkerTypeNotFound(worker_type).into()),
             }
@@ -295,12 +294,10 @@ impl CostTrackingService {
 
     /// Get cost for a specific job
     pub async fn get_job_cost(&self, job_id: &str) -> Option<JobCost> {
-        let active_jobs = self.active_jobs.read().await;
-        let completed_jobs = self.completed_jobs.read().await;
-
-        if let Some(job) = active_jobs.get(job_id) {
+        if let Some(job) = self.active_jobs.get(job_id) {
             Some(job.clone())
         } else {
+            let completed_jobs = self.completed_jobs.read().await;
             completed_jobs.iter().find(|j| j.job_id == job_id).cloned()
         }
     }
@@ -374,8 +371,7 @@ impl CostTrackingService {
 
     /// Get active job count
     pub async fn get_active_job_count(&self) -> usize {
-        let active_jobs = self.active_jobs.read().await;
-        active_jobs.len()
+        self.active_jobs.len()
     }
 
     /// Get completed job count

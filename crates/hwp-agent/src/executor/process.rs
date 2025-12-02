@@ -39,7 +39,7 @@ pub enum ProcessStatus {
 }
 
 /// Job handle for controlling a running job
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JobHandle {
     pub job_id: JobId,
     pub child: Arc<Mutex<Option<Child>>>,
@@ -94,7 +94,14 @@ impl ProcessManager {
         env_vars: HashMap<String, String>,
         working_dir: Option<String>,
         _pty: &PtyAllocation,
-    ) -> Result<JobId, ProcessError> {
+    ) -> Result<
+        (
+            JobId,
+            Option<tokio::process::ChildStdout>,
+            Option<tokio::process::ChildStderr>,
+        ),
+        ProcessError,
+    > {
         let job_id = Uuid::new_v4().to_string();
         info!("Spawning job {}: {:?}", job_id, command);
 
@@ -109,7 +116,11 @@ impl ProcessManager {
             child.env(key, value);
         }
 
-        let child = match child.spawn() {
+        // Capture stdout and stderr
+        child.stdout(std::process::Stdio::piped());
+        child.stderr(std::process::Stdio::piped());
+
+        let mut child = match child.spawn() {
             Ok(child) => {
                 info!("Job {} spawned with PID: {:?}", job_id, child.id());
                 child
@@ -120,6 +131,10 @@ impl ProcessManager {
             }
         };
 
+        // Take streams out of child
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+
         let handle = JobHandle {
             job_id: job_id.clone(),
             child: Arc::new(Mutex::new(Some(child))),
@@ -129,7 +144,7 @@ impl ProcessManager {
         let mut jobs = self.jobs.write().await;
         jobs.insert(job_id.clone(), handle);
 
-        Ok(job_id)
+        Ok((job_id, stdout, stderr))
     }
 
     pub async fn get_job(&self, job_id: &JobId) -> Option<ProcessInfo> {
@@ -165,6 +180,26 @@ impl ProcessManager {
     pub async fn list_jobs(&self) -> Vec<JobId> {
         let jobs = self.jobs.read().await;
         jobs.keys().cloned().collect()
+    }
+
+    pub async fn wait_for_job(&self, job_id: &JobId) -> Result<i32, ProcessError> {
+        let handle = {
+            let jobs = self.jobs.read().await;
+            jobs.get(job_id).cloned()
+        };
+
+        if let Some(handle) = handle {
+            let mut child_lock = handle.child.lock().await;
+            if let Some(child) = child_lock.as_mut() {
+                let status = child.wait().await.map_err(|e| ProcessError::Io(e))?;
+
+                Ok(status.code().unwrap_or(-1))
+            } else {
+                Err(ProcessError::NotFound(job_id.clone()))
+            }
+        } else {
+            Err(ProcessError::NotFound(job_id.clone()))
+        }
     }
 
     pub async fn cleanup_finished(&self) {
@@ -226,7 +261,14 @@ impl JobExecutor {
         env_vars: HashMap<String, String>,
         working_dir: Option<String>,
         pty: &PtyAllocation,
-    ) -> Result<JobId, ProcessError> {
+    ) -> Result<
+        (
+            JobId,
+            Option<tokio::process::ChildStdout>,
+            Option<tokio::process::ChildStderr>,
+        ),
+        ProcessError,
+    > {
         self.process_manager
             .spawn_job(command, env_vars, working_dir, pty)
             .await

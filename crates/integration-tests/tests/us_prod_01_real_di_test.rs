@@ -1,4 +1,5 @@
-//! US-PROD-01: Test de Inyección de Dependencias Real
+#![cfg(feature = "container_tests")]
+//! US-PROD-01: Real Dependency Injection Test
 //!
 //! Este test valida que el servidor arranca usando:
 //! - SchedulerModule real (no MockScheduler)
@@ -7,9 +8,9 @@
 //! - Connection pool real de PostgreSQL
 
 use hodei_pipelines_adapters::{
-    MetricsTimeseriesRepository, PostgreSqlJobRepository, PostgreSqlPermissionRepository,
-    PostgreSqlPipelineExecutionRepository, PostgreSqlPipelineRepository, PostgreSqlRoleRepository,
-    PostgreSqlWorkerRepository,
+    InMemoryBus, MetricsTimeseriesRepository, PostgreSqlJobRepository,
+    PostgreSqlPermissionRepository, PostgreSqlPipelineExecutionRepository,
+    PostgreSqlPipelineRepository, PostgreSqlRoleRepository, PostgreSqlWorkerRepository,
 };
 use hodei_pipelines_modules::{
     ConcreteOrchestrator, PipelineExecutionConfig, PipelineExecutionService, PipelineService,
@@ -18,44 +19,31 @@ use hodei_pipelines_ports::{
     JobRepository, pipeline_execution_repository::PipelineExecutionRepository,
     pipeline_repository::PipelineRepository,
 };
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::pool::PoolOptions;
 use std::sync::Arc;
-use testcontainers::{GenericImage, ImageExt, core::ContainerPort, runners::AsyncRunner};
+use std::time::Duration;
 use tracing::info;
+
+mod helpers;
+use helpers::get_shared_postgres;
 
 /// Test que verifica la inicialización correcta de componentes reales
 #[tokio::test]
-#[ignore] // Solo se ejecuta manualmente o con CI que tenga PostgreSQL
 async fn test_real_dependency_initialization() {
-    // Arrange: Setup PostgreSQL con TestContainers
-    let node = GenericImage::new("postgres", "15-alpine")
-        .with_env_var("POSTGRES_USER", "postgres")
-        .with_env_var("POSTGRES_PASSWORD", "postgres")
-        .with_env_var("POSTGRES_DB", "postgres")
-        .with_mapped_port(5432, ContainerPort::Tcp(5432))
-        .start()
-        .await
-        .expect("Failed to start PostgreSQL container");
-
-    let port = node
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("Failed to get PostgreSQL port");
-
-    // Configurar URL de conexión para TestContainers
-    let database_url = format!("postgres://postgres:postgres@127.0.0.1:{}/postgres", port);
+    // Arrange: Usar PostgreSQL singleton container
+    let shared_pg = get_shared_postgres().await;
 
     info!(
         "🗄️ PostgreSQL URL: {}",
-        database_url.replace("postgres:postgres@", "****:****@")
+        shared_pg
+            .database_url()
+            .replace("postgres:postgres@", "****:****@")
     );
 
-    // Act: Inicializar connection pool
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
+    // Act: Inicializar connection pool con retry
+    let pool = retry_connection(&shared_pg.database_url(), 5)
         .await
-        .expect("Failed to connect to PostgreSQL");
+        .expect("Failed to connect");
 
     info!("✅ Connected to PostgreSQL successfully");
 
@@ -77,7 +65,7 @@ async fn test_real_dependency_initialization() {
     info!("✅ Initialized all real repositories");
 
     // Act: Inicializar Event Bus real (InMemoryBus por ahora)
-    let event_bus = Arc::new(hodei_pipelines_adapters::InMemoryBus::new(1000));
+    let event_bus = Arc::new(InMemoryBus::new(1000));
 
     // Act: Inicializar ConcreteOrchestrator con tipos reales
     let orchestrator_config = PipelineExecutionConfig {
@@ -102,7 +90,7 @@ async fn test_real_dependency_initialization() {
 
     // Crear trait objects para API
     let pipeline_service: Arc<dyn PipelineService + Send + Sync> = concrete_orchestrator.clone();
-    let execution_service: Arc<dyn PipelineExecutionService + Send + Sync> =
+    let _execution_service: Arc<dyn PipelineExecutionService + Send + Sync> =
         concrete_orchestrator.clone();
 
     // Assert: Verificar que todos los componentes están inicializados
@@ -157,10 +145,35 @@ async fn test_real_dependency_initialization() {
 
     info!("✅ ConcreteOrchestrator methods are working");
 
-    // Cleanup
-    drop(node);
-
     info!("✅ Test completed successfully - All real dependencies initialized and functional");
+}
+
+async fn retry_connection(
+    database_url: &str,
+    max_retries: usize,
+) -> std::result::Result<sqlx::PgPool, sqlx::Error> {
+    use std::time::Duration;
+    for i in 0..max_retries {
+        match PoolOptions::new()
+            .max_connections(5)
+            .connect(database_url)
+            .await
+        {
+            Ok(pool) => {
+                info!("✅ Conexión establecida en intento {}", i + 1);
+                return Ok(pool);
+            }
+            Err(e) => {
+                tracing::warn!("⚠️  Intento {} falló: {}", i + 1, e);
+                if i < max_retries - 1 {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+    }
+    unreachable!()
 }
 
 /// Test que valida que NO se usan Mocks en la inicialización
@@ -172,7 +185,7 @@ async fn test_no_mock_services_in_production_initialization() {
     let orchestrator_type = std::any::type_name::<ConcreteOrchestrator>();
     assert_eq!(
         orchestrator_type,
-        "hodei_pipelines_modules::ConcreteOrchestrator"
+        "hodei_pipelines_modules::pipeline_execution_orchestrator::ConcreteOrchestrator"
     );
 
     // Verificar que los tipos de repositorio son concretos
@@ -190,26 +203,21 @@ async fn test_no_mock_services_in_production_initialization() {
 
 #[tokio::test]
 async fn test_concrete_orchestrator_implements_traits() {
-    // Verificar que ConcreteOrchestrator implementa los traits correctamente
+    // Arrange: Usar PostgreSQL singleton
+    let shared_pg = get_shared_postgres().await;
+    let pool = retry_connection(&shared_pg.database_url(), 5)
+        .await
+        .expect("Failed to connect");
 
-    // Esto compila solo si los traits están implementados
+    // Verificar que ConcreteOrchestrator implementa los traits correctamente
     fn requires_pipeline_service(_: &dyn PipelineService) {}
     fn requires_pipeline_execution_service(_: &dyn PipelineExecutionService) {}
 
     let concrete = ConcreteOrchestrator::new(
-        Arc::new(PostgreSqlPipelineExecutionRepository::new(
-            PgPool::connect_lazy("postgres://postgres:postgres@localhost:5432/postgres")
-                .expect("Failed to create connection pool"),
-        )),
-        Arc::new(PostgreSqlJobRepository::new(
-            PgPool::connect_lazy("postgres://postgres:postgres@localhost:5432/postgres")
-                .expect("Failed to create connection pool"),
-        )),
-        Arc::new(PostgreSqlPipelineRepository::new(
-            PgPool::connect_lazy("postgres://postgres:postgres@localhost:5432/postgres")
-                .expect("Failed to create connection pool"),
-        )),
-        Arc::new(hodei_pipelines_adapters::InMemoryBus::new(1000)),
+        Arc::new(PostgreSqlPipelineExecutionRepository::new(pool.clone())),
+        Arc::new(PostgreSqlJobRepository::new(pool.clone())),
+        Arc::new(PostgreSqlPipelineRepository::new(pool.clone())),
+        Arc::new(InMemoryBus::new(1000)),
         PipelineExecutionConfig::default(),
     )
     .expect("Failed to create ConcreteOrchestrator");

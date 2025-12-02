@@ -449,13 +449,26 @@ impl ServerConfig {
 }
 
 /// Logging configuration
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LoggingConfig {
     /// Log level
     pub level: String,
 
     /// Log format
     pub format: String,
+
+    /// Log retention limit (number of executions to keep logs for)
+    pub retention_limit: usize,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            level: "info".to_string(),
+            format: "json".to_string(),
+            retention_limit: 50,
+        }
+    }
 }
 
 impl LoggingConfig {
@@ -464,7 +477,16 @@ impl LoggingConfig {
 
         let format = std::env::var("HODEI_LOG_FORMAT").unwrap_or_else(|_| "json".to_string());
 
-        Ok(Self { level, format })
+        let retention_limit = std::env::var("HODEI_LOG_RETENTION_LIMIT")
+            .unwrap_or_else(|_| "50".to_string())
+            .parse::<usize>()
+            .map_err(|_| ConfigError::InvalidValue("HODEI_LOG_RETENTION_LIMIT".to_string()))?;
+
+        Ok(Self {
+            level,
+            format,
+            retention_limit,
+        })
     }
 }
 

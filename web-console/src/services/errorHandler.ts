@@ -54,7 +54,7 @@ export interface ErrorHandlerConfig {
   enableErrorTracking: boolean;
 }
 
-class ErrorHandler {
+export class ErrorHandler {
   private config: ErrorHandlerConfig;
   private retryQueue: Map<string, Promise<any>> = new Map();
   private offlineQueue: OfflineRequest[] = [];
@@ -513,4 +513,4 @@ class ErrorHandler {
 export const errorHandler = new ErrorHandler();
 
 // Export types
-export type { ErrorHandler, ErrorHandlerConfig, RetryConfig, OfflineRequest };
+

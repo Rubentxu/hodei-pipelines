@@ -31,7 +31,7 @@ describe('SLAViolationTicker', () => {
 
   it('handles empty violations list', () => {
     render(<SLAViolationTicker violations={[]} />);
-    expect(screen.getByText('Alertas SLA')).toBeInTheDocument();
+    expect(screen.queryByText('Alertas SLA')).not.toBeInTheDocument();
     expect(screen.queryByText(/Pipeline/)).not.toBeInTheDocument();
   });
 

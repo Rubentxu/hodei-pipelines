@@ -7,7 +7,9 @@ pub use state_machine::{SchedulingContext, SchedulingState, SchedulingStateMachi
 use crossbeam::queue::SegQueue;
 use crossbeam::utils::CachePadded;
 use dashmap::DashMap;
-use hodei_pipelines_core::{DomainError, Job, JobId, JobState, Result, Worker, WorkerCapabilities, WorkerId};
+use hodei_pipelines_core::{
+    DomainError, Job, JobId, JobState, Result, Worker, WorkerCapabilities, WorkerId,
+};
 use hodei_pipelines_ports::{
     EventPublisher, JobRepository, PipelineRepository, RoleRepository, SchedulerPort, WorkerClient,
     WorkerRepository,
@@ -370,7 +372,9 @@ where
         })?;
 
         let worker_repo = self.worker_repo.ok_or_else(|| {
-            hodei_pipelines_core::DomainError::Infrastructure("worker_repository is required".into())
+            hodei_pipelines_core::DomainError::Infrastructure(
+                "worker_repository is required".into(),
+            )
         })?;
 
         let config = self.config.unwrap_or_default();
@@ -450,6 +454,27 @@ where
             rbac: None,
             worker_management: None,
         }
+    }
+
+    /// Start the scheduler loop
+    pub async fn start(&self) -> Result<()> {
+        info!("Starting Scheduler Module");
+        let interval = Duration::from_millis(self.config.scheduling_interval_ms);
+        let scheduler = self.clone();
+
+        tokio::spawn(async move {
+            info!("Scheduler loop started with interval {:?}", interval);
+            let mut ticker = tokio::time::interval(interval);
+
+            loop {
+                ticker.tick().await;
+                if let Err(e) = scheduler.run_scheduling_cycle().await {
+                    error!("Error in scheduling cycle: {}", e);
+                }
+            }
+        });
+
+        Ok(())
     }
 
     pub async fn schedule_job(&self, job: Job, priority: u8) -> Result<()> {
@@ -533,12 +558,34 @@ where
                     }
 
                     // Assign job to worker
-                    if let Err(e) = self
-                        .worker_client
-                        .assign_job(&selected_worker.id, &job.id, &job.spec)
-                        .await
-                    {
+                    // First try to send via active stream (Agent)
+                    let assign_result = if self.cluster_state.has_transmitter(&selected_worker.id) {
+                        info!(
+                            "Sending job {} to worker {} via active stream",
+                            job.id, selected_worker.id
+                        );
+                        self.send_job_to_worker(&selected_worker.id, &job)
+                            .await
+                            .map_err(|e| {
+                                // Convert SchedulerError to WorkerClientError-like string or handle it
+                                // send_job_to_worker returns Result<()>
+                                e
+                            })
+                    } else {
+                        // Fallback to WorkerClient (gRPC/HTTP direct connection)
+                        info!(
+                            "Assigning job {} to worker {} via WorkerClient",
+                            job.id, selected_worker.id
+                        );
+                        self.worker_client
+                            .assign_job(&selected_worker.id, &job.id, &job.spec)
+                            .await
+                            .map_err(|e| DomainError::Infrastructure(e.to_string()))
+                    };
+
+                    if let Err(e) = assign_result {
                         error!("Failed to assign job to worker: {}", e);
+                        // We should probably revert the status change here or let the timeout handle it
                         continue;
                     }
 
@@ -816,7 +863,10 @@ where
         &self,
         worker_id: &WorkerId,
         transmitter: mpsc::UnboundedSender<
-            std::result::Result<ServerMessage, hodei_pipelines_ports::scheduler_port::SchedulerError>,
+            std::result::Result<
+                ServerMessage,
+                hodei_pipelines_ports::scheduler_port::SchedulerError,
+            >,
         >,
     ) -> Result<()> {
         self.cluster_state
@@ -841,36 +891,34 @@ where
             .map_err(|e| DomainError::Infrastructure(e.to_string()))
     }
 
-    pub async fn start(&self) -> Result<()> {
-        Ok(())
-    }
-
     /// Send a job to a worker through their registered transmitter (US-02.3)
     pub async fn send_job_to_worker(&self, worker_id: &WorkerId, job: &Job) -> Result<()> {
         let job_spec = job.spec.clone();
         let gpu_count = job_spec.resources.gpu.unwrap_or(0) as u32;
 
         let message = ServerMessage {
-            payload: Some(hodei_pipelines_proto::pb::server_message::Payload::AssignJob(
-                hodei_pipelines_proto::pb::AssignJobRequest {
-                    worker_id: worker_id.to_string(),
-                    job_id: job.id.as_uuid().to_string(),
-                    job_spec: Some(hodei_pipelines_proto::pb::JobSpec {
-                        name: job.id.to_string(),
-                        image: job_spec.image,
-                        command: job_spec.command,
-                        resources: Some(hodei_pipelines_proto::pb::ResourceQuota {
-                            cpu_m: job_spec.resources.cpu_m,
-                            memory_mb: job_spec.resources.memory_mb,
-                            gpu: gpu_count,
+            payload: Some(
+                hodei_pipelines_proto::pb::server_message::Payload::AssignJob(
+                    hodei_pipelines_proto::pb::AssignJobRequest {
+                        worker_id: worker_id.to_string(),
+                        job_id: job.id.as_uuid().to_string(),
+                        job_spec: Some(hodei_pipelines_proto::pb::JobSpec {
+                            name: job.id.to_string(),
+                            image: job_spec.image,
+                            command: job_spec.command,
+                            resources: Some(hodei_pipelines_proto::pb::ResourceQuota {
+                                cpu_m: job_spec.resources.cpu_m,
+                                memory_mb: job_spec.resources.memory_mb,
+                                gpu: gpu_count,
+                            }),
+                            timeout_ms: 0,
+                            retries: 0,
+                            env: job_spec.env,
+                            secret_refs: vec![],
                         }),
-                        timeout_ms: 0,
-                        retries: 0,
-                        env: job_spec.env,
-                        secret_refs: vec![],
-                    }),
-                },
-            )),
+                    },
+                ),
+            ),
         };
 
         self.send_to_worker(worker_id, message).await
@@ -961,9 +1009,9 @@ where
 
         // Publish log event to event bus
         self.event_bus
-            .publish(hodei_pipelines_ports::event_bus::SystemEvent::LogChunkReceived(
-                log_entry.clone(),
-            ))
+            .publish(
+                hodei_pipelines_ports::event_bus::SystemEvent::LogChunkReceived(log_entry.clone()),
+            )
             .await
             .map_err(|e| {
                 DomainError::Infrastructure(format!(
@@ -1047,6 +1095,7 @@ where
             hodei_pipelines_ports::event_bus::SystemEvent::JobCompleted {
                 job_id: *job_id,
                 exit_code,
+                compressed_logs: None, // Logs are handled separately via gRPC/NATS
             }
         } else {
             hodei_pipelines_ports::event_bus::SystemEvent::JobFailed {
@@ -1138,7 +1187,10 @@ pub struct ClusterState {
         DashMap<
             WorkerId,
             mpsc::UnboundedSender<
-                std::result::Result<ServerMessage, hodei_pipelines_ports::scheduler_port::SchedulerError>,
+                std::result::Result<
+                    ServerMessage,
+                    hodei_pipelines_ports::scheduler_port::SchedulerError,
+                >,
             >,
         >,
     >,
@@ -1255,7 +1307,10 @@ impl ClusterState {
         &self,
         worker_id: &WorkerId,
         transmitter: mpsc::UnboundedSender<
-            std::result::Result<ServerMessage, hodei_pipelines_ports::scheduler_port::SchedulerError>,
+            std::result::Result<
+                ServerMessage,
+                hodei_pipelines_ports::scheduler_port::SchedulerError,
+            >,
         >,
     ) -> Result<()> {
         self.transmitters.insert(worker_id.clone(), transmitter);
@@ -1274,6 +1329,11 @@ impl ClusterState {
                 worker_id
             )))
         }
+    }
+
+    /// Check if a worker has a registered transmitter
+    pub fn has_transmitter(&self, worker_id: &WorkerId) -> bool {
+        self.transmitters.contains_key(worker_id)
     }
 
     /// Send a message to a worker through their registered transmitter
@@ -1338,7 +1398,9 @@ where
     ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         if let Err(e) = self.worker_repo.save_worker(worker).await {
             return Err(
-                hodei_pipelines_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
+                hodei_pipelines_ports::scheduler_port::SchedulerError::registration_failed(
+                    e.to_string(),
+                ),
             );
         }
         Ok(())
@@ -1350,7 +1412,9 @@ where
     ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         if let Err(e) = self.worker_repo.delete_worker(worker_id).await {
             return Err(
-                hodei_pipelines_ports::scheduler_port::SchedulerError::registration_failed(e.to_string()),
+                hodei_pipelines_ports::scheduler_port::SchedulerError::registration_failed(
+                    e.to_string(),
+                ),
             );
         }
         Ok(())
@@ -1358,11 +1422,11 @@ where
 
     async fn get_registered_workers(
         &self,
-    ) -> std::result::Result<Vec<WorkerId>, hodei_pipelines_ports::scheduler_port::SchedulerError> {
-        let workers =
-            self.worker_repo.get_all_workers().await.map_err(|e| {
-                hodei_pipelines_ports::scheduler_port::SchedulerError::internal(e.to_string())
-            })?;
+    ) -> std::result::Result<Vec<WorkerId>, hodei_pipelines_ports::scheduler_port::SchedulerError>
+    {
+        let workers = self.worker_repo.get_all_workers().await.map_err(|e| {
+            hodei_pipelines_ports::scheduler_port::SchedulerError::internal(e.to_string())
+        })?;
         Ok(workers.into_iter().map(|w| w.id).collect())
     }
 
@@ -1370,7 +1434,10 @@ where
         &self,
         worker_id: &WorkerId,
         transmitter: mpsc::UnboundedSender<
-            std::result::Result<ServerMessage, hodei_pipelines_ports::scheduler_port::SchedulerError>,
+            std::result::Result<
+                ServerMessage,
+                hodei_pipelines_ports::scheduler_port::SchedulerError,
+            >,
         >,
     ) -> std::result::Result<(), hodei_pipelines_ports::scheduler_port::SchedulerError> {
         self.cluster_state

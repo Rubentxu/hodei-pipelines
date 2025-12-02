@@ -9,6 +9,7 @@ pub mod burst_capacity_manager;
 pub mod cooldown_management;
 pub mod cost_optimization;
 pub mod cost_tracking;
+pub mod log_persistence;
 pub mod metrics_collection;
 pub mod multi_tenancy_quota_manager;
 pub mod orchestrator;
@@ -71,8 +72,8 @@ pub use crate::pipeline_crud::{
     PipelineSummary, UpdatePipelineRequest,
 };
 pub use crate::pipeline_execution_orchestrator::{
-    ConcreteOrchestrator, PipelineExecutionService, PipelineService,
-    PipelineExecutionOrchestrator, PipelineExecutionConfig,
+    ConcreteOrchestrator, PipelineExecutionConfig, PipelineExecutionOrchestrator,
+    PipelineExecutionService, PipelineService,
 };
 pub use crate::pool_lifecycle::{
     HealthCheckResult, InMemoryStateStore, LifecycleError, PoolConfig, PoolEvent,

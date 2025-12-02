@@ -170,7 +170,7 @@ export function CostBreakdownChart({ breakdown, className }: CostBreakdownChartP
               </div>
               <div className="text-right">
                 <div className="text-sm font-semibold text-nebula-text-primary">
-                  ${item.cost.toFixed(2)}
+                  ${item.cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-xs text-nebula-text-secondary">
                   {item.percentage}%
@@ -181,7 +181,7 @@ export function CostBreakdownChart({ breakdown, className }: CostBreakdownChartP
           <div className="pt-2 border-t border-nebula-surface-secondary">
             <div className="flex justify-between font-semibold text-nebula-text-primary">
               <span>Total:</span>
-              <span>${totalCost.toFixed(2)}</span>
+              <span>${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>

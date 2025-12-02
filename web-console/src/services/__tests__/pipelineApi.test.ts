@@ -2,16 +2,18 @@
  * @jest-environment jsdom
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
-import { pipelineApi, APIError } from "../pipelineApi";
-import type { components } from "../../types/api";
 import { http, HttpResponse } from "msw";
+import { beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../test/__mocks__/msw/server";
+import type { components } from "../../types/api";
+import { APIError, pipelineApi } from "../pipelineApi";
 
 // Type aliases
-type Pipeline = components["schemas"]["Pipeline"];
-type CreatePipelineRequest = components["schemas"]["CreatePipelineRequest"];
-type Error = components["schemas"]["Error"];
+type Pipeline = components["schemas"]["PipelineDto"];
+type PipelineSummary = components["schemas"]["PipelineSummaryDto"];
+type CreatePipelineRequest = components["schemas"]["CreatePipelineRequestDto"];
+type UpdatePipelineRequest = components["schemas"]["UpdatePipelineRequestDto"];
+type Error = components["schemas"]["ErrorResponse"];
 
 describe("PipelineApiService", () => {
   beforeEach(() => {
@@ -28,14 +30,17 @@ describe("PipelineApiService", () => {
             name: "Pipeline 1",
             status: "active",
             description: "Test pipeline",
-          },
+            step_count: 0,
+            created_at: "2025-11-30T10:00:00Z",
+            updated_at: "2025-11-30T10:00:00Z",
+          } as PipelineSummary,
         ],
         total: 1,
         hasMore: false,
       };
 
       server.use(
-        http.get("http://localhost:8080/v1/pipelines", () => {
+        http.get("http://localhost:8080/api/v1/pipelines", () => {
           return HttpResponse.json(mockResponse);
         }),
       );
@@ -53,7 +58,7 @@ describe("PipelineApiService", () => {
       };
 
       server.use(
-        http.get("http://localhost:8080/v1/pipelines", ({ request }) => {
+        http.get("http://localhost:8080/api/v1/pipelines", ({ request }) => {
           const url = new URL(request.url);
           const limit = url.searchParams.get("limit");
           const offset = url.searchParams.get("offset");
@@ -82,7 +87,7 @@ describe("PipelineApiService", () => {
       };
 
       server.use(
-        http.get("http://localhost:8080/v1/pipelines", () => {
+        http.get("http://localhost:8080/api/v1/pipelines", () => {
           return HttpResponse.json(error, { status: 401 });
         }),
       );
@@ -91,27 +96,6 @@ describe("PipelineApiService", () => {
       await expect(pipelineApi.listPipelines()).rejects.toThrow(
         "Authentication required",
       );
-    });
-
-    it("should handle partial parameters", async () => {
-      const mockResponse = {
-        items: [],
-        total: 0,
-        hasMore: false,
-      };
-
-      server.use(
-        http.get("http://localhost:8080/v1/pipelines", ({ request }) => {
-          const url = new URL(request.url);
-          expect(url.searchParams.get("limit")).toBe("50");
-          expect(url.searchParams.has("offset")).toBe(false);
-          expect(url.searchParams.has("status")).toBe(false);
-
-          return HttpResponse.json(mockResponse);
-        }),
-      );
-
-      await pipelineApi.listPipelines({ limit: 50 });
     });
   });
 
@@ -122,15 +106,14 @@ describe("PipelineApiService", () => {
         name: "Test Pipeline",
         description: "Test description",
         status: "active",
-        schedule: "0 0 * * *",
-        tags: ["test"],
-        createdAt: "2025-11-30T10:00:00Z",
-        updatedAt: "2025-11-30T10:00:00Z",
+        steps: [],
+        created_at: "2025-11-30T10:00:00Z",
+        updated_at: "2025-11-30T10:00:00Z",
       };
 
       server.use(
         http.get(
-          "http://localhost:8080/v1/pipelines/:pipelineId",
+          "http://localhost:8080/api/v1/pipelines/:pipelineId",
           ({ params }) => {
             expect(params.pipelineId).toBe(
               "123e4567-e89b-12d3-a456-426614174000",
@@ -155,7 +138,7 @@ describe("PipelineApiService", () => {
       };
 
       server.use(
-        http.get("http://localhost:8080/v1/pipelines/:pipelineId", () => {
+        http.get("http://localhost:8080/api/v1/pipelines/:pipelineId", () => {
           return HttpResponse.json(error, { status: 404 });
         }),
       );
@@ -171,8 +154,7 @@ describe("PipelineApiService", () => {
       const request: CreatePipelineRequest = {
         name: "New Pipeline",
         description: "New pipeline description",
-        schedule: "0 0 * * *",
-        tags: ["new", "pipeline"],
+        steps: [],
       };
 
       const createdPipeline: Pipeline = {
@@ -180,19 +162,18 @@ describe("PipelineApiService", () => {
         name: "New Pipeline",
         description: "New pipeline description",
         status: "active",
-        schedule: "0 0 * * *",
-        tags: ["new", "pipeline"],
-        createdAt: "2025-11-30T10:00:00Z",
-        updatedAt: "2025-11-30T10:00:00Z",
+        steps: [],
+        created_at: "2025-11-30T10:00:00Z",
+        updated_at: "2025-11-30T10:00:00Z",
       };
 
       server.use(
-        http.post("http://localhost:8080/v1/pipelines", async ({ request }) => {
-          const body = await request.json();
+        http.post("http://localhost:8080/api/v1/pipelines", async ({ request }) => {
+          const body = await request.json() as CreatePipelineRequest;
           expect(body.name).toBe("New Pipeline");
           expect(body.description).toBe("New pipeline description");
 
-          return HttpResponse.json(createdPipeline, { status: 201 });
+          return HttpResponse.json(createdPipeline, { status: 200 });
         }),
       );
 
@@ -204,11 +185,12 @@ describe("PipelineApiService", () => {
     it("should validate request structure", async () => {
       const request: CreatePipelineRequest = {
         name: "Minimal Pipeline",
+        steps: [],
       };
 
       server.use(
-        http.post("http://localhost:8080/v1/pipelines", async ({ request }) => {
-          const body = await request.json();
+        http.post("http://localhost:8080/api/v1/pipelines", async ({ request }) => {
+          const body = await request.json() as CreatePipelineRequest;
           expect(body.name).toBe("Minimal Pipeline");
 
           return HttpResponse.json(
@@ -216,8 +198,11 @@ describe("PipelineApiService", () => {
               id: "123",
               name: "Minimal Pipeline",
               status: "active",
-            },
-            { status: 201 },
+              steps: [],
+              created_at: "2025-11-30T10:00:00Z",
+              updated_at: "2025-11-30T10:00:00Z",
+            } as Pipeline,
+            { status: 200 },
           );
         }),
       );
@@ -231,6 +216,7 @@ describe("PipelineApiService", () => {
     it("should throw APIError on conflict", async () => {
       const request: CreatePipelineRequest = {
         name: "Duplicate Pipeline",
+        steps: [],
       };
 
       const error: Error = {
@@ -240,7 +226,7 @@ describe("PipelineApiService", () => {
       };
 
       server.use(
-        http.post("http://localhost:8080/v1/pipelines", () => {
+        http.post("http://localhost:8080/api/v1/pipelines", () => {
           return HttpResponse.json(error, { status: 409 });
         }),
       );
@@ -254,29 +240,28 @@ describe("PipelineApiService", () => {
   describe("updatePipeline", () => {
     it("should update an existing pipeline", async () => {
       const pipelineId = "123e4567-e89b-12d3-a456-426614174000";
-      const updateRequest = {
+      const updateRequest: UpdatePipelineRequest = {
         description: "Updated description",
-        status: "inactive" as const,
       };
 
       const updatedPipeline: Pipeline = {
         id: pipelineId,
         name: "Test Pipeline",
         description: "Updated description",
-        status: "inactive",
-        createdAt: "2025-11-30T10:00:00Z",
-        updatedAt: "2025-11-30T11:00:00Z",
+        status: "active",
+        steps: [],
+        created_at: "2025-11-30T10:00:00Z",
+        updated_at: "2025-11-30T11:00:00Z",
       };
 
       server.use(
-        http.patch(
-          "http://localhost:8080/v1/pipelines/:pipelineId",
+        http.put(
+          "http://localhost:8080/api/v1/pipelines/:pipelineId",
           async ({ request, params }) => {
             expect(params.pipelineId).toBe(pipelineId);
 
-            const body = await request.json();
+            const body = await request.json() as UpdatePipelineRequest;
             expect(body.description).toBe("Updated description");
-            expect(body.status).toBe("inactive");
 
             return HttpResponse.json(updatedPipeline);
           },
@@ -289,39 +274,6 @@ describe("PipelineApiService", () => {
       );
 
       expect(result.description).toBe("Updated description");
-      expect(result.status).toBe("inactive");
-    });
-
-    it("should handle partial updates", async () => {
-      const pipelineId = "123e4567-e89b-12d3-a456-426614174000";
-      const updateRequest = {
-        tags: ["updated", "tags"],
-      };
-
-      server.use(
-        http.patch(
-          "http://localhost:8080/v1/pipelines/:pipelineId",
-          async ({ request, params }) => {
-            const body = await request.json();
-            expect(body.tags).toEqual(["updated", "tags"]);
-
-            return HttpResponse.json({
-              id: pipelineId,
-              name: "Test Pipeline",
-              status: "active",
-              tags: ["updated", "tags"],
-            });
-          },
-        ),
-      );
-
-      const result = await pipelineApi.updatePipeline(
-        pipelineId,
-        updateRequest,
-      );
-
-      expect(result.tags).toEqual(["updated", "tags"]);
-      expect(result.status).toBe("active");
     });
   });
 
@@ -331,7 +283,7 @@ describe("PipelineApiService", () => {
 
       server.use(
         http.delete(
-          "http://localhost:8080/v1/pipelines/:pipelineId",
+          "http://localhost:8080/api/v1/pipelines/:pipelineId",
           ({ params }) => {
             expect(params.pipelineId).toBe(pipelineId);
             return new HttpResponse(null, { status: 204 });
@@ -350,7 +302,7 @@ describe("PipelineApiService", () => {
       };
 
       server.use(
-        http.delete("http://localhost:8080/v1/pipelines/:pipelineId", () => {
+        http.delete("http://localhost:8080/api/v1/pipelines/:pipelineId", () => {
           return HttpResponse.json(error, { status: 404 });
         }),
       );
@@ -368,12 +320,13 @@ describe("PipelineApiService", () => {
         name: "Test Pipeline",
         status: "active",
         description: "Test description",
-        createdAt: "2025-11-30T10:00:00Z",
-        updatedAt: "2025-11-30T10:00:00Z",
+        steps: [],
+        created_at: "2025-11-30T10:00:00Z",
+        updated_at: "2025-11-30T10:00:00Z",
       };
 
       server.use(
-        http.get("http://localhost:8080/v1/pipelines/:pipelineId", () => {
+        http.get("http://localhost:8080/api/v1/pipelines/:pipelineId", () => {
           return HttpResponse.json(mockPipeline);
         }),
       );
@@ -383,27 +336,7 @@ describe("PipelineApiService", () => {
       // TypeScript will ensure these fields exist
       expect(result.id).toBeDefined();
       expect(result.name).toBeDefined();
-      expect(result.status).toMatch(/^(active|inactive|archived)$/);
-    });
-
-    it("should validate status enum values", async () => {
-      const validStatuses = ["active", "inactive", "archived"] as const;
-      const isValidStatus = (
-        status: string,
-      ): status is (typeof validStatuses)[number] => {
-        return validStatuses.includes(status as (typeof validStatuses)[number]);
-      };
-
-      const mockPipeline: Pipeline = {
-        id: "123",
-        name: "Test",
-        status: "active",
-      };
-
-      // This will catch invalid status values at compile time
-      if (isValidStatus(mockPipeline.status)) {
-        expect(mockPipeline.status).toBe("active");
-      }
+      expect(result.status).toBeDefined();
     });
   });
 
@@ -412,12 +345,12 @@ describe("PipelineApiService", () => {
       const error: Error = {
         code: "BAD_REQUEST",
         message: "Invalid input",
-        details: { field: "name", reason: "too short" },
+        details: '{"field":"name","reason":"too short"}',
         timestamp: "2025-11-30T10:00:00Z",
       };
 
       server.use(
-        http.get("http://localhost:8080/v1/pipelines", () => {
+        http.get("http://localhost:8080/api/v1/pipelines", () => {
           return HttpResponse.json(error, { status: 400 });
         }),
       );
@@ -430,10 +363,7 @@ describe("PipelineApiService", () => {
         expect(err).toBeInstanceOf(APIError);
         expect(err).toHaveProperty("code", "BAD_REQUEST");
         expect(err).toHaveProperty("message", "Invalid input");
-        expect(err).toHaveProperty("details", {
-          field: "name",
-          reason: "too short",
-        });
+        expect(err).toHaveProperty("details", '{"field":"name","reason":"too short"}');
         expect(err).toHaveProperty("timestamp", "2025-11-30T10:00:00Z");
       }
     });

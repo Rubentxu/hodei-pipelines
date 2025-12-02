@@ -23,7 +23,11 @@ thiserror = { workspace = true }
 
 # Workspace utilities
 uuid = { workspace = true }
+mockall = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
 tokio = { workspace = true }
+
+[features]
+testing = ["mockall"]

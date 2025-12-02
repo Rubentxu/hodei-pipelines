@@ -24,6 +24,7 @@ use crate::cost_tracking_aggregation::{
     CostTrackingApiAppState, CostTrackingService, cost_tracking_api_routes,
 };
 use crate::execution_api::{ExecutionApiAppState, execution_api_routes};
+use crate::finops_api::{FinOpsApiAppState, finops_api_routes};
 use crate::live_metrics_api::{
     LiveMetricsApiAppState, LiveMetricsService, live_metrics_api_routes,
 };
@@ -58,8 +59,8 @@ use hodei_pipelines_core::{
     pipeline_execution::PipelineExecution,
 };
 use hodei_pipelines_modules::{
-    CreatePipelineRequest, ExecutePipelineRequest, ListPipelinesFilter,
-    PipelineExecutionService, PipelineService, UpdatePipelineRequest,
+    CreatePipelineRequest, ExecutePipelineRequest, ListPipelinesFilter, PipelineExecutionService,
+    PipelineService, UpdatePipelineRequest,
 };
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -87,7 +88,9 @@ pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
 
     // Initialize pipeline state - with production service using PipelineExecutionOrchestrator
     let pipeline_service: PipelineServiceType = server_components.pipeline_service.clone();
-    let pipeline_state = PipelineApiAppState::new(pipeline_service);
+    let execution_service_for_pipeline: ExecutionServiceType =
+        server_components.orchestrator.clone();
+    let pipeline_state = PipelineApiAppState::new(pipeline_service, execution_service_for_pipeline);
 
     // Initialize execution state - with production service using PipelineExecutionOrchestrator
     let execution_service: ExecutionServiceType = server_components.orchestrator.clone();
@@ -178,6 +181,11 @@ pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
     // Initialize terminal state
     let terminal_state = TerminalAppState::default();
 
+    // Initialize FinOps state
+    let finops_state = FinOpsApiAppState {
+        metrics_repo: server_components.metrics_repository.clone(),
+    };
+
     info!("✅ Resource Pool CRUD routes initialized");
     info!("✅ Pipeline API routes initialized");
     info!("✅ Execution API routes initialized");
@@ -218,6 +226,7 @@ pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
             }),
         )
         // API v1 routes
+        .nest("/api/finops", finops_api_routes(finops_state))
         .nest(
             "/api/v1",
             Router::new()

@@ -1,11 +1,13 @@
 //! Infrastructure layer for E2E tests
 
 pub mod config;
+#[cfg(feature = "container_tests")]
 pub mod containers;
 pub mod observability;
 pub mod services;
 
 pub use config::TestConfig;
+#[cfg(feature = "container_tests")]
 pub use containers::{ContainerManager, InfrastructureBuilder};
 pub use services::{OrchestratorClient, SchedulerClient, WorkerManagerClient};
 

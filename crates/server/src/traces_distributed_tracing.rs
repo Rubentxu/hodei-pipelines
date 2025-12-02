@@ -127,7 +127,7 @@ pub struct TracesService {
     /// Mock traces for demonstration
     mock_traces: Arc<Vec<Trace>>,
     /// Trace statistics cache
-    trace_stats: Arc<HashMap<String, u64>>,
+    _trace_stats: Arc<HashMap<String, u64>>,
 }
 
 impl TracesService {
@@ -138,7 +138,7 @@ impl TracesService {
 
         Self {
             mock_traces: Arc::new(mock_traces),
-            trace_stats: Arc::new(trace_stats),
+            _trace_stats: Arc::new(trace_stats),
         }
     }
 

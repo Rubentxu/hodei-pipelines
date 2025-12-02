@@ -188,6 +188,7 @@ impl WorkerService for HwpService {
         }
 
         let scheduler_clone = self.scheduler.clone();
+        let event_publisher_clone = self.event_publisher.clone();
         let worker_id_clone = worker_id.clone();
         tokio::spawn(async move {
             while let Some(result) = inbound.next().await {
@@ -209,6 +210,28 @@ impl WorkerService for HwpService {
                                         "Job result from worker {} for job {}: exit_code={}",
                                         worker_id_clone, res.job_id, res.exit_code
                                     );
+
+                                    // Publish JobCompleted event
+                                    if let Ok(job_uuid) = uuid::Uuid::parse_str(&res.job_id) {
+                                        let job_id =
+                                            hodei_pipelines_core::JobId::from_uuid(job_uuid);
+                                        let event =
+                                            hodei_pipelines_ports::SystemEvent::JobCompleted {
+                                                job_id,
+                                                exit_code: res.exit_code,
+                                                compressed_logs: if res.compressed_logs.is_empty() {
+                                                    None
+                                                } else {
+                                                    Some(res.compressed_logs)
+                                                },
+                                            };
+
+                                        if let Err(e) = event_publisher_clone.publish(event).await {
+                                            error!("Failed to publish JobCompleted event: {}", e);
+                                        }
+                                    } else {
+                                        error!("Invalid job ID in JobResult: {}", res.job_id);
+                                    }
                                 }
                             }
                         }

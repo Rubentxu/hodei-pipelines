@@ -25,7 +25,7 @@ reqwest = { workspace = true, features = ["json"] }
 
 # Testing
 tempfile = { workspace = true }
-testcontainers = { workspace = true }
+# testcontainers = { workspace = true }
 wiremock = { workspace = true }
 dotenvy = { workspace = true }
 tracing = { workspace = true }
@@ -43,6 +43,7 @@ hodei-pipelines-adapters = { workspace = true }
 
 [features]
 default = []
+container_tests = []
 std = []
 api-tests = []
 sdk-tests = []

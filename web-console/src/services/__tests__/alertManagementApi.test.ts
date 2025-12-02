@@ -1,33 +1,31 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { http, HttpResponse } from "msw";
+import { beforeEach, describe, expect, it } from "vitest";
+import { server } from "../../test/__mocks__/msw/server";
 import {
-  getAlertRules,
-  getAlertRule,
-  createAlertRule,
-  updateAlertRule,
-  deleteAlertRule,
-  getAlerts,
-  getAlert,
   acknowledgeAlert,
-  resolveAlert,
   assignAlert,
-  getAlertStats,
-  testAlertRule,
-  toggleAlertRule,
+  createAlertRule,
+  deleteAlertRule,
+  formatDuration,
+  getAlert,
   getAlertHistory,
+  getAlertPriorityScore,
+  getAlertRule,
+  getAlertRules,
+  getAlerts,
+  getAlertStats,
   getSeverityColor,
   getStatusColor,
-  formatDuration,
   isHighPriority,
-  getAlertPriorityScore,
+  resolveAlert,
+  testAlertRule,
+  toggleAlertRule,
+  updateAlertRule,
+  type Alert,
   type AlertRule,
   type CreateAlertRuleRequest,
-  type UpdateAlertRuleRequest,
-  type Alert,
-  type AlertSeverity,
-  type AlertStatus,
+  type UpdateAlertRuleRequest
 } from "../alertManagementApi";
-import { http, HttpResponse } from "msw";
-import { server } from "../../test/__mocks__/msw/server";
 
 describe("alertManagementApi", () => {
   beforeEach(() => {
@@ -221,7 +219,7 @@ describe("alertManagementApi", () => {
 
       server.use(
         http.post("/api/v1/alerts/rules", async ({ request }) => {
-          const body = await request.json();
+          const body = (await request.json()) as any;
           return HttpResponse.json({
             id: "new-rule-id",
             ...body,
@@ -250,9 +248,9 @@ describe("alertManagementApi", () => {
           return HttpResponse.json(
             { message: "Validation failed" },
             { status: 400 },
-          ),
-        );
-      });
+          );
+        }),
+      );
 
       await expect(createAlertRule(request)).rejects.toThrow(
         "Failed to create alert rule",
@@ -284,7 +282,7 @@ describe("alertManagementApi", () => {
       server.use(
         http.patch("/api/v1/alerts/rules/:id", async ({ params, request }) => {
           const { id } = params;
-          const body = await request.json();
+          const body = (await request.json()) as any;
           if (id === "non-existent") {
             return HttpResponse.json(
               { message: "Rule not found" },
@@ -463,9 +461,9 @@ describe("alertManagementApi", () => {
           return HttpResponse.json(
             { message: "Server error" },
             { status: 500 },
-          ),
-        );
-      });
+          );
+        }),
+      );
 
       await expect(getAlerts()).rejects.toThrow("Failed to fetch alerts");
     });
@@ -543,7 +541,7 @@ describe("alertManagementApi", () => {
               { status: 404 },
             );
           }
-          const body = await request.json();
+          const body = (await request.json()) as any;
           return HttpResponse.json({
             ...mockAlert,
             status: "acknowledged",
@@ -600,7 +598,7 @@ describe("alertManagementApi", () => {
               { status: 404 },
             );
           }
-          const body = await request.json();
+          const body = (await request.json()) as any;
           return HttpResponse.json({
             ...mockAlert,
             status: "resolved",
@@ -643,7 +641,7 @@ describe("alertManagementApi", () => {
               { status: 404 },
             );
           }
-          const body = await request.json();
+          const body = (await request.json()) as any;
           return HttpResponse.json({
             ...mockAlert,
             assignments: [
@@ -741,7 +739,7 @@ describe("alertManagementApi", () => {
       server.use(
         http.post("/api/v1/alerts/rules/:id/toggle", async ({ params, request }) => {
           const { id } = params;
-          const body = await request.json();
+          const body = (await request.json()) as any;
           if (id === "non-existent") {
             return HttpResponse.json(
               { message: "Rule not found" },

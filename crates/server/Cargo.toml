@@ -43,6 +43,7 @@ reqwest = { workspace = true, features = ["json"] }
 async-trait = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
+flate2 = { workspace = true }
 
 # OpenAPI / Swagger UI
 utoipa = { workspace = true, features = ["axum_extras", "chrono", "uuid"] }
@@ -53,7 +54,12 @@ tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 portable-pty = { workspace = true }
 
 # Database
-sqlx = { workspace = true, features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+sqlx = { workspace = true, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "chrono",
+    "uuid",
+] }
 
 [lib]
 name = "hodei_server"

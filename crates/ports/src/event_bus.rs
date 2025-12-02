@@ -36,7 +36,11 @@ pub enum SystemEvent {
     JobStarted { job_id: JobId, worker_id: WorkerId },
 
     /// Job completed event
-    JobCompleted { job_id: JobId, exit_code: i32 },
+    JobCompleted {
+        job_id: JobId,
+        exit_code: i32,
+        compressed_logs: Option<Vec<u8>>,
+    },
 
     /// Job failed event
     JobFailed { job_id: JobId, error: String },
@@ -238,6 +242,7 @@ mod tests {
         let event = SystemEvent::JobCompleted {
             job_id: JobId::new(),
             exit_code: 0,
+            compressed_logs: Some(vec![1, 2, 3]),
         };
 
         let result = serde_json::to_string(&event);

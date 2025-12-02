@@ -868,6 +868,12 @@ paths:
         required: true
         schema:
           type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePipelineRequestDto'
+        required: true
       responses:
         '200':
           description: Pipeline updated successfully
@@ -2496,6 +2502,7 @@ components:
       required:
       - code
       - message
+      - timestamp
       properties:
         code:
           type: string
@@ -2508,6 +2515,10 @@ components:
         message:
           type: string
           description: Error message
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp
     ErrorSeverity:
       type: string
       description: Error severity
@@ -2720,7 +2731,7 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/PipelineDto'
+            $ref: '#/components/schemas/PipelineSummaryDto'
         total:
           type: integer
           minimum: 0
@@ -3118,6 +3129,7 @@ components:
       required:
       - id
       - name
+      - status
       - steps
       - created_at
       - updated_at
@@ -3133,6 +3145,8 @@ components:
           type: string
           format: uuid
         name:
+          type: string
+        status:
           type: string
         steps:
           type: array
@@ -3166,6 +3180,7 @@ components:
       required:
       - id
       - name
+      - status
       - step_count
       - created_at
       - updated_at
@@ -3181,6 +3196,8 @@ components:
           type: string
           format: uuid
         name:
+          type: string
+        status:
           type: string
         step_count:
           type: integer
@@ -4249,6 +4266,31 @@ components:
             type: string
         trace_id:
           type: string
+    UpdatePipelineRequestDto:
+      type: object
+      properties:
+        description:
+          type:
+          - string
+          - 'null'
+        name:
+          type:
+          - string
+          - 'null'
+        steps:
+          type:
+          - array
+          - 'null'
+          items:
+            $ref: '#/components/schemas/CreatePipelineStepRequestDto'
+        variables:
+          type:
+          - object
+          - 'null'
+          additionalProperties:
+            type: string
+          propertyNames:
+            type: string
     UpdatePoolRequestDto:
       type: object
       properties:

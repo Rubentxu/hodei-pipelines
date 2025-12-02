@@ -1,9 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ResourcePoolForm } from "../ResourcePoolForm";
 import { http, HttpResponse } from "msw";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../../test/__mocks__/msw/server";
+import { ResourcePoolForm } from "../ResourcePoolForm";
+
+const mockNavigate = vi.fn();
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
 const mockPool = {
   id: "new-pool-id",
@@ -26,7 +36,11 @@ describe("ResourcePoolForm", () => {
   });
 
   it("renders form correctly in create mode", () => {
-    render(<ResourcePoolForm />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolForm />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText(/Create Resource Pool/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Pool Type/)).toBeInTheDocument();
@@ -37,7 +51,11 @@ describe("ResourcePoolForm", () => {
 
   it("validates minimum size <= maximum size on client side", async () => {
     const user = userEvent.setup();
-    render(<ResourcePoolForm />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolForm />
+      </MemoryRouter>,
+    );
 
     const minSizeInput = screen.getByLabelText(/Minimum Size/);
     const maxSizeInput = screen.getByLabelText(/Maximum Size/);
@@ -47,9 +65,11 @@ describe("ResourcePoolForm", () => {
     await user.clear(maxSizeInput);
     await user.type(maxSizeInput, "5");
 
+    await user.click(screen.getByRole("button", { name: /Create Pool/ }));
+
     // Should show client-side validation error
     expect(
-      screen.getByText(/minimum size cannot be greater than maximum size/),
+      screen.getByText(/Minimum size cannot be greater than maximum size/),
     ).toBeInTheDocument();
   });
 
@@ -58,7 +78,7 @@ describe("ResourcePoolForm", () => {
 
     server.use(
       http.post("/api/v1/worker-pools", async ({ request }) => {
-        const body = await request.json();
+        const body = (await request.json()) as any;
         return HttpResponse.json({
           id: "new-pool-id",
           ...body,
@@ -66,7 +86,11 @@ describe("ResourcePoolForm", () => {
       }),
     );
 
-    render(<ResourcePoolForm />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolForm />
+      </MemoryRouter>,
+    );
 
     await user.type(screen.getByLabelText(/Pool Name/), "Test Pool");
     await user.type(screen.getByLabelText(/Minimum Size/), "1");
@@ -75,7 +99,7 @@ describe("ResourcePoolForm", () => {
     await user.click(screen.getByRole("button", { name: /Create Pool/ }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Saved!/)).toBeInTheDocument();
+      expect(mockNavigate).toHaveBeenCalledWith("/resource-pools");
     });
   });
 
@@ -84,7 +108,7 @@ describe("ResourcePoolForm", () => {
 
     server.use(
       http.post("/api/v1/worker-pools", async ({ request }) => {
-        const body = await request.json();
+        const body = (await request.json()) as any;
         if (body.name === "Existing") {
           return HttpResponse.json(
             { message: "Pool name already exists" },
@@ -95,7 +119,11 @@ describe("ResourcePoolForm", () => {
       }),
     );
 
-    render(<ResourcePoolForm />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolForm />
+      </MemoryRouter>,
+    );
 
     await user.type(screen.getByLabelText(/Pool Name/), "Existing");
     await user.type(screen.getByLabelText(/Minimum Size/), "1");
@@ -109,7 +137,11 @@ describe("ResourcePoolForm", () => {
 
   it("adds and removes tags correctly", async () => {
     const user = userEvent.setup();
-    render(<ResourcePoolForm />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolForm />
+      </MemoryRouter>,
+    );
 
     const keyInput = screen.getByPlaceholderText("Key");
     const valueInput = screen.getByPlaceholderText("Value");
@@ -132,9 +164,13 @@ describe("ResourcePoolForm", () => {
   it("displays loading state during save", async () => {
     const user = userEvent.setup();
 
-    server.use(http.post("/api/v1/worker-pools", () => new Promise(() => {})));
+    server.use(http.post("/api/v1/worker-pools", () => new Promise(() => { })));
 
-    render(<ResourcePoolForm />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolForm />
+      </MemoryRouter>,
+    );
 
     await user.type(screen.getByLabelText(/Pool Name/), "Test Pool");
     await user.click(screen.getByRole("button", { name: /Create Pool/ }));
@@ -144,7 +180,11 @@ describe("ResourcePoolForm", () => {
 
   it("displays required field validation", async () => {
     const user = userEvent.setup();
-    render(<ResourcePoolForm />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolForm />
+      </MemoryRouter>,
+    );
 
     const submitButton = screen.getByRole("button", { name: /Create Pool/ });
     await user.click(submitButton);

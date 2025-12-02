@@ -8,16 +8,16 @@
 import type { components, operations } from "../types/api";
 
 // Type aliases for better readability
-export type Pipeline = components["schemas"]["PipelineResponseDto"];
+export type Pipeline = components["schemas"]["PipelineDto"];
 export type CreatePipelineRequest = components["schemas"]["CreatePipelineRequestDto"];
-export type UpdatePipelineRequest = components["schemas"]["UpdatePipelineRequest"];
+export type UpdatePipelineRequest = components["schemas"]["UpdatePipelineRequestDto"];
 export type Error = components["schemas"]["ErrorResponse"];
 
 // Response types from operations
 export type ListPipelinesResponse =
   operations["list_pipelines_handler"]["responses"][200]["content"]["application/json"];
 export type CreatePipelineResponse =
-  operations["create_pipeline_handler"]["responses"][201]["content"]["application/json"];
+  operations["create_pipeline_handler"]["responses"][200]["content"]["application/json"];
 export type GetPipelineResponse =
   operations["get_pipeline_handler"]["responses"][200]["content"]["application/json"];
 export type ExecutePipelineResponse =
@@ -29,13 +29,15 @@ const API_BASE_URL =
 // Generic API error class
 export class APIError extends Error {
   code: string;
-  details?: string;
+  details?: string | null;
+  timestamp: string;
 
   constructor(error: Error) {
     super(error.message);
     this.name = "APIError";
     this.code = error.code;
     this.details = error.details;
+    this.timestamp = error.timestamp;
   }
 }
 

@@ -204,12 +204,15 @@ impl From<&str> for StepExecutionStatus {
 pub struct StepExecution {
     pub step_execution_id: StepExecutionId,
     pub step_id: PipelineStepId,
+    pub job_id: Option<Uuid>,
     pub status: StepExecutionStatus,
     pub started_at: Option<chrono::DateTime<chrono::Utc>>,
     pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
     pub retry_count: u8,
     pub error_message: Option<String>,
     pub logs: Vec<String>,
+    #[serde(skip)]
+    pub compressed_logs: Option<Vec<u8>>,
 }
 
 impl StepExecution {
@@ -217,12 +220,14 @@ impl StepExecution {
         Self {
             step_execution_id: StepExecutionId::new(),
             step_id,
+            job_id: None,
             status: StepExecutionStatus::PENDING,
             started_at: None,
             completed_at: None,
             retry_count: 0,
             error_message: None,
             logs: Vec::new(),
+            compressed_logs: None,
         }
     }
 

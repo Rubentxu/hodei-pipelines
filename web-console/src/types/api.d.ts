@@ -1241,7 +1241,7 @@ export interface components {
             /** @description Name of the job */
             name: string;
             /** @description Resource requirements */
-            resources: components["schemas"]["ResourceQuota"];
+            resources: components["schemas"]["ResourceQuotaDto"];
             /**
              * Format: int32
              * @description Number of retries on failure
@@ -1255,34 +1255,24 @@ export interface components {
              */
             timeout_ms: number;
         };
-        /** @description Create Pipeline Request DTO */
         CreatePipelineRequestDto: {
             description?: string | null;
             name: string;
             steps: components["schemas"]["CreatePipelineStepRequestDto"][];
         };
-        /** @description Create Pipeline Step Request DTO */
         CreatePipelineStepRequestDto: {
-            command: string[];
-            env?: {
-                [key: string]: string;
-            } | null;
-            image: string;
+            dependencies: string[];
+            job_spec: components["schemas"]["JobSpecDto"];
             name: string;
-            /** Format: int32 */
-            retries?: number | null;
-            /** Format: int64 */
-            timeout_ms?: number | null;
         };
-        /** @description Request to create a new resource pool */
-        CreatePoolRequest: {
-            default_resources: components["schemas"]["ResourceQuota"];
+        CreatePoolRequestDto: {
+            default_resources: components["schemas"]["ResourceQuotaDto"];
             /** Format: int32 */
             max_size: number;
             /** Format: int32 */
             min_size: number;
             name: string;
-            pool_type: components["schemas"]["ResourcePoolType"];
+            pool_type: components["schemas"]["ResourcePoolTypeDto"];
             provider_name: string;
             tags?: {
                 [key: string]: string;
@@ -1310,30 +1300,30 @@ export interface components {
             /** @description Tenant name */
             name: string;
         };
-        /** @description DAG Edge DTO */
         DagEdgeDto: {
-            source: components["schemas"]["PipelineStepId"];
-            target: components["schemas"]["PipelineStepId"];
+            /** Format: uuid */
+            source: string;
+            /** Format: uuid */
+            target: string;
         };
-        /** @description DAG Node DTO */
         DagNodeDto: {
-            id: components["schemas"]["PipelineStepId"];
+            /** Format: uuid */
+            id: string;
             name: string;
-            position?: null | components["schemas"]["DagPosition"];
-            status?: null | components["schemas"]["PipelineStatus"];
+            position?: null | components["schemas"]["DagPositionDto"];
+            status?: string | null;
         };
-        /** @description DAG Position */
-        DagPosition: {
+        DagPositionDto: {
             /** Format: double */
             x: number;
             /** Format: double */
             y: number;
         };
-        /** @description DAG Structure Response DTO */
         DagStructureDto: {
             edges: components["schemas"]["DagEdgeDto"][];
             nodes: components["schemas"]["DagNodeDto"][];
-            pipeline_id: components["schemas"]["PipelineId"];
+            /** Format: uuid */
+            pipeline_id: string;
         };
         /**
          * @description Dashboard metrics response
@@ -1448,13 +1438,17 @@ export interface components {
             details?: string | null;
             /** @description Error message */
             message: string;
+            /**
+             * Format: date-time
+             * @description Timestamp
+             */
+            timestamp: string;
         };
         /**
          * @description Error severity
          * @enum {string}
          */
         ErrorSeverity: "low" | "medium" | "high" | "critical";
-        /** @description Execute Pipeline Request DTO */
         ExecutePipelineRequestDto: {
             branch?: string | null;
             environment?: string | null;
@@ -1466,17 +1460,16 @@ export interface components {
                 [key: string]: string;
             } | null;
         };
-        /** @description Execute Pipeline Response DTO */
         ExecutePipelineResponseDto: {
-            execution_id: components["schemas"]["ExecutionId"];
-            pipeline_id: components["schemas"]["PipelineId"];
+            /** Format: uuid */
+            execution_id: string;
+            /** Format: uuid */
+            pipeline_id: string;
             status: string;
         };
-        /** @description Execution identifier - Value Object */
-        ExecutionId: string;
-        /** @description Execution Logs Response DTO */
         ExecutionLogsDto: {
-            execution_id: components["schemas"]["ExecutionId"];
+            /** Format: uuid */
+            execution_id: string;
             step_executions: components["schemas"]["StepExecutionLogsDto"][];
         };
         /** @description Health check response */
@@ -1519,7 +1512,7 @@ export interface components {
             /** @description Job result (null if not completed) */
             result?: unknown;
             /** @description Job specification */
-            spec: components["schemas"]["JobSpec"];
+            spec: components["schemas"]["JobSpecDto"];
             /**
              * Format: date-time
              * @description Start timestamp (null if not started)
@@ -1533,15 +1526,14 @@ export interface components {
              */
             updated_at: string;
         };
-        /** @description Job specification (immutable value object) */
-        JobSpec: {
+        JobSpecDto: {
             command: string[];
             env: {
                 [key: string]: string;
             };
             image: string;
             name: string;
-            resources: components["schemas"]["ResourceQuota"];
+            resources: components["schemas"]["ResourceQuotaDto"];
             /** Format: int32 */
             retries: number;
             secret_refs: string[];
@@ -1553,7 +1545,6 @@ export interface components {
             /** @description List of dynamic workers */
             workers: components["schemas"]["DynamicWorkerStatusResponse"][];
         };
-        /** @description List Pipelines Response DTO */
         ListPipelinesResponseDto: {
             items: components["schemas"]["PipelineSummaryDto"][];
             total: number;
@@ -1580,7 +1571,6 @@ export interface components {
             value: number;
             worker_id: string;
         };
-        /** @description Log Entry DTO */
         LogEntryDto: {
             content: string;
             stream_type: string;
@@ -1589,7 +1579,8 @@ export interface components {
         };
         /** @description Log Event DTO for SSE streaming */
         LogEvent: {
-            execution_id: components["schemas"]["ExecutionId"];
+            /** Format: uuid */
+            execution_id: string;
             level: components["schemas"]["LogLevel"];
             message: string;
             step: string;
@@ -1746,35 +1737,33 @@ export interface components {
             /** @description Tenant ID */
             tenant_id: string;
         };
-        /** @description Pipeline identifier - Value Object */
-        PipelineId: string;
-        /** @description Pipeline Response DTO */
-        PipelineResponseDto: {
+        PipelineDto: {
             /** Format: date-time */
             created_at: string;
             description?: string | null;
-            id: components["schemas"]["PipelineId"];
+            /** Format: uuid */
+            id: string;
             name: string;
-            status: components["schemas"]["PipelineStatus"];
-            step_count: number;
+            status: string;
+            steps: components["schemas"]["PipelineStepDto"][];
             /** Format: date-time */
             updated_at: string;
         };
-        /**
-         * @description Pipeline status - Value Object (Enum)
-         * @enum {string}
-         */
-        PipelineStatus: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
-        /** @description Pipeline step identifier - Value Object */
-        PipelineStepId: string;
-        /** @description Pipeline Summary DTO */
+        PipelineStepDto: {
+            dependencies: string[];
+            /** Format: uuid */
+            id: string;
+            job_spec: components["schemas"]["JobSpecDto"];
+            name: string;
+        };
         PipelineSummaryDto: {
             /** Format: date-time */
             created_at: string;
             description?: string | null;
-            id: components["schemas"]["PipelineId"];
+            /** Format: uuid */
+            id: string;
             name: string;
-            status: components["schemas"]["PipelineStatus"];
+            status: string;
             step_count: number;
             /** Format: date-time */
             updated_at: string;
@@ -1943,27 +1932,24 @@ export interface components {
             /** @description Worker name */
             name: string;
         };
-        /** @description Resource pool configuration */
-        ResourcePoolConfig: {
-            default_resources: components["schemas"]["ResourceQuota"];
+        ResourcePoolConfigDto: {
+            default_resources: components["schemas"]["ResourceQuotaDto"];
             /** Format: int32 */
             max_size: number;
             /** Format: int32 */
             min_size: number;
             name: string;
-            pool_type: components["schemas"]["ResourcePoolType"];
+            pool_type: components["schemas"]["ResourcePoolTypeDto"];
             provider_name: string;
             tags: {
                 [key: string]: string;
             };
         };
-        /** @description Response for resource pool operations */
-        ResourcePoolResponse: {
-            config: components["schemas"]["ResourcePoolConfig"];
+        ResourcePoolResponseDto: {
+            config: components["schemas"]["ResourcePoolConfigDto"];
             id: string;
         };
-        /** @description Resource pool status */
-        ResourcePoolStatus: {
+        ResourcePoolStatusDto: {
             /** Format: int32 */
             active_workers: number;
             /** Format: int32 */
@@ -1971,17 +1957,13 @@ export interface components {
             name: string;
             /** Format: int32 */
             pending_requests: number;
-            pool_type: components["schemas"]["ResourcePoolType"];
+            pool_type: components["schemas"]["ResourcePoolTypeDto"];
             /** Format: int32 */
             total_capacity: number;
         };
-        /**
-         * @description Resource pool type
-         * @enum {string}
-         */
-        ResourcePoolType: "Docker" | "Kubernetes" | "Cloud" | "Static";
-        /** @description Resource requirements for a job */
-        ResourceQuota: {
+        /** @enum {string} */
+        ResourcePoolTypeDto: "Docker" | "Kubernetes" | "Cloud" | "Static";
+        ResourceQuotaDto: {
             /** Format: int64 */
             cpu_m: number;
             /** Format: int32 */
@@ -2283,13 +2265,13 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
-        /** @description Step Details Response DTO */
         StepDetailsDto: {
             command: string[];
             environment: {
                 [key: string]: string;
             };
-            id: components["schemas"]["PipelineStepId"];
+            /** Format: uuid */
+            id: string;
             image: string;
             name: string;
             /** Format: int32 */
@@ -2298,11 +2280,11 @@ export interface components {
             /** Format: int64 */
             timeout_ms: number;
         };
-        /** @description Step Execution Logs DTO */
         StepExecutionLogsDto: {
             logs: components["schemas"]["LogEntryDto"][];
             status: string;
-            step_id: components["schemas"]["PipelineStepId"];
+            /** Format: uuid */
+            step_id: string;
             step_name: string;
         };
         /** @description Cost breakdown by tenant */
@@ -2406,8 +2388,15 @@ export interface components {
             };
             trace_id: string;
         };
-        /** @description Request to update a resource pool */
-        UpdatePoolRequest: {
+        UpdatePipelineRequestDto: {
+            description?: string | null;
+            name?: string | null;
+            steps?: components["schemas"]["CreatePipelineStepRequestDto"][] | null;
+            variables?: {
+                [key: string]: string;
+            } | null;
+        };
+        UpdatePoolRequestDto: {
             /** Format: int32 */
             max_size?: number | null;
             /** Format: int32 */
@@ -2518,8 +2507,7 @@ export interface components {
          * @enum {string}
          */
         VulnerabilityStatus: "Open" | "InProgress" | "Verified" | "Resolved" | "Accepted" | "FalsePositive";
-        /** @description Worker capabilities for matching */
-        WorkerCapabilities: {
+        WorkerCapabilitiesDto: {
             /** Format: int32 */
             cpu_cores: number;
             features: string[];
@@ -2536,7 +2524,7 @@ export interface components {
         /** @description Worker response */
         WorkerResponse: {
             /** @description Worker capabilities */
-            capabilities: components["schemas"]["WorkerCapabilities"];
+            capabilities: components["schemas"]["WorkerCapabilitiesDto"];
             /** @description Unique worker identifier */
             id: string;
             /**
@@ -3594,7 +3582,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PipelineResponseDto"];
+                    "application/json": components["schemas"]["PipelineDto"];
                 };
             };
             /** @description Internal server error */
@@ -3624,7 +3612,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PipelineResponseDto"];
+                    "application/json": components["schemas"]["PipelineDto"];
                 };
             };
             /** @description Pipeline not found */
@@ -3653,7 +3641,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePipelineRequestDto"];
+            };
+        };
         responses: {
             /** @description Pipeline updated successfully */
             200: {
@@ -3661,7 +3653,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PipelineResponseDto"];
+                    "application/json": components["schemas"]["PipelineDto"];
                 };
             };
             /** @description Pipeline not found */
@@ -4164,7 +4156,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ResourcePoolResponse"][];
+                    "application/json": components["schemas"]["ResourcePoolResponseDto"][];
                 };
             };
             /** @description Internal server error */
@@ -4185,7 +4177,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreatePoolRequest"];
+                "application/json": components["schemas"]["CreatePoolRequestDto"];
             };
         };
         responses: {
@@ -4195,7 +4187,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ResourcePoolResponse"];
+                    "application/json": components["schemas"]["ResourcePoolResponseDto"];
                 };
             };
             /** @description Bad request */
@@ -4239,7 +4231,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ResourcePoolResponse"];
+                    "application/json": components["schemas"]["ResourcePoolResponseDto"];
                 };
             };
             /** @description Pool not found */
@@ -4270,7 +4262,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdatePoolRequest"];
+                "application/json": components["schemas"]["UpdatePoolRequestDto"];
             };
         };
         responses: {
@@ -4280,7 +4272,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ResourcePoolResponse"];
+                    "application/json": components["schemas"]["ResourcePoolResponseDto"];
                 };
             };
             /** @description Bad request */
@@ -4353,7 +4345,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdatePoolRequest"];
+                "application/json": components["schemas"]["UpdatePoolRequestDto"];
             };
         };
         responses: {
@@ -4363,7 +4355,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ResourcePoolResponse"];
+                    "application/json": components["schemas"]["ResourcePoolResponseDto"];
                 };
             };
             /** @description Bad request */
@@ -4407,7 +4399,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ResourcePoolStatus"];
+                    "application/json": components["schemas"]["ResourcePoolStatusDto"];
                 };
             };
             /** @description Pool status not found */

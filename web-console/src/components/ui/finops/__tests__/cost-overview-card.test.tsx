@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 import { CostOverviewCard } from '../cost-overview-card';
 
 describe('CostOverviewCard', () => {
@@ -41,7 +41,7 @@ describe('CostOverviewCard', () => {
 
   it('shows budget usage percentage', () => {
     render(<CostOverviewCard metrics={mockMetrics} />);
-    expect(screen.getByText(/64% del presupuesto/i)).toBeInTheDocument();
+    expect(screen.getByText(/64.0%/)).toBeInTheDocument();
   });
 
   it('displays cost per job', () => {

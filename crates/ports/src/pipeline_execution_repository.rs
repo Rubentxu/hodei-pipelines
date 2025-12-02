@@ -7,8 +7,7 @@ use hodei_pipelines_core::{
     Result,
     pipeline::PipelineStepId,
     pipeline_execution::{
-        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution,
-        StepExecutionStatus,
+        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionStatus,
     },
 };
 
@@ -69,4 +68,25 @@ pub trait PipelineExecutionRepository: Send + Sync {
 
     /// Get all active (PENDING or RUNNING) executions
     async fn get_active_executions(&self) -> Result<Vec<PipelineExecution>>;
+
+    /// Append a log entry to a step execution
+    async fn append_log(
+        &self,
+        execution_id: &ExecutionId,
+        step_id: &PipelineStepId,
+        log_entry: String,
+    ) -> Result<()>;
+
+    async fn save_compressed_logs(&self, step_id: &PipelineStepId, logs: Vec<u8>) -> Result<()>;
+
+    async fn prune_old_executions(
+        &self,
+        pipeline_id: &hodei_pipelines_core::PipelineId,
+        limit: usize,
+    ) -> Result<()>;
+
+    async fn find_step_by_job_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<(ExecutionId, PipelineStepId)>>;
 }

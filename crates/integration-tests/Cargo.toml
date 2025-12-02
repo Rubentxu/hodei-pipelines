@@ -15,15 +15,20 @@ chrono = { workspace = true, features = ["serde"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
 reqwest = { workspace = true, features = ["json", "stream"] }
-testcontainers = { workspace = true }
+# testcontainers = { workspace = true }
+once_cell = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 anyhow = { workspace = true }
-sqlx = { workspace = true, features = ["macros", "runtime-tokio-rustls", "postgres"] }
+sqlx = { workspace = true, features = [
+    "macros",
+    "runtime-tokio-rustls",
+    "postgres",
+] }
 portable-pty = { workspace = true }
 
 # Workspace crates
 hodei-pipelines-core = { workspace = true }
-hodei-pipelines-ports = { workspace = true }
+hodei-pipelines-ports = { workspace = true, features = ["testing"] }
 hodei-pipelines-adapters = { workspace = true }
 hodei-pipelines-server = { workspace = true }
 hodei-pipelines-modules = { workspace = true }
@@ -31,3 +36,14 @@ hodei-pipelines-modules = { workspace = true }
 [dev-dependencies]
 axum-test = "18.3.0"
 tempfile = { workspace = true }
+
+
+[profile.container-tests]
+inherits = "test"
+opt-level = 0
+debug = true
+debug-assertions = true
+overflow-checks = true
+lto = false
+panic = "abort"
+codegen-units = 16

@@ -14,7 +14,7 @@ use tracing::info;
 const DEFAULT_TIMEOUT_MS: u64 = 300000;
 
 /// PostgreSQL Pipeline Repository
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PostgreSqlPipelineRepository {
     pool: PgPool,
 }

@@ -94,7 +94,16 @@ export async function createResourcePool(
   });
 
   if (!response.ok) {
-    throw new Error('Failed to create resource pool');
+    let errorMessage = 'Failed to create resource pool';
+    try {
+      const errorData = await response.json();
+      if (errorData.message) {
+        errorMessage = errorData.message;
+      }
+    } catch {
+      // Ignore JSON parse error
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();

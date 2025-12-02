@@ -12,7 +12,7 @@ use tracing::info;
 const DEFAULT_PAGE_SIZE: i64 = 1000;
 
 /// PostgreSQL Job Repository
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PostgreSqlJobRepository {
     pool: PgPool,
 }
@@ -68,8 +68,8 @@ impl PostgreSqlJobRepository {
     ///
     /// This helper method centralizes the deserialization logic to avoid code duplication
     fn deserialize_job_from_row(&self, row: &sqlx::postgres::PgRow, job_id: JobId) -> Result<Job> {
-        let spec: hodei_pipelines_core::job::JobSpec =
-            serde_json::from_value(row.get("spec")).map_err(|e| {
+        let spec: hodei_pipelines_core::job::JobSpec = serde_json::from_value(row.get("spec"))
+            .map_err(|e| {
                 DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
             })?;
 

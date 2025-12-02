@@ -362,6 +362,7 @@ mod tests {
             logging: LoggingConfig {
                 level: "info".to_string(),
                 format: "json".to_string(),
+                retention_limit: 50,
             },
             tls: TlsConfig {
                 enabled: false,

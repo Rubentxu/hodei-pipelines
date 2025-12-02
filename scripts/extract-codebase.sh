@@ -3,9 +3,10 @@
 # =============================================================================
 # Extract Codebase Script
 # =============================================================================
-# Description: Extracts all source code from 'crates' and 'server' directories
+# Description: Extracts all source code from 'crates' directory
 #              into a single consolidated text file for analysis.
-#              Excludes test files and test directories.
+#              Excludes test files, test directories, and test crates (e2e-tests,
+#              integration-tests, and files ending with _tests.rs).
 #
 # Usage: ./scripts/extract-codebase.sh [opciones] [output_file]
 #
@@ -91,19 +92,21 @@ error() {
 process_files() {
     local dir=$1
     local prefix=$2
-    
+
     if [ ! -d "$dir" ]; then
         warn "Directory not found: $dir"
         return
     fi
-    
+
     info "Processing directory: $dir"
-    
+
     # Find all .rs, .toml, and .md files, sort them, and process
-    # Exclude test files and test directories
+    # Exclude test files, test directories, and specific test crates
     find "$dir" -type f \( -name "*.rs" -o -name "*.toml" -o -name "*.md" \) \
         -not -path "*/tests/*" \
         -not -path "*/test/*" \
+        -not -path "*/e2e-tests/*" \
+        -not -path "*/integration-tests/*" \
         -not -name "*_test.rs" \
         -not -name "*_tests.rs" \
         -not -name "functional_tests.rs" \
@@ -111,14 +114,14 @@ process_files() {
         | sort | while read -r file; do
         # Calculate relative path
         rel_path="${file#./}"
-        
+
         # Write header
         echo "================================================" >> "$OUTPUT_FILE"
         echo "Archivo: $rel_path" >> "$OUTPUT_FILE"
         echo "Ruta completa: $(pwd)/$rel_path" >> "$OUTPUT_FILE"
         echo "================================================" >> "$OUTPUT_FILE"
         echo "" >> "$OUTPUT_FILE"
-        
+
         # Write file content
         cat "$file" >> "$OUTPUT_FILE"
         echo "" >> "$OUTPUT_FILE"
@@ -142,7 +145,7 @@ main() {
     if [ $PORTS_ADAPTERS_ONLY -eq 1 ]; then
         echo "=== EXTRACCIÓN DE CÓDIGO: Solo adapters y ports ===" > "$OUTPUT_FILE"
     else
-        echo "=== EXTRACCIÓN DE CÓDIGO: crates y server ===" > "$OUTPUT_FILE"
+        echo "=== EXTRACCIÓN DE CÓDIGO: crates (incluye server) ===" > "$OUTPUT_FILE"
     fi
     echo "Fecha: $(date)" >> "$OUTPUT_FILE"
     echo "Proyecto: Hodei Jobs" >> "$OUTPUT_FILE"
@@ -155,24 +158,37 @@ main() {
         process_files "crates/adapters" "adapters"
         process_files "crates/ports" "ports"
     else
-        # Todo el codebase
+        # Solo crates (que incluye server)
         process_files "crates" "crates"
-        process_files "server" "server"
     fi
-    
+
     # Generate statistics
     local total_files=$(grep -c "^Archivo:" "$OUTPUT_FILE" 2>/dev/null || echo "0")
     local total_lines=$(wc -l < "$OUTPUT_FILE" 2>/dev/null || echo "0")
+    local code_lines=$(grep -v "^Archivo:" "$OUTPUT_FILE" | grep -v "^Ruta completa:" "$OUTPUT_FILE" | grep -v "^=" | grep -v "^$" | wc -l | tr -d ' ' || echo "0")
     local file_size=$(du -h "$OUTPUT_FILE" 2>/dev/null | cut -f1 || echo "unknown")
-    
+
     # Cleanup
     rm -rf "$TEMP_DIR"
-    
+
+    # Add summary to the output file
+    echo "" >> "$OUTPUT_FILE"
+    echo "=== ESTADÍSTICAS ===" >> "$OUTPUT_FILE"
+    echo "Total de archivos: $total_files" >> "$OUTPUT_FILE"
+    echo "Total de líneas (con headers): $total_lines" >> "$OUTPUT_FILE"
+    echo "Líneas de código únicamente: $code_lines" >> "$OUTPUT_FILE"
+    echo "Tamaño del archivo: $file_size" >> "$OUTPUT_FILE"
+    echo "Archivos Rust (.rs): $(grep -c '^Archivo:.*\.rs$' "$OUTPUT_FILE" 2>/dev/null || echo "0")" >> "$OUTPUT_FILE"
+    echo "Archivos Config (.toml): $(grep -c '^Archivo:.*\.toml$' "$OUTPUT_FILE" 2>/dev/null || echo "0")" >> "$OUTPUT_FILE"
+    echo "Archivos Markdown (.md): $(grep -c '^Archivo:.*\.md$' "$OUTPUT_FILE" 2>/dev/null || echo "0")" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+
     # Print summary
     info "Extraction complete!"
     info "Output file: $OUTPUT_FILE"
     info "Total files: $total_files"
-    info "Total lines: $total_lines"
+    info "Total lines (with headers): $total_lines"
+    info "Code lines only: $code_lines"
     info "File size: $file_size"
     info ""
     info "File types included:"

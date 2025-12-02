@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   createResourcePool,
-  updateResourcePool,
   getResourcePool,
-  type ResourcePool,
+  updateResourcePool,
   type CreateResourcePoolRequest,
-  type UpdateResourcePoolRequest,
   type ResourcePoolType,
+  type UpdateResourcePoolRequest
 } from '../services/resourcePoolApi';
 
 interface FormData {
@@ -142,10 +141,10 @@ export function ResourcePoolForm() {
         name === 'minSize' || name === 'maxSize' || name === 'cpu_m' || name === 'memory_mb'
           ? parseInt(value) || 0
           : name === 'gpu'
-          ? value === ''
-            ? null
-            : parseInt(value)
-          : value,
+            ? value === ''
+              ? null
+              : parseInt(value)
+            : value,
     }));
   };
 
@@ -229,7 +228,7 @@ export function ResourcePoolForm() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div>
                 <label htmlFor="poolType" className="block text-sm font-medium text-gray-700">

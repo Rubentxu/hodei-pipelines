@@ -36,7 +36,7 @@ const STEP_STATUS_FAILED: &str = "FAILED";
 const STEP_STATUS_SKIPPED: &str = "SKIPPED";
 
 /// PostgreSQL Pipeline Execution Repository
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PostgreSqlPipelineExecutionRepository {
     pool: PgPool,
 }
@@ -128,6 +128,27 @@ impl PostgreSqlPipelineExecutionRepository {
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to create index: {}", e)))?;
 
+        // Add job_id column if it doesn't exist
+        sqlx::query(
+            r#"
+            ALTER TABLE step_executions ADD COLUMN IF NOT EXISTS job_id UUID NULL
+        "#,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Infrastructure(format!("Failed to add job_id column: {}", e)))?;
+
+        // Create index for job_id
+        sqlx::query(
+            r#"
+            CREATE INDEX IF NOT EXISTS idx_step_executions_job_id
+            ON step_executions(job_id)
+        "#,
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Infrastructure(format!("Failed to create index: {}", e)))?;
+
         info!("Pipeline execution schema initialized successfully");
         Ok(())
     }
@@ -166,12 +187,14 @@ impl PostgreSqlPipelineExecutionRepository {
         Ok(StepExecution {
             step_execution_id: StepExecutionId::from_uuid(row.get("step_execution_id")),
             step_id: PipelineStepId::from_uuid(row.get("step_id")),
+            job_id: row.try_get("job_id").ok(),
             status,
             started_at,
             completed_at,
             retry_count: row.get::<i32, _>("retry_count") as u8,
             error_message: row.get("error_message"),
             logs,
+            compressed_logs: row.try_get("compressed_logs").ok(),
         })
     }
 
@@ -259,10 +282,11 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             sqlx::query(
                 r#"
                 INSERT INTO step_executions (
-                    step_execution_id, execution_id, step_id, status,
+                    step_execution_id, execution_id, step_id, job_id, status,
                     started_at, completed_at, retry_count, error_message, logs, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
                 ON CONFLICT (step_execution_id) DO UPDATE SET
+                    job_id = EXCLUDED.job_id,
                     status = EXCLUDED.status,
                     started_at = EXCLUDED.started_at,
                     completed_at = EXCLUDED.completed_at,
@@ -275,6 +299,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             .bind(step.step_execution_id.as_uuid())
             .bind(execution.id.as_uuid())
             .bind(step.step_id.as_uuid())
+            .bind(step.job_id)
             .bind(step.status.as_str())
             .bind(step.started_at)
             .bind(step.completed_at)
@@ -320,8 +345,8 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             // Get step executions
             let step_rows = sqlx::query(
                 r#"
-                SELECT step_execution_id, step_id, status, started_at, completed_at,
-                       retry_count, error_message, logs
+                SELECT step_execution_id, step_id, job_id, status, started_at, completed_at,
+                       retry_count, error_message, logs, compressed_logs
                 FROM step_executions
                 WHERE execution_id = $1
                 ORDER BY created_at
@@ -352,9 +377,9 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             r#"
             SELECT pe.execution_id, pe.pipeline_id, pe.status, pe.started_at, pe.completed_at,
                    pe.variables, pe.tenant_id, pe.correlation_id,
-                   se.step_execution_id, se.step_id, se.status as step_status,
+                   se.step_execution_id, se.step_id, se.job_id, se.status as step_status,
                    se.started_at as step_started_at, se.completed_at as step_completed_at,
-                   se.retry_count, se.error_message, se.logs
+                   se.retry_count, se.error_message, se.logs, se.compressed_logs
             FROM pipeline_executions pe
             LEFT JOIN step_executions se ON pe.execution_id = se.execution_id
             WHERE pe.pipeline_id = $1
@@ -532,9 +557,9 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
             r#"
             SELECT pe.execution_id, pe.pipeline_id, pe.status, pe.started_at, pe.completed_at,
                    pe.variables, pe.tenant_id, pe.correlation_id,
-                   se.step_execution_id, se.step_id, se.status as step_status,
+                   se.step_execution_id, se.step_id, se.job_id, se.status as step_status,
                    se.started_at as step_started_at, se.completed_at as step_completed_at,
-                   se.retry_count, se.error_message, se.logs
+                   se.retry_count, se.error_message, se.logs, se.compressed_logs
             FROM pipeline_executions pe
             LEFT JOIN step_executions se ON pe.execution_id = se.execution_id
             WHERE pe.status IN ($1, $2)
@@ -573,5 +598,100 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
         }
 
         Ok(executions)
+    }
+
+    async fn append_log(
+        &self,
+        _execution_id: &ExecutionId,
+        _step_id: &PipelineStepId,
+        _log_entry: String,
+    ) -> Result<()> {
+        // Deprecated: Logs are now streamed via NATS and persisted as compressed blobs.
+        // We keep this no-op implementation to satisfy the trait until we remove it.
+        Ok(())
+    }
+
+    async fn save_compressed_logs(&self, step_id: &PipelineStepId, logs: Vec<u8>) -> Result<()> {
+        debug!("Saving compressed logs for step: {}", step_id);
+
+        sqlx::query(
+            r#"
+            UPDATE step_executions
+            SET compressed_logs = $1,
+                updated_at = NOW()
+            WHERE step_id = $2
+        "#,
+        )
+        .bind(logs)
+        .bind(step_id.as_uuid())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Infrastructure(format!("Failed to save compressed logs: {}", e))
+        })?;
+
+        Ok(())
+    }
+
+    async fn prune_old_executions(
+        &self,
+        pipeline_id: &hodei_pipelines_core::PipelineId,
+        limit: usize,
+    ) -> Result<()> {
+        debug!(
+            "Pruning old executions for pipeline: {}, keeping last {}",
+            pipeline_id, limit
+        );
+
+        sqlx::query(
+            r#"
+            DELETE FROM pipeline_executions
+            WHERE pipeline_id = $1
+            AND execution_id NOT IN (
+                SELECT execution_id
+                FROM pipeline_executions
+                WHERE pipeline_id = $1
+                ORDER BY started_at DESC
+                LIMIT $2
+            )
+        "#,
+        )
+        .bind(pipeline_id.as_uuid())
+        .bind(limit as i64)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DomainError::Infrastructure(format!("Failed to prune executions: {}", e)))?;
+
+        Ok(())
+    }
+
+    async fn find_step_by_job_id(
+        &self,
+        job_id: &str,
+    ) -> Result<Option<(ExecutionId, PipelineStepId)>> {
+        let job_uuid = uuid::Uuid::parse_str(job_id)
+            .map_err(|e| DomainError::Validation(format!("Invalid job_id UUID: {}", e)))?;
+
+        let row = sqlx::query(
+            r#"
+            SELECT execution_id, step_id
+            FROM step_executions
+            WHERE job_id = $1
+        "#,
+        )
+        .bind(job_uuid)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| {
+            DomainError::Infrastructure(format!("Failed to find step by job id: {}", e))
+        })?;
+
+        if let Some(row) = row {
+            let execution_id = ExecutionId::from_uuid(row.get("execution_id"));
+            let step_id = PipelineStepId::from_uuid(row.get("step_id"));
+            Ok(Some((execution_id, step_id)))
+        } else {
+            Ok(None)
+        }
     }
 }

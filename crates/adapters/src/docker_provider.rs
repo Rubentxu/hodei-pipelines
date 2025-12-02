@@ -4,12 +4,12 @@
 //! using bollard-next for dynamic worker provisioning.
 
 use async_trait::async_trait;
+use bollard_next::Docker;
 use bollard_next::container::{
     Config, CreateContainerOptions, InspectContainerOptions, KillContainerOptions,
     ListContainersOptions, RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
 };
 use bollard_next::image::CreateImageOptions;
-use bollard_next::Docker;
 use futures::StreamExt;
 use hodei_pipelines_core::{Worker, WorkerId};
 use hodei_pipelines_ports::worker_provider::{
@@ -279,17 +279,18 @@ impl WorkerProvider for DockerProvider {
         let mut worker_ids = Vec::new();
         for container in containers {
             if let Some(labels) = container.labels
-                && let Some(worker_id_str) = labels.get("hodei.worker.id") {
-                    match uuid::Uuid::parse_str(worker_id_str) {
-                        Ok(uuid) => {
-                            let worker_id = WorkerId::from_uuid(uuid);
-                            worker_ids.push(worker_id);
-                        }
-                        Err(_) => {
-                            // Skip invalid worker IDs
-                        }
+                && let Some(worker_id_str) = labels.get("hodei.worker.id")
+            {
+                match uuid::Uuid::parse_str(worker_id_str) {
+                    Ok(uuid) => {
+                        let worker_id = WorkerId::from_uuid(uuid);
+                        worker_ids.push(worker_id);
+                    }
+                    Err(_) => {
+                        // Skip invalid worker IDs
                     }
                 }
+            }
         }
 
         Ok(worker_ids)

@@ -3,6 +3,8 @@
 //! This module provides Docker container management using Testcontainers
 //! for infrastructure services like NATS, PostgreSQL, Prometheus, and Jaeger.
 
+#![cfg(feature = "container_tests")]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;

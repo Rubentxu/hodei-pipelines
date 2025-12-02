@@ -113,8 +113,8 @@ export async function getAlertRules(
       queryParams.append("enabled", params.enabled.toString());
     if (params.severity) queryParams.append("severity", params.severity);
     if (params.search) queryParams.append("search", params.search);
-    if (params.limit) queryParams.append("limit", params.limit.toString());
-    if (params.offset) queryParams.append("offset", params.offset.toString());
+    if (params.limit !== undefined) queryParams.append("limit", params.limit.toString());
+    if (params.offset !== undefined) queryParams.append("offset", params.offset.toString());
   }
 
   const response = await fetch(`/api/v1/alerts/rules?${queryParams.toString()}`);
@@ -226,8 +226,8 @@ export async function getAlerts(
     if (params.search) queryParams.append("search", params.search);
     if (params.startTime) queryParams.append("startTime", params.startTime);
     if (params.endTime) queryParams.append("endTime", params.endTime);
-    if (params.limit) queryParams.append("limit", params.limit.toString());
-    if (params.offset) queryParams.append("offset", params.offset.toString());
+    if (params.limit !== undefined) queryParams.append("limit", params.limit.toString());
+    if (params.offset !== undefined) queryParams.append("offset", params.offset.toString());
   }
 
   const response = await fetch(`/api/v1/alerts?${queryParams.toString()}`);

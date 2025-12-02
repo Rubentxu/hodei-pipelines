@@ -27,6 +27,10 @@ use crate::executor::pty::{PtyAllocation, PtySizeConfig};
 use crate::{AgentError, Config, Result};
 
 // Re-export tonic types for TLS
+use flate2::Compression;
+use flate2::write::GzEncoder;
+use std::io::Write;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tonic::transport::{Certificate, Identity};
 
 /// gRPC client wrapper
@@ -265,7 +269,7 @@ impl Client {
 
             // Send job result
             let job_result = match result {
-                Ok(exit_code) => {
+                Ok((exit_code, compressed_logs)) => {
                     info!("Job {} completed with exit code {}", job_id, exit_code);
                     AgentMessage {
                         payload: Some(AgentPayload::JobResult(JobResult {
@@ -273,6 +277,7 @@ impl Client {
                             exit_code,
                             stdout: "".to_string(),
                             stderr: "".to_string(),
+                            compressed_logs,
                         })),
                     }
                 }
@@ -284,6 +289,7 @@ impl Client {
                             exit_code: -1,
                             stdout: "".to_string(),
                             stderr: e.to_string(),
+                            compressed_logs: vec![],
                         })),
                     }
                 }
@@ -313,7 +319,7 @@ impl Client {
         job_id: String,
         job_request: AssignJobRequest,
         tx: mpsc::Sender<AgentMessage>,
-    ) -> std::result::Result<i32, String> {
+    ) -> std::result::Result<(i32, Vec<u8>), String> {
         let job_spec = job_request
             .job_spec
             .as_ref()
@@ -334,98 +340,133 @@ impl Client {
             })
             .await;
 
-        // For now, execute the command directly
-        // In the future, this would handle docker image pulling, etc.
+        // Prepare command
         let command = if job_spec.command.is_empty() {
             vec!["echo".to_string(), "No command specified".to_string()]
         } else {
             job_spec.command.clone()
         };
 
-        // Create PTY allocation for the job
+        // Create PTY allocation (stub for now)
         let pty_allocation = PtyAllocation::new(PtySizeConfig::default())
             .map_err(|e| format!("Failed to create PTY: {}", e))?;
 
-        // Spawn the job using ProcessManager
+        // Create log file
+        let log_file_path = format!("/tmp/hodei_job_{}.log", job_id);
+        let log_file = tokio::fs::File::create(&log_file_path)
+            .await
+            .map_err(|e| format!("Failed to create log file: {}", e))?;
+        let mut log_writer = tokio::io::BufWriter::new(log_file);
+
+        // Spawn the job
         let env_vars = HashMap::new();
         let working_dir = None;
 
-        let job_handle = process_manager
+        let (spawned_job_id, stdout, stderr) = process_manager
             .spawn_job(command.clone(), env_vars, working_dir, &pty_allocation)
             .await
             .map_err(|e| format!("Failed to spawn job: {}", e))?;
 
-        // Get job info
-        let job_info = process_manager
-            .get_job(&job_handle)
-            .await
-            .ok_or_else(|| "Failed to get job info".to_string())?;
+        // Channels for log processing
+        let (log_tx, mut log_rx) = mpsc::channel::<String>(100);
 
-        info!("Job {} started with PID: {}", job_id, job_info.pid);
+        // Stdout reader
+        if let Some(out) = stdout {
+            let log_tx = log_tx.clone();
+            tokio::spawn(async move {
+                use tokio::io::AsyncBufReadExt;
+                let mut reader = tokio::io::BufReader::new(out).lines();
+                while let Ok(Some(line)) = reader.next_line().await {
+                    if let Err(_) = log_tx.send(line).await {
+                        break;
+                    }
+                }
+            });
+        }
 
-        // Send log about PID
-        let _ = tx
-            .send(AgentMessage {
-                payload: Some(AgentPayload::LogEntry(LogEntry {
-                    job_id: job_id.clone(),
-                    data: format!("Process started with PID: {}", job_info.pid),
-                })),
-            })
-            .await;
+        // Stderr reader
+        if let Some(err) = stderr {
+            let log_tx = log_tx.clone();
+            tokio::spawn(async move {
+                use tokio::io::AsyncBufReadExt;
+                let mut reader = tokio::io::BufReader::new(err).lines();
+                while let Ok(Some(line)) = reader.next_line().await {
+                    if let Err(_) = log_tx.send(line).await {
+                        break;
+                    }
+                }
+            });
+        }
 
-        // Initialize secret masker
-        // In a real app, patterns would come from config or server
-        // Simple text replacement for now (TODO: implement with AhoCorasick)
-        let secret_patterns = vec!["password", "secret", "key"];
+        // Drop original sender to allow loop to finish when readers are done
+        drop(log_tx);
 
-        let mask_text = |text: &str| {
-            let mut result = text.to_string();
-            for pattern in &secret_patterns {
-                let replacement = "[REDACTED]";
-                result = result.replace(pattern, replacement);
+        // Log processor task
+        let tx_clone = tx.clone();
+        let job_id_clone = job_id.clone();
+
+        let log_task = tokio::spawn(async move {
+            use tokio::io::AsyncWriteExt;
+            while let Some(line) = log_rx.recv().await {
+                // Write to file
+                if let Err(e) = log_writer.write_all(format!("{}\n", line).as_bytes()).await {
+                    error!("Failed to write to log file: {}", e);
+                }
+                if let Err(e) = log_writer.flush().await {
+                    error!("Failed to flush log file: {}", e);
+                }
+
+                // Send to gRPC (Real-time)
+                let _ = tx_clone
+                    .send(AgentMessage {
+                        payload: Some(AgentPayload::LogEntry(LogEntry {
+                            job_id: job_id_clone.clone(),
+                            data: line,
+                        })),
+                    })
+                    .await;
             }
-            result
-        };
+            // Ensure everything is written
+            let _ = log_writer.flush().await;
+        });
 
         // Wait for the job to complete
-        // In a real implementation, we would:
-        // 1. Stream stdout/stderr in real-time
-        // 2. Apply secret masking
-        // 3. Monitor resource usage
-        // 4. Handle timeouts
+        let exit_code = process_manager
+            .wait_for_job(&spawned_job_id)
+            .await
+            .map_err(|e| format!("Failed to wait for job: {}", e))?;
 
-        // For now, just wait a bit to simulate execution
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        // Wait for log processing to finish
+        let _ = log_task.await;
 
-        // Check if the job is still running
-        let final_info = process_manager.get_job(&job_handle).await;
+        // Compress logs
+        let log_content = tokio::fs::read(&log_file_path)
+            .await
+            .map_err(|e| format!("Failed to read log file: {}", e))?;
 
-        let exit_code = match final_info {
-            Some(info) => {
-                info!("Job {} status: {:?}", job_id, info.status);
-                // In a real implementation, extract actual exit code
-                0
-            }
-            None => {
-                warn!("Job {} no longer tracked", job_id);
-                0
-            }
-        };
+        let compressed_logs = tokio::task::spawn_blocking(move || {
+            let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(&log_content).map_err(|e| e.to_string())?;
+            encoder.finish().map_err(|e| e.to_string())
+        })
+        .await
+        .map_err(|e| format!("Compression task failed: {}", e))?
+        .map_err(|e| format!("Compression failed: {}", e))?;
 
-        // Send completion log
-        let log_msg = format!("Job completed with exit code: {}", exit_code);
-        let masked_log = mask_text(&log_msg);
+        // Cleanup log file
+        let _ = tokio::fs::remove_file(&log_file_path).await;
 
+        // Send completion log (optional, maybe just rely on status)
         let _ = tx
             .send(AgentMessage {
                 payload: Some(AgentPayload::LogEntry(LogEntry {
                     job_id: job_id.clone(),
-                    data: masked_log,
+                    data: format!("Job completed with exit code: {}", exit_code),
                 })),
             })
             .await;
 
-        Ok(exit_code)
+        Ok((exit_code, compressed_logs))
     }
 
     /// Handle a job cancellation request
@@ -537,5 +578,33 @@ mod tests {
         let config = Config::default();
         let client = Client::new(config);
         assert!(!client.is_connected());
+    }
+
+    #[tokio::test]
+    async fn test_compression_logic() {
+        use flate2::read::GzDecoder;
+        use std::io::Read;
+
+        // 1. Create dummy log data
+        let log_data = "This is a test log line.\nAnd another one.\n";
+        let log_bytes = log_data.as_bytes();
+
+        // 2. Compress it (simulating what execute_job does)
+        let compressed_logs = tokio::task::spawn_blocking(move || {
+            let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(log_bytes).unwrap();
+            encoder.finish().unwrap()
+        })
+        .await
+        .unwrap();
+
+        // 3. Decompress it
+        let mut decoder = GzDecoder::new(&compressed_logs[..]);
+        let mut decompressed_string = String::new();
+        decoder.read_to_string(&mut decompressed_string).unwrap();
+
+        // 4. Verify
+        assert_eq!(decompressed_string, log_data);
+        assert!(compressed_logs.len() > 0);
     }
 }

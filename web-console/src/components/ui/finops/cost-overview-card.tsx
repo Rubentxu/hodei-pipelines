@@ -1,7 +1,7 @@
-import { cn } from '@/utils/cn';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUpIcon, TrendingDownIcon, DollarSignIcon } from 'lucide-react';
 import { CostMetrics } from '@/types';
+import { cn } from '@/utils/cn';
+import { DollarSignIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react';
 
 interface CostOverviewCardProps {
   metrics: CostMetrics;
@@ -86,12 +86,12 @@ export function CostOverviewCard({ metrics, className }: CostOverviewCardProps) 
           <div className="w-full bg-nebula-surface-secondary rounded-full h-2.5">
             <div
               className={cn(
-                'h-2.5 rounded-full transition-all',
+                'budget-progress h-2.5 rounded-full transition-all',
                 budgetPercentage > 90
                   ? 'bg-nebula-accent-red'
                   : budgetPercentage > 75
-                  ? 'bg-nebula-accent-yellow'
-                  : 'bg-nebula-accent-green'
+                    ? 'bg-nebula-accent-yellow'
+                    : 'bg-nebula-accent-green'
               )}
               style={{ width: `${Math.min(budgetPercentage, 100)}%` }}
             />

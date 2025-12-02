@@ -333,6 +333,8 @@ pub struct ErrorResponse {
     pub message: String,
     /// Optional details
     pub details: Option<String>,
+    /// Timestamp
+    pub timestamp: DateTime<Utc>,
 }
 
 /// Create dynamic worker request

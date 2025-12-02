@@ -2,8 +2,8 @@
 ################################################################################
 # Generador de CODE_MANIFEST Limpio
 #
-# Versión mejorada del generador que excluye archivos de target/
-# y directorios irrelevantes para tener un manifiesto más limpio.
+# Versión mejorada del generador que excluye archivos de target/,
+# tests/, e2e-tests/ e integration-tests/ para tener un manifiesto más limpio.
 #
 # Uso:
 #   ./generate_clean_manifest.sh [opciones] [archivo_salida]
@@ -68,7 +68,7 @@ echo -e "${BLUE}============================================================${NC
 if [ $PORTS_ADAPTERS_ONLY -eq 1 ]; then
     echo -e "${BLUE}Generador de CODE_MANIFEST Limpio (Solo Ports & Adapters)${NC}"
 else
-    echo -e "${BLUE}Generador de CODE_MANIFEST Limpio (Sin target/ y tests/)${NC}"
+    echo -e "${BLUE}Generador de CODE_MANIFEST Limpio (crates, sin target/, tests/ y e2e/integration-tests)${NC}"
 fi
 echo -e "${BLUE}============================================================${NC}"
 echo -e "${YELLOW}Directorio raíz:${NC} $ROOT_DIR"
@@ -92,14 +92,15 @@ echo "Ruta Completa,Categoria,Procesado" > "$TEMP_FILE"
 TOTAL=0
 declare -A CATEGORIES
 
-echo -e "${BLUE}🔍 Buscando archivos .rs (excluyendo target/ y tests/)...${NC}"
+echo -e "${BLUE}🔍 Buscando archivos .rs (excluyendo target/, tests/, e2e-tests/ e integration-tests/)...${NC}"
 
 # Construir comando find dinámico basado en el modo
 if [ $PORTS_ADAPTERS_ONLY -eq 1 ]; then
     echo -e "${GREEN}   Filtrando solo: crates/adapters y crates/ports${NC}"
     SEARCH_PATH="$ROOT_DIR/crates/adapters $ROOT_DIR/crates/ports"
 else
-    SEARCH_PATH="$ROOT_DIR"
+    echo -e "${GREEN}   Filtrando: crates (incluye server)${NC}"
+    SEARCH_PATH="$ROOT_DIR/crates"
 fi
 
 # Buscar archivos excluyendo target/ y otros directorios irrelevantes
@@ -130,7 +131,7 @@ while IFS= read -r -d '' file; do
         CATEGORY="Adapters (Infrastructure)"
     elif [[ "$file" == *"crates/ports"* ]]; then
         CATEGORY="Ports (Interfaces)"
-    elif [[ "$file" == *"/server/src/"* ]]; then
+    elif [[ "$file" == *"/server/"* ]]; then
         CATEGORY="Server"
     elif [[ "$file" == *"/build.rs"* ]]; then
         CATEGORY="Build scripts"
@@ -163,6 +164,8 @@ done < <(find $SEARCH_PATH \
     -not -path "*/Cargo.lock" \
     -not -path "*/tests/*" \
     -not -path "*/test/*" \
+    -not -path "*/e2e-tests/*" \
+    -not -path "*/integration-tests/*" \
     -not -name "*_test.rs" \
     -not -name "*_tests.rs" \
     -not -name "functional_tests.rs" \
@@ -171,11 +174,17 @@ done < <(find $SEARCH_PATH \
 
 # Mover archivo
 if mv "$TEMP_FILE" "$OUTPUT_FILE" 2>/dev/null; then
+    # Calcular estadísticas adicionales
+    local total_lines=$(wc -l < "$OUTPUT_FILE" 2>/dev/null || echo "0")
+    local rust_files=$(grep -c '".*\.rs","' "$OUTPUT_FILE" 2>/dev/null || echo "0")
+
     echo ""
     echo -e "${GREEN}✅ CODE_MANIFEST.csv generado exitosamente${NC}"
     echo ""
     echo -e "${YELLOW}📊 Estadísticas:${NC}"
     echo -e "   Total de archivos (limpio): ${GREEN}$TOTAL${NC}"
+    echo -e "   Total de líneas: ${GREEN}$total_lines${NC}"
+    echo -e "   Archivos Rust: ${GREEN}$rust_files${NC}"
     echo ""
     echo -e "${YELLOW}📋 Resumen por categoría:${NC}"
     for cat in "${!CATEGORIES[@]}"; do

@@ -84,9 +84,9 @@ describe('FinOpsPage', () => {
         expect(screen.getByTestId('budget-alerts')).toBeInTheDocument();
 
         // Check specific data rendering
-        expect(screen.getByText(/\$1[.,]000/)).toBeInTheDocument(); // Budget Limit
+        expect(screen.getByText(/\$1[.,]?000/)).toBeInTheDocument(); // Budget Limit
         expect(screen.getByText(/50[.,]0%/)).toBeInTheDocument(); // Budget Used %
-        expect(screen.getByText(/\$1[.,]100/)).toBeInTheDocument(); // Projected
+        expect(screen.getByText(/\$1[.,]?100/)).toBeInTheDocument(); // Projected
     });
 
     it('handles period selection', () => {

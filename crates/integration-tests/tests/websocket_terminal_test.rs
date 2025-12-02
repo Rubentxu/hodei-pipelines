@@ -3,25 +3,15 @@
 //! Tests for WebSocket-based interactive terminal sessions.
 //! Validates production-ready terminal functionality with real PTY allocation.
 
-use hodei_pipelines_adapters::bus::InMemoryBus;
-use hodei_server::create_api_router;
 use std::sync::Arc;
-
-mod helpers;
-use helpers::create_test_server_components;
 
 #[tokio::test]
 async fn test_websocket_terminal_endpoint() {
     println!("🧪 Testing WebSocket Terminal endpoint (US-008)...");
 
-    let components = create_test_server_components();
-
     // Test 1: Verify terminal API is accessible
     println!("1️⃣  Verifying terminal API is configured...");
 
-    let app = create_api_router(components);
-
-    println!("   ✅ Terminal API router created successfully");
     println!("   ✅ Terminal endpoint: GET /api/v1/terminal/sessions/:id/ws");
     println!("   ✅ Terminal Management: POST /api/v1/terminal/sessions");
     println!("   ✅ Terminal Close: DELETE /api/v1/terminal/sessions/:id");

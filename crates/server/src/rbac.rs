@@ -253,6 +253,7 @@ struct MockRoleAssignmentData {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct MockPermissionGrantData {
     id: String,
     grantee: String,

@@ -65,8 +65,9 @@ message JobAccepted {
 message JobResult {
   string job_id = 1;
   int32 exit_code = 2;
-  string stdout = 3;
-  string stderr = 4;
+  string stdout = 3; // Deprecated: use compressed_logs for full output
+  string stderr = 4; // Deprecated: use compressed_logs for full output
+  bytes compressed_logs = 5; // Gzipped full log (stdout + stderr)
 }
 
 message LogEntry {

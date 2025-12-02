@@ -1,11 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  errorHandler,
   ApiError,
+  errorHandler,
   ErrorHandler,
   type ErrorHandlerConfig,
-  type RetryConfig,
-  type OfflineRequest,
+  type OfflineRequest
 } from "../errorHandler";
 
 // Mock fetch
@@ -45,7 +44,7 @@ describe("errorHandler", () => {
         method: "GET",
       };
 
-      const error = errorHandler.createApiError?.(networkError, {
+      const error = (errorHandler as any).createApiError?.(networkError, {
         ...context,
         timestamp: new Date(),
       });
@@ -66,7 +65,7 @@ describe("errorHandler", () => {
         },
       };
 
-      expect(errorHandler.isRetryableError?.(retryableError)).toBe(true);
+      expect((errorHandler as any).isRetryableError?.(retryableError)).toBe(true);
     });
 
     it("should identify non-retryable errors", () => {
@@ -82,7 +81,7 @@ describe("errorHandler", () => {
         },
       };
 
-      expect(errorHandler.isRetryableError?.(nonRetryableError)).toBe(false);
+      expect((errorHandler as any).isRetryableError?.(nonRetryableError)).toBe(false);
     });
   });
 
@@ -99,9 +98,9 @@ describe("errorHandler", () => {
         },
       } as any);
 
-      const delay0 = handler.calculateDelay?.(0);
-      const delay1 = handler.calculateDelay?.(1);
-      const delay2 = handler.calculateDelay?.(2);
+      const delay0 = (handler as any).calculateDelay?.(0);
+      const delay1 = (handler as any).calculateDelay?.(1);
+      const delay2 = (handler as any).calculateDelay?.(2);
 
       expect(delay0).toBe(1000);
       expect(delay1).toBe(2000);
@@ -120,7 +119,7 @@ describe("errorHandler", () => {
         },
       } as any);
 
-      const delay5 = handler.calculateDelay?.(5);
+      const delay5 = (handler as any).calculateDelay?.(5);
       expect(delay5).toBe(5000);
     });
 
@@ -136,8 +135,8 @@ describe("errorHandler", () => {
         timestamp: new Date(),
       };
 
-      const key1 = errorHandler.getRequestKey?.(context1);
-      const key2 = errorHandler.getRequestKey?.(context2);
+      const key1 = (errorHandler as any).getRequestKey?.(context1);
+      const key2 = (errorHandler as any).getRequestKey?.(context2);
 
       expect(key1).not.toBe(key2);
     });
@@ -150,14 +149,14 @@ describe("errorHandler", () => {
         value: false,
       });
 
-      const requestId = errorHandler.generateRequestId?.();
+      const requestId = (errorHandler as any).generateRequestId?.();
       expect(requestId).toBeDefined();
       expect(typeof requestId).toBe("string");
     });
 
     it("should generate unique request IDs", () => {
-      const id1 = errorHandler.generateRequestId?.();
-      const id2 = errorHandler.generateRequestId?.();
+      const id1 = (errorHandler as any).generateRequestId?.();
+      const id2 = (errorHandler as any).generateRequestId?.();
 
       expect(id1).not.toBe(id2);
       expect(id1).toMatch(/^req_/);
@@ -175,7 +174,7 @@ describe("errorHandler", () => {
         },
       ];
 
-      errorHandler.persistOfflineQueue?.(queue);
+      (errorHandler as any).persistOfflineQueue?.(queue);
 
       const stored = localStorage.getItem("offline_request_queue");
       expect(stored).toBeTruthy();
@@ -198,8 +197,9 @@ describe("errorHandler", () => {
         JSON.stringify(testQueue),
       );
 
-      const loaded = errorHandler.loadOfflineQueue?.();
-      expect(loaded?.length).toBe(1);
+      // Create new instance to load from storage
+      const handler = new ErrorHandler();
+      expect(handler.getOfflineQueueSize()).toBe(1);
     });
   });
 
@@ -210,8 +210,8 @@ describe("errorHandler", () => {
         value: true,
       });
 
-      const isOnline = errorHandler.isNetworkOnline?.();
-      expect(isOnline).toBe(true);
+      const handler = new ErrorHandler();
+      expect(handler.isNetworkOnline()).toBe(true);
     });
 
     it("should detect offline status", () => {
@@ -220,8 +220,8 @@ describe("errorHandler", () => {
         value: false,
       });
 
-      const isOnline = errorHandler.isNetworkOnline?.();
-      expect(isOnline).toBe(false);
+      const handler = new ErrorHandler();
+      expect(handler.isNetworkOnline()).toBe(false);
     });
 
     it("should flush queue when back online", async () => {
@@ -242,7 +242,7 @@ describe("errorHandler", () => {
         },
       ];
 
-      errorHandler.persistOfflineQueue?.(queue);
+      (errorHandler as any).persistOfflineQueue?.(queue);
 
       // Come back online
       Object.defineProperty(navigator, "onLine", {
@@ -251,7 +251,7 @@ describe("errorHandler", () => {
       });
 
       // Flush queue
-      await errorHandler.flushOfflineQueue?.();
+      await (errorHandler as any).flushOfflineQueue?.();
 
       // Queue should be empty
       expect(errorHandler.getOfflineQueueSize?.()).toBe(0);
@@ -303,10 +303,10 @@ describe("errorHandler", () => {
       const listener = vi.fn();
 
       errorHandler.addErrorListener?.(listener);
-      expect(errorHandler.errorListeners?.has(listener)).toBe(true);
+      expect((errorHandler as any).errorListeners?.has(listener)).toBe(true);
 
       errorHandler.removeErrorListener?.(listener);
-      expect(errorHandler.errorListeners?.has(listener)).toBe(false);
+      expect((errorHandler as any).errorListeners?.has(listener)).toBe(false);
     });
 
     it("should notify all listeners of errors", () => {
@@ -328,7 +328,7 @@ describe("errorHandler", () => {
         },
       };
 
-      errorHandler.notifyListeners?.(error);
+      (errorHandler as any).notifyListeners?.(error);
 
       expect(listener1).toHaveBeenCalledWith(error);
       expect(listener2).toHaveBeenCalledWith(error);
@@ -353,19 +353,19 @@ describe("errorHandler", () => {
 
       const handler = new ErrorHandler(customConfig);
 
-      expect(handler.config.timeout).toBe(60000);
-      expect(handler.config.enableRetry).toBe(false);
-      expect(handler.config.enableOfflineQueue).toBe(false);
-      expect(handler.config.retry.maxAttempts).toBe(5);
+      expect((handler as any).config.timeout).toBe(60000);
+      expect((handler as any).config.enableRetry).toBe(false);
+      expect((handler as any).config.enableOfflineQueue).toBe(false);
+      expect((handler as any).config.retry.maxAttempts).toBe(5);
     });
 
     it("should use default config when none provided", () => {
       const handler = new ErrorHandler();
 
-      expect(handler.config.timeout).toBe(30000);
-      expect(handler.config.enableRetry).toBe(true);
-      expect(handler.config.enableOfflineQueue).toBe(true);
-      expect(handler.config.retry.maxAttempts).toBe(3);
+      expect((handler as any).config.timeout).toBe(30000);
+      expect((handler as any).config.enableRetry).toBe(true);
+      expect((handler as any).config.enableOfflineQueue).toBe(true);
+      expect((handler as any).config.retry.maxAttempts).toBe(3);
     });
   });
 
@@ -385,7 +385,7 @@ describe("errorHandler", () => {
     testCases.forEach(({ status, expected }) => {
       it(`should ${expected ? "allow" : "reject"} retry for status ${status}`, () => {
         const handler = new ErrorHandler();
-        const canRetry = handler.isRetryableStatus?.(status);
+        const canRetry = (handler as any).isRetryableStatus?.(status);
 
         expect(canRetry).toBe(expected);
       });
@@ -408,7 +408,7 @@ describe("errorHandler", () => {
 
       // Should not throw
       expect(() => {
-        errorHandler.trackError?.(error);
+        (errorHandler as any).trackError?.(error);
       }).not.toThrow();
     });
   });
@@ -436,10 +436,10 @@ describe("errorHandler", () => {
         },
       ];
 
-      errorHandler.offlineQueue = queue;
+      (errorHandler as any).offlineQueue = queue;
       errorHandler.clearOfflineQueue?.();
 
-      expect(errorHandler.offlineQueue.length).toBe(0);
+      expect((errorHandler as any).offlineQueue.length).toBe(0);
       expect(mockSetItem).toHaveBeenCalled();
     });
   });
@@ -452,8 +452,8 @@ describe("ErrorHandler Class", () => {
 
   it("should be instantiated with default config", () => {
     const handler = new ErrorHandler();
-    expect(handler.config).toBeDefined();
-    expect(handler.config.retry.maxAttempts).toBe(3);
+    expect((handler as any).config).toBeDefined();
+    expect((handler as any).config.retry.maxAttempts).toBe(3);
   });
 
   it("should be instantiated with custom config", () => {
@@ -461,12 +461,12 @@ describe("ErrorHandler Class", () => {
       timeout: 60000,
     };
     const handler = new ErrorHandler(config);
-    expect(handler.config.timeout).toBe(60000);
+    expect((handler as any).config.timeout).toBe(60000);
   });
 
   it("should register online/offline event listeners", () => {
     const addEventListenerSpy = vi.spyOn(window, "addEventListener");
-    const handler = new ErrorHandler();
+    new ErrorHandler();
 
     expect(addEventListenerSpy).toHaveBeenCalledWith("online", expect.any(Function));
     expect(addEventListenerSpy).toHaveBeenCalledWith("offline", expect.any(Function));

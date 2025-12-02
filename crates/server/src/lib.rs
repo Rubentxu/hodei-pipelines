@@ -12,6 +12,7 @@ pub mod cost_tracking_aggregation;
 pub mod dtos;
 pub mod error;
 pub mod execution_api;
+pub mod finops_api;
 pub mod grpc;
 pub mod handlers;
 pub mod live_metrics_api;
@@ -26,6 +27,7 @@ pub mod resource_pool_crud;
 pub mod security_vulnerability_tracking;
 pub mod terminal;
 pub mod traces_distributed_tracing;
+pub mod unified_repository;
 
 // API Router module for shared routes
 pub mod api_router;

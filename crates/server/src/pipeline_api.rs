@@ -24,6 +24,8 @@ use std::{collections::HashMap, sync::Arc};
 use tracing::{error, info, warn};
 
 use crate::dtos::*;
+use flate2::read::GzDecoder;
+use std::io::Read;
 
 // ===== Application State =====
 
@@ -31,12 +33,17 @@ use crate::dtos::*;
 #[derive(Clone)]
 pub struct PipelineApiAppState {
     pub pipeline_service: Arc<dyn PipelineService>,
+    pub execution_service: Arc<dyn hodei_pipelines_modules::PipelineExecutionService>,
 }
 
 impl PipelineApiAppState {
-    pub fn new(service: Arc<dyn PipelineService>) -> Self {
+    pub fn new(
+        service: Arc<dyn PipelineService>,
+        execution_service: Arc<dyn hodei_pipelines_modules::PipelineExecutionService>,
+    ) -> Self {
         Self {
             pipeline_service: service,
+            execution_service,
         }
     }
 }
@@ -179,6 +186,7 @@ pub async fn get_pipeline_handler(
     params(
         ("id" = String, Path, description = "Pipeline ID")
     ),
+    request_body = UpdatePipelineRequestDto,
     responses(
         (status = 200, description = "Pipeline updated successfully", body = PipelineDto),
         (status = 404, description = "Pipeline not found"),
@@ -189,14 +197,39 @@ pub async fn get_pipeline_handler(
 pub async fn update_pipeline_handler(
     State(state): State<PipelineApiAppState>,
     Path(id): Path<PipelineId>,
+    Json(request): Json<UpdatePipelineRequestDto>,
 ) -> Result<Json<PipelineDto>, StatusCode> {
     info!("Updating pipeline: {}", id);
 
     let update_request = UpdatePipelineRequest {
-        name: None,
-        description: None,
-        steps: None,
-        variables: None,
+        name: request.name,
+        description: request.description,
+        steps: request.steps.map(|steps| {
+            steps
+                .into_iter()
+                .map(|s| CreatePipelineStepRequest {
+                    name: s.name,
+                    image: s.job_spec.image,
+                    command: s.job_spec.command,
+                    resources: Some(s.job_spec.resources.into()),
+                    timeout_ms: Some(s.job_spec.timeout_ms),
+                    retries: Some(s.job_spec.retries as u32),
+                    env: Some(s.job_spec.env),
+                    secret_refs: Some(s.job_spec.secret_refs),
+                    depends_on: if s.dependencies.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            s.dependencies
+                                .into_iter()
+                                .map(|id| id.to_string())
+                                .collect(),
+                        )
+                    },
+                })
+                .collect()
+        }),
+        variables: request.variables,
     };
 
     match state
@@ -482,30 +515,75 @@ pub async fn get_step_details_handler(
     tag = "executions"
 )]
 pub async fn get_execution_logs_handler(
-    State(_state): State<PipelineApiAppState>,
+    State(state): State<PipelineApiAppState>,
     Path((pipeline_id, execution_id)): Path<(PipelineId, ExecutionId)>,
 ) -> Result<Json<ExecutionLogsDto>, StatusCode> {
-    info!(
-        "Getting logs for execution: {} in pipeline: {}",
-        execution_id, pipeline_id
-    );
+    info!("Getting logs for execution {}", execution_id);
 
-    let logs = ExecutionLogsDto {
-        execution_id: execution_id.0,
-        step_executions: vec![StepExecutionLogsDto {
-            step_id: uuid::Uuid::new_v4(), // Mock ID
-            step_name: "checkout".to_string(),
-            status: "COMPLETED".to_string(),
-            logs: vec![LogEntryDto {
-                timestamp: chrono::Utc::now(),
-                stream_type: "stdout".to_string(),
-                content: "Cloning repository...".to_string(),
-            }],
-        }],
-    };
+    match state.execution_service.get_execution(&execution_id).await {
+        Ok(Some(execution)) => {
+            // Fetch pipeline to get step names
+            let pipeline = state
+                .pipeline_service
+                .get_pipeline(&pipeline_id)
+                .await
+                .map_err(|e| {
+                    error!("Failed to get pipeline: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?
+                .ok_or(StatusCode::NOT_FOUND)?;
 
-    info!("Retrieved logs for execution: {}", execution_id);
-    Ok(Json(logs))
+            let mut step_logs_dtos = Vec::new();
+
+            for step in execution.steps {
+                let logs = if let Some(compressed) = &step.compressed_logs {
+                    let mut d = GzDecoder::new(&compressed[..]);
+                    let mut s = String::new();
+                    if d.read_to_string(&mut s).is_ok() {
+                        s.lines().map(|l| l.to_string()).collect()
+                    } else {
+                        error!("Failed to decompress logs for step {}", step.step_id);
+                        vec!["Failed to decompress logs".to_string()]
+                    }
+                } else {
+                    step.logs.clone()
+                };
+
+                let log_entries = logs
+                    .into_iter()
+                    .map(|content| LogEntryDto {
+                        timestamp: chrono::Utc::now(), // We don't have per-line timestamp
+                        stream_type: "stdout".to_string(),
+                        content,
+                    })
+                    .collect();
+
+                let step_name = pipeline
+                    .steps
+                    .iter()
+                    .find(|s| s.id == step.step_id)
+                    .map(|s| s.name.clone())
+                    .unwrap_or_else(|| step.step_id.to_string());
+
+                step_logs_dtos.push(StepExecutionLogsDto {
+                    step_id: step.step_id.as_uuid(),
+                    step_name,
+                    status: step.status.as_str().to_string(),
+                    logs: log_entries,
+                });
+            }
+
+            Ok(Json(ExecutionLogsDto {
+                execution_id: execution.id.as_uuid(),
+                step_executions: step_logs_dtos,
+            }))
+        }
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!("Failed to get execution logs: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 // ===== Router =====

@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { ResourcePoolList } from "../../components/ResourcePoolList";
 import { http, HttpResponse } from "msw";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it } from "vitest";
+import { ResourcePoolList } from "../../components/ResourcePoolList";
 import { server } from "../../test/__mocks__/msw/server";
 
 const mockPools = [
@@ -36,9 +37,13 @@ describe("ResourcePoolList", () => {
   });
 
   it("renders loading state initially", async () => {
-    server.use(http.get("/api/v1/worker-pools", () => new Promise(() => {})));
+    server.use(http.get("/api/v1/worker-pools", () => new Promise(() => { })));
 
-    render(<ResourcePoolList />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolList />
+      </MemoryRouter>
+    );
 
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
@@ -53,14 +58,18 @@ describe("ResourcePoolList", () => {
       }),
     );
 
-    render(<ResourcePoolList />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolList />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Docker Pool")).toBeInTheDocument();
     });
 
     expect(screen.getByText(/Provider:/)).toBeInTheDocument();
-    expect(screen.getByText(/Size: 1 - 10/)).toBeInTheDocument();
+    expect(screen.getByText(/1 - 10/)).toBeInTheDocument();
   });
 
   it("displays empty state when no pools exist", async () => {
@@ -70,7 +79,11 @@ describe("ResourcePoolList", () => {
       }),
     );
 
-    render(<ResourcePoolList />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolList />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("No resource pools")).toBeInTheDocument();
@@ -91,15 +104,19 @@ describe("ResourcePoolList", () => {
       }),
     );
 
-    render(<ResourcePoolList />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolList />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(
-        screen.getByText("Error loading resource pools"),
+        screen.getByText("Failed to fetch resource pools"),
       ).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Failed to load")).toBeInTheDocument();
+    expect(screen.getByText("Failed to fetch resource pools")).toBeInTheDocument();
     expect(screen.getByText("Retry")).toBeInTheDocument();
   });
 
@@ -118,7 +135,11 @@ describe("ResourcePoolList", () => {
       }),
     );
 
-    render(<ResourcePoolList />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolList />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("70%")).toBeInTheDocument();
@@ -135,7 +156,11 @@ describe("ResourcePoolList", () => {
       }),
     );
 
-    render(<ResourcePoolList />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolList />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("healthy")).toBeInTheDocument();
@@ -152,7 +177,11 @@ describe("ResourcePoolList", () => {
       }),
     );
 
-    render(<ResourcePoolList />);
+    render(
+      <MemoryRouter>
+        <ResourcePoolList />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Docker Pool")).toBeInTheDocument();

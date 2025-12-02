@@ -1,6 +1,6 @@
-import { cn } from '@/utils/cn';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { cn } from '@/utils/cn';
 
 interface Node {
   id: string;
@@ -103,6 +103,7 @@ export function ClusterTopologyMap({
       <CardContent>
         <div className="relative">
           <svg
+            role="img"
             width={width}
             height={height}
             className="w-full h-auto border border-nebula-surface-secondary rounded"

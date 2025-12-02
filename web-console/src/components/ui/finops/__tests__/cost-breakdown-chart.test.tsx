@@ -1,6 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CostBreakdownChart } from '../cost-breakdown-chart';
+
+vi.mock('echarts', () => ({
+  init: vi.fn(() => ({
+    setOption: vi.fn(),
+    resize: vi.fn(),
+    dispose: vi.fn(),
+  })),
+}));
 
 describe('CostBreakdownChart', () => {
   const mockBreakdown = [
@@ -41,16 +49,16 @@ describe('CostBreakdownChart', () => {
 
   it('displays job count', () => {
     render(<CostBreakdownChart breakdown={mockBreakdown} />);
-    expect(screen.getByText('45 jobs')).toBeInTheDocument();
-    expect(screen.getByText('30 jobs')).toBeInTheDocument();
-    expect(screen.getByText('25 jobs')).toBeInTheDocument();
+    expect(screen.getByText(/45 jobs/)).toBeInTheDocument();
+    expect(screen.getByText(/30 jobs/)).toBeInTheDocument();
+    expect(screen.getByText(/25 jobs/)).toBeInTheDocument();
   });
 
   it('displays average duration', () => {
     render(<CostBreakdownChart breakdown={mockBreakdown} />);
-    expect(screen.getByText('2m 5s')).toBeInTheDocument();
-    expect(screen.getByText('3m 20s')).toBeInTheDocument();
-    expect(screen.getByText('1m 30s')).toBeInTheDocument();
+    expect(screen.getByText(/2m 5s/)).toBeInTheDocument();
+    expect(screen.getByText(/3m 20s/)).toBeInTheDocument();
+    expect(screen.getByText(/1m 30s/)).toBeInTheDocument();
   });
 
   it('handles empty breakdown', () => {
@@ -61,6 +69,7 @@ describe('CostBreakdownChart', () => {
 
   it('displays total cost', () => {
     render(<CostBreakdownChart breakdown={mockBreakdown} />);
-    expect(screen.getByText(/Total: \$2,600.00/)).toBeInTheDocument();
+    expect(screen.getByText('Total:')).toBeInTheDocument();
+    expect(screen.getByText('$2,600.00')).toBeInTheDocument();
   });
 });

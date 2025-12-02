@@ -331,11 +331,13 @@ pub enum SchedulingPolicy {
     EarliestDeadlineFirst, // EDF for time-sensitive jobs
 }
 
+use dashmap::DashMap;
+
 /// Assignment engine
 #[derive(Clone)]
 pub struct QueueAssignmentEngine {
-    queues: HashMap<String, JobQueue>,
-    pools: HashMap<String, Arc<dyn ResourcePool>>,
+    queues: Arc<DashMap<String, JobQueue>>,
+    pools: Arc<DashMap<String, Arc<dyn ResourcePool>>>,
     scheduler_policy: SchedulingPolicy,
     stats: Arc<AssignmentStatistics>,
 }
@@ -344,7 +346,14 @@ impl std::fmt::Debug for QueueAssignmentEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QueueAssignmentEngine")
             .field("queues", &self.queues)
-            .field("pool_ids", &self.pools.keys())
+            .field(
+                "pool_ids",
+                &self
+                    .pools
+                    .iter()
+                    .map(|entry| entry.key().clone())
+                    .collect::<Vec<_>>(),
+            )
             .field("scheduler_policy", &self.scheduler_policy)
             .field("stats", &self.stats)
             .finish()
@@ -497,7 +506,7 @@ impl QueueAssignmentEngine {
 
     /// Create new assignment engine with custom scheduling policy
     pub fn new_with_policy(scheduler_policy: SchedulingPolicy) -> Self {
-        let mut queues = HashMap::new();
+        let queues = Arc::new(DashMap::new());
 
         // Create default queues
         queues.insert(
@@ -515,7 +524,7 @@ impl QueueAssignmentEngine {
 
         Self {
             queues,
-            pools: HashMap::new(),
+            pools: Arc::new(DashMap::new()),
             scheduler_policy,
             stats: Arc::new(AssignmentStatistics::new()),
         }
@@ -529,7 +538,10 @@ impl QueueAssignmentEngine {
 
     /// Get all registered queues
     pub async fn get_queues(&self) -> HashMap<String, JobQueue> {
-        self.queues.clone()
+        self.queues
+            .iter()
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
+            .collect()
     }
 
     /// Submit a job for assignment
@@ -592,7 +604,7 @@ impl QueueAssignmentEngine {
         }
 
         // Try each pool to find a suitable worker
-        for pool in self.pools.values() {
+        for pool in self.pools.iter() {
             match pool.allocate_worker(&request.requirements).await {
                 Ok(worker) => {
                     return Ok(Some(AssignmentResult::Assigned {
@@ -660,7 +672,9 @@ impl QueueAssignmentEngine {
     pub async fn process_queues(&self) -> Result<u32> {
         let mut processed = 0;
 
-        for (queue_id, queue) in &self.queues {
+        for entry in self.queues.iter() {
+            let queue_id = entry.key();
+            let queue = entry.value();
             // Dequeue jobs and try to assign them
             while let Some(job) = queue.dequeue().await {
                 let job_id = job.job_id;
@@ -728,8 +742,8 @@ impl QueueAssignmentEngine {
     /// Get queue metrics
     pub async fn get_queue_metrics(&self) -> HashMap<String, QueueMetricsSnapshot> {
         let mut metrics = HashMap::new();
-        for (queue_id, queue) in &self.queues {
-            metrics.insert(queue_id.clone(), queue.get_metrics());
+        for entry in self.queues.iter() {
+            metrics.insert(entry.key().clone(), entry.value().get_metrics());
         }
         metrics
     }

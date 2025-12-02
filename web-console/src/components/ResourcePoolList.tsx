@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  getCapacityUtilization,
+  getPoolHealthStatus,
   getResourcePools,
   getResourcePoolStatus,
+  isAtCriticalCapacity,
   type ResourcePool,
   type ResourcePoolStatus,
-  getCapacityUtilization,
-  isAtCriticalCapacity,
-  getPoolHealthStatus,
 } from '../services/resourcePoolApi';
 
 export function ResourcePoolList() {
@@ -15,7 +15,6 @@ export function ResourcePoolList() {
   const [poolStatuses, setPoolStatuses] = useState<Record<string, ResourcePoolStatus>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshInterval, setRefreshInterval] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,11 +22,14 @@ export function ResourcePoolList() {
   }, []);
 
   useEffect(() => {
+    if (pools.length > 0) {
+      loadPoolStatuses();
+    }
+
     // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
       loadPoolStatuses();
     }, 30000);
-    setRefreshInterval(interval);
 
     return () => {
       if (interval) clearInterval(interval);
@@ -102,7 +104,7 @@ export function ResourcePoolList() {
 
   if (loading && pools.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64" role="status">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     );
@@ -223,7 +225,7 @@ export function ResourcePoolList() {
                       )}
                     </div>
                     <div className="flex items-center space-x-2">
-                      {isAtCriticalCapacity(status!) && (
+                      {status && isAtCriticalCapacity(status) && (
                         <svg
                           className="h-5 w-5 text-red-500"
                           xmlns="http://www.w3.org/2000/svg"

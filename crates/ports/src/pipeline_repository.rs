@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use hodei_pipelines_core::{Pipeline, PipelineId, Result};
 
+#[cfg_attr(feature = "testing", mockall::automock)]
 #[async_trait]
 pub trait PipelineRepository: Send + Sync {
     async fn save_pipeline(&self, pipeline: &Pipeline) -> Result<()>;

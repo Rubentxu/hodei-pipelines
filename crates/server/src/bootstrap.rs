@@ -106,9 +106,9 @@ pub async fn initialize_server() -> Result<ServerComponents> {
 
     let concrete_orchestrator = Arc::new(
         ConcreteOrchestrator::new(
-            Arc::new(execution_repo),
-            Arc::new(job_repo),
-            Arc::new(pipeline_repo),
+            Arc::new(execution_repo.clone()),
+            Arc::new(job_repo.clone()),
+            Arc::new(pipeline_repo.clone()),
             Arc::new(event_bus_for_orchestrator),
             orchestrator_config,
         )
@@ -125,9 +125,58 @@ pub async fn initialize_server() -> Result<ServerComponents> {
     info!("✅ ConcreteOrchestrator initialized");
 
     // Create scheduler using concrete implementation
+    // Initialize Worker Client (using lazy connection for now, as agents connect to us)
+    // We use a dummy endpoint because SchedulerModule will prioritize the agent stream (send_job_to_worker)
+    // and only use this client for fallback or legacy workers.
+    let dummy_channel = tonic::transport::Endpoint::from_static("http://0.0.0.0:0").connect_lazy();
+    let worker_client = Arc::new(hodei_pipelines_adapters::GrpcWorkerClient::new(
+        dummy_channel,
+        std::time::Duration::from_secs(5),
+    ));
+
+    // Initialize Scheduler Module
     info!("📅 Initializing Scheduler...");
-    let scheduler: Arc<dyn SchedulerPort + Send + Sync> = worker_repo.clone();
-    info!("✅ Scheduler initialized");
+    let scheduler_config = hodei_pipelines_modules::scheduler::SchedulerConfig::default();
+
+    let unified_repo = Arc::new(crate::unified_repository::UnifiedRepository::new(
+        Arc::new(job_repo.clone()),
+        Arc::new(pipeline_repo.clone()),
+        role_repository.clone(), // Assuming role_repository is available and Clone
+    ));
+
+    let scheduler_module = Arc::new(hodei_pipelines_modules::scheduler::SchedulerModule::new(
+        unified_repo,
+        event_bus.clone(),
+        worker_client,
+        worker_repo.clone(),
+        scheduler_config,
+    ));
+
+    // Start Scheduler Loop
+    scheduler_module.start().await.map_err(|e| {
+        error!("❌ Failed to start Scheduler Module: {}", e);
+        BootstrapError::General(anyhow::anyhow!("Failed to start Scheduler Module: {}", e))
+    })?;
+
+    let scheduler: Arc<dyn SchedulerPort + Send + Sync> = scheduler_module;
+    info!("✅ Scheduler initialized and started");
+
+    // Initialize and Start Log Persistence Service
+    info!("💾 Initializing Log Persistence Service...");
+    let log_persistence = hodei_pipelines_modules::log_persistence::LogPersistenceService::new(
+        Arc::new(execution_repo.clone()),
+        event_bus.clone(),
+        config.logging.retention_limit,
+    );
+
+    log_persistence.start().await.map_err(|e| {
+        error!("❌ Failed to start Log Persistence Service: {}", e);
+        BootstrapError::General(anyhow::anyhow!(
+            "Failed to start Log Persistence Service: {}",
+            e
+        ))
+    })?;
+    info!("✅ Log Persistence Service initialized and started");
 
     info!("✨ Server bootstrap completed successfully");
     info!("📊 Status: ready");

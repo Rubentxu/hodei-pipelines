@@ -1,10 +1,7 @@
 use hodei_pipelines_core::{
     job_definitions::{JobSpec, ResourceQuota},
     pipeline::{Pipeline, PipelineStep},
-    pipeline_execution::{
-        PipelineExecution, StepExecution,
-        StepExecutionStatus,
-    },
+    pipeline_execution::{PipelineExecution, StepExecution, StepExecutionStatus},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -47,6 +44,7 @@ pub struct PipelineDto {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
+    pub status: String,
     pub steps: Vec<PipelineStepDto>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
@@ -78,6 +76,7 @@ impl From<Pipeline> for PipelineDto {
             id: p.id.0,
             name: p.name,
             description: p.description,
+            status: p.status.as_str().to_string(),
             steps: p.steps.into_iter().map(Into::into).collect(),
             created_at: p.created_at,
             updated_at: p.updated_at,
@@ -90,6 +89,7 @@ pub struct PipelineSummaryDto {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
+    pub status: String,
     pub step_count: usize,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
@@ -101,6 +101,7 @@ impl From<Pipeline> for PipelineSummaryDto {
             id: p.id.0,
             name: p.name,
             description: p.description,
+            status: p.status.as_str().to_string(),
             step_count: p.steps.len(),
             created_at: p.created_at,
             updated_at: p.updated_at,
@@ -223,6 +224,14 @@ pub struct CreatePipelineStepRequestDto {
     pub dependencies: Vec<Uuid>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct UpdatePipelineRequestDto {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub steps: Option<Vec<CreatePipelineStepRequestDto>>,
+    pub variables: Option<HashMap<String, String>>,
+}
+
 // --- DAG Visualizer ---
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -290,7 +299,7 @@ pub struct LogEntryDto {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ListPipelinesResponseDto {
     #[serde(rename = "items")]
-    pub pipelines: Vec<PipelineDto>,
+    pub pipelines: Vec<PipelineSummaryDto>,
     pub total: usize,
 }
 

@@ -1,14 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import {
-  getLogs,
-  getLogLevels,
-  exportLogs,
-  aggregateLogs,
-  searchLogs,
-  type LogFilterParams,
-} from "../logsExplorerApi";
 import { http, HttpResponse } from "msw";
+import { beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../test/__mocks__/msw/server";
+import {
+  aggregateLogs,
+  exportLogs,
+  getLogLevels,
+  getLogs,
+  searchLogs
+} from "../logsExplorerApi";
 
 const setupServer = () => {
   return server;
@@ -196,7 +195,7 @@ describe("logsExplorerApi", () => {
         }),
       );
 
-      const blob = await exportLogs({ format: "csv" });
+      const blob = await exportLogs(undefined, { format: "csv" });
       expect(blob).toBeInstanceOf(Blob);
     });
 
@@ -214,7 +213,7 @@ describe("logsExplorerApi", () => {
         }),
       );
 
-      const blob = await exportLogs({ format: "json" });
+      const blob = await exportLogs(undefined, { format: "json" });
       expect(blob).toBeInstanceOf(Blob);
     });
   });
@@ -263,7 +262,7 @@ describe("logsExplorerApi", () => {
 
       const result = await aggregateLogs({ groupBy: "level" });
       expect(result.byLevel).toHaveProperty("error");
-      expect(result.byLevel.error).toBe(12);
+      expect(result.byLevel?.error).toBe(12);
     });
   });
 
@@ -286,9 +285,9 @@ describe("logsExplorerApi", () => {
 
       server.use(
         http.post("/api/v1/logs/search", async ({ request }) => {
-          const body = await request.json();
-          expect(body.query).toBe("database AND connection");
-          expect(body.fields).toEqual(["message", "traceId"]);
+          const body = (await request.json()) as any;
+          expect(body.query.query).toBe("database AND connection");
+          expect(body.query.fields).toEqual(["message", "traceId"]);
           return HttpResponse.json(mockResponse);
         }),
       );
