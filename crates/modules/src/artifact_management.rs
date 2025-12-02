@@ -88,6 +88,18 @@ pub struct ChunkInfo {
     pub received_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Configuration for initiating an upload
+#[derive(Debug, Clone)]
+pub struct InitiateUploadConfig {
+    pub artifact_id: ArtifactId,
+    pub job_id: JobId,
+    pub filename: String,
+    pub total_size: u64,
+    pub checksum: String,
+    pub is_compressed: bool,
+    pub compression_type: Option<String>,
+}
+
 /// Artifact repository port (for persistence)
 #[async_trait]
 pub trait ArtifactRepository: Send + Sync {
@@ -233,34 +245,28 @@ where
     }
 
     /// Initialize a new artifact upload
-    pub async fn initiate_upload(
-        &self,
-        artifact_id: &ArtifactId,
-        job_id: &JobId,
-        filename: &str,
-        total_size: u64,
-        checksum: &str,
-        is_compressed: bool,
-        compression_type: Option<&str>,
-    ) -> Result<UploadId> {
-        info!("Initiating upload for artifact: {}", artifact_id.as_str());
+    pub async fn initiate_upload(&self, config: InitiateUploadConfig) -> Result<UploadId> {
+        info!(
+            "Initiating upload for artifact: {}",
+            config.artifact_id.as_str()
+        );
 
         // Validate inputs
-        if checksum.is_empty() {
+        if config.checksum.is_empty() {
             return Err(ArtifactError::InvalidState("Checksum is required".to_string()).into());
         }
 
-        if total_size == 0 {
+        if config.total_size == 0 {
             return Err(ArtifactError::InvalidState(
                 "Total size must be greater than 0".to_string(),
             )
             .into());
         }
 
-        if total_size > self.config.max_artifact_size_mb * 1024 * 1024 {
+        if config.total_size > self.config.max_artifact_size_mb * 1024 * 1024 {
             return Err(ArtifactError::InvalidState(format!(
                 "Artifact size {} exceeds maximum allowed {} MB",
-                total_size, self.config.max_artifact_size_mb
+                config.total_size, self.config.max_artifact_size_mb
             ))
             .into());
         }
@@ -274,13 +280,13 @@ where
 
         // Create artifact metadata
         let metadata = ArtifactMetadata {
-            artifact_id: artifact_id.clone(),
-            job_id: *job_id,
-            filename: filename.to_string(),
-            total_size,
-            checksum: checksum.to_string(),
-            is_compressed,
-            compression_type: compression_type.map(|s| s.to_string()),
+            artifact_id: config.artifact_id.clone(),
+            job_id: config.job_id,
+            filename: config.filename,
+            total_size: config.total_size,
+            checksum: config.checksum,
+            is_compressed: config.is_compressed,
+            compression_type: config.compression_type,
             upload_id: Some(upload_id.clone()),
             status: UploadStatus::Initiated,
             created_at: chrono::Utc::now(),
@@ -290,7 +296,7 @@ where
 
         // Initialize storage
         self.storage_provider
-            .initialize_storage(artifact_id, &metadata)
+            .initialize_storage(&config.artifact_id, &metadata)
             .await
             .map_err(|e| {
                 ArtifactError::Storage(StorageError::Io(std::io::Error::other(e.to_string())))

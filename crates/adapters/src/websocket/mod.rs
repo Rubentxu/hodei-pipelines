@@ -46,11 +46,11 @@ async fn handle_socket(mut socket: WebSocket, event_subscriber: Arc<dyn EventSub
                 match event_result {
                     Ok(event) => {
                         // Filter events relevant for the frontend
-                        if let Some(json_msg) = serialize_event_for_client(&event) {
-                            if let Err(e) = socket.send(Message::Text(json_msg.into())).await {
-                                warn!("Failed to send message to WebSocket client: {}", e);
-                                break;
-                            }
+                        if let Some(json_msg) = serialize_event_for_client(&event)
+                            && let Err(e) = socket.send(Message::Text(json_msg.into())).await
+                        {
+                            warn!("Failed to send message to WebSocket client: {}", e);
+                            break;
                         }
                     }
                     Err(e) => {

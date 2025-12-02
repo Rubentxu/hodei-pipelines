@@ -191,7 +191,7 @@ impl ProcessManager {
         if let Some(handle) = handle {
             let mut child_lock = handle.child.lock().await;
             if let Some(child) = child_lock.as_mut() {
-                let status = child.wait().await.map_err(|e| ProcessError::Io(e))?;
+                let status = child.wait().await.map_err(ProcessError::Io)?;
 
                 Ok(status.code().unwrap_or(-1))
             } else {

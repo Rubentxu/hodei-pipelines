@@ -39,7 +39,7 @@ mod constants {
         "SELECT id, name, description, created_at, updated_at FROM rbac_roles ORDER BY name";
     pub const ROLE_INSERT: &str =
         "INSERT INTO rbac_roles (id, name, description) VALUES ($1, $2, $3)";
-    pub const ROLE_UPDATE: &str = "UPDATE rbac_roles SET name = COALESCE($2, name), description = COALESCE($3, description), updated_at = $4 WHERE id = $1";
+    pub const _ROLE_UPDATE: &str = "UPDATE rbac_roles SET name = COALESCE($2, name), description = COALESCE($3, description), updated_at = $4 WHERE id = $1";
     pub const ROLE_DELETE: &str = "DELETE FROM rbac_roles WHERE id = $1";
     pub const ROLE_PERMISSIONS_FIND: &str =
         "SELECT permission_id FROM rbac_role_permissions WHERE role_id = $1";
@@ -378,7 +378,7 @@ mod permission_constants {
     pub const PERMISSION_FIND_BY_KEY: &str = "SELECT id, name, description, resource, action, created_at, updated_at FROM rbac_permissions WHERE resource = $1 AND action = $2";
     pub const PERMISSION_LIST_ALL: &str = "SELECT id, name, description, resource, action, created_at, updated_at FROM rbac_permissions ORDER BY resource, action";
     pub const PERMISSION_INSERT: &str = "INSERT INTO rbac_permissions (id, name, description, resource, action) VALUES ($1, $2, $3, $4, $5)";
-    pub const PERMISSION_UPDATE: &str = "UPDATE rbac_permissions SET name = COALESCE($2, name), description = COALESCE($3, description), updated_at = $4 WHERE id = $1";
+    pub const _PERMISSION_UPDATE: &str = "UPDATE rbac_permissions SET name = COALESCE($2, name), description = COALESCE($3, description), updated_at = $4 WHERE id = $1";
     pub const PERMISSION_DELETE: &str = "DELETE FROM rbac_permissions WHERE id = $1";
 }
 

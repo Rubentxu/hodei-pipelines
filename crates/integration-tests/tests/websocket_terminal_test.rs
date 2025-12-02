@@ -3,8 +3,6 @@
 //! Tests for WebSocket-based interactive terminal sessions.
 //! Validates production-ready terminal functionality with real PTY allocation.
 
-use std::sync::Arc;
-
 #[tokio::test]
 async fn test_websocket_terminal_endpoint() {
     println!("🧪 Testing WebSocket Terminal endpoint (US-008)...");

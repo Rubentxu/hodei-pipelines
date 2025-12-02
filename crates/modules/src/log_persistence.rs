@@ -53,24 +53,22 @@ where
             loop {
                 match rx.recv().await {
                     Ok(event) => match event {
-                        SystemEvent::LogChunkReceived(log_entry) => {
+                        SystemEvent::LogChunkReceived(_log_entry) => {
                             // No-op: We don't persist chunks anymore, only stream them via NATS.
                             // Self::handle_log_entry(&execution_repo, log_entry).await;
                         }
                         SystemEvent::JobCompleted {
                             job_id,
                             exit_code: _,
-                            compressed_logs,
+                            compressed_logs: Some(logs),
                         } => {
-                            if let Some(logs) = compressed_logs {
-                                Self::handle_job_completed(
-                                    &execution_repo,
-                                    job_id,
-                                    logs,
-                                    retention_limit,
-                                )
-                                .await;
-                            }
+                            Self::handle_job_completed(
+                                &execution_repo,
+                                job_id,
+                                logs,
+                                retention_limit,
+                            )
+                            .await;
                         }
                         _ => {}
                     },

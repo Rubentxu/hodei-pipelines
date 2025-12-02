@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Unified application configuration structure
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct AppConfig {
     /// Database configuration
     pub database: DatabaseConfig,
@@ -100,24 +100,6 @@ impl AppConfig {
         self.tls.validate()?;
 
         Ok(())
-    }
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            database: DatabaseConfig::default(),
-            cache: CacheConfig::default(),
-            event_bus: EventBusConfig::default(),
-            kubernetes: K8sGlobalConfig::default(),
-            nats: NatsConfig::default(),
-            worker: WorkerConfig::default(),
-            scaling: ScalingConfig::default(),
-            agent: AgentConfig::default(),
-            server: ServerConfig::default(),
-            logging: LoggingConfig::default(),
-            tls: TlsConfig::default(),
-        }
     }
 }
 
@@ -521,12 +503,10 @@ impl TlsConfig {
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.enabled {
-            if self.cert_path.is_none() || self.key_path.is_none() {
-                return Err(ConfigError::InvalidValue(
-                    "TLS enabled but cert_path or key_path not provided".to_string(),
-                ));
-            }
+        if self.enabled && (self.cert_path.is_none() || self.key_path.is_none()) {
+            return Err(ConfigError::InvalidValue(
+                "TLS enabled but cert_path or key_path not provided".to_string(),
+            ));
         }
         Ok(())
     }

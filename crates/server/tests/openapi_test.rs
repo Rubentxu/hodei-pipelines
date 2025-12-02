@@ -3,6 +3,7 @@
 //! This module validates that all API endpoints are properly documented
 //! in the OpenAPI specification and that the contract is complete.
 
+use chrono::Utc;
 use hodei_server::api_docs::ApiDoc;
 use utoipa::OpenApi;
 
@@ -226,6 +227,7 @@ async fn test_all_dto_schemas_valid() {
         code: "TEST_ERROR".to_string(),
         message: "Test error".to_string(),
         details: Some("Test details".to_string()),
+        timestamp: Utc::now(),
     };
     assert!(serde_json::to_string(&error).is_ok());
 

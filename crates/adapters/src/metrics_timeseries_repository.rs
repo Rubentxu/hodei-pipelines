@@ -67,10 +67,10 @@ mod constants {
     pub const METRIC_AGGREGATED: &str = "SELECT * FROM get_aggregated_metrics($1, $2, $3, $4, $5)";
     pub const METRIC_STATS: &str = "SELECT * FROM get_metric_stats($1, $2, $3, $4)";
     pub const METRIC_LATEST: &str = "SELECT * FROM metrics_latest";
-    pub const METRIC_TOP: &str = "SELECT * FROM metrics_top_values";
+    pub const _METRIC_TOP: &str = "SELECT * FROM metrics_top_values";
     pub const METRIC_DELETE_OLD: &str = "SELECT delete_old_metrics($1)";
     pub const REFRESH_AGGREGATES: &str = "CALL refresh_metrics_aggregates()";
-    pub const RETENTION_DAYS: i32 = 90;
+    pub const _RETENTION_DAYS: i32 = 90;
 }
 
 impl MetricsTimeseriesRepository {
@@ -217,7 +217,7 @@ impl MetricsTimeseriesRepository {
             metric_name
         );
 
-        let labels_json = labels.map(|l| serde_json::to_value(l).ok()).flatten();
+        let labels_json = labels.and_then(|l| serde_json::to_value(l).ok());
 
         let rows = sqlx::query(constants::METRIC_HISTORY)
             .bind(metric_name)

@@ -33,7 +33,6 @@ impl Default for RbacConfig {
 // ========== Service ==========
 
 /// RBAC Service - Application layer use cases
-
 pub struct RoleBasedAccessControlService<R, P, E>
 where
     R: RoleRepository,

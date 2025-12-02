@@ -281,7 +281,7 @@ pub struct AuditTrailLogEntry {
 #[derive(Debug)]
 pub struct AuditLogsComplianceService {
     /// Maximum number of audit logs to keep in memory at once (memory safety)
-    max_audit_logs_in_memory: usize,
+    _max_audit_logs_in_memory: usize,
     /// Phantom for type safety
     _phantom: std::marker::PhantomData<()>,
 }
@@ -291,7 +291,7 @@ impl AuditLogsComplianceService {
     /// CRITICAL: No logs stored in memory - streaming only
     pub fn new() -> Self {
         Self {
-            max_audit_logs_in_memory: 500, // Hard limit to prevent OOM
+            _max_audit_logs_in_memory: 500, // Hard limit to prevent OOM
             _phantom: std::marker::PhantomData,
         }
     }
@@ -466,7 +466,7 @@ mod tests {
     async fn test_audit_logs_compliance_service_new() {
         let service = AuditLogsComplianceService::new();
         // Service should initialize without storing logs
-        assert_eq!(service.max_audit_logs_in_memory, 500);
+        assert_eq!(service._max_audit_logs_in_memory, 500);
     }
 
     #[tokio::test]

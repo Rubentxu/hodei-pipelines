@@ -512,11 +512,11 @@ impl NatsBus {
         tokio::spawn(async move {
             while let Some(msg_result) = messages.next().await {
                 if let Ok(msg) = msg_result {
-                    if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload) {
-                        if let Err(e) = tx_clone.send(event) {
-                            tracing::error!("Failed to broadcast event: {}", e);
-                            break;
-                        }
+                    if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload)
+                        && let Err(e) = tx_clone.send(event)
+                    {
+                        tracing::error!("Failed to broadcast event: {}", e);
+                        break;
                     }
                     if let Err(e) = msg.ack().await {
                         tracing::error!("Failed to ack message: {}", e);
@@ -578,11 +578,11 @@ impl NatsBus {
         tokio::spawn(async move {
             while let Some(msg_result) = messages.next().await {
                 if let Ok(msg) = msg_result {
-                    if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload) {
-                        if let Err(e) = tx_clone.send(event) {
-                            tracing::error!("Failed to broadcast event: {}", e);
-                            break;
-                        }
+                    if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload)
+                        && let Err(e) = tx_clone.send(event)
+                    {
+                        tracing::error!("Failed to broadcast event: {}", e);
+                        break;
                     }
                     if let Err(e) = msg.ack().await {
                         tracing::error!("Failed to ack message: {}", e);

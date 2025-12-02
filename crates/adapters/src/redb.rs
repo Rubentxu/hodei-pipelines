@@ -187,10 +187,10 @@ impl JobRepository for RedbJobRepository {
             let (_key, value) = item
                 .map_err(|e| DomainError::Infrastructure(format!("Failed to read job: {}", e)))?;
 
-            if let Some(job) = Self::bytes_to_job(&value.value()) {
-                if job.state.as_str() == "PENDING" {
-                    pending_jobs.push(job);
-                }
+            if let Some(job) = Self::bytes_to_job(&value.value())
+                && job.state.as_str() == "PENDING"
+            {
+                pending_jobs.push(job);
             }
         }
 
@@ -216,10 +216,10 @@ impl JobRepository for RedbJobRepository {
             let (_key, value) = item
                 .map_err(|e| DomainError::Infrastructure(format!("Failed to read job: {}", e)))?;
 
-            if let Some(job) = Self::bytes_to_job(&value.value()) {
-                if job.state.as_str() == "RUNNING" {
-                    running_jobs.push(job);
-                }
+            if let Some(job) = Self::bytes_to_job(&value.value())
+                && job.state.as_str() == "RUNNING"
+            {
+                running_jobs.push(job);
             }
         }
 

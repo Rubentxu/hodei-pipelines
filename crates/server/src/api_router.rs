@@ -54,14 +54,7 @@ use axum::routing::get;
 use hodei_pipelines_adapters::websocket_handler;
 
 use crate::api_docs::{ApiDoc, hello_openapi};
-use hodei_pipelines_core::{
-    DomainError, ExecutionId, Pipeline, PipelineId, Result as CoreResult,
-    pipeline_execution::PipelineExecution,
-};
-use hodei_pipelines_modules::{
-    CreatePipelineRequest, ExecutePipelineRequest, ListPipelinesFilter, PipelineExecutionService,
-    PipelineService, UpdatePipelineRequest,
-};
+use hodei_pipelines_modules::{PipelineExecutionService, PipelineService};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 

@@ -11,14 +11,12 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use hodei_pipelines_core::{
-    Result as CoreResult,
-    pipeline::{Pipeline, PipelineId, PipelineStepId},
+    pipeline::{PipelineId, PipelineStepId},
     pipeline_execution::ExecutionId,
 };
 use hodei_pipelines_modules::PipelineService;
 use hodei_pipelines_modules::pipeline_crud::{
-    CreatePipelineRequest, CreatePipelineStepRequest, ExecutePipelineRequest, ListPipelinesFilter,
-    UpdatePipelineRequest,
+    CreatePipelineRequest, CreatePipelineStepRequest, ExecutePipelineRequest, UpdatePipelineRequest,
 };
 use std::{collections::HashMap, sync::Arc};
 use tracing::{error, info, warn};

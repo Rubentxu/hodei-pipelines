@@ -2508,7 +2508,8 @@ impl SchedulerPort for MockSchedulerPort {
 
     async fn get_registered_workers(
         &self,
-    ) -> std::result::Result<Vec<WorkerId>, hodei_pipelines_ports::scheduler_port::SchedulerError> {
+    ) -> std::result::Result<Vec<WorkerId>, hodei_pipelines_ports::scheduler_port::SchedulerError>
+    {
         Ok(Vec::new())
     }
 
@@ -3111,7 +3112,6 @@ where
 }
 
 /// Auto-Remediation System types
-
 /// Actions that can be taken to remediate unhealthy workers
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RemediationAction {
@@ -3283,7 +3283,9 @@ impl std::fmt::Debug for MockActionExecutor {
 }
 
 impl MockActionExecutor {
-    pub fn new(worker_repo: Arc<dyn hodei_pipelines_ports::WorkerRepository + Send + Sync>) -> Self {
+    pub fn new(
+        worker_repo: Arc<dyn hodei_pipelines_ports::WorkerRepository + Send + Sync>,
+    ) -> Self {
         Self {
             worker_repo,
             should_fail: std::sync::atomic::AtomicBool::new(false),

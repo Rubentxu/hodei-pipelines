@@ -19,7 +19,7 @@ use uuid::Uuid;
 #[async_trait::async_trait]
 pub trait Projector: Send + Sync {
     /// Process an event and update the read model
-    async fn project(&mut self, event: &Box<dyn DomainEvent>) -> Result<(), ProjectionError>;
+    async fn project(&mut self, event: &dyn DomainEvent) -> Result<(), ProjectionError>;
 
     /// Get the name of this projector
     fn name(&self) -> &'static str;
@@ -90,14 +90,15 @@ impl JobStatusProjection {
 
     pub fn execution_duration(&self) -> Option<std::time::Duration> {
         if let Some(started) = self.started_at
-            && let Some(completed) = self.completed_at {
-                return Some(
-                    completed
-                        .signed_duration_since(started)
-                        .to_std()
-                        .unwrap_or_default(),
-                );
-            }
+            && let Some(completed) = self.completed_at
+        {
+            return Some(
+                completed
+                    .signed_duration_since(started)
+                    .to_std()
+                    .unwrap_or_default(),
+            );
+        }
         None
     }
 }
@@ -325,19 +326,20 @@ impl Default for JobStatusProjector {
 
 #[async_trait::async_trait]
 impl Projector for JobStatusProjector {
-    async fn project(&mut self, event: &Box<dyn DomainEvent>) -> Result<(), ProjectionError> {
+    async fn project(&mut self, event: &dyn DomainEvent) -> Result<(), ProjectionError> {
         match event.event_type() {
             "JobCreated" => {
                 // Use serialize() method from DomainEvent trait
                 if let Ok(event_data) = event.serialize()
-                    && let Ok(job_event) = serde_json::from_value::<JobCreatedEvent>(event_data) {
-                        let projection =
-                            JobStatusProjection::new(job_event.aggregate_id, job_event.job_name);
-                        if let Some(_tenant) = job_event.tenant_id {
-                            // Update projection with tenant
-                        }
-                        self.projections.insert(job_event.aggregate_id, projection);
+                    && let Ok(job_event) = serde_json::from_value::<JobCreatedEvent>(event_data)
+                {
+                    let projection =
+                        JobStatusProjection::new(job_event.aggregate_id, job_event.job_name);
+                    if let Some(_tenant) = job_event.tenant_id {
+                        // Update projection with tenant
                     }
+                    self.projections.insert(job_event.aggregate_id, projection);
+                }
             }
             "JobScheduled" => {
                 if let Some(proj) = self.projections.get_mut(&event.aggregate_id()) {
@@ -356,12 +358,13 @@ impl Projector for JobStatusProjector {
                 if let Ok(event_data) = event.serialize()
                     && let Ok(completed_event) =
                         serde_json::from_value::<JobCompletedEvent>(event_data)
-                        && let Some(proj) = self.projections.get_mut(&event.aggregate_id()) {
-                            proj.current_state = completed_event.final_state;
-                            proj.completed_at = Some(Utc::now());
-                            proj.execution_time_ms = Some(completed_event.execution_time_ms);
-                            proj.updated_at = Utc::now();
-                        }
+                    && let Some(proj) = self.projections.get_mut(&event.aggregate_id())
+                {
+                    proj.current_state = completed_event.final_state;
+                    proj.completed_at = Some(Utc::now());
+                    proj.execution_time_ms = Some(completed_event.execution_time_ms);
+                    proj.updated_at = Utc::now();
+                }
             }
             _ => {
                 // Ignore unknown event types
@@ -390,8 +393,6 @@ pub async fn build_projections_from_events<T: EventStore + Send + Sync>(
     event_store: Arc<T>,
     _from_version: Option<u64>,
 ) -> Result<JobStatusProjector, ProjectionError> {
-    
-
     let mut projector = JobStatusProjector::new();
 
     // Get all job-related events (in a real implementation, you'd filter by aggregate type)
@@ -405,7 +406,7 @@ pub async fn build_projections_from_events<T: EventStore + Send + Sync>(
 
     for event in all_events {
         projector
-            .project(&event)
+            .project(event.as_ref())
             .await
             .map_err(|e| ProjectionError::UpdateError(format!("Failed to project event: {}", e)))?;
     }
@@ -492,7 +493,7 @@ mod tests {
             tenant_id: Some("tenant-1".to_string()),
         };
 
-        projector.project(&event.as_trait_object()).await.unwrap();
+        projector.project(&event).await.unwrap();
 
         let projection = projector.get(&job_id).unwrap();
         assert_eq!(projection.job_id, job_id);
@@ -514,10 +515,7 @@ mod tests {
             job_name: "test-job".to_string(),
             tenant_id: None,
         };
-        projector
-            .project(&created_event.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&created_event).await.unwrap();
 
         // Then schedule it
         let scheduled_event = JobScheduledEvent {
@@ -526,10 +524,7 @@ mod tests {
             occurred_at: Utc::now(),
             version: 1,
         };
-        projector
-            .project(&scheduled_event.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&scheduled_event).await.unwrap();
 
         let projection = projector.get(&job_id).unwrap();
         assert_eq!(projection.current_state, "SCHEDULED");
@@ -549,7 +544,7 @@ mod tests {
             job_name: "test-job".to_string(),
             tenant_id: None,
         };
-        projector.project(&created.as_trait_object()).await.unwrap();
+        projector.project(&created).await.unwrap();
 
         // Schedule
         let scheduled = JobScheduledEvent {
@@ -558,10 +553,7 @@ mod tests {
             occurred_at: Utc::now(),
             version: 1,
         };
-        projector
-            .project(&scheduled.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&scheduled).await.unwrap();
 
         // Start
         let started = JobStartedEvent {
@@ -570,7 +562,7 @@ mod tests {
             occurred_at: Utc::now(),
             version: 2,
         };
-        projector.project(&started.as_trait_object()).await.unwrap();
+        projector.project(&started).await.unwrap();
 
         // Complete
         let completed = JobCompletedEvent {
@@ -581,10 +573,7 @@ mod tests {
             final_state: "SUCCESS".to_string(),
             execution_time_ms: 5000,
         };
-        projector
-            .project(&completed.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&completed).await.unwrap();
 
         let projection = projector.get(&job_id).unwrap();
         assert_eq!(projection.current_state, "SUCCESS");
@@ -609,10 +598,7 @@ mod tests {
             job_name: "completed-job".to_string(),
             tenant_id: None,
         };
-        projector
-            .project(&job1_created.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&job1_created).await.unwrap();
 
         let job1_completed = JobCompletedEvent {
             event_id: Uuid::new_v4(),
@@ -622,10 +608,7 @@ mod tests {
             final_state: "SUCCESS".to_string(),
             execution_time_ms: 1000,
         };
-        projector
-            .project(&job1_completed.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&job1_completed).await.unwrap();
 
         // Create job2 and leave it running
         let job2_created = JobCreatedEvent {
@@ -636,10 +619,7 @@ mod tests {
             job_name: "running-job".to_string(),
             tenant_id: None,
         };
-        projector
-            .project(&job2_created.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&job2_created).await.unwrap();
 
         let job2_started = JobStartedEvent {
             event_id: Uuid::new_v4(),
@@ -647,10 +627,7 @@ mod tests {
             occurred_at: Utc::now(),
             version: 1,
         };
-        projector
-            .project(&job2_started.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&job2_started).await.unwrap();
 
         // Create job3 and leave it pending
         let job3_created = JobCreatedEvent {
@@ -661,10 +638,7 @@ mod tests {
             job_name: "pending-job".to_string(),
             tenant_id: None,
         };
-        projector
-            .project(&job3_created.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&job3_created).await.unwrap();
 
         let active_jobs = projector.get_active_jobs();
         assert_eq!(active_jobs.len(), 2);
@@ -691,10 +665,7 @@ mod tests {
             job_name: "completed-job-1".to_string(),
             tenant_id: None,
         };
-        projector
-            .project(&job1_created.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&job1_created).await.unwrap();
 
         let job1_completed = JobCompletedEvent {
             event_id: Uuid::new_v4(),
@@ -704,10 +675,7 @@ mod tests {
             final_state: "SUCCESS".to_string(),
             execution_time_ms: 1000,
         };
-        projector
-            .project(&job1_completed.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&job1_completed).await.unwrap();
 
         // Create and complete job2 with FAILED
         let job2_created = JobCreatedEvent {
@@ -718,10 +686,7 @@ mod tests {
             job_name: "completed-job-2".to_string(),
             tenant_id: None,
         };
-        projector
-            .project(&job2_created.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&job2_created).await.unwrap();
 
         let job2_completed = JobCompletedEvent {
             event_id: Uuid::new_v4(),
@@ -731,10 +696,7 @@ mod tests {
             final_state: "FAILED".to_string(),
             execution_time_ms: 2000,
         };
-        projector
-            .project(&job2_completed.as_trait_object())
-            .await
-            .unwrap();
+        projector.project(&job2_completed).await.unwrap();
 
         let completed_jobs = projector.get_completed_jobs();
         assert_eq!(completed_jobs.len(), 2);

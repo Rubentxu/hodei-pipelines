@@ -30,7 +30,6 @@ use crate::{AgentError, Config, Result};
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use std::io::Write;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tonic::transport::{Certificate, Identity};
 
 /// gRPC client wrapper
@@ -377,7 +376,7 @@ impl Client {
                 use tokio::io::AsyncBufReadExt;
                 let mut reader = tokio::io::BufReader::new(out).lines();
                 while let Ok(Some(line)) = reader.next_line().await {
-                    if let Err(_) = log_tx.send(line).await {
+                    if log_tx.send(line).await.is_err() {
                         break;
                     }
                 }
@@ -391,7 +390,7 @@ impl Client {
                 use tokio::io::AsyncBufReadExt;
                 let mut reader = tokio::io::BufReader::new(err).lines();
                 while let Ok(Some(line)) = reader.next_line().await {
-                    if let Err(_) = log_tx.send(line).await {
+                    if log_tx.send(line).await.is_err() {
                         break;
                     }
                 }

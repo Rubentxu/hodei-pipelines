@@ -81,27 +81,31 @@ pub struct JobCost {
     pub total_cost_cents: u64,
 }
 
+/// Configuration for creating a JobCost
+#[derive(Debug, Clone)]
+pub struct JobCostConfig {
+    pub job_id: String,
+    pub tenant_id: String,
+    pub pool_id: String,
+    pub worker_id: String,
+    pub worker_type: String,
+    pub start_time: DateTime<Utc>,
+    pub cpu_cores_used: u32,
+    pub memory_gb_used: u64,
+}
+
 impl JobCost {
-    pub fn new(
-        job_id: String,
-        tenant_id: String,
-        pool_id: String,
-        worker_id: String,
-        worker_type: String,
-        start_time: DateTime<Utc>,
-        cpu_cores_used: u32,
-        memory_gb_used: u64,
-    ) -> Self {
+    pub fn new(config: JobCostConfig) -> Self {
         Self {
-            job_id,
-            tenant_id,
-            pool_id,
-            worker_id,
-            worker_type,
-            start_time,
+            job_id: config.job_id,
+            tenant_id: config.tenant_id,
+            pool_id: config.pool_id,
+            worker_id: config.worker_id,
+            worker_type: config.worker_type,
+            start_time: config.start_time,
             end_time: None,
-            cpu_cores_used,
-            memory_gb_used,
+            cpu_cores_used: config.cpu_cores_used,
+            memory_gb_used: config.memory_gb_used,
             duration_seconds: None,
             total_cost_cents: 0,
         }

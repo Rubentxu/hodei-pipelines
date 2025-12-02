@@ -42,6 +42,20 @@ pub struct ResumeManager {
     cleanup_interval_ms: u64,
 }
 
+/// Configuration for registering an upload session
+#[derive(Debug, Clone)]
+pub struct RegisterSessionConfig {
+    pub artifact_id: String,
+    pub file_path: PathBuf,
+    pub total_size: u64,
+    pub total_chunks: u32,
+    pub job_id: String,
+    pub upload_url: String,
+    pub compression_type: String,
+    pub is_compressed: bool,
+    pub checksum: String,
+}
+
 impl ResumeManager {
     /// Create a new resume manager
     pub fn new() -> Self {
@@ -52,34 +66,24 @@ impl ResumeManager {
     }
 
     /// Create a new upload session
-    pub async fn register_session(
-        &self,
-        artifact_id: &str,
-        file_path: PathBuf,
-        total_size: u64,
-        total_chunks: u32,
-        job_id: &str,
-        upload_url: &str,
-        compression_type: &str,
-        is_compressed: bool,
-        checksum: &str,
-    ) -> Result<(), AgentError> {
+    pub async fn register_session(&self, config: RegisterSessionConfig) -> Result<(), AgentError> {
+        let artifact_id = config.artifact_id.clone();
         let mut sessions = self.active_sessions.lock().await;
 
         let session = UploadSession {
-            artifact_id: artifact_id.to_string(),
-            file_path,
-            total_size,
-            total_chunks,
+            artifact_id: artifact_id.clone(),
+            file_path: config.file_path,
+            total_size: config.total_size,
+            total_chunks: config.total_chunks,
             uploaded_chunks: HashMap::new(),
-            job_id: job_id.to_string(),
-            upload_url: upload_url.to_string(),
-            compression_type: compression_type.to_string(),
-            is_compressed,
-            checksum: checksum.to_string(),
+            job_id: config.job_id,
+            upload_url: config.upload_url,
+            compression_type: config.compression_type,
+            is_compressed: config.is_compressed,
+            checksum: config.checksum,
         };
 
-        sessions.insert(artifact_id.to_string(), session);
+        sessions.insert(artifact_id.clone(), session);
 
         info!("Registered upload session for artifact: {}", artifact_id);
 
@@ -287,19 +291,19 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        let result = manager
-            .register_session(
-                "test-artifact",
-                temp_file.path().to_path_buf(),
-                1000,
-                10,
-                "test-job",
-                "http://localhost:8080",
-                "gzip",
-                true,
-                "checksum123",
-            )
-            .await;
+        let config = RegisterSessionConfig {
+            artifact_id: "test-artifact".to_string(),
+            file_path: temp_file.path().to_path_buf(),
+            total_size: 1000,
+            total_chunks: 100,
+            job_id: "test-job".to_string(),
+            upload_url: "http://localhost:8080".to_string(),
+            compression_type: "gzip".to_string(),
+            is_compressed: true,
+            checksum: "checksum123".to_string(),
+        };
+
+        let result = manager.register_session(config).await;
 
         assert!(result.is_ok());
 
@@ -313,20 +317,19 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager
-            .register_session(
-                "test-artifact",
-                temp_file.path().to_path_buf(),
-                1000,
-                10,
-                "test-job",
-                "http://localhost:8080",
-                "gzip",
-                true,
-                "checksum123",
-            )
-            .await
-            .unwrap();
+        let config = RegisterSessionConfig {
+            artifact_id: "test-artifact".to_string(),
+            file_path: temp_file.path().to_path_buf(),
+            total_size: 1000,
+            total_chunks: 10,
+            job_id: "test-job".to_string(),
+            upload_url: "http://localhost:8080".to_string(),
+            compression_type: "gzip".to_string(),
+            is_compressed: true,
+            checksum: "checksum123".to_string(),
+        };
+
+        manager.register_session(config).await.unwrap();
 
         let chunk_data = vec![1, 2, 3, 4, 5];
         let result = manager
@@ -345,20 +348,19 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager
-            .register_session(
-                "test-artifact",
-                temp_file.path().to_path_buf(),
-                1000,
-                5,
-                "test-job",
-                "http://localhost:8080",
-                "gzip",
-                true,
-                "checksum123",
-            )
-            .await
-            .unwrap();
+        let config = RegisterSessionConfig {
+            artifact_id: "test-artifact".to_string(),
+            file_path: temp_file.path().to_path_buf(),
+            total_size: 1000,
+            total_chunks: 5,
+            job_id: "test-job".to_string(),
+            upload_url: "http://localhost:8080".to_string(),
+            compression_type: "gzip".to_string(),
+            is_compressed: true,
+            checksum: "checksum123".to_string(),
+        };
+
+        manager.register_session(config).await.unwrap();
 
         // Record chunks 0, 2, 4
         manager
@@ -383,20 +385,19 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager
-            .register_session(
-                "test-artifact",
-                temp_file.path().to_path_buf(),
-                1000,
-                10,
-                "test-job",
-                "http://localhost:8080",
-                "gzip",
-                true,
-                "checksum123",
-            )
-            .await
-            .unwrap();
+        let config = RegisterSessionConfig {
+            artifact_id: "test-artifact".to_string(),
+            file_path: temp_file.path().to_path_buf(),
+            total_size: 1000,
+            total_chunks: 100,
+            job_id: "test-job".to_string(),
+            upload_url: "http://localhost:8080".to_string(),
+            compression_type: "gzip".to_string(),
+            is_compressed: true,
+            checksum: "checksum123".to_string(),
+        };
+
+        manager.register_session(config).await.unwrap();
 
         let result = manager.complete_session("test-artifact").await;
         assert!(result.is_ok());
@@ -410,20 +411,19 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager
-            .register_session(
-                "test-artifact",
-                temp_file.path().to_path_buf(),
-                1000,
-                10,
-                "test-job",
-                "http://localhost:8080",
-                "gzip",
-                true,
-                "checksum123",
-            )
-            .await
-            .unwrap();
+        let config = RegisterSessionConfig {
+            artifact_id: "test-artifact".to_string(),
+            file_path: temp_file.path().to_path_buf(),
+            total_size: 1000,
+            total_chunks: 100,
+            job_id: "test-job".to_string(),
+            upload_url: "http://localhost:8080".to_string(),
+            compression_type: "gzip".to_string(),
+            is_compressed: true,
+            checksum: "checksum123".to_string(),
+        };
+
+        manager.register_session(config).await.unwrap();
 
         let result = manager.abandon_session("test-artifact").await;
         assert!(result.is_ok());
@@ -437,20 +437,19 @@ mod tests {
         let manager = ResumeManager::new();
         let temp_file = NamedTempFile::new().unwrap();
 
-        manager
-            .register_session(
-                "test-artifact",
-                temp_file.path().to_path_buf(),
-                1000,
-                10,
-                "test-job",
-                "http://localhost:8080",
-                "gzip",
-                true,
-                "checksum123",
-            )
-            .await
-            .unwrap();
+        let config = RegisterSessionConfig {
+            artifact_id: "test-artifact".to_string(),
+            file_path: temp_file.path().to_path_buf(),
+            total_size: 1000,
+            total_chunks: 100,
+            job_id: "test-job".to_string(),
+            upload_url: "http://localhost:8080".to_string(),
+            compression_type: "gzip".to_string(),
+            is_compressed: true,
+            checksum: "checksum123".to_string(),
+        };
+
+        manager.register_session(config).await.unwrap();
 
         let chunk_data = vec![1, 2, 3, 4, 5];
         let result = manager.verify_chunk("test-artifact", 0, &chunk_data).await;

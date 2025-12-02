@@ -108,7 +108,7 @@ impl CacheMetrics {
         let total = hits + self.misses_total.get();
 
         if total > 0.0 {
-            (hits as f64 / total as f64) * 100.0
+            (hits / total) * 100.0
         } else {
             0.0
         }
