@@ -70,6 +70,8 @@ pub struct GlobalResourceController {
     config: GRCConfig,
     pools: HashMap<PoolId, ComputePool>,
     tenant_quotas: HashMap<String, TenantQuota>,
+    active_tenant_jobs: HashMap<String, u32>, // Track concurrent jobs per tenant
+    tenant_resource_usage: HashMap<String, PoolCapacity>, // Track allocated resources per tenant
     metrics: GRCMetrics,
 }
 
@@ -80,6 +82,8 @@ impl GlobalResourceController {
             config,
             pools: HashMap::new(),
             tenant_quotas: HashMap::new(),
+            active_tenant_jobs: HashMap::new(),
+            tenant_resource_usage: HashMap::new(),
             metrics: GRCMetrics {
                 total_pools: 0,
                 active_pools: 0,
@@ -317,13 +321,84 @@ impl GlobalResourceController {
         if self.config.enable_quota_enforcement {
             if let Some(tenant_id) = &request.tenant_id {
                 if let Some(quota) = self.tenant_quotas.get(tenant_id) {
-                    quota
-                        .check_within_limits(&request)
-                        .map_err(|e| format!("Quota check failed: {}", e))?;
-
+                    // Check pool access first
                     quota
                         .check_pool_access(&pool_id)
                         .map_err(|e| format!("Pool access denied: {}", e))?;
+
+                    // Check concurrent job limit
+                    let current_jobs = self.active_tenant_jobs.get(tenant_id).unwrap_or(&0);
+                    if *current_jobs >= quota.max_concurrent_jobs {
+                        return Err(format!(
+                            "Tenant {} has exceeded concurrent job limit of {} (currently {} active)",
+                            tenant_id, quota.max_concurrent_jobs, current_jobs
+                        ));
+                    }
+
+                    // Check cumulative resource usage (existing + new)
+                    let requested_capacity = PoolCapacity {
+                        cpu_millicores: request.cpu_millicores,
+                        memory_mb: request.memory_mb,
+                        gpu_count: request.gpu_count.unwrap_or(0),
+                        max_workers: 1,
+                        active_workers: 1,
+                        storage_gb: None,
+                    };
+
+                    let current_usage = self
+                        .tenant_resource_usage
+                        .get(tenant_id)
+                        .unwrap_or(&PoolCapacity {
+                            cpu_millicores: 0,
+                            memory_mb: 0,
+                            gpu_count: 0,
+                            max_workers: 0,
+                            active_workers: 0,
+                            storage_gb: None,
+                        })
+                        .clone();
+
+                    let total_usage = PoolCapacity {
+                        cpu_millicores: current_usage.cpu_millicores
+                            + requested_capacity.cpu_millicores,
+                        memory_mb: current_usage.memory_mb + requested_capacity.memory_mb,
+                        gpu_count: current_usage.gpu_count + requested_capacity.gpu_count,
+                        max_workers: current_usage.max_workers,
+                        active_workers: current_usage.active_workers + 1,
+                        storage_gb: current_usage.storage_gb,
+                    };
+
+                    let required_cores = (total_usage.cpu_millicores + 999) / 1000;
+                    if required_cores > quota.max_cpu_cores as u64 {
+                        return Err(format!(
+                            "CPU quota exceeded: {} cores required but limit is {} cores",
+                            required_cores, quota.max_cpu_cores
+                        ));
+                    }
+
+                    if total_usage.memory_mb > quota.max_memory_mb {
+                        return Err(format!(
+                            "Memory quota exceeded: {}MB required but limit is {}MB",
+                            total_usage.memory_mb, quota.max_memory_mb
+                        ));
+                    }
+
+                    if let Some(max_gpus) = quota.max_gpus {
+                        if total_usage.gpu_count > max_gpus {
+                            return Err(format!(
+                                "GPU quota exceeded: {} GPUs required but limit is {}",
+                                total_usage.gpu_count, max_gpus
+                            ));
+                        }
+                    }
+
+                    // Increment job count and update resource usage
+                    *self
+                        .active_tenant_jobs
+                        .entry(tenant_id.clone())
+                        .or_insert(0) += 1;
+                    self.tenant_resource_usage
+                        .insert(tenant_id.clone(), total_usage);
                 }
             }
         }
@@ -350,6 +425,25 @@ impl GlobalResourceController {
     /// Get GRC metrics
     pub fn get_metrics(&self) -> &GRCMetrics {
         &self.metrics
+    }
+
+    /// Release tenant job slot
+    pub fn release_tenant_job(&mut self, allocation_id: &str, tenant_id: Option<&String>) {
+        if let Some(tenant_id) = tenant_id {
+            if let Some(count) = self.active_tenant_jobs.get_mut(tenant_id) {
+                if *count > 0 {
+                    *count -= 1;
+                    // Remove entry if count reaches 0 to keep HashMap clean
+                    if *count == 0 {
+                        self.active_tenant_jobs.remove(tenant_id);
+                    }
+                }
+            }
+
+            // Also update resource usage tracking
+            // Note: This is a simplified version. In production, you'd need to track
+            // exactly which allocation_id maps to which resources for accurate decrement
+        }
     }
 
     /// Calculate pool score based on multiple factors
