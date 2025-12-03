@@ -144,6 +144,7 @@ impl PipelineStep {
 /// Builder for PipelineStep using Builder Pattern
 /// Provides fluent interface for step construction with validation
 pub struct PipelineStepBuilder {
+    id: Option<PipelineStepId>,
     name: Option<String>,
     job_spec: Option<crate::job::JobSpec>,
     timeout_ms: Option<u64>,
@@ -154,11 +155,18 @@ impl PipelineStepBuilder {
     /// Create a new builder
     pub fn new() -> Self {
         Self {
+            id: None,
             name: None,
             job_spec: None,
             timeout_ms: Some(300000), // Default 5 minutes
             depends_on: vec![],
         }
+    }
+
+    /// Set step ID (optional)
+    pub fn id(mut self, id: PipelineStepId) -> Self {
+        self.id = Some(id);
+        self
     }
 
     /// Set step name (required)
@@ -207,7 +215,7 @@ impl PipelineStepBuilder {
             .ok_or_else(|| DomainError::Validation("Timeout is required".to_string()))?;
 
         let step = PipelineStep {
-            id: PipelineStepId::new(),
+            id: self.id.unwrap_or_else(PipelineStepId::new),
             name,
             job_spec,
             depends_on: self.depends_on,

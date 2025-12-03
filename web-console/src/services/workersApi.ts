@@ -51,7 +51,7 @@ export async function restartWorker(id: string): Promise<void> {
 }
 
 export async function getWorkerPools(): Promise<WorkerPool[]> {
-  const response = await fetch('/api/worker-pools');
+  const response = await fetch('/api/v1/resource-pools');
 
   if (!response.ok) {
     throw new Error('Failed to fetch worker pools');
@@ -61,7 +61,7 @@ export async function getWorkerPools(): Promise<WorkerPool[]> {
 }
 
 export async function getWorkerPool(id: string): Promise<WorkerPool> {
-  const response = await fetch(`/api/worker-pools/${id}`);
+  const response = await fetch(`/api/v1/resource-pools/${id}`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch worker pool');
@@ -74,7 +74,7 @@ export async function scaleWorkerPool(
   id: string,
   action: 'up' | 'down'
 ): Promise<WorkerPool> {
-  const response = await fetch(`/api/worker-pools/${id}/scale`, {
+  const response = await fetch(`/api/v1/resource-pools/${id}/scale`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ export async function updateWorkerPool(
   id: string,
   updates: Partial<WorkerPool>
 ): Promise<WorkerPool> {
-  const response = await fetch(`/api/worker-pools/${id}`, {
+  const response = await fetch(`/api/v1/resource-pools/${id}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',

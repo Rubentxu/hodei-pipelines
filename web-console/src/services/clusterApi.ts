@@ -18,7 +18,7 @@ export interface ClusterTopology {
 }
 
 export async function getClusterTopology(): Promise<ClusterTopology> {
-  const response = await fetch('/api/observability/topology');
+  const response = await fetch('/api/v1/observability/topology');
 
   if (!response.ok) {
     throw new Error('Failed to fetch cluster topology');
@@ -30,7 +30,7 @@ export async function getClusterTopology(): Promise<ClusterTopology> {
 export async function subscribeToTopology(
   callback: (topology: ClusterTopology) => void
 ): Promise<() => void> {
-  const eventSource = new EventSource('/api/observability/topology/stream');
+  const eventSource = new EventSource('/api/v1/observability/topology/stream');
 
   eventSource.onmessage = (event) => {
     try {

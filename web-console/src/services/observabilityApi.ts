@@ -6,7 +6,7 @@ import {
   Trace,
 } from "../types";
 
-const API_BASE = "/api/observability";
+const API_BASE = "/api/v1/observability";
 
 export const observabilityApi = {
   // Logs

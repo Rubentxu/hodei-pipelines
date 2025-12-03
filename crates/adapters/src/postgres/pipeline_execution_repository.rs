@@ -39,118 +39,176 @@ const STEP_STATUS_SKIPPED: &str = "SKIPPED";
 #[derive(Debug, Clone)]
 pub struct PostgreSqlPipelineExecutionRepository {
     pool: PgPool,
+    migrations_path: Option<String>,
+    migration_file: String,
 }
 
 impl PostgreSqlPipelineExecutionRepository {
     /// Create a new PostgreSQL pipeline execution repository
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(pool: PgPool, migrations_path: Option<String>, migration_file: String) -> Self {
+        Self {
+            pool,
+            migrations_path,
+            migration_file,
+        }
     }
 
     /// Initialize database schema for pipeline executions
     pub async fn init_schema(&self) -> Result<()> {
-        info!("Initializing pipeline execution schema");
+        info!("Initializing pipeline execution schema from migration file");
 
-        // Create pipeline_executions table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS pipeline_executions (
-                execution_id UUID PRIMARY KEY,
-                pipeline_id UUID NOT NULL,
-                status TEXT NOT NULL,
-                started_at TIMESTAMPTZ NOT NULL,
-                completed_at TIMESTAMPTZ NULL,
-                variables JSONB NOT NULL DEFAULT '{}'::jsonb,
-                tenant_id TEXT NULL,
-                correlation_id TEXT NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-        "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            DomainError::Infrastructure(format!(
-                "Failed to create pipeline_executions table: {}",
-                e
-            ))
-        })?;
+        // Load migration SQL
+        let migration_sql = self.load_migration_sql()?;
 
-        // Create step_executions table
-        sqlx::query(r#"
-            CREATE TABLE IF NOT EXISTS step_executions (
-                step_execution_id UUID PRIMARY KEY,
-                execution_id UUID NOT NULL REFERENCES pipeline_executions(execution_id) ON DELETE CASCADE,
-                step_id UUID NOT NULL,
-                status TEXT NOT NULL,
-                started_at TIMESTAMPTZ NULL,
-                completed_at TIMESTAMPTZ NULL,
-                retry_count INT NOT NULL DEFAULT 0,
-                error_message TEXT NULL,
-                logs TEXT NOT NULL DEFAULT '',
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-        "#)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to create step_executions table: {}", e)))?;
+        // Parse and execute individual SQL statements
+        let statements = Self::parse_sql_statements(&migration_sql)?;
 
-        // Create index for faster lookups
-        sqlx::query(
-            r#"
-            CREATE INDEX IF NOT EXISTS idx_pipeline_executions_pipeline_id
-            ON pipeline_executions(pipeline_id)
-        "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to create index: {}", e)))?;
-
-        sqlx::query(
-            r#"
-            CREATE INDEX IF NOT EXISTS idx_step_executions_execution_id
-            ON step_executions(execution_id)
-        "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to create index: {}", e)))?;
-
-        sqlx::query(
-            r#"
-            CREATE INDEX IF NOT EXISTS idx_step_executions_step_id
-            ON step_executions(step_id)
-        "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to create index: {}", e)))?;
-
-        // Add job_id column if it doesn't exist
-        sqlx::query(
-            r#"
-            ALTER TABLE step_executions ADD COLUMN IF NOT EXISTS job_id UUID NULL
-        "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to add job_id column: {}", e)))?;
-
-        // Create index for job_id
-        sqlx::query(
-            r#"
-            CREATE INDEX IF NOT EXISTS idx_step_executions_job_id
-            ON step_executions(job_id)
-        "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to create index: {}", e)))?;
+        for stmt in statements {
+            sqlx::query(&stmt).execute(&self.pool).await.map_err(|e| {
+                DomainError::Infrastructure(format!(
+                    "Failed to execute pipeline execution migration: {}\nStatement: {}",
+                    e,
+                    stmt.lines().take(3).collect::<Vec<_>>().join(" ")
+                ))
+            })?;
+        }
 
         info!("Pipeline execution schema initialized successfully");
         Ok(())
+    }
+
+    /// Parse SQL file into individual executable statements
+    fn parse_sql_statements(sql: &str) -> Result<Vec<String>> {
+        let mut statements = Vec::new();
+        let mut current_stmt = String::new();
+        let mut chars = sql.chars().peekable();
+        let mut in_block_comment = false;
+        let mut in_line_comment = false;
+        let mut in_dollar_quote = false;
+        let mut dollar_quote_tag = String::new();
+        let mut paren_depth = 0;
+
+        while let Some(ch) = chars.next() {
+            // Handle block comments
+            if !in_line_comment && !in_dollar_quote {
+                if ch == '/' && chars.peek() == Some(&'*') {
+                    in_block_comment = true;
+                    chars.next(); // consume '*'
+                    continue;
+                }
+                if ch == '*' && chars.peek() == Some(&'/') {
+                    in_block_comment = false;
+                    chars.next(); // consume '/'
+                    continue;
+                }
+            }
+
+            // Handle line comments
+            if !in_block_comment && !in_dollar_quote {
+                if ch == '-' && chars.peek() == Some(&'-') {
+                    in_line_comment = true;
+                    // Skip to end of line
+                    while let Some(&next_ch) = chars.peek() {
+                        if next_ch == '\n' {
+                            break;
+                        }
+                        chars.next();
+                    }
+                    continue;
+                }
+            }
+
+            // Handle dollar-quoted strings
+            if ch == '$' && !in_block_comment && !in_line_comment {
+                let mut tag = String::new();
+                tag.push('$');
+
+                // Collect the tag
+                while let Some(&next_ch) = chars.peek() {
+                    if next_ch == '$' {
+                        tag.push('$');
+                        chars.next(); // consume closing $
+                        break;
+                    } else if next_ch == '\n' {
+                        // Invalid dollar quote, treat as regular $
+                        break;
+                    } else {
+                        tag.push(next_ch);
+                        chars.next();
+                    }
+                }
+
+                if !in_dollar_quote {
+                    // Start of dollar quote
+                    in_dollar_quote = true;
+                    dollar_quote_tag = tag.clone();
+                    current_stmt.push_str(&tag);
+                    continue;
+                } else if tag == dollar_quote_tag {
+                    // End of dollar quote
+                    in_dollar_quote = false;
+                    current_stmt.push_str(&tag);
+                    dollar_quote_tag.clear();
+                    continue;
+                }
+            }
+
+            if in_block_comment || in_line_comment {
+                continue;
+            }
+
+            // Track parentheses depth
+            if ch == '(' {
+                paren_depth += 1;
+            } else if ch == ')' {
+                if paren_depth > 0 {
+                    paren_depth -= 1;
+                }
+            }
+
+            // Accumulate character
+            current_stmt.push(ch);
+
+            // Check for statement end (semicolon not inside quotes, comments, or parentheses)
+            if ch == ';' && !in_dollar_quote && paren_depth == 0 {
+                let stmt = current_stmt.trim();
+                if !stmt.is_empty() {
+                    statements.push(stmt.to_string());
+                }
+                current_stmt = String::new();
+            }
+        }
+
+        Ok(statements)
+    }
+
+    /// Load migration SQL from file or use embedded fallback
+    fn load_migration_sql(&self) -> Result<String> {
+        if let Some(custom_path) = &self.migrations_path {
+            let path = format!("{}/{}", custom_path, self.migration_file);
+            let sql = std::fs::read_to_string(&path).map_err(|e| {
+                DomainError::Infrastructure(format!(
+                    "Failed to load migration file from custom path {}: {}",
+                    path, e
+                ))
+            })?;
+            info!(
+                "Loaded pipeline execution migration from custom path: {}",
+                path
+            );
+            return Ok(sql);
+        }
+
+        // Use embedded SQL for the configured migration file
+        match self.migration_file.as_str() {
+            "20241201_pipeline_executions.sql" => {
+                Ok(include_str!("../../migrations/20241201_pipeline_executions.sql").to_string())
+            }
+            other => Err(DomainError::Infrastructure(format!(
+                "Unknown pipeline execution migration file: {}. Expected one of: 20241201_pipeline_executions.sql",
+                other
+            ))),
+        }
     }
 
     /// Deserialize StepExecution from a SQL row

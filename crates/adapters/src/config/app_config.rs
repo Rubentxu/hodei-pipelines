@@ -114,6 +114,21 @@ pub struct DatabaseConfig {
 
     /// Connection timeout in milliseconds
     pub connection_timeout_ms: u64,
+
+    /// Path to migration SQL files directory
+    pub migrations_path: Option<String>,
+
+    /// Filename for worker schema migration
+    pub worker_migration_file: String,
+
+    /// Filename for job schema migration
+    pub job_migration_file: String,
+
+    /// Filename for pipeline schema migration
+    pub pipeline_migration_file: String,
+
+    /// Filename for pipeline execution schema migration
+    pub pipeline_execution_migration_file: String,
 }
 
 impl DatabaseConfig {
@@ -131,10 +146,30 @@ impl DatabaseConfig {
             .parse::<u64>()
             .map_err(|_| ConfigError::InvalidValue("HODEI_DB_TIMEOUT_MS".to_string()))?;
 
+        let migrations_path = std::env::var("HODEI_DB_MIGRATIONS_PATH").ok();
+
+        let worker_migration_file = std::env::var("HODEI_DB_WORKER_MIGRATION")
+            .unwrap_or_else(|_| "20241201_workers.sql".to_string());
+
+        let job_migration_file = std::env::var("HODEI_DB_JOB_MIGRATION")
+            .unwrap_or_else(|_| "20241201_jobs.sql".to_string());
+
+        let pipeline_migration_file = std::env::var("HODEI_DB_PIPELINE_MIGRATION")
+            .unwrap_or_else(|_| "20241201_pipelines.sql".to_string());
+
+        let pipeline_execution_migration_file =
+            std::env::var("HODEI_DB_PIPELINE_EXECUTION_MIGRATION")
+                .unwrap_or_else(|_| "20241201_pipeline_executions.sql".to_string());
+
         Ok(Self {
             url,
             max_connections,
             connection_timeout_ms,
+            migrations_path,
+            worker_migration_file,
+            job_migration_file,
+            pipeline_migration_file,
+            pipeline_execution_migration_file,
         })
     }
 

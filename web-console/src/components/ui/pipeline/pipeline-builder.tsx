@@ -60,7 +60,7 @@ export function PipelineBuilder({
       ? initialTasks
       : [
         {
-          id: `task-${Date.now()}`,
+          id: crypto.randomUUID(),
           name: 'Nueva Tarea',
           type: 'extract',
           status: 'pending',
@@ -96,7 +96,7 @@ export function PipelineBuilder({
 
   const addTask = () => {
     const newTask: PipelineTask = {
-      id: `task-${Date.now()}`,
+      id: crypto.randomUUID(),
       name: `Nueva Tarea ${tasks.length + 1}`,
       type: 'extract',
       status: 'pending',

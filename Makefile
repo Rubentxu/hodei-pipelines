@@ -16,14 +16,24 @@ SCRIPT_VCLUSTER := testkube/scripts/setup-vcluster-testkube.sh
 SCRIPT_MANIFEST := scripts/generate_clean_manifest.sh
 SCRIPT_RUN_TESTS := ./run-tests.sh
 SCRIPT_CLEANUP := ./cleanup-tests.sh
+SCRIPT_DEV_START := scripts/dev-start.sh
 
-.PHONY: help test test-singleton test-integration test-all clean-tests clean-containers clean-all build push deploy test-helm test-e2e setup-dev manifest validate-api gen-types check-contract test-contract clean
+.PHONY: help test test-singleton test-integration test-all clean-tests clean-containers clean-all build push deploy test-helm test-e2e setup-dev manifest validate-api gen-types check-contract test-contract clean dev-full dev-services dev-backend dev-web dev-stop dev-logs dev-status
 
 # Default target
 help: ## Show this help message
-	@echo "Hodei Pipelines Makefile - Optimized with Singleton Container Pattern"
+	@echo "Hodei Pipelines Makefile - Complete Development Environment"
 	@echo ""
 	@echo "Usage: make [target]"
+	@echo ""
+	@echo "🚀 DESARROLLO COMPLETO:"
+	@echo "  dev-full                Levantar entorno completo (servicios + backend + web)"
+	@echo "  dev-services            Levantar solo servicios (PostgreSQL + Redis)"
+	@echo "  dev-backend             Levantar backend (requiere servicios activos)"
+	@echo "  dev-web                 Levantar web console (requiere backend activo)"
+	@echo "  dev-stop                Detener todos los servicios"
+	@echo "  dev-logs                Ver logs de desarrollo"
+	@echo "  dev-status              Estado de servicios"
 	@echo ""
 	@echo "🎯 INTEGRATION TESTS (Recommended):"
 	@echo "  test-singleton          Run singleton container tests (95% less memory)"
@@ -140,6 +150,55 @@ setup-dev: ## Setup local vcluster environment with Testkube
 manifest: ## Generate CODE_MANIFEST.csv
 	@echo "Generating CODE_MANIFEST.csv..."
 	@bash $(SCRIPT_MANIFEST)
+
+# =============================================================================
+# 🐳 Docker Compose Development Environment
+# =============================================================================
+
+dev-services: ## Start only third-party services (PostgreSQL + Redis)
+	@echo "🚀 Starting third-party services..."
+	@bash $(SCRIPT_DEV_START) --services
+	@echo ""
+	@echo "✅ Database schema automatically initialized!"
+
+dev-backend: ## Start backend (requires services running)
+	@echo "🚀 Starting backend services..."
+	@bash $(SCRIPT_DEV_START) --backend
+
+dev-web: ## Start web console (requires backend running)
+	@echo "🚀 Starting web console..."
+	@bash $(SCRIPT_DEV_START) --web
+
+dev-full: ## Start complete development environment
+	@echo "🚀 Starting complete development environment..."
+	@bash $(SCRIPT_DEV_START) --full
+
+dev-stop: ## Stop all development services
+	@echo "🛑 Stopping all services..."
+	@bash $(SCRIPT_DEV_START) --stop
+
+dev-logs: ## Show development logs
+	@echo "📝 Available logs:"
+	@echo "  Backend:  tail -f server.log"
+	@echo "  Agent:    tail -f agent.log"
+	@echo "  Web:      tail -f web.log"
+	@echo "  Services: docker compose -f docker-compose.dev.yml logs -f postgres"
+
+dev-status: ## Show status of all development services
+	@echo "📊 Development Environment Status:"
+	@echo ""
+	@echo "🐳 Docker Services:"
+	@docker compose -f docker-compose.dev.yml ps
+	@echo ""
+	@echo "🔧 Local Services:"
+	@echo "  Backend Server:  $$(lsof -Pi :8080 -sTCP:LISTEN 2>/dev/null | wc -l) processes"
+	@echo "  gRPC Server:     $$(lsof -Pi :50051 -sTCP:LISTEN 2>/dev/null | wc -l) processes"
+	@echo "  Web Console:     $$(lsof -Pi :5173 -sTCP:LISTEN 2>/dev/null | wc -l) processes"
+
+# Legacy aliases
+dev: dev-full
+dev-up: dev-services
+dev-down: dev-stop
 
 # =============================================================================
 # API Contract Validation

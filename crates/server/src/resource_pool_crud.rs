@@ -441,16 +441,13 @@ pub async fn update_pool_patch_handler(
 /// Routes use "worker-pools" for consistency with frontend (US-10.2)
 pub fn resource_pool_crud_routes() -> Router<ResourcePoolCrudAppState> {
     Router::new()
-        .route("/worker-pools", get(list_pools_handler))
-        .route("/worker-pools", post(create_pool_handler))
-        .route("/worker-pools/{pool_id}", get(get_pool_handler))
-        .route("/worker-pools/{pool_id}", put(update_pool_put_handler))
-        .route("/worker-pools/{pool_id}", patch(update_pool_patch_handler))
-        .route("/worker-pools/{pool_id}", delete(delete_pool_handler))
-        .route(
-            "/worker-pools/{pool_id}/status",
-            get(get_pool_status_handler),
-        )
+        .route("/", get(list_pools_handler))
+        .route("/", post(create_pool_handler))
+        .route("/{pool_id}", get(get_pool_handler))
+        .route("/{pool_id}", put(update_pool_put_handler))
+        .route("/{pool_id}", patch(update_pool_patch_handler))
+        .route("/{pool_id}", delete(delete_pool_handler))
+        .route("/{pool_id}/status", get(get_pool_status_handler))
 }
 
 #[cfg(test)]

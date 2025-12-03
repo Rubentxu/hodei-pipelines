@@ -1,0 +1,57 @@
+# ========================================
+# Docker Compose para Servicios de Terceros
+# Solo PostgreSQL - Backend y Web se ejecutan con cargo/npm
+# ========================================
+
+services:
+  # ========================================
+  # Base de Datos PostgreSQL
+  # ========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: hodei-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hodei
+      POSTGRES_PASSWORD: hodei_password_2024
+      POSTGRES_DB: hodei_jobs
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hodei"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hodei-dev-network
+
+  # ========================================
+  # Redis (Opcional - para cache)
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: hodei-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - hodei-dev-network
+    profiles:
+      - with-redis
+
+# ========================================
+# Volumes Persistentes
+# ========================================
+volumes:
+  postgres_data_dev:
+    driver: local
+
+# ========================================
+# Network
+# ========================================
+networks:
+  hodei-dev-network:
+    driver: bridge

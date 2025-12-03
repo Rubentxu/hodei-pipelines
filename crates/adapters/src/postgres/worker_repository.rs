@@ -20,54 +20,173 @@ const DEFAULT_WORKER_CAPABILITIES: (u32, u64) = (4, 8192);
 #[derive(Debug)]
 pub struct PostgreSqlWorkerRepository {
     pool: PgPool,
+    migrations_path: Option<String>,
+    migration_file: String,
 }
 
 impl PostgreSqlWorkerRepository {
     /// Create a new PostgreSQL worker repository
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(pool: PgPool, migrations_path: Option<String>, migration_file: String) -> Self {
+        Self {
+            pool,
+            migrations_path,
+            migration_file,
+        }
     }
 
     /// Initialize database schema for workers
     pub async fn init_schema(&self) -> Result<()> {
-        info!("Initializing worker schema");
+        info!("Initializing worker schema from migration file");
 
-        // Create workers table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS workers (
-                worker_id UUID PRIMARY KEY,
-                name TEXT NOT NULL,
-                status TEXT NOT NULL,
-                capabilities JSONB NOT NULL DEFAULT '{}'::jsonb,
-                metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-                current_jobs JSONB NOT NULL DEFAULT '[]'::jsonb,
-                last_heartbeat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                tenant_id TEXT NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-        "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            DomainError::Infrastructure(format!("Failed to create workers table: {}", e))
-        })?;
+        // Load migration SQL
+        let migration_sql = self.load_migration_sql()?;
 
-        // Create index for faster lookups
-        sqlx::query(
-            r#"
-            CREATE INDEX IF NOT EXISTS idx_workers_status
-            ON workers(status)
-        "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to create index: {}", e)))?;
+        // Parse and execute individual SQL statements
+        let statements = Self::parse_sql_statements(&migration_sql)?;
+
+        for stmt in statements {
+            sqlx::query(&stmt).execute(&self.pool).await.map_err(|e| {
+                DomainError::Infrastructure(format!(
+                    "Failed to execute worker migration: {}\nStatement: {}",
+                    e,
+                    stmt.lines().take(3).collect::<Vec<_>>().join(" ")
+                ))
+            })?;
+        }
 
         info!("Worker schema initialized successfully");
         Ok(())
+    }
+
+    /// Parse SQL file into individual executable statements
+    fn parse_sql_statements(sql: &str) -> Result<Vec<String>> {
+        let mut statements = Vec::new();
+        let mut current_stmt = String::new();
+        let mut chars = sql.chars().peekable();
+        let mut in_block_comment = false;
+        let mut in_line_comment = false;
+        let mut in_dollar_quote = false;
+        let mut dollar_quote_tag = String::new();
+        let mut paren_depth = 0;
+
+        while let Some(ch) = chars.next() {
+            // Handle block comments
+            if !in_line_comment && !in_dollar_quote {
+                if ch == '/' && chars.peek() == Some(&'*') {
+                    in_block_comment = true;
+                    chars.next(); // consume '*'
+                    continue;
+                }
+                if ch == '*' && chars.peek() == Some(&'/') {
+                    in_block_comment = false;
+                    chars.next(); // consume '/'
+                    continue;
+                }
+            }
+
+            // Handle line comments
+            if !in_block_comment && !in_dollar_quote {
+                if ch == '-' && chars.peek() == Some(&'-') {
+                    in_line_comment = true;
+                    // Skip to end of line
+                    while let Some(&next_ch) = chars.peek() {
+                        if next_ch == '\n' {
+                            break;
+                        }
+                        chars.next();
+                    }
+                    continue;
+                }
+            }
+
+            // Handle dollar-quoted strings
+            if ch == '$' && !in_block_comment && !in_line_comment {
+                let mut tag = String::new();
+                tag.push('$');
+
+                // Collect the tag
+                while let Some(&next_ch) = chars.peek() {
+                    if next_ch == '$' {
+                        tag.push('$');
+                        chars.next(); // consume closing $
+                        break;
+                    } else if next_ch == '\n' {
+                        // Invalid dollar quote, treat as regular $
+                        break;
+                    } else {
+                        tag.push(next_ch);
+                        chars.next();
+                    }
+                }
+
+                if !in_dollar_quote {
+                    // Start of dollar quote
+                    in_dollar_quote = true;
+                    dollar_quote_tag = tag.clone();
+                    current_stmt.push_str(&tag);
+                    continue;
+                } else if tag == dollar_quote_tag {
+                    // End of dollar quote
+                    in_dollar_quote = false;
+                    current_stmt.push_str(&tag);
+                    dollar_quote_tag.clear();
+                    continue;
+                }
+            }
+
+            if in_block_comment || in_line_comment {
+                continue;
+            }
+
+            // Track parentheses depth
+            if ch == '(' {
+                paren_depth += 1;
+            } else if ch == ')' {
+                if paren_depth > 0 {
+                    paren_depth -= 1;
+                }
+            }
+
+            // Accumulate character
+            current_stmt.push(ch);
+
+            // Check for statement end (semicolon not inside quotes, comments, or parentheses)
+            if ch == ';' && !in_dollar_quote && paren_depth == 0 {
+                let stmt = current_stmt.trim();
+                if !stmt.is_empty() {
+                    statements.push(stmt.to_string());
+                }
+                current_stmt = String::new();
+            }
+        }
+
+        Ok(statements)
+    }
+
+    /// Load migration SQL from file or use embedded fallback
+    fn load_migration_sql(&self) -> Result<String> {
+        if let Some(custom_path) = &self.migrations_path {
+            let path = format!("{}/{}", custom_path, self.migration_file);
+            let sql = std::fs::read_to_string(&path).map_err(|e| {
+                DomainError::Infrastructure(format!(
+                    "Failed to load migration file from custom path {}: {}",
+                    path, e
+                ))
+            })?;
+            info!("Loaded worker migration from custom path: {}", path);
+            return Ok(sql);
+        }
+
+        // Use embedded SQL for the configured migration file
+        match self.migration_file.as_str() {
+            "20241201_workers.sql" => {
+                Ok(include_str!("../../migrations/20241201_workers.sql").to_string())
+            }
+            other => Err(DomainError::Infrastructure(format!(
+                "Unknown worker migration file: {}. Expected one of: 20241201_workers.sql",
+                other
+            ))),
+        }
     }
 
     /// Deserialize a Worker from a SQL row

@@ -68,14 +68,65 @@ pub async fn initialize_server() -> Result<ServerComponents> {
         })?;
     info!("✅ PostgreSQL connection pool initialized");
 
-    let execution_repo = PostgreSqlPipelineExecutionRepository::new(pool.clone());
-    let job_repo = PostgreSqlJobRepository::new(pool.clone());
-    let pipeline_repo = PostgreSqlPipelineRepository::new(pool.clone());
-    let worker_repo = Arc::new(PostgreSqlWorkerRepository::new(pool.clone()));
+    // Initialize repositories with migration file configuration
+    let migrations_path = config.database.migrations_path.clone();
+    let execution_repo = PostgreSqlPipelineExecutionRepository::new(
+        pool.clone(),
+        migrations_path.clone(),
+        config.database.pipeline_execution_migration_file.clone(),
+    );
+    let job_repo = PostgreSqlJobRepository::new(
+        pool.clone(),
+        migrations_path.clone(),
+        config.database.job_migration_file.clone(),
+    );
+    let pipeline_repo = PostgreSqlPipelineRepository::new(
+        pool.clone(),
+        migrations_path.clone(),
+        config.database.pipeline_migration_file.clone(),
+    );
+    let worker_repo = Arc::new(PostgreSqlWorkerRepository::new(
+        pool.clone(),
+        migrations_path,
+        config.database.worker_migration_file.clone(),
+    ));
 
     let role_repository = Arc::new(PostgreSqlRoleRepository::new(pool.clone()));
     let permission_repository = Arc::new(PostgreSqlPermissionRepository::new(pool.clone()));
-    info!("✅ RBAC Repositories initialized");
+
+    // Initialize database schemas for all repositories
+    info!("🗄️  Initializing database schemas...");
+    execution_repo.init_schema().await.map_err(|e| {
+        error!("❌ Failed to initialize pipeline execution schema: {}", e);
+        BootstrapError::General(anyhow::anyhow!(
+            "Failed to initialize pipeline execution schema: {}",
+            e
+        ))
+    })?;
+    info!("   ✅ Pipeline execution schema initialized");
+
+    job_repo.init_schema().await.map_err(|e| {
+        error!("❌ Failed to initialize job schema: {}", e);
+        BootstrapError::General(anyhow::anyhow!("Failed to initialize job schema: {}", e))
+    })?;
+    info!("   ✅ Job schema initialized");
+
+    pipeline_repo.init_schema().await.map_err(|e| {
+        error!("❌ Failed to initialize pipeline schema: {}", e);
+        BootstrapError::General(anyhow::anyhow!(
+            "Failed to initialize pipeline schema: {}",
+            e
+        ))
+    })?;
+    info!("   ✅ Pipeline schema initialized");
+
+    worker_repo.init_schema().await.map_err(|e| {
+        error!("❌ Failed to initialize worker schema: {}", e);
+        BootstrapError::General(anyhow::anyhow!("Failed to initialize worker schema: {}", e))
+    })?;
+    info!("   ✅ Worker schema initialized");
+
+    info!("✅ All dynamic schema repositories initialized");
 
     let metrics_repository = Arc::new(MetricsTimeseriesRepository::new(pool.clone()));
     info!("✅ Metrics TSDB Repository initialized");

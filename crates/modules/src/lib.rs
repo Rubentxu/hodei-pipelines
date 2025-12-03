@@ -9,6 +9,7 @@ pub mod burst_capacity_manager;
 pub mod cooldown_management;
 pub mod cost_optimization;
 pub mod cost_tracking;
+pub mod global_resource_controller;
 pub mod log_persistence;
 pub mod metrics_collection;
 pub mod multi_tenancy_quota_manager;
@@ -55,6 +56,9 @@ pub use crate::cost_optimization::{
 pub use crate::cost_tracking::{
     CostAlert, CostAlertType, CostAlerts, CostReportingPeriod, CostSummary, CostTrackingError,
     CostTrackingService, JobCost, WorkerCost,
+};
+pub use crate::global_resource_controller::{
+    GRCConfig, GlobalResourceController, ResourceControllerMetrics,
 };
 pub use crate::metrics_collection::{
     AggregatedMetric, AggregationWindow, MetricType, MetricValue, MetricsCollector, MetricsConfig,

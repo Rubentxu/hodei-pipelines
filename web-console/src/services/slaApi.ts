@@ -13,7 +13,7 @@ export interface SLAViolationsResponse {
 }
 
 export async function getSLAViolations(): Promise<SLAViolationsResponse> {
-  const response = await fetch('/api/observability/sla/violations');
+  const response = await fetch('/api/v1/observability/sla/violations');
 
   if (!response.ok) {
     throw new Error('Failed to fetch SLA violations');
@@ -25,7 +25,7 @@ export async function getSLAViolations(): Promise<SLAViolationsResponse> {
 export async function subscribeToSLAViolations(
   callback: (violations: SLAViolation[]) => void
 ): Promise<() => void> {
-  const eventSource = new EventSource('/api/observability/sla/violations/stream');
+  const eventSource = new EventSource('/api/v1/observability/sla/violations/stream');
 
   eventSource.onmessage = (event) => {
     try {

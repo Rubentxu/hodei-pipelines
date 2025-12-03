@@ -8,6 +8,7 @@ pub mod correlation;
 pub mod domain_services;
 pub mod error;
 pub mod events;
+pub mod global_resource_controller;
 pub mod health_checks;
 pub mod job;
 pub mod job_definitions;
@@ -18,6 +19,7 @@ pub mod pipeline_execution;
 pub mod pipeline_step_specifications;
 pub mod projections;
 pub mod queueing;
+pub mod resource_governance;
 pub mod security;
 pub mod specifications;
 pub mod worker;
@@ -33,6 +35,9 @@ pub use uuid::{Uuid, uuid};
 
 // Re-export all types for easy importing
 pub use crate::correlation::{CorrelationId, TraceContext};
+pub use crate::global_resource_controller::{
+    AllocationResult, GRCConfig, GRCMetrics, GlobalResourceController, PoolSelectionResult,
+};
 pub use crate::health_checks::{HealthCheck, HealthStatus};
 pub use crate::job::Job;
 pub use crate::job_definitions::{ExecResult, JobId, JobSpec, JobState, ResourceQuota};
@@ -40,6 +45,10 @@ pub use crate::pipeline::{Pipeline, PipelineId, PipelineStatus};
 pub use crate::pipeline_execution::{
     ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionId,
     StepExecutionStatus,
+};
+pub use crate::resource_governance::{
+    ComputePool, CostConfig, PoolCapacity, PoolId, PoolStatus, ProviderType, RequestId,
+    ResourceRequest, TenantQuota,
 };
 pub use crate::worker::Worker;
 pub use crate::worker_messages::{

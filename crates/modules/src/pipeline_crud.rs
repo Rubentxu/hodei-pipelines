@@ -117,7 +117,9 @@ where
 
         // Publish event
         self.event_bus
-            .publish(hodei_pipelines_ports::SystemEvent::PipelineCreated(pipeline.clone()))
+            .publish(hodei_pipelines_ports::SystemEvent::PipelineCreated(
+                pipeline.clone(),
+            ))
             .await
             .map_err(|e| PipelineCrudError::DomainError(e.to_string()))?;
 
@@ -511,6 +513,10 @@ where
             .name(step_request.name)
             .job_spec(job_spec);
 
+        if let Some(id) = step_request.id {
+            step_builder = step_builder.id(PipelineStepId::from_uuid(id));
+        }
+
         // Add timeout if provided
         if let Some(timeout_ms) = step_request.timeout_ms {
             step_builder = step_builder.timeout(timeout_ms);
@@ -546,6 +552,7 @@ pub struct CreatePipelineRequest {
 /// Request to create a pipeline step
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePipelineStepRequest {
+    pub id: Option<uuid::Uuid>,
     pub name: String,
     pub image: String,
     pub command: Vec<String>,

@@ -5,7 +5,7 @@ import { cn } from '@/utils/cn';
 interface Node {
   id: string;
   name: string;
-  type: 'master' | 'worker' | 'storage';
+  type: 'master' | 'worker' | 'storage' | 'control_plane';
   status: 'healthy' | 'warning' | 'critical';
   cpuUsage?: number;
   memoryUsage?: number;
@@ -37,6 +37,11 @@ const nodeTypeConfig = {
     size: 50,
     color: 'fill-nebula-accent-cyan',
     label: 'Storage',
+  },
+  control_plane: {
+    size: 60,
+    color: 'fill-nebula-accent-blue',
+    label: 'Control Plane',
   },
 };
 
@@ -81,7 +86,7 @@ export function ClusterTopologyMap({
     };
   };
 
-  const masterNodes = nodes.filter(n => n.type === 'master');
+  const masterNodes = nodes.filter(n => n.type === 'master' || n.type === 'control_plane');
   const workerNodes = nodes.filter(n => n.type === 'worker');
 
   const positionedNodes = nodes.map((node, index) => {
@@ -141,7 +146,7 @@ export function ClusterTopologyMap({
                   y2={targetNode.y}
                   stroke="var(--nebula-surface-secondary)"
                   strokeWidth="2"
-                  strokeDasharray={sourceNode.type === 'master' ? '5,5' : 'none'}
+                  strokeDasharray={sourceNode.type === 'master' || sourceNode.type === 'control_plane' ? '5,5' : 'none'}
                   opacity="0.6"
                 />
               );
@@ -207,7 +212,7 @@ export function ClusterTopologyMap({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {['master', 'worker', 'storage'].map((type) => {
+          {['control_plane', 'worker', 'storage'].map((type) => {
             const config = nodeTypeConfig[type as keyof typeof nodeTypeConfig];
             return (
               <div key={type} className="flex items-center gap-2 text-xs">

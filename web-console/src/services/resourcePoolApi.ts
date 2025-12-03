@@ -46,7 +46,7 @@ export interface ResourcePoolStatus {
  * @throws Error if the fetch operation fails
  */
 export async function getResourcePools(): Promise<ResourcePool[]> {
-  const response = await fetch('/api/v1/worker-pools');
+  const response = await fetch('/api/v1/resource-pools');
 
   if (!response.ok) {
     throw new Error('Failed to fetch resource pools');
@@ -62,7 +62,7 @@ export async function getResourcePools(): Promise<ResourcePool[]> {
  * @throws Error if the pool is not found or fetch fails
  */
 export async function getResourcePool(id: string): Promise<ResourcePool> {
-  const response = await fetch(`/api/v1/worker-pools/${id}`);
+  const response = await fetch(`/api/v1/resource-pools/${id}`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch resource pool');
@@ -85,7 +85,7 @@ export async function createResourcePool(
     throw new Error('min_size cannot be greater than max_size');
   }
 
-  const response = await fetch('/api/v1/worker-pools', {
+  const response = await fetch('/api/v1/resource-pools', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -127,7 +127,7 @@ export async function updateResourcePool(
     }
   }
 
-  const response = await fetch(`/api/v1/worker-pools/${id}`, {
+  const response = await fetch(`/api/v1/resource-pools/${id}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ export async function updateResourcePool(
  * @throws Error if the pool is not found or deletion fails
  */
 export async function deleteResourcePool(id: string): Promise<void> {
-  const response = await fetch(`/api/v1/worker-pools/${id}`, {
+  const response = await fetch(`/api/v1/resource-pools/${id}`, {
     method: 'DELETE',
   });
 
@@ -165,7 +165,7 @@ export async function deleteResourcePool(id: string): Promise<void> {
  * @throws Error if status is not found or fetch fails
  */
 export async function getResourcePoolStatus(id: string): Promise<ResourcePoolStatus> {
-  const response = await fetch(`/api/v1/worker-pools/${id}/status`);
+  const response = await fetch(`/api/v1/resource-pools/${id}/status`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch pool status');

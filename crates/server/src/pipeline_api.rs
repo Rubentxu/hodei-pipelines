@@ -71,6 +71,7 @@ pub async fn create_pipeline_handler(
             .steps
             .into_iter()
             .map(|s| CreatePipelineStepRequest {
+                id: s.id,
                 name: s.name,
                 image: s.job_spec.image,
                 command: s.job_spec.command,
@@ -206,6 +207,7 @@ pub async fn update_pipeline_handler(
             steps
                 .into_iter()
                 .map(|s| CreatePipelineStepRequest {
+                    id: s.id,
                     name: s.name,
                     image: s.job_spec.image,
                     command: s.job_spec.command,

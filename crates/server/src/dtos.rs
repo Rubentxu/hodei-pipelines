@@ -219,6 +219,7 @@ pub struct CreatePipelineRequestDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreatePipelineStepRequestDto {
+    pub id: Option<Uuid>,
     pub name: String,
     pub job_spec: JobSpecDto,
     pub dependencies: Vec<Uuid>,
@@ -455,6 +456,7 @@ impl From<ResourcePoolTypeDto> for hodei_pipelines_ports::resource_pool::Resourc
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ResourcePoolConfigDto {
     pub pool_type: ResourcePoolTypeDto,
     pub name: String,
@@ -480,6 +482,7 @@ impl From<hodei_pipelines_ports::resource_pool::ResourcePoolConfig> for Resource
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ResourcePoolStatusDto {
     pub name: String,
     pub pool_type: ResourcePoolTypeDto,
@@ -503,6 +506,7 @@ impl From<hodei_pipelines_ports::resource_pool::ResourcePoolStatus> for Resource
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CreatePoolRequestDto {
     pub pool_type: ResourcePoolTypeDto,
     pub name: String,
@@ -514,6 +518,7 @@ pub struct CreatePoolRequestDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdatePoolRequestDto {
     pub name: Option<String>,
     pub min_size: Option<u32>,
@@ -522,6 +527,7 @@ pub struct UpdatePoolRequestDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ResourcePoolResponseDto {
     pub id: String,
     pub config: ResourcePoolConfigDto,

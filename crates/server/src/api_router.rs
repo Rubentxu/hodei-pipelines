@@ -230,7 +230,7 @@ pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
                 .nest("/executions", logs_api_routes(logs_state))
                 // Resource Pool CRUD routes (EPIC-10: US-10.1, US-10.2)
                 .nest(
-                    "/worker-pools",
+                    "/resource-pools",
                     resource_pool_crud_routes().with_state(resource_pool_state),
                 )
                 // Dashboard Metrics API (US-011)
