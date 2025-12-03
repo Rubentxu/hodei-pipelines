@@ -7,6 +7,10 @@ pub use state_machine::{SchedulingContext, SchedulingState, SchedulingStateMachi
 use crossbeam::queue::SegQueue;
 use crossbeam::utils::CachePadded;
 use dashmap::DashMap;
+use hodei_pipelines_core::resource_governance::{
+    ComputePool, GRCConfig, GlobalResourceController, PoolCapacity, PoolId, ProviderType,
+    ResourceRequest,
+};
 use hodei_pipelines_core::{
     DomainError, Job, JobId, JobState, Result, Worker, WorkerCapabilities, WorkerId,
 };
@@ -224,6 +228,7 @@ where
     pub(crate) config: SchedulerConfig,
     pub(crate) queue: Arc<LockFreePriorityQueue>,
     pub(crate) cluster_state: Arc<ClusterState>,
+    pub global_resource_controller: Option<Arc<GlobalResourceController>>,
     pub burst_capacity_manager: Option<burst_capacity_manager::BurstCapacityManager>,
     pub cooldown_management: Option<cooldown_management::AdvancedCooldownManager>,
     pub cost_optimization: Option<cost_optimization::CostOptimizationEngine>,
@@ -271,6 +276,7 @@ where
     worker_client: Option<Arc<W>>,
     worker_repo: Option<Arc<WR>>,
     config: Option<SchedulerConfig>,
+    pub global_resource_controller: Option<Arc<GlobalResourceController>>,
     pub burst_capacity_manager: Option<burst_capacity_manager::BurstCapacityManager>,
     pub cooldown_management: Option<cooldown_management::AdvancedCooldownManager>,
     pub cost_optimization: Option<cost_optimization::CostOptimizationEngine>,
@@ -358,6 +364,11 @@ where
         self
     }
 
+    pub fn global_resource_controller(mut self, grc: Arc<GlobalResourceController>) -> Self {
+        self.global_resource_controller = Some(grc);
+        self
+    }
+
     pub fn build(self) -> Result<SchedulerModule<R, E, W, WR>> {
         let job_repo = self.job_repo.ok_or_else(|| {
             hodei_pipelines_core::DomainError::Infrastructure("job_repository is required".into())
@@ -388,6 +399,7 @@ where
             config,
             queue: Arc::new(LockFreePriorityQueue::new(max_queue_size)),
             cluster_state: Arc::new(ClusterState::new()),
+            global_resource_controller: self.global_resource_controller,
             burst_capacity_manager: self.burst_capacity_manager,
             cooldown_management: self.cooldown_management,
             cost_optimization: self.cost_optimization,
@@ -440,6 +452,7 @@ where
             config,
             queue: Arc::new(LockFreePriorityQueue::new(max_queue_size)),
             cluster_state: Arc::new(ClusterState::new()),
+            global_resource_controller: None,
             burst_capacity_manager: None,
             cooldown_management: None,
             cost_optimization: None,
@@ -1027,6 +1040,72 @@ where
         Ok(())
     }
 
+    /// Convert Job to ResourceRequest for GRC
+    pub fn job_to_resource_request(&self, job: &Job, tenant_id: Option<String>) -> ResourceRequest {
+        ResourceRequest::builder()
+            .request_id(job.id.into())
+            .cpu_millicores(job.spec.resources.cpu_m)
+            .memory_mb(job.spec.resources.memory_mb)
+            .gpu_count(job.spec.resources.gpu)
+            .tenant_id(tenant_id.unwrap_or_else(|| "default".to_string()))
+            .priority(5)
+            .build()
+            .expect("Failed to build ResourceRequest from Job")
+    }
+
+    /// Find eligible compute pools using GRC
+    pub async fn find_eligible_pools(&self, job: &Job) -> Result<Vec<ComputePool>> {
+        if let Some(grc) = &self.global_resource_controller {
+            let resource_request = self.job_to_resource_request(job, None);
+            let pools = grc.find_candidate_pools(&resource_request);
+
+            // Extract pools from candidates and get full pool details
+            let pool_ids: Vec<PoolId> = pools.into_iter().map(|(id, _)| id).collect();
+
+            let all_pools = grc.get_all_pools();
+            let eligible_pools: Vec<ComputePool> = all_pools
+                .into_iter()
+                .filter(|pool| pool_ids.contains(&pool.id))
+                .collect();
+
+            Ok(eligible_pools)
+        } else {
+            // Fallback to old behavior when GRC is not available
+            Ok(vec![])
+        }
+    }
+
+    /// Allocate resources using GRC before scheduling
+    pub async fn allocate_resources_for_job(&self, job: &Job, pool_id: PoolId) -> Result<()> {
+        if let Some(grc) = &self.global_resource_controller {
+            let resource_request = self.job_to_resource_request(job, None);
+            let allocation_id = format!("job-{}-alloc", job.id);
+
+            let allocation_result = grc.allocate_with_quota_check(
+                allocation_id,
+                pool_id,
+                resource_request,
+            );
+
+            match allocation_result {
+                Ok(_) => {
+                    info!("Successfully allocated resources for job {} on pool {}", job.id, pool_id);
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("Failed to allocate resources for job {}: {}", job.id, e);
+                    Err(DomainError::Infrastructure(format!(
+                        "Resource allocation failed for job {}: {}",
+                        job.id, e
+                    )))
+                }
+            }
+        } else {
+            // Skip allocation when GRC is not available
+            Ok(())
+        }
+    }
+
     /// Handle job result from worker
     /// Updates job state and publishes completion event
     pub async fn handle_job_result(
@@ -1135,6 +1214,7 @@ where
             config: self.config.clone(),
             queue: self.queue.clone(),
             cluster_state: self.cluster_state.clone(),
+            global_resource_controller: self.global_resource_controller.clone(),
             burst_capacity_manager: self.burst_capacity_manager.clone(),
             cooldown_management: self.cooldown_management.clone(),
             cost_optimization: self.cost_optimization.clone(),
