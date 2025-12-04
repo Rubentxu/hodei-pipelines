@@ -4,8 +4,8 @@
 //! causing panics that can crash the server.
 
 use hodei_pipelines_adapters::InMemoryRoleRepository;
-use hodei_pipelines_core::security::{RoleEntity, RoleId};
-use hodei_pipelines_ports::rbac_repository::RoleRepository;
+use hodei_pipelines_domain::identity_access::value_objects::security::{RoleEntity, RoleId};
+use hodei_pipelines_ports::identity_access::rbac_repository::RoleRepository;
 use std::sync::Arc;
 use uuid::Uuid;
 

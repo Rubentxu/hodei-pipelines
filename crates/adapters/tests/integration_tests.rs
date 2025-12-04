@@ -2,8 +2,10 @@
 //!
 //! These tests verify the repository implementations work correctly.
 
-use hodei_pipelines_core::{Job, JobId, JobSpec, Worker, WorkerId};
-use hodei_pipelines_core::{ResourceQuota, WorkerCapabilities};
+use hodei_pipelines_domain::pipeline_execution::entities::job::{Job, JobId};
+use hodei_pipelines_domain::pipeline_execution::value_objects::job_definitions::{JobSpec, ResourceQuota};
+use hodei_pipelines_domain::scheduling::entities::worker::{Worker, WorkerId};
+use hodei_pipelines_domain::scheduling::entities::worker::WorkerCapabilities;
 use hodei_pipelines_ports::event_bus::SystemEvent;
 use std::collections::HashMap;
 

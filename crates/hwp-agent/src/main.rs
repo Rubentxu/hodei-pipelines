@@ -2,7 +2,7 @@
 //!
 //! This is the main binary for the HWP (Hodei Worker Protocol) agent.
 
-use hodei_pipelines_core::{Uuid, WorkerId};
+use hodei_pipelines_domain::{Uuid, WorkerId};
 use hwp_pipelines_agent::{Config, Result, connection, monitor};
 use tracing::{error, info, warn};
 

@@ -7,7 +7,10 @@ use std::collections::HashMap;
 use tracing::info;
 
 use hodei_pipelines_adapters::redb::RedbJobRepository;
-use hodei_pipelines_core::job::{Job, JobId, JobSpec, ResourceQuota};
+use hodei_pipelines_domain::pipeline_execution::entities::job::Job;
+use hodei_pipelines_domain::pipeline_execution::value_objects::job_definitions::{
+    JobId, JobSpec, ResourceQuota,
+};
 use hodei_pipelines_ports::JobRepository;
 
 fn init_tracing() {

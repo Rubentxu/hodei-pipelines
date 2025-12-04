@@ -8,12 +8,12 @@ use std::sync::{Arc, Mutex};
 use tracing::info;
 
 use hodei_pipelines_adapters::InMemoryBus;
-use hodei_pipelines_core::{
+use hodei_pipelines_domain::{
     Result,
-    job::ResourceQuota,
-    pipeline::{Pipeline, PipelineId, PipelineStatus},
+    pipeline_execution::entities::pipeline::{Pipeline, PipelineId, PipelineStatus},
+    pipeline_execution::value_objects::job_definitions::ResourceQuota,
 };
-use hodei_pipelines_modules::{PipelineCrudConfig, PipelineCrudService};
+use hodei_pipelines_application::pipeline_execution::pipeline_crud::{PipelineCrudConfig, PipelineCrudService};
 use hodei_pipelines_ports::{EventSubscriber, MockPipelineRepository};
 
 #[tokio::test]
@@ -72,11 +72,12 @@ async fn test_pipeline_crud_operations_mocked() -> Result<()> {
 
     // Test 1: Create a new pipeline
     info!("\n📝 Test 1: Create a new pipeline");
-    let create_request = hodei_pipelines_modules::pipeline_crud::CreatePipelineRequest {
+    let create_request = hodei_pipelines_application::pipeline_execution::pipeline_crud::CreatePipelineRequest {
         name: "test-pipeline-1".to_string(),
         description: Some("Test pipeline 1".to_string()),
         steps: vec![
-            hodei_pipelines_modules::pipeline_crud::CreatePipelineStepRequest {
+            hodei_pipelines_application::pipeline_execution::pipeline_crud::CreatePipelineStepRequest {
+                id: None,
                 name: "step-1".to_string(),
                 image: "rust:1.75".to_string(),
                 command: vec!["echo".to_string(), "Hello".to_string()],
@@ -117,7 +118,7 @@ async fn test_pipeline_crud_operations_mocked() -> Result<()> {
 
     // Test 4: Update pipeline
     info!("\n📝 Test 4: Update pipeline");
-    let update_request = hodei_pipelines_modules::pipeline_crud::UpdatePipelineRequest {
+    let update_request = hodei_pipelines_application::pipeline_execution::pipeline_crud::UpdatePipelineRequest {
         name: Some("updated-pipeline-name".to_string()),
         description: Some("Updated description".to_string()),
         steps: None,

@@ -129,6 +129,9 @@ pub struct DatabaseConfig {
 
     /// Filename for pipeline execution schema migration
     pub pipeline_execution_migration_file: String,
+
+    /// Path to Resource Pool Redb database file
+    pub resource_pool_db_path: String,
 }
 
 impl DatabaseConfig {
@@ -161,6 +164,9 @@ impl DatabaseConfig {
             std::env::var("HODEI_DB_PIPELINE_EXECUTION_MIGRATION")
                 .unwrap_or_else(|_| "20241201_pipeline_executions.sql".to_string());
 
+        let resource_pool_db_path = std::env::var("HODEI_RESOURCE_POOL_DB_PATH")
+            .unwrap_or_else(|_| "data/resource_pools.redb".to_string());
+
         Ok(Self {
             url,
             max_connections,
@@ -169,7 +175,9 @@ impl DatabaseConfig {
             worker_migration_file,
             job_migration_file,
             pipeline_migration_file,
+
             pipeline_execution_migration_file,
+            resource_pool_db_path,
         })
     }
 

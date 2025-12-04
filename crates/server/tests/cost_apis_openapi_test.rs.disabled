@@ -1,0 +1,296 @@
+//! Story 9: Complete OpenAPI Documentation for Cost APIs (US-API-ALIGN-009)
+//!
+//! Comprehensive tests to validate that all cost management and budget APIs
+//! have complete OpenAPI 3.0 documentation including:
+//! - Request/response schemas
+//! - HTTP status codes
+//! - Parameter documentation
+//! - Type safety with utoipa
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use hodei_server::api_docs::{ApiDoc, *};
+    // use hodei_server::budget_management::BudgetPeriod; // MODULE NOT IMPLEMENTED
+    use utoipa::OpenApi;
+
+    /// Test 1: Validate BudgetPeriod enum schema in OpenAPI
+    #[tokio::test]
+    async fn test_budget_period_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("BudgetPeriod"),
+            "BudgetPeriod should be in OpenAPI schemas"
+        );
+
+        println!("✅ BudgetPeriod schema defined");
+    }
+
+    /// Test 2: Validate AlertThreshold schema in OpenAPI
+    #[tokio::test]
+    async fn test_alert_threshold_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("AlertThreshold"),
+            "AlertThreshold should be in OpenAPI schemas"
+        );
+
+        println!("✅ AlertThreshold schema defined in OpenAPI");
+    }
+
+    /// Test 3: Validate Budget schema in OpenAPI
+    #[tokio::test]
+    async fn test_budget_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("Budget"),
+            "Budget should be in OpenAPI schemas"
+        );
+
+        println!("✅ Budget schema defined in OpenAPI");
+    }
+
+    /// Test 4: Validate BudgetAlert schema in OpenAPI
+    #[tokio::test]
+    async fn test_budget_alert_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("BudgetAlert"),
+            "BudgetAlert should be in OpenAPI schemas"
+        );
+
+        println!("✅ BudgetAlert schema defined in OpenAPI");
+    }
+
+    /// Test 5: Validate BudgetUsage schema in OpenAPI
+    #[tokio::test]
+    async fn test_budget_usage_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("BudgetUsage"),
+            "BudgetUsage should be in OpenAPI schemas"
+        );
+
+        println!("✅ BudgetUsage schema defined in OpenAPI");
+    }
+
+    /// Test 6: Validate Budget endpoints are documented
+    #[tokio::test]
+    async fn test_budget_endpoints_documented() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+
+        assert!(
+            openapi.paths.paths.contains_key("/api/v1/costs/budgets"),
+            "GET /api/v1/costs/budgets should be documented"
+        );
+
+        assert!(
+            openapi
+                .paths
+                .paths
+                .contains_key("/api/v1/costs/budgets/{id}"),
+            "GET /api/v1/costs/budgets/{{id}} should be documented"
+        );
+
+        assert!(
+            openapi.paths.paths.contains_key("/api/v1/costs/budgets"),
+            "POST /api/v1/costs/budgets should be documented"
+        );
+
+        println!("✅ All budget endpoints documented in OpenAPI");
+    }
+
+    /// Test 7: Validate Budget usage endpoint is documented
+    #[tokio::test]
+    async fn test_budget_usage_endpoint_documented() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+
+        assert!(
+            openapi
+                .paths
+                .paths
+                .contains_key("/api/v1/costs/budgets/usage/{tenant_id}"),
+            "GET /api/v1/costs/budgets/usage/{{tenant_id}} should be documented"
+        );
+
+        println!("✅ Budget usage endpoint documented in OpenAPI");
+    }
+
+    /// Test 8: Validate Budget alerts endpoint is documented
+    #[tokio::test]
+    async fn test_budget_alerts_endpoint_documented() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+
+        assert!(
+            openapi
+                .paths
+                .paths
+                .contains_key("/api/v1/costs/budgets/alerts/{tenant_id}"),
+            "GET /api/v1/costs/budgets/alerts/{{tenant_id}} should be documented"
+        );
+
+        println!("✅ Budget alerts endpoint documented in OpenAPI");
+    }
+
+    /// Test 9: Validate Budget alert check endpoint is documented
+    #[tokio::test]
+    async fn test_budget_alert_check_endpoint_documented() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+
+        assert!(
+            openapi
+                .paths
+                .paths
+                .contains_key("/api/v1/costs/budgets/check-alerts/{tenant_id}"),
+            "POST /api/v1/costs/budgets/check-alerts/{{tenant_id}} should be documented"
+        );
+
+        println!("✅ Budget alert check endpoint documented in OpenAPI");
+    }
+
+    /// Test 10: Validate CostSummary schema exists
+    #[tokio::test]
+    async fn test_cost_summary_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("CostSummary"),
+            "CostSummary should be in OpenAPI schemas"
+        );
+
+        println!("✅ CostSummary schema defined");
+    }
+
+    /// Test 11: Validate CostBreakdown schema exists
+    #[tokio::test]
+    async fn test_cost_breakdown_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("CostBreakdown"),
+            "CostBreakdown should be in OpenAPI schemas"
+        );
+
+        println!("✅ CostBreakdown schema defined");
+    }
+
+    /// Test 12: Validate CostTrend schema exists
+    #[tokio::test]
+    async fn test_cost_trend_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("CostTrend"),
+            "CostTrend should be in OpenAPI schemas"
+        );
+
+        println!("✅ CostTrend schema defined");
+    }
+
+    /// Test 13: Validate TenantCostBreakdown schema exists
+    #[tokio::test]
+    async fn test_tenant_cost_breakdown_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("TenantCostBreakdown"),
+            "TenantCostBreakdown should be in OpenAPI schemas"
+        );
+
+        println!("✅ TenantCostBreakdown schema defined");
+    }
+
+    /// Test 14: Validate Recommendation schema exists
+    #[tokio::test]
+    async fn test_recommendation_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("Recommendation"),
+            "Recommendation should be in OpenAPI schemas"
+        );
+
+        println!("✅ Recommendation schema defined");
+    }
+
+    /// Test 15: Validate OptimizationType enum schema exists
+    #[tokio::test]
+    async fn test_optimization_type_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("OptimizationType"),
+            "OptimizationType should be in OpenAPI schemas"
+        );
+
+        println!("✅ OptimizationType schema defined");
+    }
+
+    /// Test 16: Validate ResourceType enum schema exists
+    #[tokio::test]
+    async fn test_resource_type_schema() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+        let components = openapi.components.expect("OpenAPI should have components");
+        let schemas = components.schemas;
+
+        assert!(
+            schemas.contains_key("ResourceType"),
+            "ResourceType should be in OpenAPI schemas"
+        );
+
+        println!("✅ ResourceType schema defined");
+    }
+
+    /// Test 17: Validate serialization/deserialization for Budget DTOs
+    #[tokio::test]
+    async fn test_budget_dto_serialization() {
+        let budget_period = BudgetPeriod::Monthly;
+        let serialized = serde_json::to_string(&budget_period).unwrap();
+        let deserialized: BudgetPeriod = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(budget_period, deserialized);
+        println!("✅ BudgetPeriod serialization/deserialization works");
+    }
+
+    /// Test 18: Verify cost-management tag is used
+    #[tokio::test]
+    async fn test_cost_management_tag_usage() {
+        let openapi = <ApiDoc as OpenApi>::openapi();
+
+        let has_cost_tag = openapi.tags.as_ref().map_or(false, |tags| {
+            tags.iter().any(|tag| tag.name == "cost-management")
+        });
+
+        assert!(has_cost_tag, "cost-management tag should be defined");
+
+        println!("✅ cost-management tag is defined in OpenAPI");
+    }
+}

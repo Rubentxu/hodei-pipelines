@@ -11,7 +11,9 @@ use axum::{
     routing::get,
 };
 use futures::StreamExt;
-use hodei_pipelines_core::pipeline_execution::{ExecutionId, ExecutionStatus};
+use hodei_pipelines_domain::pipeline_execution::entities::execution::{
+    ExecutionId, ExecutionStatus,
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{RwLock, broadcast};
@@ -247,7 +249,7 @@ pub fn realtime_status_api_routes() -> Router<RealtimeStatusApiAppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_pipelines_core::pipeline_execution::ExecutionStatus;
+    use hodei_pipelines_domain::pipeline_execution::entities::execution::ExecutionStatus;
 
     #[tokio::test]
     async fn test_realtime_status_service_new() {

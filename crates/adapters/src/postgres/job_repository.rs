@@ -3,7 +3,7 @@
 //! Production-ready implementation for persisting and retrieving jobs.
 
 use async_trait::async_trait;
-use hodei_pipelines_core::{DomainError, Job, JobId, Result, WorkerId};
+use hodei_pipelines_domain::{DomainError, Job, JobId, Result, WorkerId};
 use hodei_pipelines_ports::JobRepository;
 use sqlx::{PgPool, Row};
 use tracing::info;
@@ -188,13 +188,13 @@ impl PostgreSqlJobRepository {
     ///
     /// This helper method centralizes the deserialization logic to avoid code duplication
     fn deserialize_job_from_row(&self, row: &sqlx::postgres::PgRow, job_id: JobId) -> Result<Job> {
-        let spec: hodei_pipelines_core::job::JobSpec = serde_json::from_value(row.get("spec"))
-            .map_err(|e| {
+        let spec: hodei_pipelines_domain::JobSpec =
+            serde_json::from_value(row.get("spec")).map_err(|e| {
                 DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
             })?;
 
         let state_str = row.get::<String, _>("state");
-        let state = hodei_pipelines_core::job::JobState::try_from_str(&state_str)
+        let state = hodei_pipelines_domain::JobState::try_from_str(&state_str)
             .map_err(|_| DomainError::Validation(format!("Invalid job state: {}", state_str)))?;
 
         Ok(Job {
@@ -410,7 +410,7 @@ impl JobRepository for PostgreSqlJobRepository {
         Ok(())
     }
 
-    async fn create_job(&self, job_spec: hodei_pipelines_core::job::JobSpec) -> Result<JobId> {
+    async fn create_job(&self, job_spec: hodei_pipelines_domain::JobSpec) -> Result<JobId> {
         let job_id = JobId::new();
         let job = Job::new(job_id, job_spec)?;
         self.save_job(&job).await?;
@@ -420,7 +420,7 @@ impl JobRepository for PostgreSqlJobRepository {
     async fn update_job_state(
         &self,
         job_id: &JobId,
-        state: hodei_pipelines_core::job::JobState,
+        state: hodei_pipelines_domain::JobState,
     ) -> Result<()> {
         sqlx::query(
             r#"

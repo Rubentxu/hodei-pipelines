@@ -3,9 +3,9 @@
 //! Este test verifica que los repositorios RBAC funcionen correctamente
 //! con PostgreSQL usando SQLx, aplicando TDD y patrones de diseño.
 
-use hodei_pipelines_core::{
+use hodei_pipelines_domain::{
     DomainError,
-    security::{PermissionEntity, PermissionId, RoleEntity, RoleId},
+    identity_access::value_objects::{PermissionEntity, PermissionId, RoleEntity, RoleId},
 };
 use hodei_pipelines_integration_tests::helpers::rbac_postgresql::{
     PostgreSQLRepositoryFactory, SqlxPermissionRepository, SqlxRoleRepository,

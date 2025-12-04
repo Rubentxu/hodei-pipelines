@@ -5,36 +5,31 @@
 pub mod bus;
 pub mod cached_repository;
 pub mod config;
-pub mod docker_provider;
 pub mod event_bus;
 pub mod extractors;
-pub mod kubernetes_provider;
-pub mod kubernetes_provider_tests;
-pub mod metrics;
-pub mod metrics_persistence_service;
-pub mod metrics_timeseries_repository;
+pub mod identity_access;
+pub mod observability;
+pub mod pipeline_execution;
 pub mod postgres;
-pub mod postgresql_rbac_repositories;
-pub mod provider_factory;
-pub mod rbac_repositories;
 pub mod redb;
+pub mod resource_governance;
+pub mod scheduling;
 pub mod security;
 pub mod websocket;
-pub mod worker_client;
-pub mod worker_registration;
 
 pub use crate::bus::config::{EventBusConfig, EventBusType, NatsConfig};
 pub use crate::bus::{EventBusFactory, InMemoryBus, InMemoryBusBuilder};
-pub use crate::cached_repository::{CacheStats, CachedJobRepository};
-pub use crate::docker_provider::DockerProvider;
-pub use crate::kubernetes_provider::KubernetesProvider;
-pub use crate::provider_factory::DefaultProviderFactory;
+pub use crate::redb::RedbJobRepository;
+pub use crate::resource_governance::RedbResourcePoolRepository;
+pub use crate::scheduling::docker_provider::DockerProvider;
+pub use crate::scheduling::kubernetes_provider::KubernetesProvider;
+pub use crate::scheduling::provider_factory::DefaultProviderFactory;
+pub use crate::scheduling::worker_client::{GrpcWorkerClient, HttpWorkerClient};
+pub use crate::scheduling::worker_registration::{RegistrationConfig, WorkerRegistrationAdapter};
 pub use crate::websocket::websocket_handler;
-pub use crate::worker_client::{GrpcWorkerClient, HttpWorkerClient};
-pub use crate::worker_registration::{RegistrationConfig, WorkerRegistrationAdapter};
 
 // Re-export types from hodei-pipelines-ports
-pub use hodei_pipelines_ports::worker_provider::{ProviderConfig, ProviderType};
+pub use hodei_pipelines_ports::scheduling::worker_provider::{ProviderConfig, ProviderType};
 
 // PostgreSQL implementations
 pub use crate::postgres::{
@@ -43,11 +38,17 @@ pub use crate::postgres::{
 };
 
 // RBAC repositories
-pub use crate::postgresql_rbac_repositories::{
+// RBAC repositories
+pub use crate::identity_access::postgresql_rbac_repositories::{
     PostgreSqlPermissionRepository, PostgreSqlRoleRepository,
 };
-pub use crate::rbac_repositories::{InMemoryPermissionRepository, InMemoryRoleRepository};
+pub use crate::identity_access::rbac_repositories::{
+    InMemoryPermissionRepository, InMemoryRoleRepository,
+};
 
 // Metrics TSDB repository
-pub use crate::metrics_persistence_service::{MetricsPersistenceConfig, MetricsPersistenceService};
-pub use crate::metrics_timeseries_repository::MetricsTimeseriesRepository;
+// Metrics TSDB repository
+pub use crate::observability::metrics_persistence_service::{
+    MetricsPersistenceConfig, MetricsPersistenceService,
+};
+pub use crate::observability::metrics_timeseries_repository::MetricsTimeseriesRepository;

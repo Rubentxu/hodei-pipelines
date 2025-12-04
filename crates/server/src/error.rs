@@ -3,7 +3,7 @@
 //! This module provides structured error types and mappings for gRPC services,
 //! ensuring consistent error handling across the system.
 
-use hodei_pipelines_core::{JobId, WorkerId};
+use hodei_pipelines_domain::{JobId, WorkerId};
 use hodei_pipelines_ports::scheduler_port::SchedulerError;
 use tonic::Status;
 use tracing::{error, warn};
@@ -110,7 +110,7 @@ impl From<GrpcError> for Status {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_pipelines_core::WorkerId;
+    use hodei_pipelines_domain::scheduling::entities::worker::WorkerId;
 
     #[test]
     fn test_worker_not_found_to_status() {

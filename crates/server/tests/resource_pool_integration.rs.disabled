@@ -1,0 +1,68 @@
+use hodei_pipelines_adapters::resource_governance::RedbResourcePoolRepository;
+use hodei_pipelines_domain::resource_governance::ProviderType;
+use hodei_server::dtos::{CreatePoolRequestDto, ResourcePoolTypeDto, ResourceQuotaDto};
+use hodei_server::resource_governance::api::ResourcePoolCrudService;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tempfile::NamedTempFile;
+use tokio::sync::RwLock;
+
+#[tokio::test]
+async fn test_resource_pool_persistence_flow() {
+    // 1. Setup Redb repository with a temporary file
+    let temp_file = NamedTempFile::new().unwrap();
+    let db_path = temp_file.path().to_str().unwrap().to_string();
+
+    let repo = RedbResourcePoolRepository::new_with_path(&db_path).unwrap();
+    repo.init_schema().await.unwrap();
+    let repo = Arc::new(repo);
+
+    // 2. Setup Service
+    let pool_statuses = Arc::new(RwLock::new(HashMap::new()));
+    let service = ResourcePoolCrudService::new(repo.clone(), pool_statuses);
+
+    // 3. Create a pool
+    let pool_name = "test-pool-persistence";
+    let create_dto = CreatePoolRequestDto {
+        name: pool_name.to_string(),
+        pool_type: ResourcePoolTypeDto::Docker,
+        provider_name: "docker-provider".to_string(),
+        min_size: 1,
+        max_size: 5,
+        default_resources: ResourceQuotaDto {
+            cpu_m: 1000,
+            memory_mb: 2048,
+            gpu: None,
+        },
+        tags: Some(
+            vec![("env".to_string(), "test".to_string())]
+                .into_iter()
+                .collect(),
+        ),
+    };
+
+    service.create_pool(create_dto).await.unwrap();
+
+    // 4. Get the pool
+    let retrieved = service.get_pool(pool_name).await.unwrap();
+    assert_eq!(retrieved.id, pool_name);
+    assert_eq!(retrieved.config.name, pool_name);
+    // ProviderTypeDto::Docker maps to ProviderType::Docker
+    assert_eq!(retrieved.config.pool_type, ResourcePoolTypeDto::Docker);
+    assert_eq!(retrieved.config.max_size, 5);
+
+    // 5. List pools
+    let pools = service.list_pools().await.unwrap();
+    assert_eq!(pools.len(), 1);
+    assert_eq!(pools[0].id, pool_name);
+
+    // 6. Delete the pool
+    service.delete_pool(pool_name).await.unwrap();
+
+    // 7. Verify deletion
+    let retrieved_after_delete = service.get_pool(pool_name).await;
+    assert!(retrieved_after_delete.is_err()); // Should return error "Pool not found"
+
+    let pools_after_delete = service.list_pools().await.unwrap();
+    assert_eq!(pools_after_delete.len(), 0);
+}

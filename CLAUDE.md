@@ -1,5 +1,7 @@
 ## Documentacion en el directorio docs
 
+Important: When context usage approaches 115,000 tokens (90% of 128k), please compact the conversation focusing on recent code changes and relevant files.
+
 - Toda la documentacion sobre casos de uso, arquitectura, eventos, contract first etc esta en el directorio docs
 - Cada vez que inicies una historia de usuario busca en la documentacion toda la informacion relevante para completar la historia con exito.
 - Deberas coger todo el contexto posible de la documentacion que acompaña al proyecto en cada desicion porque en estas esta especificado todas las deciciones y alternativas.

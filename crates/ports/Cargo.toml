@@ -9,13 +9,14 @@ repository.workspace = true
 
 [dependencies]
 # Workspace core crates
-hodei-pipelines-core = { workspace = true }
+hodei-pipelines-domain = { workspace = true }
 hodei-pipelines-proto = { workspace = true }
 
 # Workspace async and serialization
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
+serde_json = { workspace = true }
 chrono = { workspace = true }
 
 # Workspace error handling
@@ -26,7 +27,6 @@ uuid = { workspace = true }
 mockall = { workspace = true, optional = true }
 
 [dev-dependencies]
-serde_json = { workspace = true }
 tokio = { workspace = true }
 
 [features]

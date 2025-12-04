@@ -506,32 +506,32 @@ use async_trait::async_trait;
 impl WorkerClient for Client {
     async fn assign_job(
         &self,
-        _worker_id: &hodei_pipelines_core::WorkerId,
-        _job_id: &hodei_pipelines_core::JobId,
-        _job_spec: &hodei_pipelines_core::JobSpec,
+        _worker_id: &hodei_pipelines_domain::WorkerId,
+        _job_id: &hodei_pipelines_domain::JobId,
+        _job_spec: &hodei_pipelines_domain::JobSpec,
     ) -> std::result::Result<(), WorkerClientError> {
         Err(WorkerClientError::NotAvailable)
     }
 
     async fn cancel_job(
         &self,
-        _worker_id: &hodei_pipelines_core::WorkerId,
-        _job_id: &hodei_pipelines_core::JobId,
+        _worker_id: &hodei_pipelines_domain::WorkerId,
+        _job_id: &hodei_pipelines_domain::JobId,
     ) -> std::result::Result<(), WorkerClientError> {
         Err(WorkerClientError::NotAvailable)
     }
 
     async fn get_worker_status(
         &self,
-        _worker_id: &hodei_pipelines_core::WorkerId,
-    ) -> std::result::Result<hodei_pipelines_core::WorkerStatus, WorkerClientError> {
+        _worker_id: &hodei_pipelines_domain::WorkerId,
+    ) -> std::result::Result<hodei_pipelines_domain::WorkerStatus, WorkerClientError> {
         Err(WorkerClientError::NotAvailable)
     }
 
     async fn send_heartbeat(
         &self,
-        worker_id: &hodei_pipelines_core::WorkerId,
-        resource_usage: &hodei_pipelines_core::ResourceUsage,
+        worker_id: &hodei_pipelines_domain::WorkerId,
+        resource_usage: &hodei_pipelines_domain::ResourceUsage,
     ) -> std::result::Result<(), WorkerClientError> {
         let channel = self
             .channel

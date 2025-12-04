@@ -102,6 +102,9 @@ docs/alineamiento
 !docs/testing/postman_guide.es.md
 !FILES_CREATED.md
 !FINAL_COMPLETION_REPORT.md
+!docs/analysis/gap_analysis_resource_governance.md
+!docs/analysis/implementation_plan_resource_governance.md
+!docs/epics/EPIC-05-RESOURCE-GOVERNANCE.md
 node_modules/
 package-lock.json
 *.csv

@@ -3,7 +3,7 @@
 //! Production-ready implementation for persisting and retrieving pipelines.
 
 use async_trait::async_trait;
-use hodei_pipelines_core::{DomainError, Pipeline, PipelineId, Result};
+use hodei_pipelines_domain::{DomainError, Pipeline, PipelineId, Result};
 use hodei_pipelines_ports::PipelineRepository;
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
@@ -192,29 +192,33 @@ impl PostgreSqlPipelineRepository {
     fn deserialize_pipeline_step_from_row(
         &self,
         step_row: &sqlx::postgres::PgRow,
-    ) -> Result<hodei_pipelines_core::pipeline::PipelineStep> {
+    ) -> Result<hodei_pipelines_domain::pipeline_execution::pipeline::PipelineStep> {
         // Handle both "name" (regular query) and "step_name" (JOIN query) column names
         let step_name = step_row
             .try_get::<String, _>("step_name")
             .unwrap_or_else(|_| step_row.get::<String, _>("name"));
 
-        let job_spec: hodei_pipelines_core::job::JobSpec =
+        let job_spec: hodei_pipelines_domain::JobSpec =
             serde_json::from_value(step_row.get("job_spec")).map_err(|e| {
                 DomainError::Validation(format!("Failed to deserialize job spec: {}", e))
             })?;
 
-        let depends_on: Vec<hodei_pipelines_core::pipeline::PipelineStepId> =
+        let depends_on: Vec<hodei_pipelines_domain::pipeline_execution::pipeline::PipelineStepId> =
             serde_json::from_value(step_row.get("depends_on")).map_err(|e| {
                 DomainError::Validation(format!("Failed to deserialize dependencies: {}", e))
             })?;
 
-        Ok(hodei_pipelines_core::pipeline::PipelineStep {
-            id: hodei_pipelines_core::pipeline::PipelineStepId::from_uuid(step_row.get("step_id")),
-            name: step_name,
-            job_spec,
-            depends_on,
-            timeout_ms: step_row.get::<i64, _>("timeout_ms") as u64,
-        })
+        Ok(
+            hodei_pipelines_domain::pipeline_execution::pipeline::PipelineStep {
+                id: hodei_pipelines_domain::pipeline_execution::pipeline::PipelineStepId::from_uuid(
+                    step_row.get("step_id"),
+                ),
+                name: step_name,
+                job_spec,
+                depends_on,
+                timeout_ms: step_row.get::<i64, _>("timeout_ms") as u64,
+            },
+        )
     }
 
     /// Deserialize a Pipeline from SQL rows (main query + steps)
@@ -238,10 +242,8 @@ impl PostgreSqlPipelineRepository {
             id: PipelineId::from_uuid(pipeline_row.get("pipeline_id")),
             name: pipeline_row.get("name"),
             description: pipeline_row.get("description"),
-            status: hodei_pipelines_core::pipeline::PipelineStatus::from_str(
-                pipeline_row.get("status"),
-            )
-            .map_err(|_| DomainError::Validation("Invalid pipeline status".to_string()))?,
+            status: hodei_pipelines_domain::PipelineStatus::from_str(pipeline_row.get("status"))
+                .map_err(|_| DomainError::Validation("Invalid pipeline status".to_string()))?,
             steps,
             variables,
             created_at: pipeline_row.get("created_at"),

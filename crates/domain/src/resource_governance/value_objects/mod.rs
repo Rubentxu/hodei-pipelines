@@ -1,0 +1,1 @@
+// Value objects for resource governance

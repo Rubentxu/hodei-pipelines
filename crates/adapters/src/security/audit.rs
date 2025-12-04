@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use hodei_pipelines_core::security::SecurityContext;
-use hodei_pipelines_ports::security::{AuditLogger, Result};
+use hodei_pipelines_domain::identity_access::security::SecurityContext;
+use hodei_pipelines_ports::identity_access::{AuditLogger, Result};
 use serde::Deserialize;
 use tracing::info;
 
@@ -49,4 +49,3 @@ impl AuditLogger for AuditLoggerAdapter {
         Ok(())
     }
 }
-

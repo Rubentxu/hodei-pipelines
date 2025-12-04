@@ -7,7 +7,7 @@ info:
   license:
     name: MIT
     identifier: MIT
-  version: 0.15.5
+  version: 0.16.0
 paths:
   /api/hello-openapi:
     get:
@@ -1011,197 +1011,6 @@ paths:
           description: Pipeline or step not found
         '500':
           description: Internal server error
-  /api/v1/security/compliance:
-    get:
-      tags:
-      - security
-      summary: GET /api/v1/security/compliance - List compliance checks
-      operationId: list_compliance_checks_handler
-      parameters:
-      - name: tenant_id
-        in: query
-        description: Filter by tenant ID
-        required: false
-        schema:
-          type: string
-      - name: framework
-        in: query
-        description: Filter by compliance framework
-        required: false
-        schema:
-          type: string
-      responses:
-        '200':
-          description: List of compliance checks
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ComplianceCheck'
-        '500':
-          description: Internal server error
-  /api/v1/security/metrics/{tenant_id}:
-    get:
-      tags:
-      - security
-      summary: GET /api/v1/security/metrics/{tenant_id} - Get security metrics
-      operationId: get_security_metrics_handler
-      parameters:
-      - name: tenant_id
-        in: path
-        description: Tenant ID
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          description: Security metrics
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SecurityMetrics'
-        '404':
-          description: Security metrics not found
-        '500':
-          description: Internal server error
-  /api/v1/security/reports/generate:
-    post:
-      tags:
-      - security
-      summary: POST /api/v1/security/reports/generate - Generate security report
-      operationId: generate_security_report_handler
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SecurityReportRequest'
-        required: true
-      responses:
-        '200':
-          description: Security report generated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SecurityReport'
-        '400':
-          description: Invalid request
-        '500':
-          description: Internal server error
-  /api/v1/security/score/{entity_id}:
-    get:
-      tags:
-      - security
-      summary: GET /api/v1/security/scores/{entity_id} - Get security score
-      operationId: get_security_score_handler
-      parameters:
-      - name: entity_id
-        in: path
-        description: Entity ID (resource, tenant, etc.)
-        required: true
-        schema:
-          type: string
-      - name: type
-        in: query
-        description: Entity type (resource, tenant, application)
-        required: false
-        schema:
-          type: string
-      responses:
-        '200':
-          description: Security score
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SecurityScore'
-        '404':
-          description: Security score not found
-        '500':
-          description: Internal server error
-  /api/v1/security/scores:
-    get:
-      tags:
-      - security
-      summary: GET /api/v1/security/scores - List security scores
-      operationId: list_security_scores_handler
-      parameters:
-      - name: tenant_id
-        in: query
-        description: Filter by tenant ID
-        required: false
-        schema:
-          type: string
-      responses:
-        '200':
-          description: List of security scores
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SecurityScore'
-        '500':
-          description: Internal server error
-  /api/v1/security/vulnerabilities:
-    get:
-      tags:
-      - security
-      summary: GET /api/v1/security/vulnerabilities - List vulnerabilities
-      operationId: list_vulnerabilities_handler
-      parameters:
-      - name: tenant_id
-        in: query
-        description: Filter by tenant ID
-        required: false
-        schema:
-          type: string
-      - name: severity
-        in: query
-        description: Filter by severity
-        required: false
-        schema:
-          type: string
-      - name: status
-        in: query
-        description: Filter by status
-        required: false
-        schema:
-          type: string
-      responses:
-        '200':
-          description: List of vulnerabilities
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Vulnerability'
-        '500':
-          description: Internal server error
-  /api/v1/security/vulnerabilities/{id}:
-    get:
-      tags:
-      - security
-      summary: GET /api/v1/security/vulnerabilities/{id} - Get vulnerability by ID
-      operationId: get_vulnerability_handler
-      parameters:
-      - name: id
-        in: path
-        description: Vulnerability ID
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          description: Vulnerability details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Vulnerability'
-        '404':
-          description: Vulnerability not found
-        '500':
-          description: Internal server error
   /api/v1/traces/{id}:
     get:
       tags:
@@ -1843,88 +1652,6 @@ components:
           type: integer
           format: int32
           minimum: 0
-    ComplianceCheck:
-      type: object
-      description: Compliance check structure
-      required:
-      - id
-      - framework
-      - control_id
-      - control_name
-      - control_description
-      - status
-      - implementation_percentage
-      - evidence
-      - last_assessment
-      - next_assessment
-      - tenant_id
-      properties:
-        control_description:
-          type: string
-          description: Control description
-        control_id:
-          type: string
-          description: Control ID
-        control_name:
-          type: string
-          description: Control name
-        evidence:
-          type: array
-          items:
-            type: string
-          description: Evidence documents
-        framework:
-          $ref: '#/components/schemas/ComplianceFramework'
-          description: Compliance framework
-        id:
-          type: string
-          description: Check ID
-        implementation_percentage:
-          type: number
-          format: double
-          description: Implementation percentage (0-100)
-        last_assessment:
-          type: string
-          format: date-time
-          description: Last assessment date
-        next_assessment:
-          type: string
-          format: date-time
-          description: Next assessment due
-        notes:
-          type:
-          - string
-          - 'null'
-          description: Notes and comments
-        resource_id:
-          type:
-          - string
-          - 'null'
-          description: Resource ID (if applicable)
-        status:
-          $ref: '#/components/schemas/ControlStatus'
-          description: Implementation status
-        tenant_id:
-          type: string
-          description: Tenant ID
-    ComplianceFramework:
-      type: string
-      description: Compliance framework enum
-      enum:
-      - SOC2
-      - ISO27001
-      - GDPR
-      - PCIDSS
-      - HIPAA
-      - NIST
-    ControlStatus:
-      type: string
-      description: Security control status enum
-      enum:
-      - Implemented
-      - Partial
-      - NotImplemented
-      - NotApplicable
     CostBreakdown:
       type: object
       description: Cost breakdown by resource type
@@ -2192,6 +1919,11 @@ components:
           items:
             type: string
             format: uuid
+        id:
+          type:
+          - string
+          - 'null'
+          format: uuid
         job_spec:
           $ref: '#/components/schemas/JobSpecDto'
         name:
@@ -2199,28 +1931,28 @@ components:
     CreatePoolRequestDto:
       type: object
       required:
-      - pool_type
+      - poolType
       - name
-      - provider_name
-      - min_size
-      - max_size
-      - default_resources
+      - providerName
+      - minSize
+      - maxSize
+      - defaultResources
       properties:
-        default_resources:
+        defaultResources:
           $ref: '#/components/schemas/ResourceQuotaDto'
-        max_size:
+        maxSize:
           type: integer
           format: int32
           minimum: 0
-        min_size:
+        minSize:
           type: integer
           format: int32
           minimum: 0
         name:
           type: string
-        pool_type:
+        poolType:
           $ref: '#/components/schemas/ResourcePoolTypeDto'
-        provider_name:
+        providerName:
           type: string
         tags:
           type:
@@ -2757,35 +2489,6 @@ components:
           items:
             $ref: '#/components/schemas/TenantResponse'
           description: List of tenants
-    LiveMetric:
-      type: object
-      description: Live metric DTO
-      required:
-      - metric_type
-      - worker_id
-      - value
-      - unit
-      - timestamp
-      - threshold_status
-      properties:
-        execution_id:
-          type:
-          - string
-          - 'null'
-        metric_type:
-          $ref: '#/components/schemas/MetricType'
-        threshold_status:
-          $ref: '#/components/schemas/ThresholdStatus'
-        timestamp:
-          type: string
-          format: date-time
-        unit:
-          type: string
-        value:
-          type: number
-          format: double
-        worker_id:
-          type: string
     LogEntryDto:
       type: object
       required:
@@ -2898,15 +2601,6 @@ components:
         message:
           type: string
           description: Success message
-    MetricType:
-      type: string
-      description: Type of metric
-      enum:
-      - cpu_usage
-      - memory_usage
-      - disk_io
-      - network_io
-      - load_average
     NodeCapabilities:
       type: object
       description: Node capabilities
@@ -3453,29 +3147,29 @@ components:
     ResourcePoolConfigDto:
       type: object
       required:
-      - pool_type
+      - poolType
       - name
-      - provider_name
-      - min_size
-      - max_size
-      - default_resources
+      - providerName
+      - minSize
+      - maxSize
+      - defaultResources
       - tags
       properties:
-        default_resources:
+        defaultResources:
           $ref: '#/components/schemas/ResourceQuotaDto'
-        max_size:
+        maxSize:
           type: integer
           format: int32
           minimum: 0
-        min_size:
+        minSize:
           type: integer
           format: int32
           minimum: 0
         name:
           type: string
-        pool_type:
+        poolType:
           $ref: '#/components/schemas/ResourcePoolTypeDto'
-        provider_name:
+        providerName:
           type: string
         tags:
           type: object
@@ -3497,29 +3191,29 @@ components:
       type: object
       required:
       - name
-      - pool_type
-      - total_capacity
-      - available_capacity
-      - active_workers
-      - pending_requests
+      - poolType
+      - totalCapacity
+      - availableCapacity
+      - activeWorkers
+      - pendingRequests
       properties:
-        active_workers:
+        activeWorkers:
           type: integer
           format: int32
           minimum: 0
-        available_capacity:
+        availableCapacity:
           type: integer
           format: int32
           minimum: 0
         name:
           type: string
-        pending_requests:
+        pendingRequests:
           type: integer
           format: int32
           minimum: 0
-        pool_type:
+        poolType:
           $ref: '#/components/schemas/ResourcePoolTypeDto'
-        total_capacity:
+        totalCapacity:
           type: integer
           format: int32
           minimum: 0
@@ -3630,268 +3324,6 @@ components:
         user_id:
           type: string
           description: User ID
-    SecurityMetrics:
-      type: object
-      description: Security metrics structure
-      required:
-      - total_vulnerabilities
-      - by_severity
-      - by_status
-      - by_type
-      - avg_remediation_time
-      - score_trend
-      - compliance_score
-      - open_issues
-      - overdue_items
-      - coverage_percentage
-      - assessed_at
-      - tenant_id
-      properties:
-        assessed_at:
-          type: string
-          format: date-time
-          description: Assessment date
-        avg_remediation_time:
-          type: number
-          format: double
-          description: Average time to remediate (in days)
-        by_severity:
-          type: object
-          description: Vulnerabilities by severity
-          additionalProperties:
-            type: integer
-            format: int32
-            minimum: 0
-          propertyNames:
-            type: string
-        by_status:
-          type: object
-          description: Vulnerabilities by status
-          additionalProperties:
-            type: integer
-            format: int32
-            minimum: 0
-          propertyNames:
-            type: string
-        by_type:
-          type: object
-          description: Vulnerabilities by type
-          additionalProperties:
-            type: integer
-            format: int32
-            minimum: 0
-          propertyNames:
-            type: string
-        compliance_score:
-          type: number
-          format: double
-          description: Compliance score
-        coverage_percentage:
-          type: number
-          format: double
-          description: Coverage percentage
-        open_issues:
-          type: integer
-          format: int32
-          description: Number of open issues
-          minimum: 0
-        overdue_items:
-          type: integer
-          format: int32
-          description: Number of overdue items
-          minimum: 0
-        score_trend:
-          type: array
-          items:
-            type: number
-            format: double
-          description: Security score trend
-        tenant_id:
-          type: string
-          description: Tenant ID
-        total_vulnerabilities:
-          type: integer
-          format: int32
-          description: Total number of vulnerabilities
-          minimum: 0
-    SecurityReport:
-      type: object
-      description: Security report structure
-      required:
-      - id
-      - title
-      - report_type
-      - generated_at
-      - period_start
-      - period_end
-      - tenant_id
-      - executive_summary
-      - key_findings
-      - recommendations
-      - risk_rating
-      - compliance_status
-      - metrics
-      properties:
-        compliance_status:
-          type: string
-          description: Compliance status
-        executive_summary:
-          type: string
-          description: Executive summary
-        generated_at:
-          type: string
-          format: date-time
-          description: Generated date
-        id:
-          type: string
-          description: Report ID
-        key_findings:
-          type: array
-          items:
-            type: string
-          description: Key findings
-        metrics:
-          $ref: '#/components/schemas/SecurityMetrics'
-          description: Metrics included
-        period_end:
-          type: string
-          format: date-time
-          description: Report period end
-        period_start:
-          type: string
-          format: date-time
-          description: Report period start
-        recommendations:
-          type: array
-          items:
-            type: string
-          description: Recommendations
-        report_type:
-          type: string
-          description: Report type
-        risk_rating:
-          type: string
-          description: Overall risk rating
-        tenant_id:
-          type: string
-          description: Tenant ID
-        title:
-          type: string
-          description: Report title
-    SecurityReportRequest:
-      type: object
-      description: Security report request structure
-      required:
-      - tenant_id
-      - report_type
-      - period_start
-      - period_end
-      properties:
-        period_end:
-          type: string
-          format: date-time
-        period_start:
-          type: string
-          format: date-time
-        report_type:
-          type: string
-        tenant_id:
-          type: string
-    SecurityScore:
-      type: object
-      description: Security score structure
-      required:
-      - id
-      - entity_id
-      - entity_type
-      - overall_score
-      - vulnerability_score
-      - compliance_score
-      - configuration_score
-      - score_breakdown
-      - critical_count
-      - high_count
-      - medium_count
-      - low_count
-      - open_count
-      - resolved_count
-      - trend
-      - calculated_at
-      - tenant_id
-      properties:
-        calculated_at:
-          type: string
-          format: date-time
-          description: Last calculation date
-        compliance_score:
-          type: number
-          format: double
-          description: Compliance score component
-        configuration_score:
-          type: number
-          format: double
-          description: Configuration score component
-        critical_count:
-          type: integer
-          format: int32
-          description: Number of critical vulnerabilities
-          minimum: 0
-        entity_id:
-          type: string
-          description: Associated entity (tenant, resource, etc.)
-        entity_type:
-          type: string
-          description: Entity type (tenant, resource, application)
-        high_count:
-          type: integer
-          format: int32
-          description: Number of high vulnerabilities
-          minimum: 0
-        id:
-          type: string
-          description: Score ID
-        low_count:
-          type: integer
-          format: int32
-          description: Number of low vulnerabilities
-          minimum: 0
-        medium_count:
-          type: integer
-          format: int32
-          description: Number of medium vulnerabilities
-          minimum: 0
-        open_count:
-          type: integer
-          format: int32
-          description: Number of open vulnerabilities
-          minimum: 0
-        overall_score:
-          type: number
-          format: double
-          description: Overall security score (0-100)
-        resolved_count:
-          type: integer
-          format: int32
-          description: Number of resolved vulnerabilities
-          minimum: 0
-        score_breakdown:
-          type: object
-          description: Score breakdown by category
-          additionalProperties:
-            type: number
-            format: double
-          propertyNames:
-            type: string
-        tenant_id:
-          type: string
-          description: Tenant ID
-        trend:
-          type: string
-          description: Score trend (improving, declining, stable)
-        vulnerability_score:
-          type: number
-          format: double
-          description: Vulnerability score component
     ServiceHealth:
       type: object
       description: Service health status
@@ -4157,13 +3589,6 @@ components:
           type: string
           format: date-time
           description: Last update timestamp
-    ThresholdStatus:
-      type: string
-      description: Threshold status
-      enum:
-      - normal
-      - warning
-      - critical
     Trace:
       type: object
       description: Trace structure representing a distributed trace
@@ -4294,13 +3719,13 @@ components:
     UpdatePoolRequestDto:
       type: object
       properties:
-        max_size:
+        maxSize:
           type:
           - integer
           - 'null'
           format: int32
           minimum: 0
-        min_size:
+        minSize:
           type:
           - integer
           - 'null'
@@ -4391,117 +3816,6 @@ components:
         username:
           type: string
           description: Username
-    Vulnerability:
-      type: object
-      description: Security vulnerability structure
-      required:
-      - id
-      - title
-      - description
-      - severity
-      - status
-      - cvss_score
-      - resource_id
-      - resource_type
-      - tenant_id
-      - discovered_at
-      - updated_at
-      - evidence
-      - remediation_steps
-      - related_vulnerabilities
-      - tags
-      properties:
-        assigned_to:
-          type:
-          - string
-          - 'null'
-          description: Assigned user/team
-        cve_id:
-          type:
-          - string
-          - 'null'
-          description: CVE identifier (if applicable)
-        cvss_score:
-          type: number
-          format: double
-          description: CVSS score (0.0 - 10.0)
-        description:
-          type: string
-          description: Detailed description
-        discovered_at:
-          type: string
-          format: date-time
-          description: Discovery date
-        due_date:
-          type:
-          - string
-          - 'null'
-          format: date-time
-          description: Due date for remediation
-        evidence:
-          type: array
-          items:
-            type: string
-          description: Evidence and proof
-        id:
-          type: string
-          description: Unique vulnerability ID
-        related_vulnerabilities:
-          type: array
-          items:
-            type: string
-          description: Related vulnerabilities
-        remediation_steps:
-          type: array
-          items:
-            type: string
-          description: Remediation steps
-        resource_id:
-          type: string
-          description: Affected resource ID
-        resource_type:
-          type: string
-          description: Resource type
-        severity:
-          $ref: '#/components/schemas/VulnerabilitySeverity'
-          description: Severity level
-        status:
-          $ref: '#/components/schemas/VulnerabilityStatus'
-          description: Current status
-        tags:
-          type: array
-          items:
-            type: string
-          description: Tags for categorization
-        tenant_id:
-          type: string
-          description: Tenant ID
-        title:
-          type: string
-          description: Vulnerability title/description
-        updated_at:
-          type: string
-          format: date-time
-          description: Last updated
-    VulnerabilitySeverity:
-      type: string
-      description: Vulnerability severity enum
-      enum:
-      - Critical
-      - High
-      - Medium
-      - Low
-      - Info
-    VulnerabilityStatus:
-      type: string
-      description: Vulnerability status enum
-      enum:
-      - Open
-      - InProgress
-      - Verified
-      - Resolved
-      - Accepted
-      - FalsePositive
     WorkerCapabilitiesDto:
       type: object
       required:

@@ -37,7 +37,7 @@ uuid = { workspace = true, features = ["v4"] }
 anyhow = { workspace = true }
 
 # Workspace specific crates
-hodei-pipelines-core = { workspace = true }
+hodei-pipelines-domain = { workspace = true }
 hodei-pipelines-ports = { workspace = true }
 hodei-pipelines-adapters = { workspace = true }
 

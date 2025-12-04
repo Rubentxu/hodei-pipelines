@@ -1,8 +1,12 @@
-use hodei_pipelines_core::{
-    job_definitions::{JobSpec, ResourceQuota},
-    pipeline::{Pipeline, PipelineStep},
-    pipeline_execution::{PipelineExecution, StepExecution, StepExecutionStatus},
+use hodei_pipelines_domain::{
+    pipeline_execution::entities::execution::{
+        PipelineExecution, StepExecution, StepExecutionStatus,
+    },
+    pipeline_execution::entities::pipeline::Pipeline,
+    pipeline_execution::value_objects::job_definitions::{JobSpec, ResourceQuota},
 };
+// PipelineStep might not be exported directly, checking if it is in pipeline module
+use hodei_pipelines_domain::pipeline_execution::entities::pipeline::PipelineStep;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utoipa::ToSchema;
@@ -425,7 +429,7 @@ pub struct RetryExecutionResponseDto {
 
 // --- Resource Pools ---
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub enum ResourcePoolTypeDto {
     Docker,
     Kubernetes,
@@ -433,24 +437,24 @@ pub enum ResourcePoolTypeDto {
     Static,
 }
 
-impl From<hodei_pipelines_ports::resource_pool::ResourcePoolType> for ResourcePoolTypeDto {
-    fn from(t: hodei_pipelines_ports::resource_pool::ResourcePoolType) -> Self {
+impl From<hodei_pipelines_domain::ProviderType> for ResourcePoolTypeDto {
+    fn from(t: hodei_pipelines_domain::ProviderType) -> Self {
         match t {
-            hodei_pipelines_ports::resource_pool::ResourcePoolType::Docker => Self::Docker,
-            hodei_pipelines_ports::resource_pool::ResourcePoolType::Kubernetes => Self::Kubernetes,
-            hodei_pipelines_ports::resource_pool::ResourcePoolType::Cloud => Self::Cloud,
-            hodei_pipelines_ports::resource_pool::ResourcePoolType::Static => Self::Static,
+            hodei_pipelines_domain::ProviderType::Docker => Self::Docker,
+            hodei_pipelines_domain::ProviderType::Kubernetes => Self::Kubernetes,
+            hodei_pipelines_domain::ProviderType::CloudVM => Self::Cloud,
+            hodei_pipelines_domain::ProviderType::BareMetal => Self::Static,
         }
     }
 }
 
-impl From<ResourcePoolTypeDto> for hodei_pipelines_ports::resource_pool::ResourcePoolType {
+impl From<ResourcePoolTypeDto> for hodei_pipelines_domain::ProviderType {
     fn from(t: ResourcePoolTypeDto) -> Self {
         match t {
             ResourcePoolTypeDto::Docker => Self::Docker,
             ResourcePoolTypeDto::Kubernetes => Self::Kubernetes,
-            ResourcePoolTypeDto::Cloud => Self::Cloud,
-            ResourcePoolTypeDto::Static => Self::Static,
+            ResourcePoolTypeDto::Cloud => Self::CloudVM,
+            ResourcePoolTypeDto::Static => Self::BareMetal,
         }
     }
 }
@@ -467,10 +471,10 @@ pub struct ResourcePoolConfigDto {
     pub tags: HashMap<String, String>,
 }
 
-impl From<hodei_pipelines_ports::resource_pool::ResourcePoolConfig> for ResourcePoolConfigDto {
-    fn from(c: hodei_pipelines_ports::resource_pool::ResourcePoolConfig) -> Self {
+impl From<hodei_pipelines_domain::ResourcePoolConfig> for ResourcePoolConfigDto {
+    fn from(c: hodei_pipelines_domain::ResourcePoolConfig) -> Self {
         Self {
-            pool_type: c.pool_type.into(),
+            pool_type: c.provider_type.into(),
             name: c.name,
             provider_name: c.provider_name,
             min_size: c.min_size,
@@ -492,11 +496,11 @@ pub struct ResourcePoolStatusDto {
     pub pending_requests: u32,
 }
 
-impl From<hodei_pipelines_ports::resource_pool::ResourcePoolStatus> for ResourcePoolStatusDto {
-    fn from(s: hodei_pipelines_ports::resource_pool::ResourcePoolStatus) -> Self {
+impl From<hodei_pipelines_domain::ResourcePoolStatus> for ResourcePoolStatusDto {
+    fn from(s: hodei_pipelines_domain::ResourcePoolStatus) -> Self {
         Self {
             name: s.name,
-            pool_type: s.pool_type.into(),
+            pool_type: s.provider_type.into(),
             total_capacity: s.total_capacity,
             available_capacity: s.available_capacity,
             active_workers: s.active_workers,
@@ -543,8 +547,8 @@ pub struct WorkerCapabilitiesDto {
     pub max_concurrent_jobs: u32,
 }
 
-impl From<hodei_pipelines_core::worker_messages::WorkerCapabilities> for WorkerCapabilitiesDto {
-    fn from(c: hodei_pipelines_core::worker_messages::WorkerCapabilities) -> Self {
+impl From<hodei_pipelines_domain::WorkerCapabilities> for WorkerCapabilitiesDto {
+    fn from(c: hodei_pipelines_domain::WorkerCapabilities) -> Self {
         Self {
             cpu_cores: c.cpu_cores,
             memory_gb: c.memory_gb,
@@ -556,7 +560,7 @@ impl From<hodei_pipelines_core::worker_messages::WorkerCapabilities> for WorkerC
     }
 }
 
-impl From<WorkerCapabilitiesDto> for hodei_pipelines_core::worker_messages::WorkerCapabilities {
+impl From<WorkerCapabilitiesDto> for hodei_pipelines_domain::WorkerCapabilities {
     fn from(c: WorkerCapabilitiesDto) -> Self {
         Self {
             cpu_cores: c.cpu_cores,

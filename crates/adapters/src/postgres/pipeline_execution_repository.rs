@@ -3,13 +3,9 @@
 //! Production-ready implementation for persisting and retrieving pipeline executions.
 
 use async_trait::async_trait;
-use hodei_pipelines_core::{
-    DomainError, Result,
-    pipeline::PipelineStepId,
-    pipeline_execution::{
-        ExecutionId, ExecutionStatus, PipelineExecution, StepExecution, StepExecutionId,
-        StepExecutionStatus,
-    },
+use hodei_pipelines_domain::{
+    DomainError, ExecutionId, ExecutionStatus, PipelineExecution, Result, StepExecution,
+    StepExecutionId, StepExecutionStatus, pipeline_execution::pipeline::PipelineStepId,
 };
 use hodei_pipelines_ports::PipelineExecutionRepository;
 use sqlx::{PgPool, Row};
@@ -280,7 +276,7 @@ impl PostgreSqlPipelineExecutionRepository {
 
         Ok(PipelineExecution {
             id: ExecutionId::from_uuid(exec_row.get("execution_id")),
-            pipeline_id: hodei_pipelines_core::PipelineId::from_uuid(exec_row.get("pipeline_id")),
+            pipeline_id: hodei_pipelines_domain::PipelineId::from_uuid(exec_row.get("pipeline_id")),
             status,
             started_at: exec_row.get("started_at"),
             completed_at: exec_row.get("completed_at"),
@@ -426,7 +422,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
 
     async fn get_executions_by_pipeline(
         &self,
-        pipeline_id: &hodei_pipelines_core::PipelineId,
+        pipeline_id: &hodei_pipelines_domain::PipelineId,
     ) -> Result<Vec<PipelineExecution>> {
         debug!("Getting pipeline executions for pipeline: {}", pipeline_id);
 
@@ -693,7 +689,7 @@ impl PipelineExecutionRepository for PostgreSqlPipelineExecutionRepository {
 
     async fn prune_old_executions(
         &self,
-        pipeline_id: &hodei_pipelines_core::PipelineId,
+        pipeline_id: &hodei_pipelines_domain::PipelineId,
         limit: usize,
     ) -> Result<()> {
         debug!(

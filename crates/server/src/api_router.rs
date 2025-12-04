@@ -14,47 +14,46 @@ use crate::audit_logs_compliance::{
     AuditLogsComplianceApiAppState, AuditLogsComplianceService, audit_logs_compliance_api_routes,
 };
 use crate::bootstrap::ServerComponents;
-use crate::budget_management::{
-    BudgetManagementApiAppState, BudgetManagementService, budget_management_api_routes,
-};
-use crate::cost_optimization_recommendations::{
-    CostOptimizationApiAppState, CostOptimizationService, cost_optimization_api_routes,
-};
-use crate::cost_tracking_aggregation::{
-    CostTrackingApiAppState, CostTrackingService, cost_tracking_api_routes,
-};
-use crate::execution_api::{ExecutionApiAppState, execution_api_routes};
-use crate::finops_api::{FinOpsApiAppState, finops_api_routes};
+use crate::identity_access::rbac::{RbacApiAppState, RbacService, rbac_api_routes};
 use crate::live_metrics_api::{
     LiveMetricsApiAppState, LiveMetricsService, live_metrics_api_routes,
 };
-use crate::logs_api::{LogsApiAppState, MockLogService, logs_api_routes};
-use crate::logs_explorer_ui::{
+use crate::observability::logs_api::{LogsApiAppState, MockLogService, logs_api_routes};
+use crate::observability::logs_explorer_ui::{
     LogsExplorerApiAppState, LogsExplorerService, logs_explorer_api_routes,
 };
-use crate::metrics_api::{
+use crate::observability::metrics_api::{
     DashboardMetricsApiAppState, DashboardMetricsService, dashboard_metrics_api_routes,
 };
-use crate::observability_api::{
+use crate::observability::observability_api::{
     ObservabilityApiAppState, ObservabilityApiService, observability_api_routes,
 };
-use crate::pipeline_api::{PipelineApiAppState, pipeline_api_routes};
-use crate::rbac::{RbacApiAppState, RbacService, rbac_api_routes};
+use crate::pipeline_execution::execution_api::{ExecutionApiAppState, execution_api_routes};
+use crate::pipeline_execution::pipeline_api::{PipelineApiAppState, pipeline_api_routes};
+use crate::resource_governance::budget_management::{
+    BudgetManagementApiAppState, BudgetManagementService, budget_management_api_routes,
+};
+use crate::resource_governance::cost_optimization_recommendations::{
+    CostOptimizationApiAppState, CostOptimizationService, cost_optimization_api_routes,
+};
+use crate::resource_governance::cost_tracking_aggregation::{
+    CostTrackingApiAppState, CostTrackingService, cost_tracking_api_routes,
+};
+use crate::resource_governance::finops_api::{FinOpsApiAppState, finops_api_routes};
+// use crate::identity_access::security_vulnerability_tracking::{SecurityVulnerabilityApiAppState, SecurityVulnerabilityService, security_vulnerability_api_routes};
+use crate::observability::traces_distributed_tracing::{
+    TracesApiAppState, TracesService, traces_api_routes,
+};
 use crate::realtime_status_api::{
     RealtimeStatusApiAppState, RealtimeStatusService, realtime_status_api_routes,
 };
-use crate::resource_pool_crud::{ResourcePoolCrudAppState, resource_pool_crud_routes};
-use crate::security_vulnerability_tracking::{
-    SecurityVulnerabilityApiAppState, SecurityVulnerabilityService,
-    security_vulnerability_api_routes,
-};
+use crate::resource_governance::api::{ResourcePoolCrudAppState, resource_pool_crud_routes};
 use crate::terminal::{TerminalAppState, terminal_routes};
-use crate::traces_distributed_tracing::{TracesApiAppState, TracesService, traces_api_routes};
 use axum::routing::get;
 use hodei_pipelines_adapters::websocket_handler;
 
 use crate::api_docs::{ApiDoc, hello_openapi};
-use hodei_pipelines_modules::{PipelineExecutionService, PipelineService};
+use hodei_pipelines_application::{PipelineExecutionService, PipelineService};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -74,8 +73,9 @@ pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
     info!("🔧 Setting up centralized API routes...");
 
     // Initialize resource pool state
+    // Initialize resource pool state
     let resource_pool_state = ResourcePoolCrudAppState {
-        pools: Arc::new(RwLock::new(HashMap::new())),
+        repository: server_components.resource_pool_repository.clone(),
         pool_statuses: Arc::new(RwLock::new(HashMap::new())),
     };
 
@@ -147,11 +147,6 @@ pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
         service: budget_management_service,
     };
 
-    // Initialize security & vulnerability tracking service
-    let security_vulnerability_service = Arc::new(SecurityVulnerabilityService::new());
-    let security_vulnerability_state = SecurityVulnerabilityApiAppState {
-        service: security_vulnerability_service,
-    };
 
     // Initialize RBAC service
     let rbac_service = Arc::new(RbacService::new());
@@ -255,11 +250,6 @@ pub fn create_api_router(server_components: ServerComponents) -> axum::Router {
                         .merge(cost_tracking_api_routes().with_state(cost_tracking_state))
                         .merge(cost_optimization_api_routes().with_state(cost_optimization_state))
                         .merge(budget_management_api_routes().with_state(budget_management_state)),
-                )
-                // Security APIs (US-018) - nested under /api/v1/security
-                .nest(
-                    "/api/v1/security",
-                    security_vulnerability_api_routes().with_state(security_vulnerability_state),
                 )
                 // RBAC APIs (US-019) - nested under /api/v1/auth
                 .nest("/api/v1/auth", rbac_api_routes().with_state(rbac_state))

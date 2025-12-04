@@ -3,8 +3,8 @@
 //! This module provides reusable extractors to convert database rows
 //! into domain entities, reducing code duplication across repository implementations.
 
-use hodei_pipelines_core::{Job, JobId, Worker, WorkerId};
-use hodei_pipelines_core::{JobSpec, WorkerCapabilities};
+use hodei_pipelines_domain::{Job, JobId, Worker, WorkerId};
+use hodei_pipelines_domain::{JobSpec, WorkerCapabilities};
 use sqlx::{Row, postgres::PgRow};
 
 /// Common row extractor for PostgreSQL databases
@@ -93,7 +93,7 @@ impl RowExtractor {
     /// * `Result<Pipeline, Box<dyn std::error::Error + Send + Sync>>` - Pipeline aggregate or error
     pub async fn extract_pipeline_from_row(
         _row: &PgRow,
-    ) -> Result<hodei_pipelines_core::Pipeline, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<hodei_pipelines_domain::Pipeline, Box<dyn std::error::Error + Send + Sync>> {
         // Note: Pipeline extraction would be implemented based on actual Pipeline API
         // For now, returning a placeholder error
         Err("Pipeline extraction not yet implemented".into())

@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "crates/core",
+    "crates/domain",
     "crates/ports",
-    "crates/modules",
+    "crates/application",
     "crates/adapters",
     "crates/e2e-tests",
     "crates/hwp-proto",
@@ -15,16 +15,16 @@ resolver = "2"
 
 [workspace.dependencies]
 # Workspace crate aliases
-hodei-pipelines-core = { path = "crates/core" }
+hodei-pipelines-domain = { path = "crates/domain" }
 hodei-pipelines-ports = { path = "crates/ports" }
-hodei-pipelines-modules = { path = "crates/modules" }
+hodei-pipelines-application = { path = "crates/application" }
 hodei-pipelines-adapters = { path = "crates/adapters" }
 hodei-pipelines-proto = { path = "crates/hwp-proto" }
 hodei-pipelines-server = { path = "crates/server" }
 hwp-pipelines-agent = { path = "crates/hwp-agent" }
 
 # Core async runtime
-tokio = { version = "1.41", features = ["full"] }
+tokio = { version = "1.42", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 
@@ -48,10 +48,10 @@ futures = "0.3"
 # Logging & Tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json"] }
-tracing-opentelemetry = "0.32"
-opentelemetry = "0.31"
-opentelemetry_sdk = "0.31"
-opentelemetry_otlp = "0.15"
+tracing-opentelemetry = "0.23"
+opentelemetry = "0.22"
+opentelemetry_sdk = "0.22"
+opentelemetry-otlp = "0.15"
 
 # gRPC & Protobuf
 tonic = { version = "0.14", features = ["transport", "tls-native-roots"] }
@@ -117,6 +117,7 @@ rand = "0.9"
 pretty_assertions = "1.6"
 proptest = "1.4"
 mockall = "0.13"
+testcontainers = "0.26"
 
 # Benchmarks
 criterion = { version = "0.8.0", features = ["html_reports"] }

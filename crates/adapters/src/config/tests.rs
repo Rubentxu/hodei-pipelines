@@ -76,6 +76,12 @@ mod tests {
             url: "postgresql://localhost/db".to_string(),
             max_connections: 0,
             connection_timeout_ms: 5000,
+            migrations_path: None,
+            worker_migration_file: "20241201_workers.sql".to_string(),
+            job_migration_file: "20241201_jobs.sql".to_string(),
+            pipeline_migration_file: "20241201_pipelines.sql".to_string(),
+            pipeline_execution_migration_file: "20241201_pipeline_executions.sql".to_string(),
+            resource_pool_db_path: "data/resource_pools.redb".to_string(),
         };
 
         assert!(invalid_config.validate().is_err());
@@ -322,6 +328,12 @@ mod tests {
                 url: "postgresql://localhost/db".to_string(),
                 max_connections: 10,
                 connection_timeout_ms: 5000,
+                migrations_path: None,
+                worker_migration_file: "20241201_workers.sql".to_string(),
+                job_migration_file: "20241201_jobs.sql".to_string(),
+                pipeline_migration_file: "20241201_pipelines.sql".to_string(),
+                pipeline_execution_migration_file: "20241201_pipeline_executions.sql".to_string(),
+                resource_pool_db_path: "data/resource_pools.redb".to_string(),
             },
             cache: CacheConfig {
                 path: "/tmp/cache.redb".to_string(),

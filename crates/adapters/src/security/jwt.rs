@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use hodei_pipelines_core::security::{JwtClaims, Permission, Role, SecurityContext};
-use hodei_pipelines_ports::security::{Result, SecurityError, TokenService};
+use hodei_pipelines_domain::identity_access::security::{JwtClaims, Permission, Role, SecurityContext};
+use hodei_pipelines_ports::identity_access::{Result, SecurityError, TokenService};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -75,4 +75,3 @@ impl TokenService for JwtTokenService {
         ))
     }
 }
-

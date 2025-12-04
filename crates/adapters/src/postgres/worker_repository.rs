@@ -3,7 +3,7 @@
 //! Production-ready implementation for persisting and retrieving workers.
 
 use async_trait::async_trait;
-use hodei_pipelines_core::{
+use hodei_pipelines_domain::{
     DomainError, Result, Worker, WorkerCapabilities, WorkerId, WorkerStatus,
 };
 use hodei_pipelines_ports::{SchedulerError, SchedulerPort, WorkerRepository};
@@ -374,7 +374,7 @@ impl WorkerRepository for PostgreSqlWorkerRepository {
     async fn update_worker_status(
         &self,
         worker_id: &WorkerId,
-        status: hodei_pipelines_core::worker_messages::WorkerStatus,
+        status: hodei_pipelines_domain::WorkerStatus,
     ) -> Result<()> {
         sqlx::query(
             r#"

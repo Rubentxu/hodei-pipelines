@@ -4,7 +4,8 @@
 
 use hodei_pipelines_adapters::bus::InMemoryBus;
 use hodei_pipelines_adapters::bus::config::{EventBusConfig, EventBusType, NatsConfig};
-use hodei_pipelines_core::{JobSpec, ResourceQuota, WorkerId};
+use hodei_pipelines_domain::pipeline_execution::value_objects::job_definitions::{JobSpec, ResourceQuota};
+use hodei_pipelines_domain::scheduling::entities::worker::WorkerId;
 use hodei_pipelines_ports::event_bus::{EventPublisher, EventSubscriber, SystemEvent};
 
 #[tokio::test]

@@ -1,6 +1,6 @@
 use aho_corasick::AhoCorasick;
 use async_trait::async_trait;
-use hodei_pipelines_ports::security::SecretMasker;
+use hodei_pipelines_ports::identity_access::SecretMasker;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -46,4 +46,3 @@ impl SecretMasker for AhoCorasickMasker {
         ac.replace_all(text, &replacements)
     }
 }
-

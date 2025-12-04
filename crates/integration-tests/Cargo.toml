@@ -26,15 +26,19 @@ sqlx = { workspace = true, features = [
 portable-pty = { workspace = true }
 
 # Workspace crates
-hodei-pipelines-core = { workspace = true }
+hodei-pipelines-domain = { workspace = true }
 hodei-pipelines-ports = { workspace = true, features = ["testing"] }
 hodei-pipelines-adapters = { workspace = true }
 hodei-pipelines-server = { workspace = true }
-hodei-pipelines-modules = { workspace = true }
+hodei-pipelines-application = { workspace = true }
+hodei-pipelines-proto = { workspace = true }
+
+# Testing utilities
+async-trait = "0.1"
 
 [dev-dependencies]
-axum-test = "18.3.0"
 tempfile = { workspace = true }
+testcontainers = "0.26"
 
 [features]
 container_tests = []

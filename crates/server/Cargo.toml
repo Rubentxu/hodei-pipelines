@@ -9,9 +9,9 @@ repository.workspace = true
 
 [dependencies]
 # Workspace core crates
-hodei-pipelines-core = { workspace = true }
+hodei-pipelines-domain = { workspace = true }
 hodei-pipelines-ports = { workspace = true }
-hodei-pipelines-modules = { workspace = true }
+hodei-pipelines-application = { workspace = true }
 hodei-pipelines-adapters = { workspace = true, features = [
     "docker-provider",
     "kubernetes-provider",

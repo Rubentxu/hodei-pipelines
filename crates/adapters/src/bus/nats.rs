@@ -14,7 +14,7 @@ use serde_json;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_pipelines_core::{JobId, JobSpec, ResourceQuota};
+    use hodei_pipelines_domain::{JobId, JobSpec, ResourceQuota};
     use std::collections::HashMap;
 
     #[tokio::test]
@@ -82,11 +82,11 @@ mod tests {
         let events = vec![
             SystemEvent::JobScheduled {
                 job_id: JobId::new(),
-                worker_id: hodei_pipelines_core::WorkerId::new(),
+                worker_id: hodei_pipelines_domain::WorkerId::new(),
             },
             SystemEvent::JobStarted {
                 job_id: JobId::new(),
-                worker_id: hodei_pipelines_core::WorkerId::new(),
+                worker_id: hodei_pipelines_domain::WorkerId::new(),
             },
         ];
 

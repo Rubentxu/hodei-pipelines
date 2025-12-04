@@ -13,8 +13,7 @@ use hodei_pipelines_proto::{
     UploadArtifactResponse, WorkerRegistration, WorkerService, WorkerStatus,
 };
 
-use hodei_pipelines_core::WorkerCapabilities;
-use hodei_pipelines_core::{Worker, WorkerId};
+use hodei_pipelines_domain::{Worker, WorkerCapabilities, WorkerId};
 use hodei_pipelines_ports::scheduler_port::SchedulerError;
 
 use crate::error::GrpcError;
@@ -122,7 +121,7 @@ impl WorkerService for HwpService {
         // info!("Heartbeat from worker: {}", req.worker_id);
 
         if let Some(proto_usage) = req.resource_usage {
-            let resource_usage = hodei_pipelines_core::ResourceUsage {
+            let resource_usage = hodei_pipelines_domain::ResourceUsage {
                 cpu_usage_m: proto_usage.cpu_usage_m,
                 memory_usage_mb: proto_usage.memory_usage_mb,
                 active_jobs: proto_usage.active_jobs,
@@ -214,7 +213,7 @@ impl WorkerService for HwpService {
                                     // Publish JobCompleted event
                                     if let Ok(job_uuid) = uuid::Uuid::parse_str(&res.job_id) {
                                         let job_id =
-                                            hodei_pipelines_core::JobId::from_uuid(job_uuid);
+                                            hodei_pipelines_domain::JobId::from_uuid(job_uuid);
                                         let event =
                                             hodei_pipelines_ports::SystemEvent::JobCompleted {
                                                 job_id,
@@ -329,7 +328,7 @@ impl WorkerService for HwpService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hodei_pipelines_modules::worker_management::MockSchedulerPort;
+    use hodei_pipelines_application::scheduling::worker_management::MockSchedulerPort;
     use std::sync::Arc;
 
     #[tokio::test]
