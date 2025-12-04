@@ -2,7 +2,6 @@
 members = [
     "crates/domain",
     "crates/ports",
-    "crates/orchestrator",
     "crates/application",
     "crates/adapters",
     "crates/e2e-tests",

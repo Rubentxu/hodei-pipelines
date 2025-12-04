@@ -10,6 +10,9 @@ use hodei_pipelines_ports::scheduler_port::{SchedulerError, SchedulerPort};
 use hodei_pipelines_proto::ServerMessage;
 use tracing::info;
 
+// Export testcontainers manager for tests
+pub mod testcontainers_manager;
+
 /// Mock Scheduler for integration testing
 #[derive(Debug)]
 pub struct MockScheduler;

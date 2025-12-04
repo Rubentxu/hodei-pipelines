@@ -15,7 +15,7 @@ use testcontainers::core::{IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{Container, GenericImage, Image};
 use tokio::sync::OnceCell;
-use tracing::{info, warn, error};
+use tracing::{info, warn, error as tracing_error};
 
 /// Test environment configuration
 #[derive(Debug, Clone)]
@@ -458,7 +458,7 @@ impl ContainerLeakDetector {
         let leaked = current_count.saturating_sub(self.start_count);
 
         if leaked > 0 {
-            error!("Detected {} leaked containers!", leaked);
+            tracing_error!("Detected {} leaked containers!", leaked);
         } else {
             info!("No container leaks detected");
         }
