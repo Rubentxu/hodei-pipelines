@@ -1,7 +1,7 @@
-//! Integration Tests with TestContainers
+//! Integration Tests
 //!
 //! This module contains comprehensive integration tests that verify the entire
-//! resource governance and pipeline execution workflow using TestContainers.
+//! system functionality.
 
 use async_trait::async_trait;
 use hodei_pipelines_domain::scheduling::entities::worker::Worker;
@@ -9,9 +9,6 @@ use hodei_pipelines_domain::scheduling::value_objects::worker_messages::WorkerId
 use hodei_pipelines_ports::scheduler_port::{SchedulerError, SchedulerPort};
 use hodei_pipelines_proto::ServerMessage;
 use tracing::info;
-
-// Export testcontainers manager for tests
-pub mod testcontainers_manager;
 
 /// Mock Scheduler for integration testing
 #[derive(Debug)]

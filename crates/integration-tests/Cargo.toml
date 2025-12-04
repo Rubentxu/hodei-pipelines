@@ -35,10 +35,12 @@ hodei-pipelines-proto = { workspace = true }
 
 # Testing utilities
 async-trait = "0.1"
+thiserror = "2.0"
+tokio-postgres = "0.7"
 
 [dev-dependencies]
 tempfile = { workspace = true }
-testcontainers = "0.26"
+testcontainers = { workspace = true }
 
 [features]
 container_tests = []
