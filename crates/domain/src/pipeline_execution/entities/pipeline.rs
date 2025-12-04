@@ -222,7 +222,7 @@ impl PipelineStepBuilder {
             .ok_or_else(|| DomainError::Validation("Timeout is required".to_string()))?;
 
         let step = PipelineStep {
-            id: self.id.unwrap_or_else(PipelineStepId::new),
+            id: self.id.unwrap_or_default(),
             name,
             job_spec,
             depends_on: self.depends_on,

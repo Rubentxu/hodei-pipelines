@@ -601,8 +601,8 @@ impl WorkerProvider for KubernetesProvider {
 
         // Add ephemeral labels
         if let Some(manifest_obj) = manifest.as_object_mut() {
-            if let Some(metadata) = manifest_obj.get_mut("metadata") {
-                if let Some(metadata_obj) = metadata.as_object_mut() {
+            if let Some(metadata) = manifest_obj.get_mut("metadata")
+                && let Some(metadata_obj) = metadata.as_object_mut() {
                     // Add ephemeral label
                     if let Some(labels) = metadata_obj.get_mut("labels") {
                         if let Some(labels_obj) = labels.as_object_mut() {
@@ -617,12 +617,11 @@ impl WorkerProvider for KubernetesProvider {
                         );
                     }
                 }
-            }
 
             // Add auto-cleanup annotation if specified
-            if let Some(cleanup_seconds) = auto_cleanup_seconds {
-                if let Some(metadata) = manifest_obj.get_mut("metadata") {
-                    if let Some(metadata_obj) = metadata.as_object_mut() {
+            if let Some(cleanup_seconds) = auto_cleanup_seconds
+                && let Some(metadata) = manifest_obj.get_mut("metadata")
+                    && let Some(metadata_obj) = metadata.as_object_mut() {
                         if let Some(annotations) = metadata_obj.get_mut("annotations") {
                             if let Some(annotations_obj) = annotations.as_object_mut() {
                                 annotations_obj.insert(
@@ -639,8 +638,6 @@ impl WorkerProvider for KubernetesProvider {
                             );
                         }
                     }
-                }
-            }
         }
 
         // Create the pod

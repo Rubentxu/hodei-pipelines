@@ -100,8 +100,8 @@ impl PostgreSqlPipelineExecutionRepository {
             }
 
             // Handle line comments
-            if !in_block_comment && !in_dollar_quote {
-                if ch == '-' && chars.peek() == Some(&'-') {
+            if !in_block_comment && !in_dollar_quote
+                && ch == '-' && chars.peek() == Some(&'-') {
                     in_line_comment = true;
                     // Skip to end of line
                     while let Some(&next_ch) = chars.peek() {
@@ -112,7 +112,6 @@ impl PostgreSqlPipelineExecutionRepository {
                     }
                     continue;
                 }
-            }
 
             // Handle dollar-quoted strings
             if ch == '$' && !in_block_comment && !in_line_comment {
@@ -156,11 +155,10 @@ impl PostgreSqlPipelineExecutionRepository {
             // Track parentheses depth
             if ch == '(' {
                 paren_depth += 1;
-            } else if ch == ')' {
-                if paren_depth > 0 {
+            } else if ch == ')'
+                && paren_depth > 0 {
                     paren_depth -= 1;
                 }
-            }
 
             // Accumulate character
             current_stmt.push(ch);

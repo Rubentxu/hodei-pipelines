@@ -145,26 +145,22 @@ impl ResourceQuota {
 
     /// Check if this quota has sufficient resources for another quota
     pub fn can_accommodate(&self, other: &ResourceQuota) -> bool {
-        if let (Some(self_cpu), Some(other_cpu)) = (&self.cpu, &other.cpu) {
-            if !self_cpu.is_at_least(other_cpu) {
+        if let (Some(self_cpu), Some(other_cpu)) = (&self.cpu, &other.cpu)
+            && !self_cpu.is_at_least(other_cpu) {
                 return false;
             }
-        }
-        if let (Some(self_mem), Some(other_mem)) = (&self.memory, &other.memory) {
-            if !self_mem.is_at_least(other_mem) {
+        if let (Some(self_mem), Some(other_mem)) = (&self.memory, &other.memory)
+            && !self_mem.is_at_least(other_mem) {
                 return false;
             }
-        }
-        if let (Some(self_storage), Some(other_storage)) = (&self.storage, &other.storage) {
-            if !self_storage.is_at_least(other_storage) {
+        if let (Some(self_storage), Some(other_storage)) = (&self.storage, &other.storage)
+            && !self_storage.is_at_least(other_storage) {
                 return false;
             }
-        }
-        if let (Some(self_gpu), Some(other_gpu)) = (&self.gpu, &other.gpu) {
-            if self_gpu < other_gpu {
+        if let (Some(self_gpu), Some(other_gpu)) = (&self.gpu, &other.gpu)
+            && self_gpu < other_gpu {
                 return false;
             }
-        }
         // Check custom resources
         for (name, required) in &other.custom {
             if let Some(available) = self.custom.get(name) {
@@ -247,19 +243,16 @@ impl std::fmt::Display for BudgetQuota {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum BudgetPeriod {
     Hourly,
     Daily,
     Weekly,
+    #[default]
     Monthly,
     Yearly,
 }
 
-impl Default for BudgetPeriod {
-    fn default() -> Self {
-        BudgetPeriod::Monthly
-    }
-}
 
 impl BudgetQuota {
     /// Create a new budget quota

@@ -244,6 +244,12 @@ pub struct ComputePoolBuilder {
     status: Option<PoolStatus>,
 }
 
+impl Default for ComputePoolBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ComputePoolBuilder {
     pub fn new() -> Self {
         Self {
@@ -461,6 +467,12 @@ pub struct ResourceRequestBuilder {
     priority: Option<u8>,
 }
 
+impl Default for ResourceRequestBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResourceRequestBuilder {
     pub fn new() -> Self {
         Self {
@@ -563,7 +575,7 @@ impl ResourceRequest {
     pub fn can_be_satisfied_by(&self, capacity: &PoolCapacity) -> bool {
         capacity.cpu_millicores >= self.cpu_millicores
             && capacity.memory_mb >= self.memory_mb
-            && self.gpu_count.map_or(true, |gpu| capacity.gpu_count >= gpu)
+            && self.gpu_count.is_none_or(|gpu| capacity.gpu_count >= gpu)
     }
 }
 
@@ -590,6 +602,12 @@ pub struct TenantQuotaBuilder {
     max_daily_cost: Option<f64>,
     max_monthly_cost: Option<f64>,
     allowed_pools: Option<Vec<PoolId>>,
+}
+
+impl Default for TenantQuotaBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TenantQuotaBuilder {
@@ -681,7 +699,7 @@ impl TenantQuota {
 
     /// Check if a resource request is within quota limits
     pub fn check_within_limits(&self, request: &ResourceRequest) -> Result<(), String> {
-        let required_cores = ((request.cpu_millicores + 999) / 1000) as u32; // Convert to cores
+        let required_cores = request.cpu_millicores.div_ceil(1000) as u32; // Convert to cores
 
         if required_cores > self.max_cpu_cores {
             return Err(format!(
@@ -697,16 +715,14 @@ impl TenantQuota {
             ));
         }
 
-        if let Some(max_gpus) = self.max_gpus {
-            if let Some(request_gpus) = request.gpu_count {
-                if request_gpus > max_gpus {
+        if let Some(max_gpus) = self.max_gpus
+            && let Some(request_gpus) = request.gpu_count
+                && request_gpus > max_gpus {
                     return Err(format!(
                         "GPU request {} exceeds quota {} GPUs",
                         request_gpus, max_gpus
                     ));
                 }
-            }
-        }
 
         Ok(())
     }

@@ -391,9 +391,9 @@ impl GlobalResourceController {
         let mut inner = self.inner.write().unwrap();
 
         // Check tenant quota if enabled
-        if self.config.enable_quota_enforcement {
-            if let Some(tenant_id) = &request.tenant_id {
-                if let Some(quota) = inner.tenant_quotas.get(tenant_id) {
+        if self.config.enable_quota_enforcement
+            && let Some(tenant_id) = &request.tenant_id
+                && let Some(quota) = inner.tenant_quotas.get(tenant_id) {
                     // Check pool access first
                     quota
                         .check_pool_access(&pool_id)
@@ -441,7 +441,7 @@ impl GlobalResourceController {
                         storage_gb: current_usage.storage_gb,
                     };
 
-                    let required_cores = (total_usage.cpu_millicores + 999) / 1000;
+                    let required_cores = total_usage.cpu_millicores.div_ceil(1000);
                     if required_cores > quota.max_cpu_cores as u64 {
                         return Err(format!(
                             "CPU quota exceeded: {} cores required but limit is {} cores",
@@ -456,14 +456,13 @@ impl GlobalResourceController {
                         ));
                     }
 
-                    if let Some(max_gpus) = quota.max_gpus {
-                        if total_usage.gpu_count > max_gpus {
+                    if let Some(max_gpus) = quota.max_gpus
+                        && total_usage.gpu_count > max_gpus {
                             return Err(format!(
                                 "GPU quota exceeded: {} GPUs required but limit is {}",
                                 total_usage.gpu_count, max_gpus
                             ));
                         }
-                    }
 
                     // Increment job count and update resource usage
                     *inner
@@ -473,8 +472,6 @@ impl GlobalResourceController {
                     inner.tenant_resource_usage
                         .insert(tenant_id.clone(), total_usage);
                 }
-            }
-        }
 
         // Now allocate resources
         let pool = inner
@@ -561,15 +558,14 @@ impl GlobalResourceController {
     pub fn release_tenant_job(&self, _allocation_id: &str, tenant_id: Option<&String>) {
         if let Some(tenant_id) = tenant_id {
             let mut inner = self.inner.write().unwrap();
-            if let Some(count) = inner.active_tenant_jobs.get_mut(tenant_id) {
-                if *count > 0 {
+            if let Some(count) = inner.active_tenant_jobs.get_mut(tenant_id)
+                && *count > 0 {
                     *count -= 1;
                     // Remove entry if count reaches 0 to keep HashMap clean
                     if *count == 0 {
                         inner.active_tenant_jobs.remove(tenant_id);
                     }
                 }
-            }
 
             // Also update resource usage tracking
             // Note: This is a simplified version. In production, you'd need to track
@@ -596,7 +592,7 @@ impl GlobalResourceController {
         // 1. Bin Packing Score (35%) - Minimize resource waste
         let cpu_utilization = (pool.used_capacity.cpu_millicores + request.cpu_millicores) as f64
             / pool.total_capacity.cpu_millicores as f64;
-        let bin_pack_score = if cpu_utilization >= 0.6 && cpu_utilization <= 0.85 {
+        let bin_pack_score = if (0.6..=0.85).contains(&cpu_utilization) {
             1.0 // Optimal utilization
         } else if cpu_utilization < 0.6 {
             0.7 + (cpu_utilization / 0.6) * 0.3 // Under-utilized penalty

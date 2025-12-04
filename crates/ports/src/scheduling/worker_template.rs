@@ -294,7 +294,7 @@ impl KubernetesTemplateGenerator {
             resources.insert("requests".to_string(), serde_json::Value::Object(requests));
         }
         if let Some(memory) = &template.resources.memory {
-            let mut requests = resources
+            let requests = resources
                 .get("requests")
                 .and_then(|v| v.as_object())
                 .map(|m| {
@@ -446,8 +446,7 @@ impl WorkerTemplateGenerator for KubernetesTemplateGenerator {
     ) -> Result<serde_json::Value, TemplateError> {
         self.generate_pod_spec(template, name)
             .map_err(|e| TemplateError::GenerationFailed {
-                source: Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                source: Box::new(std::io::Error::other(
                     e.to_string(),
                 )),
             })
@@ -522,14 +521,13 @@ impl DockerTemplateGenerator {
         }
 
         // Network
-        if let Some(network) = &template.network {
-            if let Some(mode) = &network.network_mode {
+        if let Some(network) = &template.network
+            && let Some(mode) = &network.network_mode {
                 service.insert(
                     "network_mode".to_string(),
                     serde_json::Value::String(mode.clone()),
                 );
             }
-        }
 
         // Resources (memory, cpu)
         let mut deploy = serde_json::Map::new();
@@ -542,7 +540,7 @@ impl DockerTemplateGenerator {
         }
 
         if let Some(memory) = &template.resources.memory {
-            let mut limits = resources
+            let limits = resources
                 .get("limits")
                 .and_then(|v| v.as_object())
                 .map(|m| {
@@ -590,8 +588,7 @@ impl WorkerTemplateGenerator for DockerTemplateGenerator {
     ) -> Result<serde_json::Value, TemplateError> {
         self.generate_docker_config(template, name)
             .map_err(|e| TemplateError::GenerationFailed {
-                source: Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                source: Box::new(std::io::Error::other(
                     e.to_string(),
                 )),
             })
