@@ -6,12 +6,12 @@
 
 pub use hodei_pipelines_domain::WorkerStatus;
 
-pub mod shared;
 pub mod identity_access;
 pub mod observability;
 pub mod pipeline_execution;
 pub mod resource_governance;
 pub mod scheduling;
+pub mod shared;
 
 // Re-export event_bus from shared for backward compatibility
 pub use crate::shared::event_bus::{EventBusError, EventPublisher, EventSubscriber, SystemEvent};

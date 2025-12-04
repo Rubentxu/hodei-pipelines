@@ -102,7 +102,6 @@ pub use crate::scheduling::queue_scaling_integration::{
 pub use crate::scheduling::state_machine::{
     SchedulingContext, SchedulingState, SchedulingStateMachine,
 };
-pub use crate::scheduling::{SchedulerConfig, SchedulerModule};
 pub use crate::scheduling::weighted_fair_queuing::{
     StarvationDetection, TenantWeight, WFQAllocation, WFQConfig, WFQError, WFQQueueEntry, WFQStats,
     WeightContext, WeightStrategy, WeightedFairQueueingEngine,
@@ -111,3 +110,4 @@ pub use crate::scheduling::worker_management::{
     WorkerManagementConfig, WorkerManagementError, WorkerManagementService,
     create_default_worker_management_service, create_kubernetes_worker_management_service,
 };
+pub use crate::scheduling::{SchedulerConfig, SchedulerModule};
