@@ -576,7 +576,7 @@ impl GlobalResourceController {
     /// Calculate pool score based on multiple factors
     fn calculate_pool_score_inner(
         &self,
-        inner: &GRCInner,
+        _inner: &GRCInner,
         pool: &ComputePool,
         request: &ResourceRequest,
     ) -> f64 {

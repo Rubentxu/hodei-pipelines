@@ -3,6 +3,8 @@
 //! This module contains comprehensive integration tests that verify the entire
 //! system functionality.
 
+pub mod testcontainers_manager;
+
 use async_trait::async_trait;
 use hodei_pipelines_domain::scheduling::entities::worker::Worker;
 use hodei_pipelines_domain::scheduling::value_objects::worker_messages::WorkerId;

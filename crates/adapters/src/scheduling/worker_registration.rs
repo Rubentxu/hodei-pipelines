@@ -10,7 +10,9 @@ use hodei_pipelines_domain::WorkerId;
 use hodei_pipelines_ports::{
     SchedulerPort, WorkerRegistrationError, WorkerRegistrationPort, scheduler_port::SchedulerError,
 };
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
 /// Configuration for WorkerRegistrationAdapter
@@ -34,6 +36,7 @@ impl Default for RegistrationConfig {
 }
 
 /// Adapter that registers workers with the Scheduler
+/// 🔴 CRITICAL FIX: Added task registry to prevent memory leaks
 #[derive(Debug, Clone)]
 pub struct WorkerRegistrationAdapter<T>
 where
@@ -41,6 +44,9 @@ where
 {
     scheduler: T,
     config: RegistrationConfig,
+    // 🔴 CRITICAL FIX: Track active batch tasks to prevent memory leaks
+    active_batch_tasks:
+        Arc<Mutex<std::collections::HashMap<String, Vec<tokio::task::AbortHandle>>>>,
 }
 
 impl<T> WorkerRegistrationAdapter<T>
@@ -48,8 +54,13 @@ where
     T: SchedulerPort + Clone + 'static,
 {
     /// Create new adapter with scheduler client
+    /// 🔴 CRITICAL FIX: Initialize task registry
     pub fn new(scheduler: T, config: RegistrationConfig) -> Self {
-        Self { scheduler, config }
+        Self {
+            scheduler,
+            config,
+            active_batch_tasks: Arc::new(Mutex::new(std::collections::HashMap::new())),
+        }
     }
 
     /// Calculate exponential backoff duration
@@ -156,6 +167,7 @@ where
     }
 
     /// Register multiple workers in batch with controlled concurrency
+    /// 🔴 CRITICAL FIX: Added timeout and task tracking to prevent memory leaks
     async fn register_workers_batch(
         &self,
         workers: Vec<Worker>,
@@ -164,9 +176,14 @@ where
             return Vec::new();
         }
 
+        // 🔴 CRITICAL FIX: Generate unique batch ID for tracking
+        let batch_id = format!("batch-{}", uuid::Uuid::new_v4());
+        info!(batch_id = %batch_id, worker_count = workers.len(), "Starting worker batch registration");
+
         // Clone data for use in async blocks
         let scheduler = self.scheduler.clone();
         let config = self.config.clone();
+        let task_registry = self.active_batch_tasks.clone();
 
         // Use a semaphore to limit concurrent registrations
         let semaphore =
@@ -178,7 +195,8 @@ where
             let scheduler = scheduler.clone();
             let config = config.clone();
 
-            tasks.push(tokio::spawn(async move {
+            // 🔴 CRITICAL FIX: Spawn task and capture AbortHandle
+            let handle = tokio::spawn(async move {
                 // Acquire permit before registration
                 let _permit = semaphore.acquire().await.unwrap();
 
@@ -254,22 +272,76 @@ where
                         }
                     }
                 }
-            }));
+            });
+
+            // 🔴 CRITICAL FIX: Track the AbortHandle
+            let abort_handle = handle.abort_handle();
+
+            // 🔴 CRITICAL FIX: Register task in the tracking map
+            {
+                let mut registry = task_registry.lock().await;
+                registry
+                    .entry(batch_id.clone())
+                    .or_insert_with(Vec::new)
+                    .push(abort_handle);
+            }
+
+            tasks.push(handle);
         }
 
-        // Wait for all tasks to complete
-        let results = futures::future::join_all(tasks).await;
+        // 🔴 CRITICAL FIX: Wait for all tasks with overall batch timeout
+        let batch_timeout = tokio::time::timeout(
+            Duration::from_secs(300), // 5 minutes max for batch
+            futures::future::join_all(tasks),
+        );
 
-        // Extract results, handling any panics
+        let mut results = Vec::new();
+        let timeout_occurred = match batch_timeout.await {
+            Ok(join_results) => {
+                info!(batch_id = %batch_id, "Batch completed successfully");
+                results = join_results;
+                false
+            }
+            Err(_) => {
+                warn!(batch_id = %batch_id, "Batch timeout reached, aborting all tasks");
+                // Abort all tasks
+                let registry = task_registry.lock().await;
+                if let Some(handles) = registry.get(&batch_id) {
+                    for handle in handles {
+                        handle.abort();
+                    }
+                }
+                // Wait briefly for tasks to be cancelled
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                true
+            }
+        };
+
+        // 🔴 CRITICAL FIX: Cleanup: Remove completed tasks from registry
+        {
+            let mut registry = task_registry.lock().await;
+            registry.remove(&batch_id);
+        }
+
+        info!(batch_id = %batch_id, "Batch registration cleanup complete");
+
+        // Extract results, handling any panics or cancellations
         results
             .into_iter()
             .map(|result| match result {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(e)) => Err(e),
-                Err(e) => Err(WorkerRegistrationError::internal(format!(
-                    "Task panicked: {}",
-                    e
-                ))),
+                Err(_e) => {
+                    if timeout_occurred {
+                        Err(WorkerRegistrationError::registration_failed(
+                            "Batch timeout".to_string(),
+                        ))
+                    } else {
+                        Err(WorkerRegistrationError::internal(
+                            "Task cancelled".to_string(),
+                        ))
+                    }
+                }
             })
             .collect()
     }
@@ -311,4 +383,3 @@ fn convert_scheduler_error(error: SchedulerError) -> WorkerRegistrationError {
         SchedulerError::Internal(msg) => WorkerRegistrationError::internal(msg),
     }
 }
-

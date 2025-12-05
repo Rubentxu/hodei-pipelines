@@ -5,6 +5,7 @@
 
 pub mod identity_access;
 pub mod observability;
+pub mod orchestrator;
 pub mod pipeline_execution;
 pub mod resource_governance;
 pub mod scheduling;
@@ -53,15 +54,12 @@ pub use crate::observability::sla_tracking::{
     PriorityAdjustment, SLALevel, SLAMetricsSnapshot, SLAStats, SLATracker, SLAViolationAlert,
     SLAViolationEvent,
 };
-pub use crate::pipeline_execution::orchestrator::{OrchestratorConfig, OrchestratorModule};
-pub use crate::pipeline_execution::pipeline_crud::{
-    CreatePipelineRequest, CreatePipelineStepRequest, ExecutePipelineRequest, ListPipelinesFilter,
-    ListPipelinesResponse, PipelineCrudConfig, PipelineCrudError, PipelineCrudService,
-    PipelineSummary, UpdatePipelineRequest,
-};
-pub use crate::pipeline_execution::pipeline_execution_orchestrator::{
-    ConcreteOrchestrator, PipelineExecutionConfig, PipelineExecutionOrchestrator,
-    PipelineExecutionService, PipelineService,
+pub use crate::orchestrator::{
+    ConcreteOrchestrator as OrchestratorConcrete, CreatePipelineRequest, ExecutePipelineRequest,
+    ListPipelinesFilter, ListPipelinesResponse, PipelineCrudConfig, PipelineCrudError,
+    PipelineCrudService, PipelineExecutionConfig as OrchestratorConfig,
+    PipelineExecutionOrchestrator as OrchestratorService, PipelineExecutionService,
+    PipelineService, PipelineSummary, UpdatePipelineRequest,
 };
 pub use crate::resource_governance::pool_lifecycle::{
     HealthCheckResult, InMemoryStateStore, LifecycleError, PoolConfig, PoolEvent,

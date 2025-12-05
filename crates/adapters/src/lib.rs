@@ -9,6 +9,7 @@ pub mod event_bus;
 pub mod extractors;
 pub mod identity_access;
 pub mod observability;
+pub mod orchestrator;
 pub mod pipeline_execution;
 pub mod postgres;
 pub mod redb;
@@ -19,6 +20,7 @@ pub mod websocket;
 
 pub use crate::bus::config::{EventBusConfig, EventBusType, NatsConfig};
 pub use crate::bus::{EventBusFactory, InMemoryBus, InMemoryBusBuilder};
+pub use crate::orchestrator::FacadeOrchestratorAdapter;
 pub use crate::redb::RedbJobRepository;
 pub use crate::resource_governance::RedbResourcePoolRepository;
 pub use crate::scheduling::docker_provider::DockerProvider;

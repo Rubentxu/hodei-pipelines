@@ -61,6 +61,10 @@ sqlx = { workspace = true, features = [
     "uuid",
 ] }
 
+[features]
+# Enable new orchestrator bounded context
+new-orchestrator = []
+
 [lib]
 name = "hodei_server"
 path = "src/lib.rs"

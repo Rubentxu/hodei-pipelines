@@ -339,6 +339,8 @@ pub struct NatsBus {
     /// Stream name
     #[allow(dead_code)]
     stream_name: String,
+    // 🔴 CRITICAL FIX: Shutdown channel for subscriber tasks
+    shutdown_tx: tokio::sync::broadcast::Sender<()>,
 }
 
 /// Configuration for NatsBus
@@ -401,12 +403,16 @@ impl NatsBus {
         // Verify or create the stream
         Self::ensure_stream_exists(&jetstream, &config).await?;
 
+        // 🔴 CRITICAL FIX: Initialize shutdown channel for subscriber tasks
+        let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
+
         let stream_name = config.stream_name.clone();
         Ok(Self {
             client,
             jetstream,
             config,
             stream_name,
+            shutdown_tx,
         })
     }
 
@@ -489,6 +495,7 @@ impl NatsBus {
     }
 
     /// Subscribe to a specific subject (internal method)
+    /// 🔴 CRITICAL FIX: Added shutdown channel for memory leak prevention
     async fn subscribe_with_subject(&self, subject: &str) -> Result<EventReceiver, EventBusError> {
         let config = async_nats::jetstream::consumer::pull::Config {
             filter_subject: subject.to_string(),
@@ -509,17 +516,40 @@ impl NatsBus {
             .await
             .map_err(|e| EventBusError::Internal(format!("Failed to get messages: {}", e)))?;
 
-        tokio::spawn(async move {
-            while let Some(msg_result) = messages.next().await {
-                if let Ok(msg) = msg_result {
-                    if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload)
-                        && let Err(e) = tx_clone.send(event)
-                    {
-                        tracing::error!("Failed to broadcast event: {}", e);
-                        break;
+        // 🔴 CRITICAL FIX: Clone shutdown channel and subject for 'static lifetime
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
+        let subject_clone = subject.to_string();
+
+        // 🔴 CRITICAL FIX: Spawn task with shutdown signal handling
+        let _handle = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    msg_result = messages.next() => {
+                        match msg_result {
+                            Some(Ok(msg)) => {
+                                if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload)
+                                    && let Err(e) = tx_clone.send(event)
+                                {
+                                    tracing::error!("Failed to broadcast event: {}", e);
+                                    break;
+                                }
+                                if let Err(e) = msg.ack().await {
+                                    tracing::error!("Failed to ack message: {}", e);
+                                }
+                            }
+                            Some(Err(e)) => {
+                                tracing::error!("Error receiving message: {}", e);
+                                break;
+                            }
+                            None => {
+                                // Stream ended
+                                break;
+                            }
+                        }
                     }
-                    if let Err(e) = msg.ack().await {
-                        tracing::error!("Failed to ack message: {}", e);
+                    _ = shutdown_rx.recv() => {
+                        tracing::info!("Subscriber task shutting down for subject: {}", subject_clone);
+                        break;
                     }
                 }
             }
@@ -548,6 +578,7 @@ impl NatsBus {
     }
 
     /// Subscribe to a specific subject with consumer group
+    /// 🔴 CRITICAL FIX: Added shutdown channel for memory leak prevention
     pub async fn subscribe_with_subject_and_group(
         &self,
         subject: &str,
@@ -575,17 +606,40 @@ impl NatsBus {
             .await
             .map_err(|e| EventBusError::Internal(format!("Failed to get messages: {}", e)))?;
 
-        tokio::spawn(async move {
-            while let Some(msg_result) = messages.next().await {
-                if let Ok(msg) = msg_result {
-                    if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload)
-                        && let Err(e) = tx_clone.send(event)
-                    {
-                        tracing::error!("Failed to broadcast event: {}", e);
-                        break;
+        // 🔴 CRITICAL FIX: Clone shutdown channel and subject for 'static lifetime
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
+        let subject_clone = subject.to_string();
+
+        // 🔴 CRITICAL FIX: Spawn task with shutdown signal handling
+        let _handle = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    msg_result = messages.next() => {
+                        match msg_result {
+                            Some(Ok(msg)) => {
+                                if let Ok(event) = serde_json::from_slice::<SystemEvent>(&msg.payload)
+                                    && let Err(e) = tx_clone.send(event)
+                                {
+                                    tracing::error!("Failed to broadcast event: {}", e);
+                                    break;
+                                }
+                                if let Err(e) = msg.ack().await {
+                                    tracing::error!("Failed to ack message: {}", e);
+                                }
+                            }
+                            Some(Err(e)) => {
+                                tracing::error!("Error receiving message: {}", e);
+                                break;
+                            }
+                            None => {
+                                // Stream ended
+                                break;
+                            }
+                        }
                     }
-                    if let Err(e) = msg.ack().await {
-                        tracing::error!("Failed to ack message: {}", e);
+                    _ = shutdown_rx.recv() => {
+                        tracing::info!("Subscriber task shutting down for subject: {}", subject_clone);
+                        break;
                     }
                 }
             }

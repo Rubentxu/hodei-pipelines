@@ -446,9 +446,7 @@ impl WorkerTemplateGenerator for KubernetesTemplateGenerator {
     ) -> Result<serde_json::Value, TemplateError> {
         self.generate_pod_spec(template, name)
             .map_err(|e| TemplateError::GenerationFailed {
-                source: Box::new(std::io::Error::other(
-                    e.to_string(),
-                )),
+                source: Box::new(std::io::Error::other(e.to_string())),
             })
     }
 
@@ -484,7 +482,7 @@ impl DockerTemplateGenerator {
     pub fn generate_docker_config(
         &self,
         template: &WorkerTemplate,
-        name: &str,
+        _name: &str,
     ) -> Result<serde_json::Value, TemplateError> {
         let mut service = serde_json::Map::new();
 
@@ -522,12 +520,13 @@ impl DockerTemplateGenerator {
 
         // Network
         if let Some(network) = &template.network
-            && let Some(mode) = &network.network_mode {
-                service.insert(
-                    "network_mode".to_string(),
-                    serde_json::Value::String(mode.clone()),
-                );
-            }
+            && let Some(mode) = &network.network_mode
+        {
+            service.insert(
+                "network_mode".to_string(),
+                serde_json::Value::String(mode.clone()),
+            );
+        }
 
         // Resources (memory, cpu)
         let mut deploy = serde_json::Map::new();
@@ -588,9 +587,7 @@ impl WorkerTemplateGenerator for DockerTemplateGenerator {
     ) -> Result<serde_json::Value, TemplateError> {
         self.generate_docker_config(template, name)
             .map_err(|e| TemplateError::GenerationFailed {
-                source: Box::new(std::io::Error::other(
-                    e.to_string(),
-                )),
+                source: Box::new(std::io::Error::other(e.to_string())),
             })
     }
 

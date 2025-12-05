@@ -8,6 +8,7 @@ pub use hodei_pipelines_domain::WorkerStatus;
 
 pub mod identity_access;
 pub mod observability;
+pub mod orchestrator;
 pub mod pipeline_execution;
 pub mod resource_governance;
 pub mod scheduling;

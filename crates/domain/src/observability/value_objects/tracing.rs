@@ -183,18 +183,17 @@ pub fn record_operation_failure(span: &mut impl Span, error: &str, error_type: &
 ///
 /// This macro automatically creates spans for functions and records their execution time.
 ///
-/// # Example
-/// ```rust
-/// # #[tracing::instrument(skip(ctx), fields(job_id = %ctx.job_id))]
-/// async fn schedule_job(ctx: &SchedulingContext) -> Result<(), Error> {
-///     // Function implementation
+/// # Usage
+/// ```ignore
+/// traced_operation!("schedule_job", job_id, worker_id, {
+///     // Your code here
 ///     Ok(())
-/// }
+/// });
 /// ```
 ///
-/// Note: This is a placeholder. The actual #[tracing::instrument] attribute
-/// from the tracing crate provides this functionality. This module provides
-/// helpers to complement the instrument attribute.
+/// Note: This macro complements the `#[tracing::instrument]` attribute
+/// from the tracing crate by providing a way to wrap operation blocks
+/// with custom tracing logic.
 #[macro_export]
 macro_rules! traced_operation {
     ($operation:expr, $job_id:expr, $worker_id:expr, $body:block) => {{
@@ -237,7 +236,7 @@ mod tests {
         headers.insert("x-request-id".to_string(), "req-123".to_string());
         headers.insert("x-trace-id".to_string(), "trace-456".to_string());
 
-        let context = extract_context_from_headers(&headers);
+        let _context = extract_context_from_headers(&headers);
         // In real usage, this would extract the OpenTelemetry context
         // assert_eq!(context, Context::current()); // Placeholder assertion - Context doesn't implement PartialEq
     }
@@ -256,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_create_trace_span() {
-        let span = create_trace_span("test_operation", Some("job-123"), Some("worker-456"));
+        let _span = create_trace_span("test_operation", Some("job-123"), Some("worker-456"));
 
         // Verify span was created (can't verify attributes in unit test easily)
         assert!(true);

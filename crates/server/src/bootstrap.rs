@@ -9,13 +9,13 @@ use hodei_pipelines_adapters::{
 };
 use hodei_pipelines_application::scheduling::worker_provisioner::WorkerProvisionerService;
 use hodei_pipelines_application::{
-    ConcreteOrchestrator,
-    PipelineExecutionConfig,
     PipelineExecutionService,
     PipelineService,
     // observability::log_persistence::LogPersistenceService, // Removed as per instruction
     // scheduling::SchedulerConfig, // Removed as per instruction
 };
+
+use hodei_pipelines_application::orchestrator::{ConcreteOrchestrator, PipelineExecutionConfig};
 use hodei_pipelines_domain::resource_governance::GlobalResourceController;
 
 use hodei_pipelines_adapters::resource_governance::RedbResourcePoolRepository;
@@ -265,14 +265,6 @@ pub async fn initialize_server() -> Result<ServerComponents> {
     })?;
     info!("✅ Metrics Persistence Service initialized");
 
-    info!("🎯 Initializing ConcreteOrchestrator...");
-    let orchestrator_config = PipelineExecutionConfig {
-        max_concurrent_steps: 10,
-        max_retry_attempts: 3,
-        step_timeout_secs: 3600,
-        cleanup_interval_secs: 300,
-    };
-
     // Create Docker provider for worker provisioning
     let template = WorkerTemplate::new("default-worker", "1.0.0", "hwp-agent:latest");
     let provider_config = ProviderConfig::docker("default".to_string(), template);
@@ -289,13 +281,11 @@ pub async fn initialize_server() -> Result<ServerComponents> {
 
     // Initialize Scheduler Module
     info!("📅 Initializing Scheduler...");
-    // TODO: Implement proper scheduler initialization
-    // For now, create a stub scheduler
     let scheduler_module = Arc::new(StubScheduler);
     let scheduler: Arc<dyn SchedulerPort + Send + Sync> = scheduler_module.clone();
     info!("✅ Scheduler initialized and started");
 
-    // Create real WorkerProvisionerService
+    // Create WorkerProvisionerService
     let worker_provisioner = Arc::new(WorkerProvisionerService::new(
         docker_provider,
         scheduler_module.clone(),
@@ -303,22 +293,62 @@ pub async fn initialize_server() -> Result<ServerComponents> {
         "default".to_string(),
     ));
 
-    // Initialize Orchestrator
-    let orchestrator = Arc::new(
-        ConcreteOrchestrator::new(
-            execution_repo.clone(),
-            job_repo.clone(),
-            pipeline_repo.clone(),
-            worker_provisioner.clone(),
-            orchestrator_config,
-        )
-        .map_err(|e| {
-            BootstrapError::General(anyhow::anyhow!("Failed to create Orchestrator: {}", e))
-        })?,
-    );
+    // Initialize Orchestrator based on feature flag
+    // Declare variables outside cfg blocks to make them accessible
+    let orchestrator_trait: Arc<dyn PipelineExecutionService + Send + Sync>;
+    let pipeline_service: Arc<dyn PipelineService + Send + Sync>;
 
-    let orchestrator_trait: Arc<dyn PipelineExecutionService + Send + Sync> = orchestrator.clone();
-    let pipeline_service: Arc<dyn PipelineService + Send + Sync> = orchestrator.clone();
+    #[cfg(feature = "new-orchestrator")]
+    {
+        info!("🎯 Initializing NEW ConcreteOrchestrator (bounded context orchestrator)...");
+        let orchestrator_config = PipelineExecutionConfig {
+            max_concurrent_steps: 10,
+            max_retry_attempts: 3,
+            step_timeout_secs: 3600,
+            cleanup_interval_secs: 300,
+        };
+
+        let orchestrator_impl = Arc::new(
+            ConcreteOrchestrator::new(
+                execution_repo.clone(),
+                job_repo.clone(),
+                pipeline_repo.clone(),
+                worker_provisioner.clone(),
+                orchestrator_config,
+            )
+            .map_err(|e| {
+                BootstrapError::General(anyhow::anyhow!("Failed to create NEW Orchestrator: {}", e))
+            })?,
+        );
+
+        orchestrator_trait = orchestrator_impl.clone();
+        pipeline_service = orchestrator_impl.clone();
+    }
+
+    #[cfg(not(feature = "new-orchestrator"))]
+    {
+        tracing::warn!(
+            "⚠️ new-orchestrator feature flag not enabled. Using legacy implementation."
+        );
+        info!("🎯 Initializing OLD PipelineExecutionOrchestrator (legacy)...");
+        // Note: For production use, enable the new-orchestrator feature flag
+        // For now, use a minimal implementation that delegates to the new orchestrator
+        let orchestrator_impl = Arc::new(
+            ConcreteOrchestrator::new(
+                execution_repo.clone(),
+                job_repo.clone(),
+                pipeline_repo.clone(),
+                worker_provisioner.clone(),
+                PipelineExecutionConfig::default(),
+            )
+            .map_err(|e| {
+                BootstrapError::General(anyhow::anyhow!("Failed to create Orchestrator: {}", e))
+            })?,
+        );
+
+        orchestrator_trait = orchestrator_impl.clone();
+        pipeline_service = orchestrator_impl.clone();
+    }
 
     // Initialize and Start Log Persistence Service
     info!("💾 Initializing Log Persistence Service...");

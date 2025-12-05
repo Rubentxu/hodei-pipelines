@@ -10,9 +10,12 @@ use axum::{
     response::Json,
     routing::{delete, get, post, put},
 };
-use hodei_pipelines_application::PipelineService;
-use hodei_pipelines_application::pipeline_execution::pipeline_crud::{
-    CreatePipelineRequest, CreatePipelineStepRequest, ExecutePipelineRequest, UpdatePipelineRequest,
+use hodei_pipelines_application::{
+    PipelineService,
+    orchestrator::services::pipeline_crud::{
+        CreatePipelineRequest, CreatePipelineStepRequest, ExecutePipelineRequest,
+        UpdatePipelineRequest,
+    },
 };
 use hodei_pipelines_domain::{
     pipeline_execution::entities::execution::ExecutionId,

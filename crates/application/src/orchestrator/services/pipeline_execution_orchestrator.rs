@@ -12,7 +12,7 @@ use hodei_pipelines_domain::{
     pipeline_execution::entities::pipeline::{Pipeline, PipelineId, PipelineStepId},
 };
 use hodei_pipelines_ports::{
-    EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository, SystemEvent,
+    EventPublisher, JobRepository, PipelineExecutionRepository, PipelineRepository,
     scheduling::worker_provisioner::WorkerProvisioner,
 };
 use std::collections::{HashMap, HashSet};
@@ -20,12 +20,8 @@ use std::sync::Arc;
 use tokio::sync::{Semaphore, mpsc};
 use tracing::{Instrument, Span, error, info, warn};
 
-use crate::pipeline_execution::pipeline_crud::{
+use super::pipeline_crud::{
     CreatePipelineRequest, ExecutePipelineRequest, ListPipelinesFilter, UpdatePipelineRequest,
-};
-use hodei_pipelines_adapters::{
-    InMemoryBus, PostgreSqlJobRepository, PostgreSqlPipelineExecutionRepository,
-    PostgreSqlPipelineRepository,
 };
 
 /// Configuration for pipeline execution orchestrator
@@ -574,10 +570,10 @@ where
 {
     inner: Arc<
         PipelineExecutionOrchestrator<
-            PostgreSqlPipelineExecutionRepository,
-            PostgreSqlJobRepository,
-            PostgreSqlPipelineRepository,
-            InMemoryBus,
+            hodei_pipelines_adapters::PostgreSqlPipelineExecutionRepository,
+            hodei_pipelines_adapters::PostgreSqlJobRepository,
+            hodei_pipelines_adapters::PostgreSqlPipelineRepository,
+            hodei_pipelines_adapters::InMemoryBus,
             W,
         >,
     >,
@@ -588,14 +584,14 @@ where
     W: WorkerProvisioner + Send + Sync + 'static,
 {
     pub fn new(
-        execution_repo: Arc<PostgreSqlPipelineExecutionRepository>,
-        job_repo: Arc<PostgreSqlJobRepository>,
-        pipeline_repo: Arc<PostgreSqlPipelineRepository>,
+        execution_repo: Arc<hodei_pipelines_adapters::PostgreSqlPipelineExecutionRepository>,
+        job_repo: Arc<hodei_pipelines_adapters::PostgreSqlJobRepository>,
+        pipeline_repo: Arc<hodei_pipelines_adapters::PostgreSqlPipelineRepository>,
         worker_provisioner: Arc<W>,
         config: PipelineExecutionConfig,
     ) -> Result<Self> {
         // Create InMemoryBus internally
-        let in_memory_bus = InMemoryBus::new(1000);
+        let in_memory_bus = hodei_pipelines_adapters::InMemoryBus::new(1000);
         let orchestrator = PipelineExecutionOrchestrator::new(
             execution_repo,
             job_repo,

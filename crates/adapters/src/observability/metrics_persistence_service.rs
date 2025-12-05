@@ -5,9 +5,10 @@
 
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, broadcast};
+use tokio::task::AbortHandle;
 use tokio::time::interval;
 use tracing::{error, info, instrument, warn};
 
@@ -44,6 +45,9 @@ pub struct MetricsPersistenceService {
     config: MetricsPersistenceConfig,
     metrics_repository: Arc<MetricsTimeseriesRepository>,
     pending_metrics: Arc<RwLock<HashMap<String, Vec<PersistableMetric>>>>,
+    // 🔴 CRITICAL FIX: Track spawned tasks to prevent memory leaks
+    shutdown_tx: broadcast::Sender<()>,
+    task_handle: Arc<Mutex<Option<AbortHandle>>>,
 }
 
 /// Internal representation of metrics ready for persistence
@@ -69,28 +73,62 @@ impl MetricsPersistenceService {
             config.flush_interval_secs, config.batch_size
         );
 
+        // 🔴 CRITICAL FIX: Initialize shutdown channel for task cancellation
+        let (shutdown_tx, _) = broadcast::channel(1);
+
         Self {
             config,
             metrics_repository,
             pending_metrics: Arc::new(RwLock::new(HashMap::new())),
+            shutdown_tx,
+            task_handle: Arc::new(Mutex::new(None)),
         }
     }
 
     /// Start the persistence service background task
-    pub async fn start(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// 🔴 CRITICAL FIX: Now returns AbortHandle for proper cancellation
+    pub async fn start(&self) -> Result<AbortHandle, Box<dyn std::error::Error + Send + Sync>> {
         if !self.config.enabled {
             warn!("Metrics persistence service is disabled");
-            return Ok(());
+            return Ok(tokio::spawn(async {}).abort_handle());
         }
 
         info!("Starting Metrics Persistence Service");
 
-        // Start the flush loop
+        // 🔴 CRITICAL FIX: Clone for async task with shutdown signal
         let service_clone = self.clone();
-        tokio::spawn(async move {
-            service_clone.flush_loop().await;
+        let shutdown_rx = self.shutdown_tx.subscribe();
+
+        // 🔴 CRITICAL FIX: Spawn task and capture AbortHandle
+        let handle = tokio::spawn(async move {
+            service_clone.flush_loop_with_shutdown(shutdown_rx).await;
         });
 
+        // 🔴 CRITICAL FIX: Store handle for later cancellation
+        {
+            let mut handle_ref = self.task_handle.lock().unwrap();
+            *handle_ref = Some(handle.abort_handle());
+        }
+
+        Ok(handle.abort_handle())
+    }
+
+    /// 🔴 CRITICAL FIX: Stop the service gracefully
+    pub async fn stop(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        info!("Stopping Metrics Persistence Service");
+
+        // Signal shutdown to the task
+        let _ = self.shutdown_tx.send(());
+
+        // Wait for task to complete
+        if let Some(handle) = self.task_handle.lock().unwrap().take() {
+            handle.abort();
+        }
+
+        // Final flush
+        self.flush().await?;
+
+        info!("Metrics Persistence Service stopped successfully");
         Ok(())
     }
 
@@ -194,7 +232,7 @@ impl MetricsPersistenceService {
         Ok(())
     }
 
-    /// Background loop for periodic flushes
+    /// Background loop for periodic flushes (LEGACY - use flush_loop_with_shutdown)
     async fn flush_loop(&self) {
         let mut interval = interval(Duration::from_secs(self.config.flush_interval_secs));
 
@@ -207,15 +245,32 @@ impl MetricsPersistenceService {
         }
     }
 
-    /// Graceful shutdown
+    /// 🔴 CRITICAL FIX: Background loop with shutdown signal support
+    async fn flush_loop_with_shutdown(&self, mut shutdown_rx: broadcast::Receiver<()>) {
+        let mut interval = interval(Duration::from_secs(self.config.flush_interval_secs));
+
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    if let Err(e) = self.flush().await {
+                        error!("Error in flush loop: {}", e);
+                    }
+                }
+                _ = shutdown_rx.recv() => {
+                    info!("Shutdown signal received, stopping flush loop");
+                    // Final flush before exit
+                    if let Err(e) = self.flush().await {
+                        error!("Error in final flush: {}", e);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Graceful shutdown (LEGACY - use stop method)
     pub async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        info!("Shutting down Metrics Persistence Service");
-
-        // Final flush
-        self.flush().await?;
-
-        info!("Metrics Persistence Service shutdown complete");
-        Ok(())
+        self.stop().await
     }
 }
 
@@ -225,6 +280,9 @@ impl MetricsPersistenceService {
             config: self.config.clone(),
             metrics_repository: self.metrics_repository.clone(),
             pending_metrics: self.pending_metrics.clone(),
+            // 🔴 CRITICAL FIX: Clone shutdown channel and task handle
+            shutdown_tx: self.shutdown_tx.clone(),
+            task_handle: self.task_handle.clone(),
         }
     }
 }
@@ -235,6 +293,9 @@ impl Clone for MetricsPersistenceService {
             config: self.config.clone(),
             metrics_repository: self.metrics_repository.clone(),
             pending_metrics: self.pending_metrics.clone(),
+            // 🔴 CRITICAL FIX: Clone shutdown channel and task handle
+            shutdown_tx: self.shutdown_tx.clone(),
+            task_handle: self.task_handle.clone(),
         }
     }
 }
@@ -280,5 +341,39 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
+    }
+
+    /// 🔴 CRITICAL FIX: Test for memory leak prevention with AbortHandle
+    #[tokio::test]
+    async fn test_metrics_service_task_cancellation_prevents_memory_leak() {
+        let config = MetricsPersistenceConfig {
+            flush_interval_secs: 1, // Fast interval for testing
+            batch_size: 100,
+            enabled: true,
+        };
+
+        // 🔴 Create a minimal mock repository that doesn't require DB connection
+        // Use connect_lazy which creates a lazy connection that won't fail immediately
+        let pool = sqlx::postgres::PgPool::connect_lazy("postgres://test:test@localhost:5432/test")
+            .unwrap_or_else(|_| sqlx::postgres::PgPool::connect_lazy("sqlite::memory:").unwrap());
+
+        let mock_repository = Arc::new(crate::MetricsTimeseriesRepository::new(pool));
+
+        let service = MetricsPersistenceService::new(config, mock_repository);
+
+        // Start the service and get AbortHandle
+        let handle = service.start().await.unwrap();
+
+        // Verify task is running (not finished immediately after start)
+        assert!(!handle.is_finished(), "Task should be running after start");
+
+        // Stop the service
+        service.stop().await.unwrap();
+
+        // Give the task time to process the shutdown signal
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Verify task is finished after stop (memory leak prevented)
+        assert!(handle.is_finished(), "Task should be finished after stop()");
     }
 }

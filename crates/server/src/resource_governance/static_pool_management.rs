@@ -18,9 +18,6 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
-use hodei_pipelines_ports::resource_governance::resource_pool::{
-    ResourcePoolConfig, ResourcePoolStatus, ResourcePoolType,
-};
 
 /// Response message
 #[derive(Debug, Serialize)]

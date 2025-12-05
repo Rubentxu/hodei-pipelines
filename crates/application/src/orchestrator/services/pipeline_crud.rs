@@ -5,11 +5,11 @@
 
 use hodei_pipelines_domain::{
     Result,
-    pipeline_execution::value_objects::job_definitions::JobSpec,
+    pipeline_execution::entities::execution::PipelineExecution,
     pipeline_execution::entities::pipeline::{
         Pipeline, PipelineId, PipelineStatus, PipelineStep, PipelineStepBuilder, PipelineStepId,
     },
-    pipeline_execution::entities::execution::PipelineExecution,
+    pipeline_execution::value_objects::job_definitions::JobSpec,
 };
 use hodei_pipelines_ports::{EventBusError, EventPublisher, PipelineRepository, SystemEvent};
 use serde::{Deserialize, Serialize};
@@ -556,7 +556,9 @@ pub struct CreatePipelineStepRequest {
     pub name: String,
     pub image: String,
     pub command: Vec<String>,
-    pub resources: Option<hodei_pipelines_domain::pipeline_execution::value_objects::job_definitions::ResourceQuota>,
+    pub resources: Option<
+        hodei_pipelines_domain::pipeline_execution::value_objects::job_definitions::ResourceQuota,
+    >,
     pub timeout_ms: Option<u64>,
     pub retries: Option<u32>,
     pub env: Option<HashMap<String, String>>,
@@ -576,7 +578,7 @@ pub struct UpdatePipelineRequest {
 /// Request to execute a pipeline
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutePipelineRequest {
-    pub pipeline_id: PipelineId,
+    pub pipeline_id: hodei_pipelines_domain::PipelineId,
     pub variables: Option<HashMap<String, String>>,
     pub tenant_id: Option<String>,
     pub correlation_id: Option<String>,
@@ -618,7 +620,7 @@ pub struct ListPipelinesResponse {
 /// Summary representation of a pipeline
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineSummary {
-    pub id: PipelineId,
+    pub id: hodei_pipelines_domain::PipelineId,
     pub name: String,
     pub description: Option<String>,
     pub status: PipelineStatus,
@@ -652,7 +654,7 @@ pub enum PipelineCrudError {
     DomainError(String),
 
     #[error("Pipeline not found: {0}")]
-    NotFound(PipelineId),
+    NotFound(hodei_pipelines_domain::PipelineId),
 
     #[error("Pipeline repository error: {0}")]
     PipelineRepository(hodei_pipelines_ports::PipelineRepositoryError),

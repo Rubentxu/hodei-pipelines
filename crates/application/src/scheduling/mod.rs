@@ -2,11 +2,11 @@
 
 pub mod queue_assignment;
 pub mod queue_prioritization;
-pub mod state_machine;
-pub mod worker_management;
-pub mod weighted_fair_queuing;
 pub mod queue_scaling_integration;
 pub mod scaling_policies;
+pub mod state_machine;
+pub mod weighted_fair_queuing;
+pub mod worker_management;
 pub mod worker_provisioner;
 
 pub use state_machine::{SchedulingContext, SchedulingState, SchedulingStateMachine};
@@ -33,17 +33,15 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{error, info};
 
+use crate::identity_access::multi_tenancy_quota_manager;
+use crate::identity_access::rbac;
+use crate::observability::metrics_collection;
 use crate::resource_governance::burst_capacity_manager;
 use crate::resource_governance::cooldown_management;
 use crate::resource_governance::cost_optimization;
 use crate::resource_governance::cost_tracking;
-use crate::observability::metrics_collection;
-use crate::identity_access::multi_tenancy_quota_manager;
-use crate::pipeline_execution::orchestrator;
-use crate::pipeline_execution::pipeline_crud;
 use crate::resource_governance::pool_lifecycle;
 use crate::resource_governance::quota_enforcement;
-use crate::identity_access::rbac;
 
 #[derive(Debug, Clone)]
 pub struct SchedulerConfig {
@@ -241,14 +239,6 @@ where
     pub cost_tracking: Option<cost_tracking::CostTrackingService>,
     pub metrics_collection: Option<metrics_collection::MetricsCollector>,
     pub multi_tenancy_quota_manager: Option<multi_tenancy_quota_manager::MultiTenancyQuotaManager>,
-    pub orchestrator: Option<
-        orchestrator::OrchestratorModule<
-            R,
-            E,
-            hodei_pipelines_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository,
-        >,
-    >, // Assuming P is this for now, or need generic P?
-    pub pipeline_crud: Option<pipeline_crud::PipelineCrudService<R, E>>,
     pub pool_lifecycle: Option<pool_lifecycle::InMemoryStateStore>,
     pub queue_assignment: Option<queue_assignment::QueueAssignmentEngine>,
     pub quota_enforcement: Option<quota_enforcement::QuotaEnforcementEngine>,
@@ -289,14 +279,6 @@ where
     pub cost_tracking: Option<cost_tracking::CostTrackingService>,
     pub metrics_collection: Option<metrics_collection::MetricsCollector>,
     pub multi_tenancy_quota_manager: Option<multi_tenancy_quota_manager::MultiTenancyQuotaManager>,
-    pub orchestrator: Option<
-        orchestrator::OrchestratorModule<
-            R,
-            E,
-            hodei_pipelines_adapters::postgres::pipeline_repository::PostgreSqlPipelineRepository,
-        >,
-    >,
-    pub pipeline_crud: Option<pipeline_crud::PipelineCrudService<R, E>>,
     pub pool_lifecycle: Option<pool_lifecycle::InMemoryStateStore>,
     pub queue_assignment: Option<queue_assignment::QueueAssignmentEngine>,
     pub quota_enforcement: Option<quota_enforcement::QuotaEnforcementEngine>,
@@ -336,8 +318,6 @@ where
             cost_tracking: None,
             metrics_collection: None,
             multi_tenancy_quota_manager: None,
-            orchestrator: None,
-            pipeline_crud: None,
             pool_lifecycle: None,
             queue_assignment: None,
             quota_enforcement: None,
@@ -413,8 +393,6 @@ where
             cost_tracking: self.cost_tracking,
             metrics_collection: self.metrics_collection,
             multi_tenancy_quota_manager: self.multi_tenancy_quota_manager,
-            orchestrator: self.orchestrator,
-            pipeline_crud: self.pipeline_crud,
             pool_lifecycle: self.pool_lifecycle,
             queue_assignment: self.queue_assignment,
             quota_enforcement: self.quota_enforcement,
@@ -466,8 +444,6 @@ where
             cost_tracking: None,
             metrics_collection: None,
             multi_tenancy_quota_manager: None,
-            orchestrator: None,
-            pipeline_crud: None,
             pool_lifecycle: None,
             queue_assignment: None,
             quota_enforcement: None,
@@ -563,17 +539,27 @@ where
 
                 if !pools.is_empty() {
                     // Select best pool using GRC scoring
-                    let best_pool = grc.select_best_pool(&pools, &self.job_to_resource_request(&job, None)).await
-                        .map_err(|e| DomainError::Infrastructure(format!("GRC pool selection failed: {}", e)))?;
+                    let best_pool = grc
+                        .select_best_pool(&pools, &self.job_to_resource_request(&job, None))
+                        .await
+                        .map_err(|e| {
+                            DomainError::Infrastructure(format!("GRC pool selection failed: {}", e))
+                        })?;
 
                     // Allocate resources in the selected pool
-                    if let Err(e) = self.allocate_resources_for_job(&job, best_pool.id.clone()).await {
+                    if let Err(e) = self
+                        .allocate_resources_for_job(&job, best_pool.id.clone())
+                        .await
+                    {
                         error!("Failed to allocate resources for job {}: {}", job.id, e);
                         continue;
                     }
 
                     // Now find workers in the selected pool
-                    info!("Job {} allocated to pool {}, finding workers...", job.id, best_pool.id);
+                    info!(
+                        "Job {} allocated to pool {}, finding workers...",
+                        job.id, best_pool.id
+                    );
                 }
             }
 
@@ -1106,7 +1092,9 @@ where
             builder = builder.tenant_id(tenant_id);
         }
 
-        builder.build().expect("Failed to build ResourceRequest from Job")
+        builder
+            .build()
+            .expect("Failed to build ResourceRequest from Job")
     }
 
     /// Find eligible compute pools using GRC
@@ -1262,8 +1250,6 @@ where
             cost_tracking: self.cost_tracking.clone(),
             metrics_collection: self.metrics_collection.clone(),
             multi_tenancy_quota_manager: self.multi_tenancy_quota_manager.clone(),
-            orchestrator: self.orchestrator.clone(),
-            pipeline_crud: self.pipeline_crud.clone(),
             pool_lifecycle: self.pool_lifecycle.clone(),
             queue_assignment: self.queue_assignment.clone(),
             quota_enforcement: self.quota_enforcement.clone(),

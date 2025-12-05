@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use hodei_pipelines_domain::resource_governance::{
-    ComputePool, CostConfig, GRCConfig, GlobalResourceController, PoolCapacity, PoolId, PoolStatus,
+    ComputePool, CostConfig, GRCConfig, GlobalResourceController, PoolCapacity, PoolId,
     ProviderType, RequestId, ResourcePoolConfig, ResourcePoolRepository, ResourceRequest,
     TenantQuota,
 };
@@ -29,7 +29,7 @@ impl ResourcePoolRepository for MockResourcePoolRepository {
 #[test]
 fn test_tenant_quota_creation_and_validation() {
     let repo = Arc::new(MockResourcePoolRepository);
-    let mut grc = GlobalResourceController::new(
+    let grc = GlobalResourceController::new(
         GRCConfig {
             default_allocation_timeout_secs: 300,
             enable_quota_enforcement: true,
@@ -153,7 +153,7 @@ fn test_tenant_quota_creation_and_validation() {
 #[test]
 fn test_concurrent_job_limits() {
     let repo = Arc::new(MockResourcePoolRepository);
-    let mut grc = GlobalResourceController::new(
+    let grc = GlobalResourceController::new(
         GRCConfig {
             default_allocation_timeout_secs: 300,
             enable_quota_enforcement: true,
@@ -226,7 +226,7 @@ fn test_concurrent_job_limits() {
 #[test]
 fn test_cost_budget_enforcement() {
     let repo = Arc::new(MockResourcePoolRepository);
-    let mut grc = GlobalResourceController::new(
+    let grc = GlobalResourceController::new(
         GRCConfig {
             default_allocation_timeout_secs: 300,
             enable_quota_enforcement: true,
@@ -307,7 +307,7 @@ fn test_cost_budget_enforcement() {
 #[test]
 fn test_resource_isolation_between_tenants() {
     let repo = Arc::new(MockResourcePoolRepository);
-    let mut grc = GlobalResourceController::new(
+    let grc = GlobalResourceController::new(
         GRCConfig {
             default_allocation_timeout_secs: 300,
             enable_quota_enforcement: true,
@@ -401,7 +401,7 @@ fn test_resource_isolation_between_tenants() {
 #[test]
 fn test_quota_with_graceful_degradation() {
     let repo = Arc::new(MockResourcePoolRepository);
-    let mut grc = GlobalResourceController::new(
+    let grc = GlobalResourceController::new(
         GRCConfig {
             default_allocation_timeout_secs: 300,
             enable_quota_enforcement: true,

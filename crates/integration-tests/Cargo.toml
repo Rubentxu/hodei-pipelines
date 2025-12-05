@@ -24,6 +24,7 @@ sqlx = { workspace = true, features = [
     "postgres",
 ] }
 portable-pty = { workspace = true }
+async-nats = { workspace = true }
 
 # Workspace crates
 hodei-pipelines-domain = { workspace = true }
@@ -37,6 +38,7 @@ hodei-pipelines-proto = { workspace = true }
 async-trait = "0.1"
 thiserror = "2.0"
 tokio-postgres = "0.7"
+
 
 [dev-dependencies]
 tempfile = { workspace = true }
