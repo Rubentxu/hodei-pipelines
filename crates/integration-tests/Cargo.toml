@@ -1,0 +1,26 @@
+[package]
+name = "integration-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Workspace dependencies
+domain = { path = "../domain" }
+infrastructure = { path = "../infrastructure" }
+
+# Testing
+testcontainers = "3.0"
+tokio = { version = "1.0", features = ["test-util", "macros", "rt-multi-thread"] }
+pretty_assertions = "1.0"
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# Time and async
+chrono = { workspace = true, features = ["serde"] }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+# Additional test utilities
+tempfile = "3.0"
