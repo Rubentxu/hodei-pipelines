@@ -7,7 +7,7 @@ use domain::shared_kernel::{
     DomainEvent, JobId, ProviderId, ProviderCapabilities, ResourceRequirements,
 };
 use testcontainers::clients::Cli;
-use testcontainers::images::generic::GenericImage;
+use testcontainers_modules::generic::GenericImage;
 use tokio::time::Duration;
 
 /// NATS TestContainer wrapper

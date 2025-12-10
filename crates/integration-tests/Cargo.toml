@@ -6,12 +6,13 @@ edition = "2021"
 [dependencies]
 # Workspace dependencies
 domain = { path = "../domain" }
+application = { path = "../application" }
 infrastructure = { path = "../infrastructure" }
 
 # Testing
-testcontainers = "3.0"
-tokio = { version = "1.0", features = ["test-util", "macros", "rt-multi-thread"] }
-pretty_assertions = "1.0"
+testcontainers = { workspace = true }
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+pretty_assertions = { workspace = true }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }

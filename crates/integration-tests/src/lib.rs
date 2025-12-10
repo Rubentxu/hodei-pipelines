@@ -6,10 +6,12 @@
 pub mod postgres_integration;
 pub mod nats_integration;
 pub mod docker_provider_integration;
+pub mod application_integration;
 
 pub use postgres_integration::*;
 pub use nats_integration::*;
 pub use docker_provider_integration::*;
+pub use application_integration::*;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
