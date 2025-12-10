@@ -52,7 +52,9 @@ pub use crate::resource_governance::{
 pub use crate::scheduling::scheduler_port::{SchedulerError, SchedulerPort};
 pub use crate::scheduling::worker_client::{WorkerClient, WorkerClientError};
 pub use crate::scheduling::worker_provider::{
-    ProviderConfig, ProviderFactoryTrait, ProviderType, WorkerProvider,
+    ExecutionContext, ExecutionStatus, JobResult, JobSpec, LogEntry, LogStreamType,
+    ProviderCapabilities, ProviderConfig, ProviderError, ProviderFactoryTrait, ProviderId,
+    ProviderType, ProviderWorker,
 };
 pub use crate::scheduling::worker_registration::{WorkerRegistrationError, WorkerRegistrationPort};
 pub use crate::scheduling::worker_repository::{WorkerRepository, WorkerRepositoryError};

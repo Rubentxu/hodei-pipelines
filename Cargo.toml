@@ -1,150 +1,33 @@
 [workspace]
 members = [
     "crates/domain",
-    "crates/ports",
     "crates/application",
-    "crates/adapters",
-    "crates/e2e-tests",
-    "crates/hwp-proto",
-    "crates/hwp-agent",
-    "crates/server",
-    "crates/integration-tests",
+    "crates/infrastructure",
+    "crates/api",
 ]
-exclude = ["code-manifest"]
 resolver = "2"
+rust-version = "1.80"
 
 [workspace.dependencies]
-# Workspace crate aliases
-hodei-pipelines-domain = { path = "crates/domain" }
-hodei-pipelines-ports = { path = "crates/ports" }
-hodei-pipelines-application = { path = "crates/application" }
-hodei-pipelines-adapters = { path = "crates/adapters" }
-hodei-pipelines-proto = { path = "crates/hwp-proto" }
-hodei-pipelines-server = { path = "crates/server" }
-hwp-pipelines-agent = { path = "crates/hwp-agent" }
-
-# Core async runtime
-tokio = { version = "1.42", features = ["full"] }
-tokio-stream = { version = "0.1", features = ["sync"] }
-tokio-util = { version = "0.7", features = ["codec"] }
-
-# Serialization
+# Core dependencies
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-# Error handling
-thiserror = "2.0"
-anyhow = "1.0"
-
-# Utilities
-uuid = { version = "1.11", features = ["v4"] }
-parking_lot = "0.12"
-dashmap = "6.1"
-crossbeam = { version = "0.8", features = ["alloc", "std"] }
+uuid = { version = "1.10", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+anyhow = "1.0"
 async-trait = "0.1"
-futures = "0.3"
-
-# Logging & Tracing
+tokio = { version = "1.40", features = ["full"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["json"] }
-tracing-opentelemetry = "0.23"
-opentelemetry = "0.22"
-opentelemetry_sdk = "0.22"
-opentelemetry-otlp = "0.15"
+tracing-subscriber = "0.3"
+axum = "0.7"
 
-# gRPC & Protobuf
-tonic = { version = "0.14", features = ["transport", "tls-native-roots"] }
-prost = "0.14"
-prost-types = "0.14"
-tonic-prost = "0.14"
-prost-build = "0.14"
-tonic-prost-build = "0.14"
-
-# HTTP & Web
-axum = { version = "0.8", features = ["json", "http2"] }
-tower = { version = "0.5" }
-tower-http = { version = "0.6", features = ["cors", "trace"] }
-hyper = { version = "1.8", features = ["full"] }
-http = "1.4"
-bytes = "1.9"
-reqwest = { version = "0.12", features = ["json", "stream"] }
-
-# Database
-sqlx = { version = "0.8", features = [
-    "runtime-tokio-rustls",
-    "postgres",
-    "chrono",
-    "uuid",
-] }
-redb = "3.1"
-
-# NATS JetStream
-async-nats = "0.45"
-
-# Security
-jsonwebtoken = { version = "10.2", features = ["rust_crypto"] }
-aho-corasick = "1.1"
-rustls = "0.23"
-x509-parser = "0.18.0"
-sha2 = "0.10"
-
-# Configuration
-config = "0.15"
-
-# Metrics
-prometheus = "0.14"
-
-# DAG and Graph processing
-daggy = "0.9"
-
-# Agent specific
-portable-pty = "0.9.0"
-sysinfo = "0.37.2"
-hostname = "0.4.2"
-flate2 = "1.0"
-
-# WebSocket
-tokio-tungstenite = { version = "0.28.0", features = ["native-tls"] }
-
-# Testing
-tempfile = "3.13"
+# Testing dependencies
+tokio-test = "0.4"
 assert_matches = "1.5"
-wiremock = "0.6"
-dotenvy = "0.15"
-once_cell = "1.20"
-rand = "0.9"
-pretty_assertions = "1.4.1"
-proptest = "1.4"
-mockall = "0.13"
-testcontainers = "0.26"
-
-# Benchmarks
-criterion = { version = "0.8.0", features = ["html_reports"] }
-
-# Additional dependencies
-serde_yaml = "0.9.33"
-utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid"] }
-utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
-
-
-[profile.release]
-opt-level = 3
-debug = false
-strip = true
-codegen-units = 1
-
-[profile.dev]
-opt-level = 0
-debug = true
-strip = false
-
-[workspace.package]
-version = "0.17.0"
-edition = "2024"
-authors = ["Hodei Team"]
-license = "MIT"
-repository = "https://github.com/Rubentxu/hodei-pipelines"
-keywords = ["cicd", "distributed", "orchestration", "rust"]
-categories = ["development-tools"]
-rust-version = "1.89"
+pretty_assertions = "1.0"
+mockall = "0.12"
+testcontainers = "10.0"
+testcontainers-modules = { version = "3.0", features = ["postgres"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json"] }
+once_cell = "1.19"

@@ -1,0 +1,43 @@
+[package]
+name = "hodei-pipelines-application"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Application layer for Hodei Pipelines - use cases and application services"
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Workspace core crates
+hodei-pipelines-domain = { workspace = true }
+hodei-pipelines-ports = { workspace = true }
+hodei-pipelines-adapters = { workspace = true }
+hodei-pipelines-proto = { workspace = true }
+
+# Workspace async and serialization
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+
+# Workspace utilities
+uuid = { workspace = true }
+tracing = { workspace = true }
+tracing-opentelemetry = "0.32.0"
+opentelemetry = "0.31.0"
+opentelemetry_sdk = "0.31.0"
+opentelemetry-otlp = "0.31.0"
+dashmap = { workspace = true }
+rand = "0.9.2"
+
+# Lock-free data structures and batching
+crossbeam = { version = "0.8", features = ["std"] }
+crossbeam-channel = "0.5"
+tempfile = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+testcontainers = { workspace = true }
+sqlx = { workspace = true }
