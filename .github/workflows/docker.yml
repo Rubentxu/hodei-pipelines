@@ -1,0 +1,142 @@
+name: Docker Build and Publish
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Build Docker image
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      tag: ${{ steps.meta.outputs.tags }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      id: build-and-push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Image digest
+      run: echo digest ${{ steps.build-and-push.outputs.digest }}
+
+    - name: Set output
+      id: image
+      run: echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ steps.image.outputs.image }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Test the Docker image
+  test:
+    name: Test Docker Image
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Set up test environment
+      run: echo "Testing image ${{ needs.build.outputs.image }}"
+
+    - name: Health check
+      run: |
+        docker run --rm -d --name test-container -p 8080:8080 ${{ needs.build.outputs.image }}
+        sleep 10
+        curl -f http://localhost:8080/health || exit 1
+        docker stop test-container
+
+  # Deploy to staging (if on main branch)
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    steps:
+    - name: Deploy to staging
+      run: |
+        echo "Deploying ${{ needs.build.outputs.image }} to staging"
+        # Add your staging deployment logic here
+        echo "Deployment to staging completed"
+
+  # Deploy to production (if tagged release)
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    steps:
+    - name: Deploy to production
+      run: |
+        echo "Deploying ${{ needs.build.outputs.image }} to production"
+        # Add your production deployment logic here
+        echo "Deployment to production completed"
+
+  # Security scan with Docker Scout
+  scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: always()
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Scout
+      uses: docker/scout-action@v1
+      with:
+        command: cves
+        image: ${{ needs.build.outputs.image }}
+        format: sarif
+        output: scout-results.sarif
+
+    - name: Upload scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: scout-results.sarif

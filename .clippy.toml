@@ -1,0 +1,53 @@
+# Clippy configuration
+# See: https://doc.rust-lang.org/clippy/configuration.html
+
+# Allow warnings in doc tests
+doc-validate-hyphenated-code = true
+
+# Ignore unnecessary warnings
+deref-without-type-annotation = true
+
+# Allow certain lints to be warnings
+warn-on-field-without-type-annotation = false
+
+# Allow complex macros
+complexity-style = "warn"
+
+# Max types allowed in function signatures
+type-complexity-threshold = 250
+
+# Allow single-character variable names in short closures
+single-char-binding-names = false
+
+# Allow too many arguments in functions (domain models can be complex)
+too-many-arguments-threshold = 12
+
+# Allow large enum variants (necessary for domain modeling)
+large-enum-variants-threshold = 64
+
+# Allow box syntax for type erasure (async programming)
+box-syntax = "warn"
+
+# Allow fallible trait implementations (error handling)
+fallible-traits = "warn"
+
+# Allow needless return (explicit returns are clearer)
+needless-return = "warn"
+
+# Allow needless borrow (explicit borrowing is clearer)
+needless-borrow = "warn"
+
+# Allow needless closure (explicit code is clearer)
+needless-closure = "warn"
+
+# Allow mut for some patterns
+unnecessary-mut = "warn"
+
+# Allow redundant field names in struct initialization
+redundant-field-names = "warn"
+
+# Allow explicit lifetime annotations (DDD requires this)
+explicit-lifetimes = "warn"
+
+# Allow type alias bounds (common in domain modeling)
+type-alias-bounds = "warn"

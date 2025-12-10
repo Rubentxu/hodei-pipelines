@@ -1,94 +1,55 @@
-# ========================================
-# .dockerignore para Docker Build
-# Excluir archivos innecesarios para reducir contexto
-# ========================================
-
-# Note: Cargo.lock no existe en workspace (root)
-# Los Dockerfiles solo copian Cargo.toml
-
-# Directorios de datos
-data/
-logs/
-target/release/hodei-server
-
-# Archivos de desarrollo
-.env.local
-.env.*.local
-
-# Documentación (generados)
-docs/generated/
-target/doc/
-
-# Git y version control
-.git/
+# Docker ignore file
+# Ignore development files
+.git
 .gitignore
-.gitattributes
+.github
+.pre-commit-config.yaml
+rustfmt.toml
+clippy.toml
+coverage.lcov
 
-# IDEs
+# Documentation
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+docs/
+
+# Test artifacts
+target/debug/
+target/release/
+coverage/
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS generated files
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-
-# Rust
-target/
-Cargo.lock
-
-# Testing
-coverage/
-*.profraw
-*.lcov
-
-# Docker
-docker-compose.override.yml
-Dockerfile*
-.dockerignore
-
-# CI/CD
-.github/
-.gitlab-ci.yml
-.travis.yml
-Jenkinsfile
-
-# Monitoring configs (no needed in build)
-monitoring/prometheus/*.yml
-monitoring/grafana/**/*
 
 # Temporary files
 *.tmp
-*.temp
-.cache/
+*.log
+*.pid
+*.seed
 
-# Documentation files
-*.md
-!README.md
+# Build artifacts
+Cargo.lock
 
-# E2E tests - keep for workspace
-!crates/e2e-tests/
+# Rust specific
+/target
 
-# Database files
-*.db
-*.sqlite
-*.sqlite3
+# Local environment
+.env
+.env.local
+.env.*.local
 
-# Backup files
-*.bak
-*.backup
+# CI/CD specific
+.github/
+.pre-commit-config.yaml
 
-# Lock files (keep Cargo.lock for build)
-yarn.lock
-package-lock.json
-pnpm-lock.yaml
-
-# Node modules (if any)
-node_modules/
+# Old crates
+crates-old/

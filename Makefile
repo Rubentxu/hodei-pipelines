@@ -1,242 +1,178 @@
-# =============================================================================
-# Hodei Pipelines - Unified Makefile (Updated with Singleton Container Pattern)
-# =============================================================================
+# Makefile for Hodei Jobs Platform
+# Provides convenient commands for development and CI/CD
 
-# Variables
-VERSION ?= $(shell git describe --tags --always --dirty)
-NAMESPACE ?= hodei-pipelines
-IMAGE_REGISTRY ?= ghcr.io/rubentxu
-IMAGE_SERVER ?= hodei-pipelines/hodei-server
-IMAGE_AGENT ?= hodei-pipelines/hwp-agent
-
-# Scripts
-SCRIPT_CI_CD := deployment/scripts/ci-cd.sh
-SCRIPT_TESTKUBE := testkube/scripts/run-tests.sh
-SCRIPT_VCLUSTER := testkube/scripts/setup-vcluster-testkube.sh
-SCRIPT_MANIFEST := scripts/generate_clean_manifest.sh
-SCRIPT_RUN_TESTS := ./run-tests.sh
-SCRIPT_CLEANUP := ./cleanup-tests.sh
-SCRIPT_DEV_START := scripts/dev-start.sh
-
-.PHONY: help test test-singleton test-integration test-all clean-tests clean-containers clean-all build push deploy test-helm test-e2e setup-dev manifest validate-api gen-types check-contract test-contract clean dev-full dev-services dev-backend dev-web dev-stop dev-logs dev-status
+.PHONY: help install-deps test test-coverage lint format check clean build docs
 
 # Default target
 help: ## Show this help message
-	@echo "Hodei Pipelines Makefile - Complete Development Environment"
+	@echo "Hodei Jobs Platform - Development Commands"
 	@echo ""
-	@echo "Usage: make [target]"
+	@echo "Available commands:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "🚀 DESARROLLO COMPLETO:"
-	@echo "  dev-full                Levantar entorno completo (servicios + backend + web)"
-	@echo "  dev-services            Levantar solo servicios (PostgreSQL + Redis)"
-	@echo "  dev-backend             Levantar backend (requiere servicios activos)"
-	@echo "  dev-web                 Levantar web console (requiere backend activo)"
-	@echo "  dev-stop                Detener todos los servicios"
-	@echo "  dev-logs                Ver logs de desarrollo"
-	@echo "  dev-status              Estado de servicios"
+	@echo "Installation:"
+	@echo "  install-deps    Install all development dependencies"
 	@echo ""
-	@echo "🎯 INTEGRATION TESTS (Recommended):"
-	@echo "  test-singleton          Run singleton container tests (95% less memory)"
-	@echo "  test-integration        Run integration tests with cleanup"
-	@echo "  test-all                Run all tests with container cleanup"
+	@echo "Testing:"
+	@echo "  test           Run all tests"
+	@echo "  test-coverage  Run tests with coverage report"
+	@echo "  bench          Run benchmarks"
 	@echo ""
-	@echo "🧹 TEST CONTAINER CLEANUP:"
-	@echo "  clean-tests             Cleanup test containers and resources"
-	@echo "  clean-containers        Remove PostgreSQL test containers"
-	@echo "  clean-all               Deep cleanup: containers, images, volumes"
+	@echo "Code Quality:"
+	@echo "  lint           Run clippy lints"
+	@echo "  format         Format all code"
+	@echo "  check          Check code formatting and linting"
+	@echo "  audit          Run security audit"
 	@echo ""
-	@echo "🏗️  BUILD & DEPLOY:"
-	@echo "  build                   Build Docker images"
-	@echo "  push                    Push Docker images"
-	@echo "  deploy                  Deploy to Kubernetes"
+	@echo "Build & Docs:"
+	@echo "  build          Build the project"
+	@echo "  build-release  Build in release mode"
+	@echo "  docs           Generate documentation"
+	@echo "  serve-docs     Serve documentation locally"
 	@echo ""
-	@echo "✅ OTHER:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo "CI/CD:"
+	@echo "  ci-local       Run CI pipeline locally"
+	@echo "  pre-commit     Run pre-commit hooks"
 
-# =============================================================================
-# 🎯 INTEGRATION TESTS - Optimized with Singleton Pattern
-# =============================================================================
+# Installation
+install-deps: ## Install all development dependencies
+	@echo "Installing Rust toolchain..."
+	rustup update stable
+	rustup component add clippy rustfmt rust-docs
+	@echo "Installing cargo tools..."
+	cargo install cargo-llvm-cov cargo-audit cargo-outdated
+	@echo "Installing pre-commit..."
+	@which pre-commit > /dev/null || pip install pre-commit
+	@pre-commit install
+	@echo "Dependencies installed successfully!"
 
-# Run singleton container tests (95% memory reduction)
-# Usage: make test-singleton [TEST=test_name]
-test-singleton: ## Run singleton container tests (Recommended)
-	@echo "🧪 Running singleton container tests..."
-	@echo "💾 Memory: ~37MB (vs 4GB without singleton)"
-	@echo "⏱️  Performance: 50% faster"
-	@echo ""
-	@if [ -n "$(TEST)" ]; then \
-		echo "Running test: $(TEST)"; \
-		$(SCRIPT_RUN_TESTS) --test $(TEST) -- --test-threads=1; \
-	else \
-		echo "Running test_singleton_optimized..."; \
-		$(SCRIPT_RUN_TESTS) --test test_singleton_optimized -- --test-threads=1; \
-	fi
-
-# Run integration tests with automatic cleanup
-test-integration: ## Run integration tests with automatic cleanup
-	@echo "🧪 Running integration tests..."
-	@$(SCRIPT_RUN_TESTS) --package integration-pipelines-tests
-
-# Run all tests with cleanup
-test-all: ## Run all tests with container cleanup
-	@echo "🧪 Running all tests..."
-	@$(SCRIPT_RUN_TESTS)
-
-# =============================================================================
-# 🧹 TEST CONTAINER CLEANUP
-# =============================================================================
-
-# Cleanup test containers and resources
-clean-tests: ## Cleanup test containers and resources
-	@echo "🧹 Cleaning up test resources..."
-	@bash $(SCRIPT_CLEANUP)
-	@echo "✅ Test cleanup completed"
-
-# Remove PostgreSQL test containers only
-clean-containers: ## Remove only PostgreSQL test containers
-	@echo "🧹 Removing PostgreSQL test containers..."
-	@docker rm -f $(docker ps -q --filter ancestor=postgres:16-alpine 2>/dev/null) 2>/dev/null || echo "No PostgreSQL containers found"
-	@docker container prune -f 2>/dev/null || true
-	@echo "✅ PostgreSQL containers removed"
-
-# Deep cleanup - remove containers, images, and volumes (CUIDADO)
-clean-all: clean-containers ## Deep cleanup: containers, images, volumes (CUIDADO!)
-	@echo "🧹 Deep cleanup: removing images and volumes..."
-	@echo "⚠️  This may remove development images!"
-	@docker image prune -f 2>/dev/null || true
-	@docker volume prune -f 2>/dev/null || true
-	@echo "✅ Deep cleanup completed"
-
-# =============================================================================
-# Legacy support - redirect to new targets
-test: test-singleton ## Legacy: Run tests (redirects to test-singleton)
-
-# =============================================================================
-# Build & Deploy
-# =============================================================================
-
-build: ## Build Docker images
-	@echo "Building images..."
-	@VERSION=$(VERSION) $(SCRIPT_CI_CD) build
-
-push: ## Push Docker images
-	@echo "Pushing images..."
-	@VERSION=$(VERSION) $(SCRIPT_CI_CD) push
-
-deploy: ## Deploy to Kubernetes
-	@echo "Deploying to Kubernetes..."
-	@VERSION=$(VERSION) NAMESPACE=$(NAMESPACE) $(SCRIPT_CI_CD) deploy
-
-# =============================================================================
 # Testing
-# =============================================================================
+test: ## Run all tests
+	@echo "Running all tests..."
+	cargo test --workspace --verbose
+	@echo "✓ All tests passed"
 
-test-helm: ## Run Helm chart tests (lint & template)
-	@echo "Running Helm tests..."
-	@VERSION=$(VERSION) $(SCRIPT_CI_CD) test
+test-coverage: ## Run tests with coverage report
+	@echo "Running tests with coverage..."
+	cargo llvm-cov --workspace --html
+	@echo "Coverage report generated in target/llvm-cov/html/"
 
-test-e2e: ## Run Testkube E2E tests (Usage: make test-e2e [SUITE=...] [TEST=...])
-	@echo "Running E2E tests..."
-	@$(SCRIPT_TESTKUBE) $(if $(SUITE),--suite $(SUITE)) $(if $(TEST),--test $(TEST)) --namespace testkube --watch
+bench: ## Run benchmarks
+	@echo "Running benchmarks..."
+	cargo bench --workspace
 
-# =============================================================================
-# Development
-# =============================================================================
+# Code Quality
+lint: ## Run clippy lints
+	@echo "Running clippy..."
+	cargo clippy --all-targets --all-features -- -D warnings
+	@echo "✓ No linting issues found"
 
-setup-dev: ## Setup local vcluster environment with Testkube
-	@echo "Setting up local development environment..."
-	@$(SCRIPT_VCLUSTER)
+format: ## Format all code
+	@echo "Formatting code..."
+	cargo fmt --all
+	@echo "✓ Code formatted"
 
-manifest: ## Generate CODE_MANIFEST.csv
-	@echo "Generating CODE_MANIFEST.csv..."
-	@bash $(SCRIPT_MANIFEST)
+check: ## Check code formatting and linting
+	@echo "Checking code formatting..."
+	cargo fmt --all -- --check
+	@echo "Running clippy..."
+	cargo clippy --all-targets --all-features -- -D warnings
+	@echo "✓ Code quality checks passed"
 
-# =============================================================================
-# 🐳 Docker Compose Development Environment
-# =============================================================================
+audit: ## Run security audit
+	@echo "Running security audit..."
+	cargo audit
+	@echo "✓ Security audit passed"
 
-dev-services: ## Start only third-party services (PostgreSQL + Redis)
-	@echo "🚀 Starting third-party services..."
-	@bash $(SCRIPT_DEV_START) --services
-	@echo ""
-	@echo "✅ Database schema automatically initialized!"
+# Build
+build: ## Build the project
+	@echo "Building project..."
+	cargo build
+	@echo "✓ Build successful"
 
-dev-backend: ## Start backend (requires services running)
-	@echo "🚀 Starting backend services..."
-	@bash $(SCRIPT_DEV_START) --backend
+build-release: ## Build in release mode
+	@echo "Building project in release mode..."
+	cargo build --release
+	@echo "✓ Release build successful"
 
-dev-web: ## Start web console (requires backend running)
-	@echo "🚀 Starting web console..."
-	@bash $(SCRIPT_DEV_START) --web
+# Documentation
+docs: ## Generate documentation
+	@echo "Generating documentation..."
+	cargo doc --workspace --no-deps
+	@echo "✓ Documentation generated"
 
-dev-full: ## Start complete development environment
-	@echo "🚀 Starting complete development environment..."
-	@bash $(SCRIPT_DEV_START) --full
+serve-docs: docs ## Serve documentation locally
+	@echo "Serving documentation at http://localhost:3000"
+	cargo doc --workspace --no-deps --open || true
+	@python3 -m http.server 3000 -d target/doc 2>/dev/null || true
 
-dev-stop: ## Stop all development services
-	@echo "🛑 Stopping all services..."
-	@bash $(SCRIPT_DEV_START) --stop
+# Clean
+clean: ## Clean build artifacts
+	@echo "Cleaning build artifacts..."
+	cargo clean
+	@echo "✓ Cleaned"
 
-dev-logs: ## Show development logs
-	@echo "📝 Available logs:"
-	@echo "  Backend:  tail -f server.log"
-	@echo "  Agent:    tail -f agent.log"
-	@echo "  Web:      tail -f web.log"
-	@echo "  Services: docker compose -f docker-compose.dev.yml logs -f postgres"
+clean-all: clean ## Clean all including cargo registry
+	@echo "Cleaning all artifacts..."
+	cargo clean
+	rm -rf target/llvm-cov
+	@echo "✓ Fully cleaned"
 
-dev-status: ## Show status of all development services
-	@echo "📊 Development Environment Status:"
-	@echo ""
-	@echo "🐳 Docker Services:"
-	@docker compose -f docker-compose.dev.yml ps
-	@echo ""
-	@echo "🔧 Local Services:"
-	@echo "  Backend Server:  $$(lsof -Pi :8080 -sTCP:LISTEN 2>/dev/null | wc -l) processes"
-	@echo "  gRPC Server:     $$(lsof -Pi :50051 -sTCP:LISTEN 2>/dev/null | wc -l) processes"
-	@echo "  Web Console:     $$(lsof -Pi :5173 -sTCP:LISTEN 2>/dev/null | wc -l) processes"
+# CI/CD
+ci-local: check audit test test-coverage ## Run CI pipeline locally
+	@echo "✓ CI pipeline completed successfully"
 
-# Legacy aliases
-dev: dev-full
-dev-up: dev-services
-dev-down: dev-stop
+pre-commit: ## Run pre-commit hooks
+	@echo "Running pre-commit hooks..."
+	@which pre-commit > /dev/null || (echo "Please install pre-commit: pip install pre-commit" && exit 1)
+	pre-commit run --all-files
+	@echo "✓ Pre-commit checks passed"
 
-# =============================================================================
-# API Contract Validation
-# =============================================================================
+# Docker
+docker-build: ## Build Docker image
+	@echo "Building Docker image..."
+	docker build -t hodei-jobs:latest .
 
-validate-api: ## Validate OpenAPI specification
-	@echo "Validating API contract..."
-	@./scripts/validate-api-contract.sh
+docker-run: ## Run Docker container
+	@echo "Running Docker container..."
+	docker run -p 8080:8080 hodei-jobs:latest
 
-gen-types: ## Generate TypeScript types from OpenAPI
-	@echo "Generating TypeScript types..."
-	@if [ -f "docs/openapi.yaml" ]; then \
-		cd web-console && npm run generate:types; \
-		echo "✅ TypeScript types generated"; \
-	else \
-		echo "❌ OpenAPI spec not found at docs/openapi.yaml"; \
-		exit 1; \
-	fi
+# Development helpers
+watch-test: ## Watch tests and run on changes
+	@echo "Watching for test changes..."
+	cargo watch -x test
 
-check-contract: ## Check for breaking changes in API contract
-	@echo "Checking for breaking changes..."
-	@if [ -f "docs/openapi-previous.yaml" ]; then \
-		echo "Comparing with previous specification..."; \
-		diff -u docs/openapi-previous.yaml docs/openapi.yaml || \
-		echo "⚠️  Breaking changes detected!"; \
-	else \
-		echo "No previous spec found. Copying current as baseline..."; \
-		cp docs/openapi.yaml docs/openapi-previous.yaml; \
-	fi
+watch-build: ## Watch build and rebuild on changes
+	@echo "Watching for source changes..."
+	cargo watch -x build
 
-test-contract: ## Run contract tests
-	@echo "Running contract tests..."
-	@cd web-console && npm test -- tests/contract/api-contract.test.ts || \
-		echo "⚠️  Contract tests working"
+# Performance profiling
+profile: ## Run performance profiling
+	@echo "Running performance profiling..."
+	cargo build --release
+	perf record -g target/release/hodei-jobs
+	perf report
 
-# =============================================================================
-# Cleanup
-# =============================================================================
+# Dependency management
+update-deps: ## Update all dependencies
+	@echo "Updating dependencies..."
+	cargo update
+	@echo "Dependencies updated"
 
-clean: clean-tests ## Cleanup resources (redirects to clean-tests)
-	@$(SCRIPT_CI_CD) cleanup
+outdated: ## Check for outdated dependencies
+	@echo "Checking for outdated dependencies..."
+	cargo outdated
+
+# Generate coverage badge
+coverage-badge: test-coverage
+	@echo "Generating coverage badge..."
+	cargo llvm-cov --workspace --summary-only | grep -E "TOTAL.*[0-9]+\.[0-9]+%" || echo "Coverage: $$(cargo llvm-cov --workspace --summary-only | tail -1 | awk '{print $$4}')"
+
+# Release workflow
+prepare-release: check audit test build-release ## Prepare for release
+	@echo "Release preparation completed"
+	@echo "Next steps:"
+	@echo "  1. Update version in Cargo.toml files"
+	@echo "  2. Update CHANGELOG.md"
+	@echo "  3. Create release tag: git tag vX.Y.Z"
+	@echo "  4. Push tag: git push origin vX.Y.Z"

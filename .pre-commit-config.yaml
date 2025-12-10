@@ -1,0 +1,83 @@
+# Pre-commit hooks configuration
+# Install: pip install pre-commit && pre-commit install
+
+repos:
+  # Rust formatting
+  - repo: https://github.com/doublify/rustfmt-pre-commit
+    rev: v0.1.0
+    hooks:
+      - id: rustfmt
+        stages: [commit]
+
+  # Rust linting
+  - repo: https://github.com/doublify/rustfmt-pre-commit
+    rev: v0.1.0
+    hooks:
+      - id: clippy
+        args: [--all-targets, --all-features, --, -D, warnings]
+        stages: [commit]
+
+  # Rust security audit
+  - repo: https://github.com/rustsec/pre-commit
+    rev: v0.3.0
+    hooks:
+      - id: cargo-audit
+        args: [--deny, warnings]
+        stages: [commit]
+
+  # Rust testing
+  - repo: local
+    hooks:
+      - id: cargo-test
+        name: cargo-test
+        entry: cargo test --workspace --verbose
+        language: system
+        stages: [commit]
+
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        stages: [commit]
+      - id: end-of-file-fixer
+        stages: [commit]
+      - id: check-yaml
+        stages: [commit]
+      - id: check-toml
+        stages: [commit]
+      - id: check-json
+        stages: [commit]
+      - id: check-merge-conflict
+        stages: [commit]
+      - id: check-added-large-files
+        stages: [commit]
+      - id: debug-statements
+        stages: [commit]
+
+  # Commit message linting
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v2.3.0
+    hooks:
+      - id: conventional-commit-types
+      - id: conventional-commits
+
+  # Documentation checks
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.37.0
+    hooks:
+      - id: markdownlint
+        args: [--fix]
+
+# CI configuration
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false
