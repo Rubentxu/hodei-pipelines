@@ -105,6 +105,7 @@ docs/alineamiento
 !docs/analysis/gap_analysis_resource_governance.md
 !docs/analysis/implementation_plan_resource_governance.md
 !docs/epics/EPIC-05-RESOURCE-GOVERNANCE.md
+!SPRINT*.md
 node_modules/
 package-lock.json
 *.csv

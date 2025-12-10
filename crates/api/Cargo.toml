@@ -1,7 +1,7 @@
 [package]
 name = "api"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 domain = { path = "../domain" }
@@ -15,3 +15,7 @@ thiserror = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["cors", "trace"] }
+validator = { workspace = true }
+utoipa = { workspace = true, features = ["axum", "chrono"] }
