@@ -15,6 +15,8 @@ pub struct Job {
     pub spec: JobSpec,
     pub state: JobState,
     pub execution_context: Option<ExecutionContext>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub error_message: Option<String>,
 }
 
 impl Job {
@@ -31,6 +33,8 @@ impl Job {
             spec,
             state: JobState::Pending,
             execution_context: None,
+            completed_at: None,
+            error_message: None,
         })
     }
 
@@ -43,16 +47,26 @@ impl Job {
     /// Marks job as completed
     pub fn complete(&mut self) {
         self.state = JobState::Completed;
+        self.completed_at = Some(chrono::Utc::now());
     }
 
     /// Marks job as failed
     pub fn fail(&mut self) {
         self.state = JobState::Failed;
+        self.completed_at = Some(chrono::Utc::now());
+    }
+
+    /// Marks job as failed with error message
+    pub fn fail_with_error(&mut self, error_message: String) {
+        self.state = JobState::Failed;
+        self.error_message = Some(error_message);
+        self.completed_at = Some(chrono::Utc::now());
     }
 
     /// Cancels the job
     pub fn cancel(&mut self) {
         self.state = JobState::Cancelled;
+        self.completed_at = Some(chrono::Utc::now());
     }
 }
 
