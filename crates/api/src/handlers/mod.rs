@@ -25,14 +25,14 @@ pub struct CreateJobRequest {
     pub args: Vec<String>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct CreateJobResponse {
     pub job_id: String,
     pub status: String,
     pub name: String,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct JobResponse {
     pub job_id: String,
     pub name: String,
@@ -43,7 +43,7 @@ pub struct JobResponse {
     pub completed_at: Option<String>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct JobListResponse {
     pub jobs: Vec<JobResponse>,
     pub total: usize,
@@ -60,7 +60,7 @@ pub struct RegisterProviderRequest {
     pub config_endpoint: String,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct RegisterProviderResponse {
     pub provider_id: String,
     pub name: String,
@@ -68,7 +68,7 @@ pub struct RegisterProviderResponse {
     pub status: String,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct ProviderResponse {
     pub provider_id: String,
     pub name: String,
@@ -79,13 +79,13 @@ pub struct ProviderResponse {
     pub created_at: Option<String>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct ProviderListResponse {
     pub providers: Vec<ProviderResponse>,
     pub total: usize,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct ApiResponse<T> {
     pub success: bool,
     pub data: Option<T>,
@@ -116,8 +116,12 @@ pub async fn create_job_handler(
     State(state): State<AppState>,
     Json(request): Json<CreateJobRequest>,
 ) -> Result<Json<ApiResponse<CreateJobResponse>>, StatusCode> {
-    let job_spec = JobSpec::new(request.name, request.command, request.args)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    // Validate input
+    if request.name.trim().is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let job_spec = JobSpec::new(request.name, request.command, request.args);
 
     let job_service = state.job_service.lock().await;
     let job = job_service.create_job(job_spec)
@@ -160,11 +164,13 @@ pub async fn list_jobs_handler(
         completed_at: None,
     }).collect();
 
+    let total = job_responses.len();
+
     Ok(Json(ApiResponse {
         success: true,
         data: Some(JobListResponse {
             jobs: job_responses,
-            total: job_responses.len(),
+            total,
         }),
         error: None,
     }))
@@ -300,11 +306,13 @@ pub async fn list_providers_handler(
         created_at: None,
     }).collect();
 
+    let total = provider_responses.len();
+
     Ok(Json(ApiResponse {
         success: true,
         data: Some(ProviderListResponse {
             providers: provider_responses,
-            total: provider_responses.len(),
+            total,
         }),
         error: None,
     }))
@@ -531,7 +539,7 @@ mod tests {
 
         assert!(response.success);
         assert!(response.data.is_some());
-        assert_eq!(response.data.unwrap().name, "test-job");
+        assert_eq!(response.data.as_ref().unwrap().name, "test-job");
     }
 
     #[tokio::test]
@@ -573,7 +581,7 @@ mod tests {
 
         assert!(response.success);
         assert!(response.data.is_some());
-        assert_eq!(response.data.unwrap().total, 0);
+        assert_eq!(response.data.as_ref().unwrap().total, 0);
     }
 
     #[tokio::test]
@@ -603,7 +611,7 @@ mod tests {
 
         assert!(response.success);
         assert!(response.data.is_some());
-        assert_eq!(response.data.unwrap().name, "Docker Provider");
+        assert_eq!(response.data.as_ref().unwrap().name, "Docker Provider");
     }
 
     #[tokio::test]

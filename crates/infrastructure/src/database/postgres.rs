@@ -6,7 +6,7 @@ use domain::job_execution::{Job, JobRepository, JobSpec};
 use domain::provider_management::{Provider, ProviderRepository};
 use domain::provider_management::entities::ProviderStatus;
 use domain::shared_kernel::{DomainError, DomainResult, JobId, ProviderId, ProviderType, JobState};
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres, Row};
 use tracing::info;
 
 /// PostgreSQL connection pool configuration
@@ -107,7 +107,7 @@ impl JobRepository for PostgresJobRepository {
     async fn save(&self, job: &Job) -> DomainResult<()> {
         let state = Self::job_state_to_db(&job.state);
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO jobs (id, job_spec, state, completed_at, error_message)
             VALUES ($1, $2, $3, $4, $5)
@@ -116,13 +116,13 @@ impl JobRepository for PostgresJobRepository {
                 state = EXCLUDED.state,
                 completed_at = EXCLUDED.completed_at,
                 error_message = EXCLUDED.error_message
-            "#,
-            job.id.0,
-            serde_json::to_value(&job.spec).map_err(|e| DomainError::Infrastructure(format!("Failed to serialize job spec: {}", e)))?,
-            state,
-            job.completed_at.map(|dt| dt.naive_utc()),
-            job.error_message,
+            "#
         )
+        .bind(&job.id.0)
+        .bind(serde_json::to_value(&job.spec).map_err(|e| DomainError::Infrastructure(format!("Failed to serialize job spec: {}", e)))?)
+        .bind(state)
+        .bind(job.completed_at.map(|dt| dt.naive_utc()))
+        .bind(job.error_message.as_ref())
         .execute(&self.pool)
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to save job: {}", e)))?;
@@ -131,29 +131,35 @@ impl JobRepository for PostgresJobRepository {
     }
 
     async fn find_by_id(&self, id: &JobId) -> DomainResult<Option<Job>> {
-        let row = sqlx::query!(
+        let row = sqlx::query(
             r#"
             SELECT id, job_spec, state, completed_at, error_message
             FROM jobs
             WHERE id = $1
-            "#,
-            id.0
+            "#
         )
+        .bind(&id.0)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to find job: {}", e)))?;
 
         if let Some(row) = row {
-            let spec: JobSpec = serde_json::from_value(row.job_spec)
+            let job_id: String = row.get("id");
+            let job_spec: serde_json::Value = row.get("job_spec");
+            let state: String = row.get("state");
+            let completed_at: Option<chrono::NaiveDateTime> = row.get("completed_at");
+            let error_message: Option<String> = row.get("error_message");
+
+            let spec: JobSpec = serde_json::from_value(job_spec)
                 .map_err(|e| DomainError::Infrastructure(format!("Failed to deserialize job spec: {}", e)))?;
 
             let job = Job {
-                id: JobId(row.id),
+                id: JobId(job_id),
                 spec,
-                state: Self::db_to_job_state(&row.state),
+                state: Self::db_to_job_state(&state),
                 execution_context: None,
-                completed_at: row.completed_at.map(|dt| chrono::DateTime::from_naive_utc_and_offset(dt, chrono::Utc)),
-                error_message: row.error_message,
+                completed_at: completed_at.map(|dt| chrono::DateTime::from_naive_utc_and_offset(dt, chrono::Utc)),
+                error_message,
             };
 
             Ok(Some(job))
@@ -163,7 +169,7 @@ impl JobRepository for PostgresJobRepository {
     }
 
     async fn list(&self) -> DomainResult<Vec<Job>> {
-        let rows = sqlx::query!(
+        let rows = sqlx::query(
             r#"
             SELECT id, job_spec, state, completed_at, error_message
             FROM jobs
@@ -176,16 +182,22 @@ impl JobRepository for PostgresJobRepository {
 
         let mut jobs = Vec::new();
         for row in rows {
-            let spec: JobSpec = serde_json::from_value(row.job_spec)
+            let job_id: String = row.get("id");
+            let job_spec: serde_json::Value = row.get("job_spec");
+            let state: String = row.get("state");
+            let completed_at: Option<chrono::NaiveDateTime> = row.get("completed_at");
+            let error_message: Option<String> = row.get("error_message");
+
+            let spec: JobSpec = serde_json::from_value(job_spec)
                 .map_err(|e| DomainError::Infrastructure(format!("Failed to deserialize job spec: {}", e)))?;
 
             let job = Job {
-                id: JobId(row.id),
+                id: JobId(job_id),
                 spec,
-                state: Self::db_to_job_state(&row.state),
+                state: Self::db_to_job_state(&state),
                 execution_context: None,
-                completed_at: row.completed_at.map(|dt| chrono::DateTime::from_naive_utc_and_offset(dt, chrono::Utc)),
-                error_message: row.error_message,
+                completed_at: completed_at.map(|dt| chrono::DateTime::from_naive_utc_and_offset(dt, chrono::Utc)),
+                error_message,
             };
 
             jobs.push(job);
@@ -195,13 +207,11 @@ impl JobRepository for PostgresJobRepository {
     }
 
     async fn delete(&self, id: &JobId) -> DomainResult<()> {
-        sqlx::query!(
-            "DELETE FROM jobs WHERE id = $1",
-            id.0
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to delete job: {}", e)))?;
+        sqlx::query("DELETE FROM jobs WHERE id = $1")
+            .bind(&id.0)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Infrastructure(format!("Failed to delete job: {}", e)))?;
 
         Ok(())
     }
@@ -245,7 +255,7 @@ impl PostgresProviderRepository {
 #[async_trait::async_trait]
 impl ProviderRepository for PostgresProviderRepository {
     async fn save(&self, provider: &Provider) -> DomainResult<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO providers (id, name, provider_type, status, capabilities, config)
             VALUES ($1, $2, $3, $4, $5, $6)
@@ -255,14 +265,14 @@ impl ProviderRepository for PostgresProviderRepository {
                 status = EXCLUDED.status,
                 capabilities = EXCLUDED.capabilities,
                 config = EXCLUDED.config
-            "#,
-            provider.id.0,
-            provider.name,
-            Self::provider_type_to_db(&provider.provider_type),
-            format!("{:?}", provider.status).to_lowercase(),
-            serde_json::to_value(&provider.capabilities).map_err(|e| DomainError::Infrastructure(format!("Failed to serialize capabilities: {}", e)))?,
-            serde_json::to_value(&provider.config).map_err(|e| DomainError::Infrastructure(format!("Failed to serialize config: {}", e)))?,
+            "#
         )
+        .bind(&provider.id.0)
+        .bind(&provider.name)
+        .bind(Self::provider_type_to_db(&provider.provider_type))
+        .bind(format!("{:?}", provider.status).to_lowercase())
+        .bind(serde_json::to_value(&provider.capabilities).map_err(|e| DomainError::Infrastructure(format!("Failed to serialize capabilities: {}", e)))?)
+        .bind(serde_json::to_value(&provider.config).map_err(|e| DomainError::Infrastructure(format!("Failed to serialize config: {}", e)))?)
         .execute(&self.pool)
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to save provider: {}", e)))?;
@@ -271,37 +281,44 @@ impl ProviderRepository for PostgresProviderRepository {
     }
 
     async fn find_by_id(&self, id: &ProviderId) -> DomainResult<Option<Provider>> {
-        let row = sqlx::query!(
+        let row = sqlx::query(
             r#"
             SELECT id, name, provider_type, status, capabilities, config
             FROM providers
             WHERE id = $1
-            "#,
-            id.0
+            "#
         )
+        .bind(&id.0)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| DomainError::Infrastructure(format!("Failed to find provider: {}", e)))?;
 
         if let Some(row) = row {
-            let capabilities = serde_json::from_value(row.capabilities)
+            let provider_id: String = row.get("id");
+            let name: String = row.get("name");
+            let provider_type: String = row.get("provider_type");
+            let status: String = row.get("status");
+            let capabilities: serde_json::Value = row.get("capabilities");
+            let config: serde_json::Value = row.get("config");
+
+            let capabilities_deserialized = serde_json::from_value(capabilities)
                 .map_err(|e| DomainError::Infrastructure(format!("Failed to deserialize capabilities: {}", e)))?;
 
-            let config = serde_json::from_value(row.config)
+            let config_deserialized = serde_json::from_value(config)
                 .map_err(|e| DomainError::Infrastructure(format!("Failed to deserialize config: {}", e)))?;
 
             let provider = Provider {
-                id: ProviderId(row.id),
-                name: row.name,
-                provider_type: Self::db_to_provider_type(&row.provider_type),
-                status: match row.status.as_str() {
+                id: ProviderId(provider_id),
+                name,
+                provider_type: Self::db_to_provider_type(&provider_type),
+                status: match status.as_str() {
                     "active" => ProviderStatus::Active,
                     "inactive" => ProviderStatus::Inactive,
                     "error" => ProviderStatus::Error,
                     _ => ProviderStatus::Inactive,
                 },
-                capabilities,
-                config,
+                capabilities: capabilities_deserialized,
+                config: config_deserialized,
             };
 
             Ok(Some(provider))
@@ -311,7 +328,7 @@ impl ProviderRepository for PostgresProviderRepository {
     }
 
     async fn list(&self) -> DomainResult<Vec<Provider>> {
-        let rows = sqlx::query!(
+        let rows = sqlx::query(
             r#"
             SELECT id, name, provider_type, status, capabilities, config
             FROM providers
@@ -324,24 +341,31 @@ impl ProviderRepository for PostgresProviderRepository {
 
         let mut providers = Vec::new();
         for row in rows {
-            let capabilities = serde_json::from_value(row.capabilities)
+            let provider_id: String = row.get("id");
+            let name: String = row.get("name");
+            let provider_type: String = row.get("provider_type");
+            let status: String = row.get("status");
+            let capabilities: serde_json::Value = row.get("capabilities");
+            let config: serde_json::Value = row.get("config");
+
+            let capabilities_deserialized = serde_json::from_value(capabilities)
                 .map_err(|e| DomainError::Infrastructure(format!("Failed to deserialize capabilities: {}", e)))?;
 
-            let config = serde_json::from_value(row.config)
+            let config_deserialized = serde_json::from_value(config)
                 .map_err(|e| DomainError::Infrastructure(format!("Failed to deserialize config: {}", e)))?;
 
             let provider = Provider {
-                id: ProviderId(row.id),
-                name: row.name,
-                provider_type: Self::db_to_provider_type(&row.provider_type),
-                status: match row.status.as_str() {
+                id: ProviderId(provider_id),
+                name,
+                provider_type: Self::db_to_provider_type(&provider_type),
+                status: match status.as_str() {
                     "active" => ProviderStatus::Active,
                     "inactive" => ProviderStatus::Inactive,
                     "error" => ProviderStatus::Error,
                     _ => ProviderStatus::Inactive,
                 },
-                capabilities,
-                config,
+                capabilities: capabilities_deserialized,
+                config: config_deserialized,
             };
 
             providers.push(provider);
@@ -351,13 +375,11 @@ impl ProviderRepository for PostgresProviderRepository {
     }
 
     async fn delete(&self, id: &ProviderId) -> DomainResult<()> {
-        sqlx::query!(
-            "DELETE FROM providers WHERE id = $1",
-            id.0
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| DomainError::Infrastructure(format!("Failed to delete provider: {}", e)))?;
+        sqlx::query("DELETE FROM providers WHERE id = $1")
+            .bind(&id.0)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DomainError::Infrastructure(format!("Failed to delete provider: {}", e)))?;
 
         Ok(())
     }
